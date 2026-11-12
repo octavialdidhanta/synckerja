@@ -52,9 +52,12 @@ describe('social publish path lock', () => {
   it('does not upload a shared video buffer in parallel or label waiting rows as downloading', () => {
     const bulk = source('supabase/functions/_shared/scheduledPosts/runPlanBulkPostNow.ts');
     const drive = source('supabase/functions/_shared/scheduledPosts/googleDriveVideoDownload.ts');
+    const tick = source('supabase/functions/_shared/scheduledPosts/handleSchedulerTick.ts');
     expect(bulk).toContain('willDownload ? "downloading" : "queued"');
-    expect(bulk).toContain('Boolean(sharedCtx.preloadedVideo) || isPlanPublishSequential()');
-    expect(bulk).toContain('for (const row of instagramAfterPeers)');
+    expect(bulk).toContain('upload_mode=sequential');
+    expect(bulk).toContain('for (const row of ordered)');
+    expect(bulk).not.toContain('Promise.allSettled');
+    expect(tick).not.toContain('instagramPublishShouldFollowPeers');
     expect(drive).toContain('AbortSignal.timeout(DRIVE_DOWNLOAD_TIMEOUT_MS)');
   });
 });

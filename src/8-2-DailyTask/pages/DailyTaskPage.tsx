@@ -20,6 +20,7 @@ import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { supabase } from '@/shared/lib/supabaseClient';
 import type { ContentPlan } from '@/6-1-dashboard/types/social-media';
 import GoogleDriveLinkDialog from '@/6-1-dashboard/modal/GoogleDriveLinkDialog';
+import SocialMediaLinksDialog from '@/6-1-dashboard/modal/SocialMediaLinksDialog';
 import { useOptimizedSocialMediaMutations } from '@/6-1-dashboard/hook/useOptimizedSocialMediaMutations';
 import { getGoogleDriveLinkNonEmptyUpdates } from '@/6-1-dashboard/utils/googleDriveLinkSavePolicy';
 import { Dialog, DialogContent } from '@/shared/components/ui/dialog';
@@ -63,6 +64,7 @@ const DailyTaskContent = () => {
 
   // Preview modal from "View Content" in Task Summary Pending Approval (same as Comment Notifications on dashboard)
   const [previewPlanIdForModal, setPreviewPlanIdForModal] = useState<string | null>(null);
+  const [publishSetupPlanId, setPublishSetupPlanId] = useState<string | null>(null);
   const pendingApprovalRefreshRef = useRef<(() => void) | null>(null);
 
   const PLAN_SELECT = `
@@ -398,11 +400,22 @@ const DailyTaskContent = () => {
           onApprove={() => {
             pendingApprovalRefreshRef.current?.();
           }}
+          onApproved={() => {
+            if (previewPlan?.id) setPublishSetupPlanId(previewPlan.id);
+          }}
           onRevision={() => {
             pendingApprovalRefreshRef.current?.();
           }}
         />
       )}
+      {publishSetupPlanId ? (
+        <SocialMediaLinksDialog
+          isOpen
+          onClose={() => setPublishSetupPlanId(null)}
+          socialMediaPlanId={publishSetupPlanId}
+          planTitle={previewPlan?.id === publishSetupPlanId ? previewPlan.title ?? undefined : undefined}
+        />
+      ) : null}
     </>
   );
 };

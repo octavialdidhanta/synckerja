@@ -1,3 +1,5 @@
+import { briefFacts, textHasFact } from "./briefFacts.mjs";
+
 export type CarouselSlide = {
   label: string;
   scene: string;
@@ -226,7 +228,7 @@ export function buildCanvaCarouselBrief(input: {
 }): string {
   const title = input.title.replace(/\s+/g, " ").trim().slice(0, 200) || "Carousel";
   const caption = input.caption.replace(/\s+/g, " ").trim().slice(0, 280);
-  const requiredNote = (input.requiredNote ?? "").replace(/\s+/g, " ").trim().slice(0, 500);
+  const requiredFacts = briefFacts(input.requiredNote).slice(0, 5);
   const forbiddenNote = (input.forbiddenNote ?? "").replace(/\s+/g, " ").trim().slice(0, 500);
   const notes = referenceNotes(input.styleLock ?? "");
   const sharedNote = notes.get(0) ?? "";
@@ -236,7 +238,11 @@ export function buildCanvaCarouselBrief(input: {
       const slot = referenceSlot(slide.elements);
       const note = (slot ? notes.get(slot) : "") || sharedNote;
       const words = [slide.copy, ...pieces.copy].map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean);
-      if (requiredNote && index === input.slides.length - 1 && !words.some((word) => word.includes(requiredNote))) words.push(requiredNote);
+      if (index === input.slides.length - 1) {
+        for (const fact of requiredFacts) {
+          if (!words.some((word) => textHasFact(word, fact))) words.push(fact);
+        }
+      }
       const picture = [slide.scene, ...pieces.picture].map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean);
       const lines = [`Page ${index + 1}`];
       if (note) lines.push(`Layout and type: ${note}`);
@@ -249,7 +255,7 @@ export function buildCanvaCarouselBrief(input: {
   const captionLine = caption ? ` Caption: ${caption}` : "";
   return [
     `Design an Instagram carousel with ${input.slides.length} portrait 4:5 pages. One page per slide. Make every page editable.`,
-    requiredNote ? `Write exactly this on the last page: ${requiredNote}` : "",
+    requiredFacts.length > 0 ? `Write exactly this on the last page: ${requiredFacts.join(" ")}` : "",
     forbiddenNote ? `Do not write any of this: ${forbiddenNote}` : "",
     paletteLine(input.palette),
     logoLine(input.logo),

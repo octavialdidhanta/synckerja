@@ -10,12 +10,10 @@ import {
   isTransientPublishErrorForPlatform,
   resolveScheduleStatusAfterFailure,
 } from "./scheduledPostRetry.ts";
+import { compareScheduledPostsForPublish } from "./publishPlatformOrder.ts";
 import type { ScheduledPostRow } from "./scheduledPostTypes.ts";
 import {
   buildSharedPublishContext,
-  cloneSharedPublishContext,
-  instagramPublishShouldFollowPeers,
-  isPlanPublishSequential,
   planPublishNeedsPreloadedVideo,
   type SharedPublishContext,
 } from "./sharedPublishContext.ts";
@@ -82,6 +80,38 @@ async function publishScheduleWithContext(
   };
 }
 
+function accountIdOf(row: ScheduledPostRow): string {
+  const config = (row.provider_config ?? {}) as Record<string, unknown>;
+  return String(
+    config.open_id ??
+      config.channel_id ??
+      config.instagram_business_account_id ??
+      config.facebook_page_id ??
+      config.page_id ??
+      "",
+  );
+}
+
+async function releaseUnstartedRows(
+  admin: SupabaseClient,
+  rows: ScheduledPostRow[],
+): Promise<void> {
+  if (rows.length === 0) return;
+  const now = new Date().toISOString();
+  await Promise.all(rows.map((row) =>
+    admin
+      .from("social_media_scheduled_posts")
+      .update({
+        status: "pending",
+        locked_at: null,
+        next_retry_at: null,
+        updated_at: now,
+      })
+      .eq("id", row.id)
+      .eq("status", "publishing")
+  ));
+}
+
 export async function runPlanBulkPostNowJob(
   admin: SupabaseClient,
   args: RunPlanBulkPostNowArgs,
@@ -110,42 +140,30 @@ export async function runPlanBulkPostNowJob(
   );
   await touchPublishingHeartbeat(admin, scheduleIds);
 
-  const instagramAfterPeers = schedules.filter((row) => instagramPublishShouldFollowPeers(row));
-  const withPeers = schedules.filter((row) => !instagramPublishShouldFollowPeers(row));
-  const instagramCopies = new Map(
-    instagramAfterPeers.map((row) => [row.id, cloneSharedPublishContext(sharedCtx)]),
+  const ordered = [...schedules].sort((a, b) =>
+    compareScheduledPostsForPublish(
+      { platform: a.platform, platform_account_id: accountIdOf(a) },
+      { platform: b.platform, platform_account_id: accountIdOf(b) },
+    )
   );
-  const publishRow = (row: ScheduledPostRow) =>
-    publishScheduleWithContext(
-      admin,
-      row.id,
-      row,
-      instagramCopies.get(row.id) ?? sharedCtx,
-    );
-  // Shared video bytes uploaded in parallel detach the buffer or exhaust isolate memory.
-  // One platform at a time still downloads once, and a killed worker can resume the rest.
-  const sequential = Boolean(sharedCtx.preloadedVideo) || isPlanPublishSequential();
   const results: PlanBulkPostNowTargetResult[] = [];
-  console.info(
-    `plan_bulk_publish upload_mode=${sequential ? "sequential" : "parallel"} planId=${args.planId}`,
-  );
+  console.info(`plan_bulk_publish upload_mode=sequential planId=${args.planId}`);
 
-  const runOne = async (row: ScheduledPostRow) => {
+  for (const row of ordered) {
+    if (results.some((result) => !result.ok)) break;
     await touchPublishingHeartbeat(admin, scheduleIds);
-    return publishRowSettled(row, publishRow);
-  };
-
-  if (sequential) {
-    for (const row of withPeers) {
-      results.push(await runOne(row));
+    const result = await publishRowSettled(row, (current) =>
+      publishScheduleWithContext(admin, current.id, current, sharedCtx)
+    );
+    results.push(result);
+    if (!result.ok) {
+      const started = new Set(results.map((item) => item.schedule_id));
+      await releaseUnstartedRows(
+        admin,
+        ordered.filter((candidate) => !started.has(candidate.id)),
+      );
+      break;
     }
-  } else if (withPeers.length > 0) {
-    const settled = await Promise.allSettled(withPeers.map((row) => publishRow(row)));
-    results.push(...settlePublishResults(withPeers, settled));
-  }
-
-  for (const row of instagramAfterPeers) {
-    results.push(await runOne(row));
   }
 
   logPlanBulkSummary(args.planId, platforms, downloadMs, results);
@@ -169,25 +187,6 @@ async function publishRowSettled(
       error: e instanceof Error ? e.message : "publish_failed",
     };
   }
-}
-
-function settlePublishResults(
-  rows: ScheduledPostRow[],
-  settled: PromiseSettledResult<PlanBulkPostNowTargetResult>[],
-): PlanBulkPostNowTargetResult[] {
-  return settled.map((outcome, index) => {
-    const row = rows[index];
-    if (outcome.status === "fulfilled") return outcome.value;
-    return {
-      platform: row.platform,
-      account_label: String(
-        (row.provider_config as { account_label?: string })?.account_label ?? "",
-      ),
-      schedule_id: row.id,
-      ok: false,
-      error: "publish_failed",
-    };
-  });
 }
 
 async function markPublishStep(

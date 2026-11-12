@@ -28,6 +28,7 @@ import {
 import { getCarouselImagePublicUrl, useCarouselImages } from '../hook/useCarouselImages';
 import { syncPlanCompletionStateClient } from '@/6-1-scheduled-posts/lib/syncPlanCompletionStateClient';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
+import { Capacitor } from '@capacitor/core';
 import { useBriefExtended } from '../hook/useBriefExtended';
 import { Check } from 'lucide-react';
 import { format } from 'date-fns';
@@ -729,6 +730,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
   const hasUrlErrors = formLinks.some(link => link.urlError);
 
   const isSaving = isCreating || isUpdating || isDeleting;
+  const nativeApp = Capacitor.isNativePlatform();
 
   return (
     <Dialog
@@ -739,18 +741,19 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
     >
       <DialogContent
         fullscreenAnimation
+        hideCloseButton={nativeApp}
         className="fixed left-0 right-0 top-0 z-50 flex h-dvh max-h-none min-h-0 w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-white p-0 shadow-none sm:rounded-none dark:bg-background"
       >
-        <DialogHeader className="shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-6 pb-4 pr-14 pt-6 dark:from-blue-950/20 dark:to-indigo-950/20">
-          <div className="flex min-w-0 items-center gap-3">
+        <DialogHeader className={`shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 pb-4 dark:from-blue-950/20 dark:to-indigo-950/20 ${nativeApp ? 'px-2 pt-[max(2rem,calc(var(--safe-area-inset-top,0px)+0.75rem),calc(env(safe-area-inset-top,0px)+0.75rem))] text-left' : 'px-6 pr-14 pt-6'}`}>
+          <div className="flex w-full min-w-0 items-center justify-start gap-3 text-left">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
               <Save className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="min-w-0 flex-1">
-              <DialogTitle className="truncate text-xl font-semibold">
+              <DialogTitle className="truncate text-left text-xl font-semibold">
                 Social Media Publish Setup
               </DialogTitle>
-              <DialogDescription className="mt-1 truncate text-sm text-muted-foreground">
+              <DialogDescription className="mt-1 truncate text-left text-sm text-muted-foreground">
                 Schedule TikTok posts and manage social media links for this content.
               </DialogDescription>
               <p className="sr-only">
@@ -762,7 +765,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
           </div>
         </DialogHeader>
 
-        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-6 pb-4 pt-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className={`scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden pb-4 pt-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${nativeApp ? 'px-2' : 'px-6'}`}>
           <div className="shrink-0 min-w-0 space-y-4">
             {organizationId && (
               <AutoScheduleSection
@@ -780,6 +783,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
                 carouselPreviewUrls={carouselPreviewUrls}
                 serviceId={planData?.service_id ?? null}
                 requiredPlatforms={requiredPlatforms}
+                nativeAppLayout={nativeApp}
                 headerTitle={
                   planTitle ? (
                     <p className="truncate text-xs text-muted-foreground">
@@ -841,6 +845,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
               )
             )}
 
+            {!nativeApp && (
             <div className="flex shrink-0 items-center justify-between gap-2">
               <Label className="text-sm font-medium">Manual social media links</Label>
               <Button
@@ -854,8 +859,10 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
                 Add
               </Button>
             </div>
+            )}
           </div>
 
+          {!nativeApp && (
           <div className="min-h-0 flex-1 py-2">
             {isLoading || isLoadingPlanData || isLoadingRequiredPlatforms ? (
               <div className="py-8 text-center text-gray-500">
@@ -1027,14 +1034,15 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
               </div>
             )}
           </div>
+          )}
           <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
         </div>
 
-        <DialogFooter className="flex shrink-0 flex-wrap gap-2 border-t bg-muted/30 px-6 pb-6 pt-4 sm:flex-nowrap sm:justify-end">
+        <DialogFooter className={`flex shrink-0 gap-2 border-t bg-muted/30 pt-3 ${nativeApp ? 'px-2 !flex-row !flex-nowrap items-stretch review-footer-safe' : 'flex-wrap px-6 pb-6 sm:flex-nowrap sm:justify-end'}`}>
           <Button
             variant="outline"
             onClick={handleClose}
-            className="flex items-center gap-2"
+            className={`flex items-center justify-center gap-2 ${nativeApp ? 'min-w-0 flex-1' : ''}`}
             disabled={isSaving}
           >
             <X className="h-4 w-4" />
@@ -1042,7 +1050,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
           </Button>
           <Button
             onClick={handleSave}
-            className="flex items-center gap-2"
+            className={`flex items-center justify-center gap-2 ${nativeApp ? 'min-w-0 flex-1' : ''}`}
             disabled={!hasValidLinks || isSaving || hasUrlErrors}
             title={
               hasUrlErrors

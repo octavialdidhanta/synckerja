@@ -15,7 +15,9 @@ import {
 import {
   computeNextRetryAt,
   isInternalRateLimitMessage,
+  isTransientPublishErrorForPlatform,
   resolveScheduleStatusAfterFailure,
+  sleepMs,
 } from "./scheduledPostRetry.ts";
 import type { ScheduledPostRow } from "./scheduledPostTypes.ts";
 import { touchPublishingHeartbeat } from "./publishingHeartbeat.ts";
@@ -34,7 +36,7 @@ export type RunScheduledPostJobResult = {
   tiktok_publish_path?: "pull" | "file_upload" | "photo_pull";
   retry_count?: number;
   skipped?: "already_published" | "already_claimed";
-  deferred?: "rate_limit" | "rate_limit_global" | "instagram_after_peers";
+  deferred?: "rate_limit" | "rate_limit_global" | "tick_budget";
 };
 
 export type RunScheduledPostJobOptions = {
@@ -269,6 +271,21 @@ export async function runScheduledPostJob(
     const stub = parseScheduleStubError(msg);
     const retryCount = isInternalRateLimitMessage(msg)
       ? Number(row.retry_count ?? 0)
+    if (
+      !options?.inlineRetried &&
+      !stub &&
+      !isScheduleStubError(msg) &&
+      !isInternalRateLimitMessage(msg) &&
+      isTransientPublishErrorForPlatform(platform, msg)
+    ) {
+      await sleepMs(3000);
+      return runScheduledPostJob(admin, scheduleId, {
+        ...options,
+        inlineRetried: true,
+        preloadedRow: undefined,
+        fromClaim: true,
+      });
+    }
       : Number(row.retry_count ?? 0) + 1;
     const nextStatus = stub || isScheduleStubError(msg)
       ? "failed"

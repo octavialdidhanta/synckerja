@@ -1,8 +1,5 @@
 import { useCallback } from 'react';
 import { useUnifiedScheduleMutations } from './useUnifiedScheduleMutations';
-import { invokePlanBulkPostNowOrchestrator } from './usePlanBulkPostNowOrchestrator';
-import { invalidatePlanPublishQueries } from '../lib/invalidatePlanPublishQueries';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   getBulkEligibleTargets,
   type BulkSkippedTarget,
@@ -14,12 +11,16 @@ import {
 } from '../lib/planAutoScheduleEligibility';
 import type { RequiredPlatformAutoTarget } from '../lib/resolveRequiredPlatformTargets';
 import type { ScheduledPost } from '../types/scheduled-post';
+import { pickAccountScheduleForModal } from '../lib/pickPlatformScheduleDisplay';
+import { classifyPublishAttempt, publishPlatformRank, type PublishAttemptOutcome } from '../lib/publishSequence';
+import { supabase } from '@/shared/lib/supabaseClient';
 
 export type PublishPlatformResult = {
   platform: string;
   accountLabel: string;
   ok: boolean;
   processing?: boolean;
+  waitingRetry?: boolean;
   error?: string;
 };
 
@@ -35,8 +36,6 @@ export type PlanBulkPublishArgs = {
   postDateYmd: string;
   getTimeWib: (rowId: string) => string;
   getPrivacyLevel?: (rowId: string, platform?: string) => string | undefined;
-  /** Parallel invokes for post_now only (schedule stays sequential). */
-  parallelPostNow?: boolean;
   driveLinkBlocked?: boolean;
   planEligibility?: PlanAutoScheduleEligibilityInput;
   ownerBypass?: boolean;
@@ -47,10 +46,79 @@ export type PlanBulkPublishArgs = {
 type PostNowResponse = {
   processing?: boolean;
   ok?: boolean;
+  error?: string;
+  external_post_id?: string | null;
+  schedule?: {
+    status?: string;
+    external_post_id?: string | null;
+    next_retry_at?: string | null;
+  } | null;
 };
 
+const PUBLISH_WAIT_MS = 6 * 60 * 1000;
+const PUBLISH_POLL_MS = 2000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function readAccountSchedule(
+  planId: string,
+  platform: string,
+  accountId: string,
+): Promise<ScheduledPost | null> {
+  const { data, error } = await supabase
+    .from('social_media_scheduled_posts')
+    .select('*')
+    .eq('social_media_plan_id', planId)
+    .eq('platform', platform)
+    .neq('status', 'cancelled')
+    .order('created_at', { ascending: false })
+    .limit(8);
+  if (error) return null;
+  return pickAccountScheduleForModal((data ?? []) as ScheduledPost[], platform, accountId);
+}
+
+async function waitForAccountPublish(
+  planId: string,
+  platform: string,
+  accountId: string,
+): Promise<PublishAttemptOutcome> {
+  const deadline = Date.now() + PUBLISH_WAIT_MS;
+  while (Date.now() < deadline) {
+    const row = await readAccountSchedule(planId, platform, accountId);
+    const outcome = classifyPublishAttempt(row);
+    if (outcome !== 'in_progress') return outcome;
+    await sleep(PUBLISH_POLL_MS);
+  }
+  return 'retry_wait';
+}
+
+function resultFromOutcome(
+  target: RequiredPlatformAutoTarget,
+  outcome: PublishAttemptOutcome,
+): PublishPlatformResult {
+  if (outcome === 'published') {
+    return { platform: target.platform, accountLabel: target.accountLabel, ok: true };
+  }
+  if (outcome === 'retry_wait' || outcome === 'in_progress') {
+    return {
+      platform: target.platform,
+      accountLabel: target.accountLabel,
+      ok: false,
+      waitingRetry: true,
+      error: 'retry_scheduled',
+    };
+  }
+  return {
+    platform: target.platform,
+    accountLabel: target.accountLabel,
+    ok: false,
+    error: 'publish_failed',
+  };
+}
+
 export function usePlanBulkPublish() {
-  const queryClient = useQueryClient();
   const { scheduleMutation, postNowMutation } = useUnifiedScheduleMutations();
 
   const publishOneTarget = useCallback(
@@ -106,14 +174,14 @@ export function usePlanBulkPublish() {
           });
         } else {
           const data = (await postNowMutation.mutateAsync(mutationArgs)) as PostNowResponse;
-          const processing = Boolean(data?.processing);
-          args.onTargetSuccess?.(target);
-          return {
-            platform: target.platform,
-            accountLabel: target.accountLabel,
-            ok: true,
-            processing,
-          };
+          const immediate = classifyPublishAttempt(data?.schedule ?? null);
+          const alreadySent = Boolean(data?.external_post_id) || immediate === 'published';
+          const outcome = alreadySent
+            ? 'published'
+            : await waitForAccountPublish(args.planId, target.platform, target.accountId);
+          const result = resultFromOutcome(target, outcome);
+          if (result.ok) args.onTargetSuccess?.(target);
+          return result;
         }
 
         args.onTargetSuccess?.(target);
@@ -123,11 +191,18 @@ export function usePlanBulkPublish() {
           ok: true,
         };
       } catch (e) {
+        const message = e instanceof Error ? e.message : 'failed';
+        if (args.action === 'post_now' && message.includes('already_publishing')) {
+          const outcome = await waitForAccountPublish(args.planId, target.platform, target.accountId);
+          const result = resultFromOutcome(target, outcome);
+          if (result.ok) args.onTargetSuccess?.(target);
+          return result;
+        }
         return {
           platform: target.platform,
           accountLabel: target.accountLabel,
           ok: false,
-          error: e instanceof Error ? e.message : 'failed',
+          error: message,
         };
       }
     },
@@ -165,40 +240,39 @@ export function usePlanBulkPublish() {
       }
 
       const { eligible, skipped } = getBulkEligibleTargets(args.targets, args.schedules);
+      const byTableOrder = (left: RequiredPlatformAutoTarget, right: RequiredPlatformAutoTarget) =>
+        publishPlatformRank(left.platform) - publishPlatformRank(right.platform) ||
+        left.accountId.localeCompare(right.accountId);
+      const results: PublishPlatformResult[] = [];
 
-      let results: PublishPlatformResult[];
-
-      if (args.action === 'post_now' && args.parallelPostNow) {
-        const orchestratorResults = await invokePlanBulkPostNowOrchestrator({
-          organizationId: args.organizationId,
-          planId: args.planId,
-          caption: args.caption,
-          title: args.title,
-          employeeId: args.employeeId,
-          targets: eligible,
-          getPrivacyLevel: args.getPrivacyLevel,
-        });
-        await invalidatePlanPublishQueries(queryClient, {
-          organizationId: args.organizationId,
-          planId: args.planId,
-        });
-        for (const target of eligible) {
-          const row = orchestratorResults.find(
-            (r) => r.platform === target.platform && r.accountLabel === target.accountLabel,
-          );
-          if (row?.ok) args.onTargetSuccess?.(target);
-        }
-        results = orchestratorResults;
-      } else {
-        results = [];
-        for (const target of eligible) {
+      if (args.action === 'schedule') {
+        for (const target of [...eligible].sort(byTableOrder)) {
           results.push(await publishOneTarget(target, args));
         }
+        return { results, skipped };
+      }
+
+      const chain = args.targets
+        .filter((target) => target.oauthConnected && target.publishScopesOk)
+        .sort(byTableOrder);
+      for (const target of chain) {
+        const existing = pickAccountScheduleForModal(args.schedules, target.platform, target.accountId);
+        if (classifyPublishAttempt(existing) === 'published') continue;
+        if (existing?.status === 'publishing') {
+          const outcome = await waitForAccountPublish(args.planId, target.platform, target.accountId);
+          const result = resultFromOutcome(target, outcome);
+          results.push(result);
+          if (!result.ok) break;
+          continue;
+        }
+        const result = await publishOneTarget(target, args);
+        results.push(result);
+        if (!result.ok) break;
       }
 
       return { results, skipped };
     },
-    [publishOneTarget, queryClient],
+    [publishOneTarget],
   );
 
   const isPending = scheduleMutation.isPending || postNowMutation.isPending;

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
 import { publicReviewRpc } from './publicReviewRpc';
+import SocialMediaLinksDialog from '../modal/SocialMediaLinksDialog';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { applyVariables, loadTranslationDictionary } from '@/shared/i18n/translations';
@@ -50,8 +51,6 @@ import { useUnifiedProfile } from '@/shared/hooks/useUnifiedProfile';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { useStatusBarStyle } from '@/shared/hooks/useStatusBarStyle';
 import { revertStepCompletionFromDriveLinkRemovalWithRpc } from '@/8-2-DailyTask/services/completionApprovalService';
-import { triggerPlanAutoSchedule } from '@/6-1-scheduled-posts/lib/triggerPlanAutoSchedule';
-
 const REVIEW_COMMENTER_STORAGE_KEY = 'review_commenter_';
 /** Tinggi baris header di bawah status bar (padding + judul), tanpa inset sistem. */
 const REVIEW_HEADER_BODY_PX = 52;
@@ -400,6 +399,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   const [approvalLoading, setApprovalLoading] = useState(false);
   /** True after this plan is already Approved, including a successful approve in this session. */
   const [productionApproved, setProductionApproved] = useState(false);
+  const [publishSetupOpen, setPublishSetupOpen] = useState(false);
   const [approvalKnown, setApprovalKnown] = useState(false);
   const [pendingDeleteCommentId, setPendingDeleteCommentId] = useState<string | null>(null);
   const [carouselPreviewIndex, setCarouselPreviewIndex] = useState(0);
@@ -1002,16 +1002,17 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
         toast.error(t('publicReview.toast.approveFailed', 'Failed to approve production'));
         return;
       }
-      const { data: planRow } = await supabase
-        .from('social_media_plans')
-        .select('organization_id, production_approved')
-        .eq('id', planId)
-        .single();
-      if (planRow?.organization_id) {
-        void triggerPlanAutoSchedule(planId, planRow.organization_id);
-      }
       setProductionApproved(true);
       setApprovalKnown(true);
+      toast.success(t('publicReview.toast.approveSuccess', 'Production approved successfully'));
+      if (showBackToHome) setPublishSetupOpen(true);
+    } catch (e) {
+      devLog.error('Error in handleApprove:', e);
+      toast.error(t('publicReview.toast.approveFailed', 'Failed to approve production'));
+    } finally {
+      setApprovalLoading(false);
+    }
+  }, [canShowApprovalButtons, content?.social_media_plan_id, showBackToHome, t]);
       toast.success(t('publicReview.toast.approveSuccess', 'Production approved successfully'));
     } catch (e) {
       devLog.error('Error in handleApprove:', e);
@@ -1214,6 +1215,19 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   };
 
   /* GPU layer + containment agar scroll tidak lag (video/iframe tidak repaint tiap frame) */
+  const approveDisabled =
+    approvalLoading ||
+    !approvalKnown ||
+    (productionApproved
+      ? !showBackToHome
+      : !!commentText.trim() || hasSuccessfullySentCommentThisSession);
+  const handleApproveClick = () => {
+    if (showBackToHome && productionApproved && content?.social_media_plan_id) {
+      setPublishSetupOpen(true);
+      return;
+    }
+    void handleApprove();
+  };
   const scrollContainerStyle: React.CSSProperties = { WebkitOverflowScrolling: 'touch' };
   const videoLayerStyle: React.CSSProperties = {
     touchAction: 'pan-y',
@@ -1931,8 +1945,8 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                 >
                   {submitting ? (
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  ) : (
-                    <Send className="h-4 w-4" />
+                    onClick={handleApproveClick}
+                    disabled={approveDisabled}
                   )}
                 </Button>
               </div>
@@ -2014,8 +2028,8 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
               >
                 {submitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                ) : (
-                  <Send className="h-4 w-4" />
+                  onClick={handleApproveClick}
+                  disabled={approveDisabled}
                 )}
               </Button>
             </div>
@@ -2042,6 +2056,14 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                 >
                   <RotateCcw className="h-4 w-4 shrink-0" />
                   <span className="truncate">{t('publicReview.requestRevision', 'Request Revision')}</span>
+      {publishSetupOpen && content?.social_media_plan_id ? (
+        <SocialMediaLinksDialog
+          isOpen
+          onClose={() => setPublishSetupOpen(false)}
+          socialMediaPlanId={content.social_media_plan_id}
+          planTitle={content.title ?? undefined}
+        />
+      ) : null}
                 </Button>
               </div>
             )}

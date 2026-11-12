@@ -19,6 +19,7 @@ type Props = {
   requiredPlatforms: ServiceRequiredPlatform[];
   headerTitle?: React.ReactNode;
   headerExtra?: React.ReactNode;
+  nativeAppLayout?: boolean;
 };
 
 export function AutoScheduleSection({
@@ -26,11 +27,13 @@ export function AutoScheduleSection({
   tiktokCarouselOnly = false,
   tiktokReady = false,
   carouselPreviewUrls,
+  nativeAppLayout = false,
   ...rest
 }: Props) {
   return (
     <UnifiedAutoScheduleSection
       {...rest}
+      nativeAppLayout={nativeAppLayout}
       eligible={reelEligible || tiktokCarouselOnly}
       tiktokCarouselOnly={tiktokCarouselOnly}
       tiktokReady={tiktokReady}

@@ -67,6 +67,9 @@ function mapScheduleInsertError(msg: string): { body: Record<string, unknown>; s
   if (msg === "invalid_scheduled_at" || msg === "invalid_target") {
     return { body: { error: msg }, status: 400 };
   }
+  if (msg === "already_publishing") {
+    return { body: { error: msg }, status: 409 };
+  }
   return { body: { error: "Failed to create schedule" }, status: 500 };
 }
 

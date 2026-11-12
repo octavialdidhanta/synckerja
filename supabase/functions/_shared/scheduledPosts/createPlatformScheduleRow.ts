@@ -65,6 +65,94 @@ export type InsertPostNowScheduleArgs = Omit<
   "action" | "scheduledAtIso"
 >;
 
+function scheduleMatchesAccount(
+  row: ScheduledPostRow & { platform_account_id?: string | null },
+  accountId: string,
+): boolean {
+  if (String(row.platform_account_id ?? "").trim() === accountId) return true;
+  const config = (row.provider_config ?? {}) as Record<string, unknown>;
+  return [
+    config.open_id,
+    config.channel_id,
+    config.instagram_business_account_id,
+    config.facebook_page_id,
+    config.page_id,
+  ].some((value) => String(value ?? "").trim() === accountId);
+}
+
+async function reuseUnpublishedSchedule(
+  admin: SupabaseClient,
+  args: InsertPlatformScheduleArgs,
+  platform: string,
+  accountId: string,
+  privacyLevel: string,
+  providerConfig: object,
+): Promise<ScheduledPostRow | null> {
+  const { data, error } = await admin
+    .from("social_media_scheduled_posts")
+    .select("*")
+    .eq("social_media_plan_id", args.planId)
+    .eq("platform", platform)
+    .in("status", ["pending", "failed", "publishing", "published"])
+    .order("created_at", { ascending: false })
+    .limit(12);
+
+  if (error) throw new Error(error.message);
+
+  const matches = ((data ?? []) as Array<ScheduledPostRow & { platform_account_id?: string | null }>)
+    .filter((row) => scheduleMatchesAccount(row, accountId));
+  const published = matches.find(
+    (row) => row.status === "published" || String(row.external_post_id ?? "").trim(),
+  );
+  if (published) return published;
+  if (matches.some((row) => row.status === "publishing")) {
+    throw new Error("already_publishing");
+  }
+
+  const chosen = matches.find((row) => row.status === "pending" || row.status === "failed");
+  if (!chosen) return null;
+
+  const otherActiveIds = matches
+    .filter((row) => row.id !== chosen.id && (row.status === "pending" || row.status === "publishing"))
+    .map((row) => row.id);
+  if (otherActiveIds.length > 0) {
+    await admin
+      .from("social_media_scheduled_posts")
+      .update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .in("id", otherActiveIds);
+  }
+
+  const now = new Date().toISOString();
+  const { data: updated, error: updateError } = await admin
+    .from("social_media_scheduled_posts")
+    .update({
+      status: args.action === "post_now" ? "publishing" : "pending",
+      scheduled_at: new Date(args.scheduledAtIso).toISOString(),
+      media_source: args.mediaSource?.trim() || MEDIA_SOURCE_GOOGLE_DRIVE,
+      media_url_snapshot: args.driveLink,
+      caption: args.caption,
+      title: args.title,
+      privacy_level: privacyLevel,
+      platform_account_id: accountId,
+      provider_config: {
+        ...(chosen.provider_config ?? {}),
+        ...(providerConfig as Record<string, unknown>),
+      },
+      error_message: null,
+      next_retry_at: null,
+      locked_at: args.action === "post_now" ? now : null,
+      updated_at: now,
+    })
+    .eq("id", chosen.id)
+    .in("status", ["pending", "failed"])
+    .select("*")
+    .maybeSingle();
+
+  if (updateError) throw new Error(updateError.message);
+  if (!updated) throw new Error("already_publishing");
+  return updated as ScheduledPostRow;
+}
+
 export async function insertPlatformScheduleForTarget(
   admin: SupabaseClient,
   args: InsertPlatformScheduleArgs,
@@ -122,8 +210,6 @@ export async function insertPlatformScheduleForTarget(
         throw new Error("publish_scopes_not_granted");
       }
 
-      await cancelPendingSchedulesForPlatformAccount(admin, args.planId, "TikTok", accountId);
-
       const privacyLevelRaw = String(args.target.privacy_level ?? "").trim().toUpperCase();
       const privacyLevel = privacyLevelRaw || DEFAULT_PRIVACY_LEVEL;
 
@@ -132,6 +218,18 @@ export async function insertPlatformScheduleForTarget(
         account_label: accountLabel,
         ...(args.employeeId ? { employee_id: args.employeeId } : {}),
       };
+
+      const reused = await reuseUnpublishedSchedule(
+        admin,
+        args,
+        "TikTok",
+        accountId,
+        privacyLevel,
+        providerConfig,
+      );
+      if (reused) return reused;
+
+      await cancelPendingSchedulesForPlatformAccount(admin, args.planId, "TikTok", accountId);
 
       const { data, error } = await admin
         .from("social_media_scheduled_posts")
@@ -161,8 +259,6 @@ export async function insertPlatformScheduleForTarget(
         throw new Error("upload_scopes_not_granted");
       }
 
-      await cancelPendingSchedulesForPlatformAccount(admin, args.planId, "YouTube", accountId);
-
       const privacyLevel =
         normalizeYouTubeSchedulePrivacy(args.target.privacy_level) ??
         DEFAULT_YOUTUBE_SCHEDULE_PRIVACY;
@@ -172,6 +268,18 @@ export async function insertPlatformScheduleForTarget(
         account_label: accountLabel,
         ...(args.employeeId ? { employee_id: args.employeeId } : {}),
       };
+
+      const reused = await reuseUnpublishedSchedule(
+        admin,
+        args,
+        "YouTube",
+        accountId,
+        privacyLevel,
+        providerConfig,
+      );
+      if (reused) return reused;
+
+      await cancelPendingSchedulesForPlatformAccount(admin, args.planId, "YouTube", accountId);
 
       const { data, error } = await admin
         .from("social_media_scheduled_posts")
@@ -200,19 +308,29 @@ export async function insertPlatformScheduleForTarget(
         throw new Error("publish_scopes_not_granted");
       }
 
-      await cancelPendingSchedulesForPlatformAccount(
-        admin,
-        args.planId,
-        "Instagram",
-        accountId,
-      );
-
       const providerConfig: InstagramProviderConfig = {
         instagram_business_account_id: accountId,
         facebook_page_id: account.pageId,
         account_label: accountLabel || account.accountLabel,
         ...(args.employeeId ? { employee_id: args.employeeId } : {}),
       };
+
+      const reused = await reuseUnpublishedSchedule(
+        admin,
+        args,
+        "Instagram",
+        accountId,
+        DEFAULT_PRIVACY_LEVEL,
+        providerConfig,
+      );
+      if (reused) return reused;
+
+      await cancelPendingSchedulesForPlatformAccount(
+        admin,
+        args.planId,
+        "Instagram",
+        accountId,
+      );
 
       const { data, error } = await admin
         .from("social_media_scheduled_posts")
@@ -241,18 +359,28 @@ export async function insertPlatformScheduleForTarget(
         throw new Error("publish_scopes_not_granted");
       }
 
+      const providerConfig: FacebookProviderConfig = {
+        facebook_page_id: accountId,
+        account_label: accountLabel || account.accountLabel,
+        ...(args.employeeId ? { employee_id: args.employeeId } : {}),
+      };
+
+      const reused = await reuseUnpublishedSchedule(
+        admin,
+        args,
+        "Facebook",
+        accountId,
+        DEFAULT_PRIVACY_LEVEL,
+        providerConfig,
+      );
+      if (reused) return reused;
+
       await cancelPendingSchedulesForPlatformAccount(
         admin,
         args.planId,
         "Facebook",
         accountId,
       );
-
-      const providerConfig: FacebookProviderConfig = {
-        facebook_page_id: accountId,
-        account_label: accountLabel || account.accountLabel,
-        ...(args.employeeId ? { employee_id: args.employeeId } : {}),
-      };
 
       const { data, error } = await admin
         .from("social_media_scheduled_posts")
@@ -285,8 +413,6 @@ export async function insertPlatformScheduleForTarget(
         throw new Error("publish_scopes_not_granted");
       }
 
-      await cancelPendingSchedulesForPlatformAccount(admin, args.planId, "LinkedIn", accountId);
-
       const providerConfig: LinkedInProviderConfig = {
         page_id: accountId,
         organization_urn: buildOrganizationUrn(accountId),
@@ -294,6 +420,18 @@ export async function insertPlatformScheduleForTarget(
           String(accountRow.display_name ?? accountRow.label ?? "LinkedIn"),
         ...(args.employeeId ? { employee_id: args.employeeId } : {}),
       };
+
+      const reused = await reuseUnpublishedSchedule(
+        admin,
+        args,
+        "LinkedIn",
+        accountId,
+        DEFAULT_PRIVACY_LEVEL,
+        providerConfig,
+      );
+      if (reused) return reused;
+
+      await cancelPendingSchedulesForPlatformAccount(admin, args.planId, "LinkedIn", accountId);
 
       const { data, error } = await admin
         .from("social_media_scheduled_posts")

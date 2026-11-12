@@ -9,9 +9,11 @@ type Props = {
   urls: string[];
   emptyLabel: string;
   className?: string;
+  /** Fit the slide inside the parent box instead of sizing from the viewport. */
+  contained?: boolean;
 };
 
-export function CarouselSlidePreview({ urls, emptyLabel, className }: Props) {
+export function CarouselSlidePreview({ urls, emptyLabel, className, contained = false }: Props) {
   const { t } = useTranslation();
   const [slide, setSlide] = useState(0);
   const dragRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
@@ -54,7 +56,9 @@ export function CarouselSlidePreview({ urls, emptyLabel, className }: Props) {
     return (
       <div
         className={cn(
-          'flex min-h-[42dvh] w-full items-center justify-center p-3 text-center text-[11px] text-muted-foreground md:min-h-0 md:flex-1',
+          contained
+            ? 'flex h-full min-h-0 w-full items-center justify-center p-3 text-center text-[11px] text-muted-foreground'
+            : 'flex min-h-[42dvh] w-full items-center justify-center p-3 text-center text-[11px] text-muted-foreground md:min-h-0 md:flex-1',
           className,
         )}
       >
@@ -64,9 +68,20 @@ export function CarouselSlidePreview({ urls, emptyLabel, className }: Props) {
   }
 
   return (
-    <div className={cn('flex min-h-0 w-full flex-1 flex-col gap-2', className)}>
+    <div
+      className={cn(
+        contained
+          ? 'flex h-full min-h-0 w-full flex-col gap-1.5 overflow-hidden'
+          : 'flex min-h-0 w-full flex-1 flex-col gap-2',
+        className,
+      )}
+    >
       <div
-        className="relative flex min-h-[42dvh] w-full min-w-0 flex-1 items-center justify-center md:min-h-0"
+        className={
+          contained
+            ? 'relative min-h-0 w-full flex-1 overflow-hidden'
+            : 'relative flex min-h-[42dvh] w-full min-w-0 flex-1 items-center justify-center md:min-h-0'
+        }
         style={{ touchAction: 'pan-y' }}
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
@@ -84,7 +99,11 @@ export function CarouselSlidePreview({ urls, emptyLabel, className }: Props) {
             total: count,
             defaultValue: `Carousel slide ${index + 1} of ${count}`,
           })}
-          className="h-auto w-auto max-h-[min(70dvh,calc(100dvh-12.5rem))] max-w-full object-contain select-none"
+          className={
+            contained
+              ? 'absolute inset-0 m-auto h-full w-full object-contain select-none'
+              : 'h-auto w-auto max-h-[min(70dvh,calc(100dvh-12.5rem))] max-w-full object-contain select-none'
+          }
           draggable={false}
         />
         {count > 1 ? (

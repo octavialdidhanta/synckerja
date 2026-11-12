@@ -163,12 +163,13 @@ Deno.test("buildCanvaCarouselBrief writes the required note and photographs a pe
     title: "Empuk",
     caption: "Datang hari ini",
     slides,
-    requiredNote: "Hubungi jam buka.",
+    requiredNote: "Cantumkan nomor telepon 081234567890 di slide terakhir.",
     forbiddenNote: "harga promo",
   });
-  assertEquals(brief.includes("Write exactly this on the last page: Hubungi jam buka."), true);
+  assertEquals(brief.includes("Write exactly this on the last page: 081234567890"), true);
+  assertEquals(brief.includes("Cantumkan nomor telepon"), false);
   assertEquals(brief.includes("Do not write any of this: harga promo"), true);
-  assertEquals(brief.includes("Write only: Hubungi jam buka. | Ajakan singkat di bawah"), true);
+  assertEquals(brief.includes("Write only: Hubungi jam buka. | Ajakan singkat di bawah | 081234567890"), true);
   assertEquals(brief.includes("Draw: Sate kambing di atas piring"), true);
   assertEquals(brief.includes("Photograph a real human with natural skin and a real camera"), true);
   assertEquals(brief.includes("Scene: Penjual sate tersenyum"), true);

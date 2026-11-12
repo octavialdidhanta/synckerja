@@ -20,6 +20,13 @@ export const SCHEDULE_TABLE_VISIBILITY_CELL_CLASS =
 export const SCHEDULE_TABLE_TIME_CELL_CLASS =
   'flex w-[24rem] min-w-[24rem] shrink-0 flex-col justify-center rounded-none bg-card p-2 group-hover:bg-muted';
 
+/** App: post-time column ends a short gap before Actions. */
+export const SCHEDULE_TABLE_TIME_HEAD_NATIVE_CLASS =
+  'flex w-[27rem] min-w-[27rem] shrink-0 flex-col justify-center';
+
+export const SCHEDULE_TABLE_TIME_CELL_NATIVE_CLASS =
+  'flex w-[27rem] min-w-[27rem] shrink-0 flex-col justify-center rounded-none bg-card py-2 pl-2 pr-2 group-hover:bg-muted';
+
 export const SCHEDULE_TABLE_MIDDLE_HEAD_CLASS =
   'rounded-none bg-muted px-2 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70';
 
@@ -29,6 +36,13 @@ export const SCHEDULE_TABLE_ACTIONS_HEAD_CLASS =
 
 export const SCHEDULE_TABLE_ACTIONS_CELL_CLASS =
   'sticky right-0 z-[10] -ml-1 box-border flex w-[93px] min-w-[93px] shrink-0 items-center justify-center self-stretch rounded-none border-l border-border bg-card py-0 pl-1 pr-0 group-hover:bg-muted';
+
+/** App: actions scroll with the other columns so the middle columns keep their width. */
+export const SCHEDULE_TABLE_ACTIONS_HEAD_STATIC_CLASS =
+  'box-border flex w-[93px] min-w-[93px] shrink-0 items-center justify-center self-stretch rounded-none border-l border-border bg-muted py-2.5 pl-1 pr-2 text-center text-[11px] font-semibold uppercase tracking-wide text-foreground/70';
+
+export const SCHEDULE_TABLE_ACTIONS_CELL_STATIC_CLASS =
+  'box-border flex w-[93px] min-w-[93px] shrink-0 items-center justify-center self-stretch rounded-none border-l border-border bg-card py-0 pl-1 pr-0 group-hover:bg-muted';
 
 export const SCHEDULE_TABLE_SCROLL_CLASS =
   'w-full overflow-x-auto overflow-y-visible rounded-none [-ms-overflow-style:auto] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5';

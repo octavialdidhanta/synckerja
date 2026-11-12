@@ -2,6 +2,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { carouselSlidesFromBrief } from "../_shared/canvaCarouselBrief.ts";
 import {
   authorizeCaller,
   buildChatPrompt,
@@ -38,6 +39,11 @@ import {
   referencePositions,
   parseChatReply,
   parseExecutionVerdict,
+  copyCollides,
+  copyFingerprint,
+  hookFromElement,
+  orderCopyFallbackPaths,
+  selectCopyPriors,
   pickUnusedIdea,
   appendCarouselDevelopmentPath,
   buildCarouselPathCheckPrompt,
@@ -68,6 +74,59 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+type CopyPrior = {
+  id: string;
+  post_date: string;
+  service_id: string;
+  title: string;
+  pillar_name: string;
+  author_name: string;
+  hook: string;
+  opening: string;
+  lines: string[];
+};
+
+function copyPriorFromBrief(row: Record<string, unknown>, pillarName: string): CopyPrior {
+  const slides = carouselSlidesFromBrief(typeof row.brief === "string" ? row.brief : "");
+  const lines = slides.map((slide) => slide.copy).filter((line) => line.trim());
+  return {
+    id: String(row.id ?? ""),
+    post_date: String(row.post_date ?? ""),
+    service_id: String(row.service_id ?? ""),
+    title: String(row.title ?? "").replace(/\s+/g, " ").trim(),
+    pillar_name: pillarName,
+    author_name: String(row.author_name ?? ""),
+    hook: hookFromElement(slides[0]?.elements ?? ""),
+    opening: lines[0] ?? "",
+    lines,
+  };
+}
+
+function rememberCopy(memory: CopyPrior[], plan: { title?: string; slides?: unknown }, day: string, serviceId: string, pillarName: string) {
+  const fingerprint = copyFingerprint(plan);
+  memory.unshift({
+    id: "",
+    post_date: day,
+    service_id: serviceId,
+    title: fingerprint.title,
+    pillar_name: pillarName,
+    author_name: "",
+    hook: fingerprint.hook,
+    opening: fingerprint.lines[0] ?? "",
+    lines: fingerprint.lines,
+  });
+}
+
+function checkRewriteNote(checkId: string): string {
+  if (checkId === "pillarFits") {
+    return "Pemeriksaan pillarFits gagal. Bentuk slide harus mengikuti Development pilar, bukan iklan produk yang sama.";
+  }
+  if (checkId === "messageStays") {
+    return "Pemeriksaan messageStays gagal. Ganti headline dan kalimat slide 1.";
+  }
+  return `Pemeriksaan ${checkId} gagal. Perbaiki draf tanpa menyalin rencana terakhir.`;
 }
 
 function publicError(error: unknown): string {
@@ -1002,7 +1061,7 @@ Deno.serve(async (req: Request) => {
           }
         } else if (!dryRun) {
           const loaded = await loadScope("carousel_paths", {});
-          carouselPaths = loaded.filter((row) => String(row.idea_id ?? "") === prepared.ideaId && String(row.content_pillar_id ?? "") === prepared.pillarId);
+          carouselPaths = orderCopyFallbackPaths(loaded, prepared.ideaId, prepared.pillarId);
           adoptPathPillars(carouselPaths);
         } else {
           adoptPathPillars(carouselPaths);
@@ -1020,8 +1079,47 @@ Deno.serve(async (req: Request) => {
       const drafts: { title: string; post_date: string; brief: string; caption: string; content_pillar_id: string }[] = [];
       let stop: "done" | "quota" | "pillar_cap" | "failed" | "ideas_exhausted" = "done";
       let failure = { status: 0, message: "model_failed" };
+      const seenPriorIds = new Set<string>();
+      const copyMemory: CopyPrior[] = [];
+      const pillarNameOf = (id: string) => {
+        const known = pillars.find((row) => String(row.id ?? "") === id);
+        if (known?.name) return String(known.name);
+        const listed = calendar.find((row) => String(row.content_pillar_id ?? "") === id);
+        return String(listed?.pillar_name ?? "");
+      };
+      for (const row of nayaPlans) {
+        const id = String(row.id ?? "");
+        if (id && seenPriorIds.has(id)) continue;
+        if (id) seenPriorIds.add(id);
+        copyMemory.push(copyPriorFromBrief(row, pillarNameOf(String(row.content_pillar_id ?? ""))));
+      }
+      for (const row of calendar) {
+        const id = String(row.id ?? "");
+        if (id && seenPriorIds.has(id)) continue;
+        const title = String(row.title ?? "").replace(/\s+/g, " ").trim();
+        if (!title) continue;
+        if (id) seenPriorIds.add(id);
+        copyMemory.push({
+          id,
+          post_date: String(row.post_date ?? ""),
+          service_id: String(row.service_id ?? ""),
+          title,
+          pillar_name: String(row.pillar_name ?? ""),
+          author_name: String(row.author_name ?? ""),
+          hook: "",
+          opening: "",
+          lines: [],
+        });
+      }
       let dayIndex = 0;
+      let ideaTries = 0;
+      const ideaCap = focused ? Math.max(carouselPaths.length, 1) : 1;
       while (dayIndex < open.length && stop === "done") {
+        ideaTries += 1;
+        if (ideaTries > ideaCap) {
+          stop = "ideas_exhausted";
+          break;
+        }
         const day = open[dayIndex];
         const path = focused
           ? carouselPaths.find((row) => row.used !== true && row.skip !== true) ?? null
@@ -1050,41 +1148,75 @@ Deno.serve(async (req: Request) => {
           failure = { status: 0, message: "brief_missing" };
           break;
         }
-        const drafted = await withRetry(async () => {
-          const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief: promptBrief, performance, service, idea, product, path: promptPath }));
-          if (result.kind !== "ok") return result;
-          const parsed = parseCarouselDraft(result.script, draftNotes);
-          if (parsed) parsed.slides = normalizeCarouselReference(parsed.slides, referencePositions(promptBrief));
-          if (!parsed || !pillars.some((row) => String(row.id ?? "") === choice.id) || !carouselReferenceOk(parsed.slides, referencePositions(promptBrief))) {
-            return { kind: "failed", detail: { status: 0, message: "invalid_model_output" } };
-          }
-          parsed.post_date = day;
-          parsed.content_pillar_id = choice.id;
-          return { kind: "ok", script: JSON.stringify(parsed) };
-        });
-        if (drafted.kind === "quota") { stop = "quota"; break; }
-        if (drafted.kind === "failed") {
-          if (drafted.detail.message !== "invalid_model_output") {
-            stop = "failed";
-            failure = drafted.detail;
+        const compared = selectCopyPriors(copyMemory, service.id, 8);
+        const promptPlans = compared.slice(0, 6);
+        let avoid = "";
+        let plan: ReturnType<typeof parseCarouselDraft> & { service_id: string } | null = null;
+        let verdict: ReturnType<typeof parseExecutionVerdict> = null;
+        let executionId: string | null = null;
+        for (let attempt = 1; attempt <= 3 && stop === "done"; attempt += 1) {
+          const drafted = await withRetry(async () => {
+            const result = await modelScript(buildSop1Prompt({
+              day,
+              pillar: choice,
+              steps,
+              catalog,
+              thinking,
+              feedback,
+              plans: promptPlans,
+              brief: promptBrief,
+              performance,
+              service,
+              idea,
+              product,
+              path: promptPath,
+              avoid,
+            }));
+            if (result.kind !== "ok") return result;
+            const parsed = parseCarouselDraft(result.script, draftNotes);
+            if (parsed) parsed.slides = normalizeCarouselReference(parsed.slides, referencePositions(promptBrief));
+            if (!parsed || !pillars.some((row) => String(row.id ?? "") === choice.id) || !carouselReferenceOk(parsed.slides, referencePositions(promptBrief))) {
+              return { kind: "failed", detail: { status: 0, message: "invalid_model_output" } };
+            }
+            parsed.post_date = day;
+            parsed.content_pillar_id = choice.id;
+            return { kind: "ok", script: JSON.stringify(parsed) };
+          });
+          if (drafted.kind === "quota") { stop = "quota"; break; }
+          if (drafted.kind === "failed") {
+            if (drafted.detail.message !== "invalid_model_output") {
+              stop = "failed";
+              failure = drafted.detail;
+              break;
+            }
+            idea.skip = true;
             break;
           }
-          idea.skip = true;
-          continue;
-        }
-        const parsed = parseCarouselDraft(drafted.script, draftNotes);
-        if (!parsed) { idea.skip = true; continue; }
-        let plan = { ...parsed, post_date: day, content_pillar_id: choice.id, service_id: service.id };
-        let executionId: string | null = null;
-        if (idea) {
-          const judge = async (draft: typeof plan) => withRetry(async () => {
-            const result = await modelScript(buildExecutionCheckPrompt({ day, pillar: choice, idea, draft }));
+          const parsed = parseCarouselDraft(drafted.script, draftNotes);
+          if (!parsed) { idea.skip = true; break; }
+          const candidate = { ...parsed, post_date: day, content_pillar_id: choice.id, service_id: service.id };
+          const collision = copyCollides(candidate, compared);
+          if (collision) {
+            lastReject = "copy";
+            if (attempt >= 3) { idea.skip = true; break; }
+            avoid = collision.reason;
+            continue;
+          }
+          const judge = async (draft: typeof candidate) => withRetry(async () => {
+            const result = await modelScript(buildExecutionCheckPrompt({
+              day,
+              pillar: choice,
+              idea,
+              draft,
+              path: promptPath,
+              priors: promptPlans,
+            }));
             if (result.kind !== "ok") return result;
             return parseExecutionVerdict(result.script)
               ? { kind: "ok" as const, script: result.script }
               : { kind: "failed" as const, detail: { status: 0, message: "invalid_model_output" } };
           });
-          let checked = await judge(plan);
+          const checked = await judge(candidate);
           if (checked.kind === "quota") { stop = "quota"; break; }
           if (checked.kind === "failed") {
             if (checked.detail.message !== "invalid_model_output") {
@@ -1093,56 +1225,13 @@ Deno.serve(async (req: Request) => {
               break;
             }
             idea.skip = true;
-            continue;
+            break;
           }
-          if (parseExecutionVerdict(checked.script)?.ok !== true) {
-            lastReject = String(parseExecutionVerdict(checked.script)?.check_id ?? "unparsed").slice(0, 40);
-            const repaired = await withRetry(async () => {
-              const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief: promptBrief, performance, service, idea, product, path: promptPath }));
-              if (result.kind !== "ok") return result;
-              const next = parseCarouselDraft(result.script, draftNotes);
-              if (next) next.slides = normalizeCarouselReference(next.slides, referencePositions(promptBrief));
-              if (!next || !carouselReferenceOk(next.slides, referencePositions(promptBrief))) {
-                return { kind: "failed" as const, detail: { status: 0, message: "invalid_model_output" } };
-              }
-              next.post_date = day;
-              next.content_pillar_id = choice.id;
-              return { kind: "ok" as const, script: JSON.stringify(next) };
-            });
-            if (repaired.kind === "quota") { stop = "quota"; break; }
-            if (repaired.kind === "failed") {
-              if (repaired.detail.message !== "invalid_model_output") {
-                stop = "failed";
-                failure = repaired.detail;
-                break;
-              }
-              idea.skip = true;
-              continue;
-            }
-            const repairedPlan = parseCarouselDraft(repaired.script, draftNotes);
-            if (!repairedPlan) { idea.skip = true; continue; }
-            plan = { ...repairedPlan, post_date: day, content_pillar_id: choice.id, service_id: service.id };
-            checked = await judge(plan);
-            if (checked.kind === "quota") { stop = "quota"; break; }
-            if (checked.kind === "failed") {
-              if (checked.detail.message !== "invalid_model_output") {
-                stop = "failed";
-                failure = checked.detail;
-                break;
-              }
-              idea.skip = true;
-              continue;
-            }
-            if (parseExecutionVerdict(checked.script)?.ok !== true) {
-              lastReject = String(parseExecutionVerdict(checked.script)?.check_id ?? "unparsed").slice(0, 40);
-              idea.skip = true;
-              continue;
-            }
-          }
-          const verdict = parseExecutionVerdict(checked.script);
-          if (!verdict?.ok) {
-            lastReject = String(verdict?.check_id ?? "unparsed").slice(0, 40);
-            idea.skip = true;
+          const nextVerdict = parseExecutionVerdict(checked.script);
+          if (!nextVerdict?.ok) {
+            lastReject = String(nextVerdict?.check_id ?? "unparsed").slice(0, 40);
+            if (attempt >= 3) { idea.skip = true; break; }
+            avoid = checkRewriteNote(lastReject);
             continue;
           }
           if (!dryRun) {
@@ -1153,10 +1242,10 @@ Deno.serve(async (req: Request) => {
               p_payload: withJobClaim({
                 idea_id: String(idea.idea_id ?? idea.id ?? ""),
                 content_pillar_id: choice.id,
-                statement: verdict.statement,
-                checks: verdict.checks,
-                facts: verdict.facts,
-                script: verdict.script,
+                statement: nextVerdict.statement,
+                checks: nextVerdict.checks,
+                facts: nextVerdict.facts,
+                script: nextVerdict.script,
               }, claimToken),
             });
             const accepted = judged.body && typeof judged.body === "object"
@@ -1166,11 +1255,17 @@ Deno.serve(async (req: Request) => {
               const rejected = accepted && typeof accepted.check_id === "string" ? accepted.check_id : "db";
               lastReject = rejected.slice(0, 40);
               idea.skip = true;
-              continue;
+              break;
             }
             executionId = String(accepted.execution_id);
           }
+          plan = candidate;
+          verdict = nextVerdict;
+          lastReject = "";
+          break;
         }
+        if (stop !== "done") break;
+        if (!plan || !verdict?.ok) continue;
         const productId = focused
           ? chooseBriefProduct(product, plan.product_knowledge_id)
           : chooseProduct(product, plan.product_knowledge_id);
@@ -1188,6 +1283,7 @@ Deno.serve(async (req: Request) => {
           takeProduct();
           idea.used = true;
           drafts.push(plan);
+          rememberCopy(copyMemory, plan, day, service.id, choice.name);
           calendar.push({ post_date: day, content_pillar_id: choice.id });
           nayaPlans.push({ post_date: day, content_pillar_id: choice.id, author_employee_id: employeeId });
           dayIndex += 1;
@@ -1223,6 +1319,7 @@ Deno.serve(async (req: Request) => {
         takeProduct();
         idea.used = true;
         planIds.push(String(createdId));
+        rememberCopy(copyMemory, plan, day, service.id, choice.name);
         calendar.push({ post_date: day, content_pillar_id: choice.id });
         nayaPlans.push({ post_date: day, content_pillar_id: choice.id, author_employee_id: employeeId });
         dayIndex += 1;

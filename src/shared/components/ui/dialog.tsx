@@ -38,6 +38,8 @@ type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.
   overlayClassName?: string;
   /** Full-viewport shells: use slide/scale animation without centered translate (see `synckerja-reference` dialog). */
   fullscreenAnimation?: boolean;
+  /** Extra classes for the built-in close control, for example safe-area offset in the native app. */
+  closeClassName?: string;
 };
 
 const DialogContent = React.forwardRef<

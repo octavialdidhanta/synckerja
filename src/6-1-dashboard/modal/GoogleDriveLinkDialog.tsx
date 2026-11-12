@@ -26,7 +26,6 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { isFileLink, linksSemanticallyEqual } from '../utils/previewUtils';
 import { revertStepCompletionFromDriveLinkRemovalWithRpc } from '@/8-2-DailyTask/services/completionApprovalService';
 import { setGoogleDriveModalOpenPlanId } from '../hook/briefModalOpenRef';
-import { triggerPlanAutoSchedule } from '@/6-1-scheduled-posts/lib/triggerPlanAutoSchedule';
 import { GoogleDriveFilePreview } from './GoogleDriveInAppFilePreview';
 import { GoogleDriveIframeFilePreview } from './GoogleDriveIframeFilePreview';
 import { useGoogleDriveOAuthConnection } from '../hook/useGoogleDriveOAuthConnection';

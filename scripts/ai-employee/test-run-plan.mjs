@@ -52,6 +52,10 @@ import {
   carouselReferenceOk,
   normalizeCarouselReference,
   parseCarouselDraft,
+  copyCollides,
+  orderCopyFallbackPaths,
+  selectCopyPriors,
+  buildExecutionCheckPrompt,
   parsePlanDraft,
   referencePositions,
   publicModelFailure,
@@ -1178,7 +1182,9 @@ test("semua idea sudah punya plan, yang jumlahnya paling sedikit yang terpilih",
   assert.equal(open.pillarId, "pillar-2");
 });
 
-test("catatan wajib yang hilang dan catatan terlarang yang lolos ditolak", () => {
+test("catatan wajib memakai faktanya dan catatan terlarang tetap ditolak", () => {
+  const phone = "081234567890";
+  const required = `Input nomor telepon yang bisa di hubungi : ${phone}`;
   const slides = (lastVo) => ([
     {
       timing: "Slide 1",
@@ -1203,12 +1209,19 @@ test("catatan wajib yang hilang dan catatan terlarang yang lolos ditolak", () =>
     slides: slides(lastVo),
     content_pillar_id: pillarId,
   });
-  const notes = { required: "Hubungi jam buka.", forbidden: "harga promo" };
-  const accepted = parseCarouselDraft(body("Datang hari ini. Hubungi jam buka. #sate", "Simpan caranya, lalu hubungi jam buka."));
-  assert.equal(carouselNotesOk(accepted, notes), true);
-  assert.equal(parseCarouselDraft(body("Datang hari ini #sate", "Simpan caranya, lalu hubungi jam buka."), notes), null);
-  assert.equal(parseCarouselDraft(body("Datang hari ini. Hubungi jam buka. #sate", "Simpan caranya di rumah."), notes), null);
-  assert.equal(parseCarouselDraft(body("Datang hari ini. Hubungi jam buka. #sate", "Simpan caranya, lalu hubungi jam buka.", "Tanpa harga promo"), notes), null);
+  const notes = { required, forbidden: "harga promo" };
+  const saved = parseCarouselDraft(body("Datang hari ini #sate", "Simpan caranya di rumah."), notes);
+  assert.equal(saved.caption.includes(phone), true);
+  assert.equal(saved.caption.includes("#sate"), true);
+  assert.equal(saved.caption.includes("Input nomor telepon"), false);
+  assert.equal(saved.slides[1].vo.includes(phone), true);
+  assert.equal(saved.slides[1].vo.includes("Input nomor telepon"), false);
+  assert.equal(carouselNotesOk(saved, notes), true);
+  const already = parseCarouselDraft(body(`Datang hari ini ${phone} #sate`, `Simpan caranya ${phone}.`), notes);
+  assert.equal(already.caption.split(phone).length - 1, 1);
+  const soft = parseCarouselDraft(body("Datang hari ini #sate", "Simpan caranya di rumah."), { required: "Hubungi jam buka.", forbidden: "" });
+  assert.equal(soft.caption.includes("Hubungi jam buka"), false);
+  assert.equal(parseCarouselDraft(body(`Datang hari ini ${phone} #sate`, `Simpan caranya ${phone}.`, "Tanpa harga promo"), notes), null);
   const prompt = buildSop1Prompt({
     day: "2026-11-12",
     pillar: { id: pillarId, name: "Mitos" },
@@ -1217,11 +1230,161 @@ test("catatan wajib yang hilang dan catatan terlarang yang lolos ditolak", () =>
     thinking: [],
     feedback: [],
     plans: [],
-    brief: { service_ids: ["svc-a"], services: [], required_notes: "Hubungi jam buka.", forbidden_notes: "harga promo" },
+    brief: { service_ids: ["svc-a"], services: [], required_notes: required, forbidden_notes: "harga promo" },
     performance: [],
     service: { id: "svc-a", name: "Sate" },
   });
-  assert.match(prompt, /Salin teks ini apa adanya ke caption dan ke vo slide terakhir: Hubungi jam buka\./);
+  assert.match(prompt, /Jangan salin kalimat instruksinya/);
+  assert.match(prompt, new RegExp(phone));
+  assert.doesNotMatch(prompt, /Salin teks ini apa adanya/);
   assert.match(prompt, /harga promo/);
   assert.match(prompt, /foto manusia sungguhan/);
+});
+
+test("salinan judul, headline, dan badan ditolak sebelum disimpan", () => {
+  const prior = {
+    title: "Garansi Daging Empuk Sate Sultan PIK",
+    hook: "Sate Kambing Alot? Itu Dulu!",
+    opening: "Pernah kecewa karena daging sate kambing yang alot?",
+    lines: [
+      "Pernah kecewa karena daging sate kambing yang alot?",
+      "Laporan audit mengumpulkan rating pengunjung tentang tekstur daging.",
+      "Catatan kunjungan dibandingkan satu per satu sampai polanya terlihat.",
+    ],
+  };
+  const titleCopy = {
+    title: "Garansi Daging Empuk di Sate Sultan PIK",
+    slides: [{
+      vo: "Pengunjung menulis catatan rasa setiap kali datang.",
+      element: "Hook headline: Catatan rasa minggu ini. Visual hook: buku catatan.",
+    }, {
+      vo: "Satu kunjungan tidak cukup untuk menilai konsistensi.",
+      element: "daftar tanggal",
+    }],
+  };
+  assert.equal(copyCollides(titleCopy, [prior])?.field, "title");
+
+  const openingCopy = {
+    title: "Audit ulasan sate minggu ini",
+    slides: [{
+      vo: "Pernah kecewa karena daging sate kambing yang alot?",
+      element: "Hook headline: Menu lain sama sekali. Visual hook: piring kosong.",
+    }, {
+      vo: "Ulasan publik dibanding satu per satu.",
+      element: "tabel",
+    }],
+  };
+  assert.equal(copyCollides(openingCopy, [prior])?.field, "opening");
+
+  const hookCopy = {
+    title: "Balasan untuk komentar tekstur",
+    slides: [{
+      vo: "Komentar itu bilang empuknya hanya kebetulan.",
+      element: "Hook headline: Sate Kambing Alot? Itu Dulu! Visual hook: komentar.",
+    }, {
+      vo: "Jawabannya adalah kunjungan yang berulang.",
+      element: "kutipan",
+    }],
+  };
+  assert.equal(copyCollides(hookCopy, [prior])?.field, "opening");
+
+  const bodyCopy = {
+    title: "Laporan kunjungan yang berbeda",
+    slides: [{
+      vo: "Komentar haters menanyakan bukti, bukan janji.",
+      element: "Hook headline: Bukan kebetulan sekali. Visual hook: kompilasi video.",
+    }, {
+      vo: prior.lines[1],
+      element: "bukti",
+    }, {
+      vo: prior.lines[2],
+      element: "bukti",
+    }],
+  };
+  assert.equal(copyCollides(bodyCopy, [prior])?.field, "body");
+
+  const other = {
+    title: "Rahasia Daging Kambing Empuk Muda lawan Tua",
+    slides: [{
+      vo: "Serat daging muda lebih pendek daripada daging tua.",
+      element: "Hook headline: Muda atau tua beda serat. Visual hook: dua potongan.",
+    }, {
+      vo: "Hubungi kami 085923305709",
+      element: "tombol",
+    }],
+  };
+  const phonePrior = {
+    title: "Jam buka akhir pekan",
+    hook: "Datang sebelum magrib",
+    opening: "Pesan tempat untuk keluarga besar.",
+    lines: ["Pesan tempat untuk keluarga besar.", "Nomor reservasi 085923305709"],
+  };
+  assert.equal(copyCollides(other, [prior, phonePrior]), null);
+
+  const newest = selectCopyPriors([
+    { title: "Lama", service_id: "svc-a", post_date: "2026-11-01", lines: ["satu"] },
+    { title: "Lain merek", service_id: "svc-b", post_date: "2026-11-12", lines: ["dua"] },
+    { title: "Baru", service_id: "svc-a", post_date: "2026-11-12", lines: ["tiga"] },
+  ], "svc-a", 8);
+  assert.deepEqual(newest.map((row) => row.title), ["Baru", "Lama"]);
+
+  const sop = buildSop1Prompt({
+    day: "2026-11-12",
+    pillar: { id: pillarId, name: "Audit Akun Publik" },
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [{
+      post_date: "2026-11-12",
+      title: prior.title,
+      pillar_name: "Audit Akun Publik",
+      author_name: "Yudha",
+      hook: prior.hook,
+      opening: prior.opening,
+    }],
+    brief: { service_ids: ["svc-a"], services: [], required_notes: "", forbidden_notes: "" },
+    performance: [],
+    service: { id: "svc-a", name: "Sate" },
+    path: { development: "Bedah ulasan publik tentang konsistensi rasa.", prompt_voice: "tenang", is_repeat: false },
+    avoid: `Judul terlalu mirip dengan "${prior.title}".`,
+  });
+  assert.match(sop, /Garansi Daging Empuk Sate Sultan PIK/);
+  assert.match(sop, /Sate Kambing Alot/);
+  assert.match(sop, /Bedah ulasan publik/);
+  assert.match(sop, /Jangan memakai judul, headline, atau kalimat slide 1/);
+  assert.match(sop, /Tulis ulang/);
+
+  const check = buildExecutionCheckPrompt({
+    day: "2026-11-12",
+    pillar: { id: pillarId, name: "Baca Komen Haters" },
+    idea: { idea_statement: "Video ulasan konsistensi" },
+    draft: hookCopy,
+    path: { development: "Balas komentar empuknya cuma kebetulan dengan kompilasi video." },
+    priors: [{ title: prior.title, hook: prior.hook, opening: prior.opening }],
+  });
+  assert.match(check, /Komentar itu bilang empuknya hanya kebetulan/);
+  assert.match(check, /Balas komentar empuknya cuma kebetulan/);
+  assert.match(check, /messageStays gagal bila headline/);
+  assert.doesNotMatch(check, /Gagalkan hanya bila/);
+
+  const ordered = orderCopyFallbackPaths([
+    { idea_id: "idea-b", content_pillar_id: "p2", angle_id: "angle-first" },
+    { idea_id: "idea-a", content_pillar_id: "p1", angle_id: "angle-first" },
+    { idea_id: "idea-a", content_pillar_id: "p8", angle_id: "angle-first" },
+    { idea_id: "idea-c", content_pillar_id: "p9", angle_id: "angle-other" },
+  ], "idea-a", "p1");
+  assert.deepEqual(ordered.map((row) => `${row.idea_id}:${row.content_pillar_id}`), [
+    "idea-a:p1",
+    "idea-c:p9",
+    "idea-b:p2",
+    "idea-a:p8",
+  ]);
+
+  const source = readFileSync(new URL("../../supabase/functions/ai-employee-run/index.ts", import.meta.url), "utf8");
+  assert.match(source, /copyCollides/);
+  assert.match(source, /attempt <= 3/);
+  assert.match(source, /rememberCopy/);
+  assert.match(source, /orderCopyFallbackPaths/);
+  assert.match(source, /ideaTries > ideaCap/);
 });

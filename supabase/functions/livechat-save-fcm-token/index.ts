@@ -89,13 +89,13 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Satu perangkat (satu FCM token) hanya boleh terdaftar untuk satu user per context+app.
+    // Satu token FCM milik satu aplikasi. Salinan di app lain (misalnya token POS
+    // yang sempat tercatat sebagai Office) ikut dihapus supaya push Office tidak masuk ke POS.
     await supabaseAdmin
       .from("fcm_tokens")
       .delete()
       .eq("token", fcmToken)
-      .eq("context", context)
-      .eq("app_id", appId);
+      .eq("context", context);
 
     const { error: upsertError } = await supabaseAdmin.from("fcm_tokens").upsert(
       {

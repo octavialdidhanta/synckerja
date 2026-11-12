@@ -117,6 +117,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
   const [pillarPickerOpen, setPillarPickerOpen] = useState(false);
   const [isGoogleDriveDialogOpen, setIsGoogleDriveDialogOpen] = useState(false);
   const [isSocialLinksDialogOpen, setIsSocialLinksDialogOpen] = useState(false);
+  const openPublishAfterApproveRef = useRef(false);
   const [showApprovalOptions, setShowApprovalOptions] = useState({
     status: true,
     production_status: true
@@ -549,7 +550,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
         onProductionStatusChange(plan.id, batchUpdates.production_status);
       }
       if (batchUpdates.production_approved_date !== undefined) {
-        onFieldChange(plan.id, 'production_approved_date', batchUpdates.production_approved_date);
+      openPublishAfterApproveRef.current = checked;
       }
     } catch (error) {
       devLog.error('Error updating production approved:', error);

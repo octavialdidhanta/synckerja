@@ -25,12 +25,14 @@ import { getPlatformSettingsPath } from '../lib/platformOAuthConfig';
 import { ScheduleStatusBadge } from './ScheduleStatusBadge';
 import {
   SCHEDULE_TABLE_ACTIONS_CELL_CLASS,
+  SCHEDULE_TABLE_ACTIONS_CELL_STATIC_CLASS,
   SCHEDULE_TABLE_BODY_ROW_CLASS,
   SCHEDULE_TABLE_CONNECTION_CELL_CLASS,
   SCHEDULE_TABLE_MIDDLE_GROUP_CLASS,
   SCHEDULE_TABLE_PLATFORM_CELL_CLASS,
   SCHEDULE_TABLE_STATUS_CELL_CLASS,
   SCHEDULE_TABLE_TIME_CELL_CLASS,
+  SCHEDULE_TABLE_TIME_CELL_NATIVE_CLASS,
   SCHEDULE_TABLE_VISIBILITY_CELL_CLASS,
 } from './scheduleTableColumnStyles';
 import {
@@ -64,6 +66,8 @@ type Props = {
   bulkRunning?: boolean;
   reconnectHint: string | null;
   actionsDisabled?: boolean;
+  /** When false, the actions column scrolls away with the other columns. */
+  pinActions?: boolean;
 };
 
 export function RequiredPlatformScheduleRow({
@@ -86,6 +90,7 @@ export function RequiredPlatformScheduleRow({
   bulkRunning = false,
   reconnectHint,
   actionsDisabled = false,
+  pinActions = true,
 }: Props) {
   const { t } = useTranslation();
   const { platform, accountLabel } = target;
@@ -244,7 +249,7 @@ export function RequiredPlatformScheduleRow({
           )}
         </div>
 
-        <div className={SCHEDULE_TABLE_TIME_CELL_CLASS}>
+        <div className={pinActions ? SCHEDULE_TABLE_TIME_CELL_CLASS : SCHEDULE_TABLE_TIME_CELL_NATIVE_CLASS}>
           <div className="flex flex-nowrap items-center gap-1">
             <Input
               type="time"
@@ -280,9 +285,7 @@ export function RequiredPlatformScheduleRow({
         </div>
       </div>
 
-      <div className={SCHEDULE_TABLE_ACTIONS_CELL_CLASS}>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+      <div className={pinActions ? SCHEDULE_TABLE_ACTIONS_CELL_CLASS : SCHEDULE_TABLE_ACTIONS_CELL_STATIC_CLASS}>
             <Button
               type="button"
               variant="ghost"

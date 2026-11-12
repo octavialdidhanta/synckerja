@@ -234,7 +234,9 @@ Deno.serve(async (req: Request) => {
       .from("fcm_tokens")
       .select("id, token")
       .eq("user_id", recipientUserId)
-      .eq("context", "general");
+      .eq("context", "general")
+      .eq("app_id", "id.synckerja.app")
+      .order("updated_at", { ascending: false });
     const tokens = (fcmRows ?? []) as { id: string; token: string }[];
     if (tokens.length === 0) {
       console.log("daily-task-assignment-send-push: no_tokens", { recipientUserId, total });

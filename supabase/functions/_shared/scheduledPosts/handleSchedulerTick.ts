@@ -13,7 +13,7 @@ import { clearOrgRateLimitCache } from "./rateLimit/acquirePublishSlot.ts";
 import { runScheduledPostJob } from "./runScheduledPostJob.ts";
 import type { RunScheduledPostJobResult } from "./runScheduledPostJob.ts";
 import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
-import { instagramPublishShouldFollowPeers } from "./sharedPublishContext.ts";
+import { compareScheduledPostsForPublish } from "./publishPlatformOrder.ts";
 import type { ScheduledPostRow } from "./scheduledPostTypes.ts";
 
 /** @deprecated Use loadSchedulerConfig — kept for imports that read batch default. */
@@ -65,7 +65,9 @@ function tallyResults(results: RunScheduledPostJobResult[]): {
   let failed = 0;
 
   for (const result of results) {
-    if (result.deferred) deferredRateLimited += 1;
+    if (result.deferred === "rate_limit" || result.deferred === "rate_limit_global") {
+      deferredRateLimited += 1;
+    }
     else if (result.ok && !result.skipped) publishedOk += 1;
     else if (!result.ok && !result.skipped) failed += 1;
   }
@@ -73,7 +75,7 @@ function tallyResults(results: RunScheduledPostJobResult[]): {
   return { deferredRateLimited, publishedOk, failed };
 }
 
-async function releaseInstagramForNextTick(
+async function releaseRowForNextTick(
   admin: SupabaseClient,
   row: ScheduledPostRow,
 ): Promise<RunScheduledPostJobResult> {
@@ -94,7 +96,7 @@ async function releaseInstagramForNextTick(
     id: row.id,
     ok: false,
     platform: row.platform,
-    deferred: "instagram_after_peers",
+    deferred: "tick_budget",
   };
 }
 
@@ -106,41 +108,61 @@ async function processClaimedRows(
 ): Promise<RunScheduledPostJobResult[]> {
   if (rows.length === 0) return [];
 
-  const runRow = (row: ScheduledPostRow) =>
-    runScheduledPostJob(admin, row.id, {
-      preloadedRow: row,
-      fromClaim: true,
-      schedulerConfig: config,
-    });
+  const ordered = [...rows].sort((a, b) =>
+    compareScheduledPostsForPublish(
+      {
+        platform: a.platform,
+        platform_account_id: String((a as { platform_account_id?: string }).platform_account_id ?? ""),
+      },
+      {
+        platform: b.platform,
+        platform_account_id: String((b as { platform_account_id?: string }).platform_account_id ?? ""),
+      },
+    )
+  );
+  const groups = groupRowsByPlan(ordered).map((group) =>
+    [...group].sort((a, b) =>
+      compareScheduledPostsForPublish(
+        {
+          platform: a.platform,
+          platform_account_id: String((a as { platform_account_id?: string }).platform_account_id ?? ""),
+        },
+        {
+          platform: b.platform,
+          platform_account_id: String((b as { platform_account_id?: string }).platform_account_id ?? ""),
+        },
+      )
+    )
+  );
 
-  const instagramAfterPeers = rows.filter((row) => instagramPublishShouldFollowPeers(row));
-  const withPeers = rows.filter((row) => !instagramPublishShouldFollowPeers(row));
-
-  // Same plan shares one video. Parallel byte uploads of that file stall or kill the isolate.
-  const peerGroups = groupRowsByPlan(withPeers);
-  const peerGroupResults = await runWithConcurrency(
-    peerGroups,
+  const groupResults = await runWithConcurrency(
+    groups,
     config.tick_concurrency,
     async (group) => {
-      const groupResults: RunScheduledPostJobResult[] = [];
+      const results: RunScheduledPostJobResult[] = [];
       for (const row of group) {
-        groupResults.push(await runRow(row));
+        if (Date.now() - tickStartMs > SCHEDULER_UPLOAD_BUDGET_MS) {
+          results.push(await releaseRowForNextTick(admin, row));
+          continue;
+        }
+        const result = await runScheduledPostJob(admin, row.id, {
+          preloadedRow: row,
+          fromClaim: true,
+          schedulerConfig: config,
+        });
+        results.push(result);
+        if (!result.ok) {
+          for (const waiting of group.slice(group.indexOf(row) + 1)) {
+            results.push(await releaseRowForNextTick(admin, waiting));
+          }
+          break;
+        }
       }
-      return groupResults;
+      return results;
     },
   );
-  const peerResults = peerGroupResults.flat();
-  const instagramResults: RunScheduledPostJobResult[] = [];
 
-  for (const row of instagramAfterPeers) {
-    if (Date.now() - tickStartMs > SCHEDULER_UPLOAD_BUDGET_MS) {
-      instagramResults.push(await releaseInstagramForNextTick(admin, row));
-      continue;
-    }
-    instagramResults.push(await runRow(row));
-  }
-
-  return [...peerResults, ...instagramResults];
+  return groupResults.flat();
 }
 
 /** Plans published before completion sync ran after status=published stay done=false. */

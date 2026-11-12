@@ -31,6 +31,7 @@ import BriefDialog from '../modal/BriefDialog';
 import TitleDialog from '../modal/TitleDialog';
 import EditTargetDialog from '../modal/EditTargetDialog';
 import GoogleDriveLinkDialog from '../modal/GoogleDriveLinkDialog';
+import SocialMediaLinksDialog from '../modal/SocialMediaLinksDialog';
 import type { ContentPlan } from '../types/social-media';
 import { useProductKnowledgeFeatures } from '@/6-1-product-knowledge/hooks/useProductKnowledgeFeatures';
 import {
@@ -1561,6 +1562,15 @@ const SocialMediaContent = () => {
 
           {/* Daily Task Selector Dialog for Approval */}
           {pendingApproval && (
+          {publishSetupPlanId ? (
+            <SocialMediaLinksDialog
+              isOpen
+              onClose={() => setPublishSetupPlanId(null)}
+              socialMediaPlanId={publishSetupPlanId}
+              planTitle={contentPlans.find((plan) => plan.id === publishSetupPlanId)?.title ?? undefined}
+            />
+          ) : null}
+
             <DailyTaskSelectorDialog
               isOpen={isTaskSelectorOpen}
               onClose={handleModalClose}

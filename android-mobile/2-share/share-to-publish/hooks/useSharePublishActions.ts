@@ -170,7 +170,6 @@ export function useSharePublishActions(args: {
           employeeId,
           postDateYmd: activePlan.post_date!.slice(0, 10),
           getTimeWib: () => scheduleTimeWib,
-          parallelPostNow: action === "post_now",
           driveLinkBlocked,
           planEligibility: toEligibilityInput(activePlan),
           ownerBypass,

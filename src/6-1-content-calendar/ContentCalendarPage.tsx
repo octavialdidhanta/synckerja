@@ -19,6 +19,7 @@ import { RealtimeSocialMediaProvider } from '@/6-1-dashboard/hook/RealtimeSocial
 import OptimizedErrorBoundary from '@/6-1-dashboard/components/OptimizedErrorBoundary';
 import { PICFilterProvider } from '@/6-1-dashboard/context/PICFilterContext';
 import GoogleDriveLinkDialog from '@/6-1-dashboard/modal/GoogleDriveLinkDialog';
+import SocialMediaLinksDialog from '@/6-1-dashboard/modal/SocialMediaLinksDialog';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useSyncPicProduction } from '@/6-1-dashboard/hook/useSyncPicProduction';
 import {
@@ -619,6 +620,19 @@ const ContentCalendarContent: React.FC = () => {
       )}
     </>
   );
+
+      {publishSetupPlanId ? (
+        <SocialMediaLinksDialog
+          isOpen
+          onClose={() => setPublishSetupPlanId(null)}
+          socialMediaPlanId={publishSetupPlanId}
+          planTitle={
+            contentPlans.find((plan) => plan.id === publishSetupPlanId)?.title
+            ?? filteredContentPlans.find((plan) => plan.id === publishSetupPlanId)?.title
+            ?? undefined
+          }
+        />
+      ) : null}
 };
 
 // Main export with providers (matching SocialMediaDashboardPage pattern)
