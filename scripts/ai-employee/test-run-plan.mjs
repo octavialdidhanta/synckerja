@@ -1518,3 +1518,19 @@ test("Canva memasang foto dan logo lewat read-design + edit-design", () => {
   assert.match(canva, /payload\.media_id/);
   assert.match(canva, /event: "canva_product_photos_failed"/);
 });
+
+test("revisi Canva memakai read-design + edit-design dan locator_id", () => {
+  const revise = readFileSync(new URL("../../supabase/functions/canva-carousel-run/revise.ts", import.meta.url), "utf8");
+  for (const removed of ["start-editing-transaction", "perform-editing-operations", "commit-editing-transaction", "cancel-editing-transaction"]) {
+    assert.doesNotMatch(revise, new RegExp(`"${removed}"`));
+  }
+  assert.match(revise, /"read-design", \{\s*design_id: String\(locked\.design_id\),\s*open_transaction: true/);
+  assert.match(revise, /finalize: "keep_open"/);
+  assert.match(revise, /finalize: "commit"/);
+  assert.match(revise, /finalize: "cancel"/);
+  assert.match(revise, /operations: operations\.map\(toEditOperation\)/);
+  assert.match(revise, /return \{ \.\.\.rest, locator_id: elementId \}/);
+  assert.match(revise, /record\.textRegions/);
+  assert.match(revise, /fillMedia\?\.mediaId/);
+  assert.match(revise, /uploaded\.payload\.media_id/);
+});

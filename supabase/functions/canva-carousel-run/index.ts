@@ -537,7 +537,7 @@ async function placeProductPhotos(
   photos: ProductPhoto[],
 ): Promise<void> {
   const assets: Array<{ name: string; assetId: string }> = [];
-  for (const [index, photo] of photos.slice(0, MAX_PRODUCT_PHOTOS).entries()) {
+  for (const [index, photo] of photos.slice(0, 1).entries()) {
     const signed = await admin.storage.from(PRODUCT_BUCKET).createSignedUrl(photo.path, 300);
     const url = signed.data?.signedUrl ?? "";
     if (!url.startsWith("https://")) continue;
@@ -562,9 +562,11 @@ async function placeProductPhotos(
   token = opened.token;
   if (!opened.transactionId || opened.pages.length === 0) throw new Error("product_photo_place_failed");
   let inserted = 0;
+  // One real photo, on the last page (the closing slide). Other pages keep Canva's own food shots.
+  const lastPage = opened.pages.reduce((last, page) => (page.pageNumber > last.pageNumber ? page : last), opened.pages[0]);
+  const asset = assets[0];
   try {
-    for (const page of opened.pages) {
-      const asset = assets[(page.pageNumber - 1) % assets.length];
+    for (const page of [lastPage]) {
       const width = Math.round(page.width * 0.62);
       const height = Math.round(page.height * 0.46);
       const edited = await editPage(admin, organizationId, token, opened.transactionId, page.pageNumber, [{

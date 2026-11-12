@@ -201,18 +201,47 @@ function logoLine(logo?: "required" | "none"): string {
 
 const PERSON_SCENE = /(orang|manusia|pria|wanita|perempuan|laki-laki|ibu|ayah|bapak|anak|chef|koki|pelanggan|pelayan|penjual|pembeli|pegawai|karyawan|kasir|barista|bayi|nenek|kakek|suami|istri|remaja|bocah|gadis|pemuda|pemudi|tamu|keluarga|\bperson\b|\bpeople\b|\bman\b|\bwoman\b|\bchild\b|\bboy\b|\bgirl\b)/i;
 
+const FOOD_SCENE = /\b(?:sate|satay|kambing|daging|sop|soto|gulai|iga|nasi|ayam|bebek|ikan|udang|makanan|hidangan|masakan|menu|piring|mangkuk|tusuk|tusukan|bumbu|sambal|kuah|lontong|ketupat|panggang|bakar|goreng|food|dish|meal|plate|skewers?)\b/i;
+
+/** Written once for the carousel; pages that show people point to it. */
+export const PERSON_PHOTO_RULE =
+  "Person photo rule: photograph real humans with natural skin and a real camera. Not an illustration, cartoon, 3D render, or synthetic face.";
+
+/** Written once for the carousel; pages that show food point to it. */
+export const FOOD_PHOTO_RULE =
+  "Food photo rule: real food shot on a real camera in a real Indonesian warung, natural or warm light, true colors, charred grill edges, uneven grill marks, sauce that is not plastic-glossy, small imperfections, shallow depth of field. Not CGI, 3D, illustration, oversaturated, or too perfect.";
+
 function pictureInstruction(picture: string): string {
-  if (!PERSON_SCENE.test(picture)) return `Draw: ${picture}`;
-  return `Photograph a real human with natural skin and a real camera. Not an illustration, cartoon, 3D render, or synthetic face. Scene: ${picture}`;
+  const marks: string[] = [];
+  if (PERSON_SCENE.test(picture)) marks.push("Real person photo.");
+  if (FOOD_SCENE.test(picture)) marks.push("Real food photo.");
+  if (marks.length === 0) return `Draw: ${picture}`;
+  return `${marks.join(" ")} Scene: ${picture}`;
 }
 
-function productPhotoLine(names?: string[]): string {
+const BRIEF_LIMIT = 3500;
+
+function clipScene(text: string, limit: number): string {
+  const clean = text.replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
+  if (clean.length <= limit) return clean;
+  const cut = clean.slice(0, limit);
+  const space = cut.lastIndexOf(" ");
+  return (space > limit * 0.6 ? cut.slice(0, space) : cut).replace(/[,.;:\s]+$/, "");
+}
+
+function menuLine(names?: string[]): string {
   const list = (names ?? [])
     .map((name) => name.replace(/\s+/g, " ").trim())
     .filter(Boolean)
-    .slice(0, 8);
+    .slice(0, 3);
   if (list.length === 0) return "";
-  return `Product photos are placed in the center of the pages: ${list.join("; ")}. Leave the center of every page empty for that photo. Do not draw a substitute picture of the food.`;
+  return `Real menu shown: ${list.join("; ")}. Draw these exact dishes.`;
+}
+
+function productPhotoLine(names?: string[]): string {
+  const main = (names ?? []).map((name) => name.replace(/\s+/g, " ").trim()).find(Boolean);
+  if (!main) return "";
+  return `A real photo of ${main} goes in the center of the last page only. Keep that center empty. Photograph the food yourself on the other pages.`;
 }
 
 export function buildCanvaCarouselBrief(input: {
@@ -232,7 +261,10 @@ export function buildCanvaCarouselBrief(input: {
   const forbiddenNote = (input.forbiddenNote ?? "").replace(/\s+/g, " ").trim().slice(0, 500);
   const notes = referenceNotes(input.styleLock ?? "");
   const sharedNote = notes.get(0) ?? "";
-  const pages = input.slides
+  const captionLine = caption ? ` Caption: ${caption}` : "";
+  let showsFood = false;
+  let showsPerson = false;
+  const buildPages = (sceneLimit: number) => input.slides
     .map((slide, index) => {
       const pieces = elementPieces(slide.elements);
       const slot = referenceSlot(slide.elements);
@@ -244,24 +276,45 @@ export function buildCanvaCarouselBrief(input: {
         }
       }
       const picture = [slide.scene, ...pieces.picture].map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean);
+      const scene = clipScene(picture.join(". "), sceneLimit);
+      if (FOOD_SCENE.test(scene)) showsFood = true;
+      if (PERSON_SCENE.test(scene)) showsPerson = true;
       const lines = [`Page ${index + 1}`];
       if (note) lines.push(`Layout and type: ${note}`);
-      if (picture.length > 0) lines.push(pictureInstruction(picture.join(". ")));
+      const photoPage = index === input.slides.length - 1 && (input.productPhotos ?? []).length > 0;
+      if (photoPage) {
+        // The real photo is this page's food: draw only the setting around it.
+        if (scene) lines.push(`Setting only, no food drawn: ${scene}`);
+        lines.push("Keep the center empty for the real product photo.");
+      } else if (scene) {
+        lines.push(pictureInstruction(scene));
+      }
       if (words.length > 0) lines.push(`Write only: ${words.join(" | ")}`);
       if (slide.tagging) lines.push(`Small label: ${slide.tagging}`);
       return lines.join("\n");
     })
     .join("\n");
-  const captionLine = caption ? ` Caption: ${caption}` : "";
-  return [
+  const assemble = (pages: string) => [
     `Design an Instagram carousel with ${input.slides.length} portrait 4:5 pages. One page per slide. Make every page editable.`,
     requiredFacts.length > 0 ? `Write exactly this on the last page: ${requiredFacts.join(" ")}` : "",
     forbiddenNote ? `Do not write any of this: ${forbiddenNote}` : "",
     paletteLine(input.palette),
     logoLine(input.logo),
+    showsPerson ? PERSON_PHOTO_RULE : "",
+    showsFood || (input.productPhotos ?? []).length > 0 ? FOOD_PHOTO_RULE : "",
+    menuLine(input.productPhotos),
     productPhotoLine(input.productPhotos),
     `Title: ${title}.${captionLine}`,
     pages,
     "Write only the listed words. Draw the picture, and do not turn the picture instructions into text. Use the layout and the named typeface for that page.",
-  ].filter(Boolean).join("\n").slice(0, 3500);
+  ].filter(Boolean).join("\n");
+  // Shorten scenes before anything is cut, so the last page (CTA, required facts) always fits.
+  let brief = "";
+  for (const limit of [400, 220, 150, 100, 60]) {
+    showsFood = false;
+    showsPerson = false;
+    brief = assemble(buildPages(limit));
+    if (brief.length <= BRIEF_LIMIT) break;
+  }
+  return brief.slice(0, BRIEF_LIMIT);
 }
