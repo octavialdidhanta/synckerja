@@ -269,6 +269,8 @@ const SocialMediaContent = () => {
 
   // Notification bell: open preview modal for this plan id (instead of public page)
   const [notificationPreviewPlanId, setNotificationPreviewPlanId] = useState<string | null>(null);
+  // Publish setup: open social media links dialog right after a production plan is approved
+  const [publishSetupPlanId, setPublishSetupPlanId] = useState<string | null>(null);
 
   // Fetch single plan when opening preview from notification (plan may not be in current table filter)
   const PLAN_SELECT = `
@@ -1539,6 +1541,7 @@ const SocialMediaContent = () => {
                 handleFieldChange(notificationPreviewPlan.id, 'production_approved', true);
                 handleFieldChange(notificationPreviewPlan.id, 'production_approved_date', new Date().toISOString());
                 handleFieldChange(notificationPreviewPlan.id, 'production_status', 'Approved');
+                setPublishSetupPlanId(notificationPreviewPlan.id);
               }}
               onCarouselChange={() => {
                 queryClient.invalidateQueries({ queryKey: ['social-media-carousel'] });
@@ -1560,8 +1563,6 @@ const SocialMediaContent = () => {
             />
           )}
 
-          {/* Daily Task Selector Dialog for Approval */}
-          {pendingApproval && (
           {publishSetupPlanId ? (
             <SocialMediaLinksDialog
               isOpen
@@ -1571,6 +1572,8 @@ const SocialMediaContent = () => {
             />
           ) : null}
 
+          {/* Daily Task Selector Dialog for Approval */}
+          {pendingApproval && (
             <DailyTaskSelectorDialog
               isOpen={isTaskSelectorOpen}
               onClose={handleModalClose}

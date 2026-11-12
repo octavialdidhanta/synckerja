@@ -1013,14 +1013,6 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
       setApprovalLoading(false);
     }
   }, [canShowApprovalButtons, content?.social_media_plan_id, showBackToHome, t]);
-      toast.success(t('publicReview.toast.approveSuccess', 'Production approved successfully'));
-    } catch (e) {
-      devLog.error('Error in handleApprove:', e);
-      toast.error(t('publicReview.toast.approveFailed', 'Failed to approve production'));
-    } finally {
-      setApprovalLoading(false);
-    }
-  }, [canShowApprovalButtons, content?.social_media_plan_id, t]);
 
   const handleRevision = useCallback(async () => {
     if (!canShowApprovalButtons) return;
@@ -1945,16 +1937,16 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                 >
                   {submitting ? (
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                    onClick={handleApproveClick}
-                    disabled={approveDisabled}
+                  ) : (
+                    <Send className="h-4 w-4" />
                   )}
                 </Button>
               </div>
               {canShowApprovalButtons && (
                 <div className="w-full flex flex-nowrap items-center gap-3 pt-2 border-t border-gray-100 flex-shrink-0 pb-4">
                   <Button
-                    onClick={handleApprove}
-                    disabled={approvalLoading || !approvalKnown || productionApproved || !!commentText.trim() || hasSuccessfullySentCommentThisSession}
+                    onClick={handleApproveClick}
+                    disabled={approveDisabled}
                     className="flex-1 min-w-0 h-9 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium px-3 gap-2 min-h-[44px] touch-manipulation disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <Check className="h-4 w-4 shrink-0" />
@@ -2028,16 +2020,16 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
               >
                 {submitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  onClick={handleApproveClick}
-                  disabled={approveDisabled}
+                ) : (
+                  <Send className="h-4 w-4" />
                 )}
               </Button>
             </div>
             {canShowApprovalButtons && !keyboardOpen && (
               <div className="w-full flex flex-nowrap items-center gap-3 pt-2 border-t border-gray-200 flex-shrink-0 pb-2">
                 <Button
-                  onClick={handleApprove}
-                  disabled={approvalLoading || !approvalKnown || productionApproved || !!commentText.trim() || hasSuccessfullySentCommentThisSession}
+                  onClick={handleApproveClick}
+                  disabled={approveDisabled}
                   className="flex-1 min-w-0 h-9 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium px-3 gap-2 min-h-[44px] touch-manipulation disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Check className="h-4 w-4 shrink-0" />
@@ -2056,14 +2048,6 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                 >
                   <RotateCcw className="h-4 w-4 shrink-0" />
                   <span className="truncate">{t('publicReview.requestRevision', 'Request Revision')}</span>
-      {publishSetupOpen && content?.social_media_plan_id ? (
-        <SocialMediaLinksDialog
-          isOpen
-          onClose={() => setPublishSetupOpen(false)}
-          socialMediaPlanId={content.social_media_plan_id}
-          planTitle={content.title ?? undefined}
-        />
-      ) : null}
                 </Button>
               </div>
             )}
@@ -2072,6 +2056,14 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
       )}
       </div>
       </div>
+      {publishSetupOpen && content?.social_media_plan_id ? (
+        <SocialMediaLinksDialog
+          isOpen
+          onClose={() => setPublishSetupOpen(false)}
+          socialMediaPlanId={content.social_media_plan_id}
+          planTitle={content.title ?? undefined}
+        />
+      ) : null}
     </div>
   );
 };

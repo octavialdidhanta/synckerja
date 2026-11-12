@@ -48,6 +48,8 @@ export type RunScheduledPostJobOptions = {
   schedulerConfig?: SchedulerConfig;
   /** Shared Drive download for plan bulk orchestrator */
   sharedPublishContext?: SharedPublishContext;
+  /** One immediate retry already ran for this invocation. */
+  inlineRetried?: boolean;
 };
 
 
@@ -269,8 +271,6 @@ export async function runScheduledPostJob(
   } catch (e) {
     const msg = e instanceof Error ? e.message : "publish_failed";
     const stub = parseScheduleStubError(msg);
-    const retryCount = isInternalRateLimitMessage(msg)
-      ? Number(row.retry_count ?? 0)
     if (
       !options?.inlineRetried &&
       !stub &&
@@ -286,6 +286,8 @@ export async function runScheduledPostJob(
         fromClaim: true,
       });
     }
+    const retryCount = isInternalRateLimitMessage(msg)
+      ? Number(row.retry_count ?? 0)
       : Number(row.retry_count ?? 0) + 1;
     const nextStatus = stub || isScheduleStubError(msg)
       ? "failed"
