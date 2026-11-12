@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ChevronDown, Loader2, MoreHorizontal, X } from "lucide-react";
+import { ChevronDown, Loader2, Lock, MoreHorizontal, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Switch } from "@/shared/components/ui/switch";
 import {
@@ -35,7 +35,7 @@ import {
   sameRoutine,
   sameSchedule,
 } from "./parse";
-import { anglesForCatalogs, anglesWithLockedIdeas, pillarsForLockedIdeas } from "./angleCatalog";
+import { anglesForCatalogs, anglesWithLockedIdeas, groupBriefPillars, pillarsForLockedIdeas } from "./angleCatalog";
 import { canAddScheduleTime } from "./scheduleTimes";
 import type { AngleOption, BriefChange, BriefDraft, CatalogOption, RoutineRow, ScheduleRow } from "./types";
 import { useSubCategoryPhotoUrls } from "./subCategoryPhotos";
@@ -340,6 +340,9 @@ function ProductKnowledgeField({
   value,
   disabled,
   onChange,
+  lockedIds,
+  lockedLabel = "",
+  otherLabel = "",
 }: {
   emptyLabel: string;
   placeholder: string;
@@ -348,6 +351,10 @@ function ProductKnowledgeField({
   value: string[];
   disabled: boolean;
   onChange: (next: string[]) => void;
+  /** When set, options are split into a locked group (shown first, with a lock icon) and the rest. */
+  lockedIds?: ReadonlySet<string>;
+  lockedLabel?: string;
+  otherLabel?: string;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -359,6 +366,29 @@ function ProductKnowledgeField({
     if (!needle) return true;
     return option.label.toLowerCase().includes(needle);
   });
+  const renderOption = (option: CatalogOption, locked: boolean) => {
+    const picked = value.includes(option.id);
+    const blocked = !picked && value.length >= limit;
+    return (
+      <button
+        key={option.id}
+        type="button"
+        disabled={disabled || blocked}
+        className={cn(
+          "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40",
+          picked && "bg-violet-50",
+        )}
+        onClick={() => {
+          if (picked) onChange(value.filter((id) => id !== option.id));
+          else if (value.length < limit) onChange([...value, option.id]);
+          setQuery("");
+        }}
+      >
+        <span className="min-w-0 flex-1 truncate">{option.label}</span>
+        {locked ? <Lock className="h-3.5 w-3.5 shrink-0 text-amber-600" aria-label="Sudah dipakai di idea" /> : null}
+      </button>
+    );
+  };
   return (
     <Popover open={open} onOpenChange={(next) => { if (!disabled) setOpen(next); }}>
       <PopoverTrigger asChild>
@@ -413,29 +443,28 @@ function ProductKnowledgeField({
       >
         {visible.length === 0 ? (
           <p className="px-2 py-1.5 text-xs text-muted-foreground">{emptyLabel}</p>
-        ) : (
-          visible.map((option) => {
-            const picked = value.includes(option.id);
-            const blocked = !picked && value.length >= limit;
+        ) : lockedIds ? (
+          (() => {
+            const groups = groupBriefPillars(visible, lockedIds);
             return (
-              <button
-                key={option.id}
-                type="button"
-                disabled={disabled || blocked}
-                className={cn(
-                  "flex w-full rounded px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40",
-                  picked && "bg-violet-50",
-                )}
-                onClick={() => {
-                  if (picked) onChange(value.filter((id) => id !== option.id));
-                  else if (value.length < limit) onChange([...value, option.id]);
-                  setQuery("");
-                }}
-              >
-                {option.label}
-              </button>
+              <>
+                {groups.locked.length > 0 ? (
+                  <p className="px-2 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {lockedLabel}
+                  </p>
+                ) : null}
+                {groups.locked.map((option) => renderOption(option, true))}
+                {groups.other.length > 0 ? (
+                  <p className="mt-1 border-t border-border/60 px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {otherLabel}
+                  </p>
+                ) : null}
+                {groups.other.map((option) => renderOption(option, false))}
+              </>
             );
-          })
+          })()
+        ) : (
+          visible.map((option) => renderOption(option, false))
         )}
       </PopoverContent>
     </Popover>
@@ -1785,11 +1814,6 @@ export default function AiEmployeePage() {
                                         const angle = page.options.angles.find((item) => item.id === angleId);
                                         return angle?.serviceId != null && allowed.has(angle.serviceId);
                                       });
-                                      const pillarAllowed = new Set(
-                                        page.options.angles
-                                          .filter((angle) => angleIds.includes(angle.id))
-                                          .flatMap((angle) => angle.pillarIds),
-                                      );
                                       return {
                                         ...current,
                                         serviceIds,
@@ -1797,7 +1821,7 @@ export default function AiEmployeePage() {
                                         subServiceIds: [],
                                         productIds,
                                         angleIds,
-                                        pillarIds: current.pillarIds.filter((pillarId) => pillarAllowed.has(pillarId)),
+                                        pillarIds: angleIds.length === 0 ? [] : current.pillarIds,
                                       };
                                     })}
                                   />
@@ -1830,17 +1854,9 @@ export default function AiEmployeePage() {
                                     disabled={saving || !canEdit}
                                     onChange={(angleIds) => setBrief((current) => {
                                       if (!current || !page) return current;
+                                      // Pilar is not tied to locked ideas any more: keep the picks while an angle is set.
                                       if (angleIds.length === 0) return { ...current, angleIds, pillarIds: [] };
-                                      const allowed = new Set(
-                                        page.options.angles
-                                          .filter((angle) => angleIds.includes(angle.id))
-                                          .flatMap((angle) => angle.pillarIds),
-                                      );
-                                      return {
-                                        ...current,
-                                        angleIds,
-                                        pillarIds: current.pillarIds.filter((id) => allowed.has(id)),
-                                      };
+                                      return { ...current, angleIds };
                                     })}
                                     onOpen={setAngleDetailId}
                                   />
@@ -1850,15 +1866,17 @@ export default function AiEmployeePage() {
                               {
                                 key: "pillars",
                                 label: t("aiEmployee.brief.pillars", "Pilar"),
+                                hint: "Kosong berarti AI bebas memilih dari semua pilar. Pilar bergembok sudah dipakai di idea pada angle terpilih. Pilih pilar lain kalau mau AI membuat path baru di pilar itu untuk idea yang belum punya pilar. Paling banyak 12.",
                                 value: (
                                   <ProductKnowledgeField
                                     placeholder={t("aiEmployee.brief.pillars", "Pilar")}
                                     emptyLabel={brief.angleIds.length === 0
                                       ? t("aiEmployee.brief.pickAngleFirst", "Pilih angle dulu")
-                                      : t("aiEmployee.brief.noLockedPillars", "Tidak ada pilar yang terkunci pada idea")}
-                                    options={page.options.pillars.filter((pillar) => (
-                                      visiblePillars.some((item) => item.id === pillar.id) || brief.pillarIds.includes(pillar.id)
-                                    ))}
+                                      : t("aiEmployee.brief.noPillars", "Tidak ada pilar")}
+                                    options={page.options.pillars}
+                                    lockedIds={new Set(visiblePillars.map((pillar) => pillar.id))}
+                                    lockedLabel={t("aiEmployee.brief.lockedPillars", "Sudah dipakai di idea")}
+                                    otherLabel={t("aiEmployee.brief.otherPillars", "Pilar lain")}
                                     value={brief.pillarIds}
                                     disabled={saving || !canEdit || brief.angleIds.length === 0}
                                     onChange={(pillarIds) => setBrief((current) => current ? { ...current, pillarIds } : current)}
