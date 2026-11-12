@@ -52,6 +52,7 @@ import {
   carouselReferenceOk,
   normalizeCarouselReference,
   parseCarouselDraft,
+  copyClaimTokens,
   copyCollides,
   orderCopyFallbackPaths,
   selectCopyPriors,
@@ -1399,4 +1400,41 @@ test("run fokus membangun path baru saat semua path antrean ditolak", () => {
   assert.match(source, /refillCarouselPath = \(blocked\) => prepareCarouselPath\("path", blocked, MAX_REFILL_PATH_ATTEMPTS\)/);
   assert.match(source, /pathRefills < MAX_PATH_REFILLS/);
   assert.match(source, /!rejectedPairs\.has\(pathPair\(row\)\)/);
+});
+
+test("klaim Product Knowledge boleh diulang di badan slide, judul tetap dicek", () => {
+  const claimTokens = copyClaimTokens([{
+    service_name: "Sate Sultan PIK",
+    feature_name: "Daging Empuk",
+    competitive_advantage: "Garansi rasa, Sop sum sum kambing di sate sultan PIK pasti empuk",
+  }]);
+  const prior = {
+    title: "Sate Kambing Tanpa Bau Prengus: Mitos atau Fakta?",
+    hook: "Sate Kambing Bau Prengus? MITOS ATAU FAKTA?",
+    opening: "Pernahkah kamu ragu makan sate kambing karena takut bau prengus?",
+    lines: [
+      "Pernahkah kamu ragu makan sate kambing karena takut bau prengus?",
+      "Garansi rasa: daging kambing Sate Sultan PIK pasti empuk!",
+      "Kami berikan garansi rasa, sate sumsum kambing di Sate Sultan PIK pasti empuk!",
+    ],
+  };
+  const draft = {
+    title: "Jurnal Rasa: Catatan Keempukan Tiap Kunjungan",
+    slides: [
+      { vo: "Coba catat rasa sate tiap kali kamu datang.", element: "Hook headline: Kamu Punya Jurnal Rasa? Visual hook: buku catatan" },
+      { vo: "Garansi rasa, daging kambing di Sate Sultan PIK pasti empuk!" },
+      { vo: "Kami berikan garansi rasa: sate kambing Sate Sultan PIK pasti empuk." },
+    ],
+  };
+  assert.equal(copyCollides(draft, [prior])?.field, "body");
+  assert.equal(copyCollides(draft, [prior], { claimTokens }), null);
+  const sameTitle = { ...draft, title: prior.title };
+  assert.equal(copyCollides(sameTitle, [prior], { claimTokens })?.field, "title");
+});
+
+test("penolakan copy dicatat dengan bagian dan judul pembandingnya", () => {
+  const source = readFileSync(new URL("../../supabase/functions/ai-employee-run/index.ts", import.meta.url), "utf8");
+  assert.match(source, /copyCollides\(candidate, compared, \{ claimTokens \}\)/);
+  assert.match(source, /lastReject = `copy:\$\{collision\.field\}@/);
+  assert.match(source, /event: "sop1_copy_reject"/);
 });

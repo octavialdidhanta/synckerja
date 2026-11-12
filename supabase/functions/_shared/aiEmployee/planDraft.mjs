@@ -745,7 +745,24 @@ export function selectCopyPriors(rows, serviceId, limit = 8) {
     .slice(0, limit);
 }
 
-export function copyCollides(draft, priors) {
+/**
+ * Words from the brief's Product Knowledge and brand. Plans are meant to repeat these claims,
+ * so the body check ignores them and only compares the rest of each slide.
+ */
+export function copyClaimTokens(products) {
+  const claim = new Set();
+  for (const row of Array.isArray(products) ? products : []) {
+    if (!row || typeof row !== "object") continue;
+    for (const key of ["service_name", "sub_service_name", "feature_name", "feature_description", "solusi", "competitive_advantage", "impact"]) {
+      for (const token of copyTokens(row[key])) claim.add(token);
+    }
+  }
+  return claim;
+}
+
+const withoutClaim = (tokens, claim) => (claim && claim.size > 0 ? tokens.filter((token) => !claim.has(token)) : tokens);
+
+export function copyCollides(draft, priors, { claimTokens = null } = {}) {
   const current = copyFingerprint(draft);
   const titleTokens = copyTokens(current.title);
   const hookTokens = copyTokens(current.hook);
@@ -765,9 +782,14 @@ export function copyCollides(draft, priors) {
         reason: `Kalimat pembuka terlalu mirip dengan "${clip(title, 120)}". Ganti headline dan kalimat slide 1.`,
       };
     }
-    const priorLines = (Array.isArray(prior?.lines) ? prior.lines : []).map((line) => copyTokens(line)).filter((tokens) => tokens.length > 0);
+    const priorLines = (Array.isArray(prior?.lines) ? prior.lines : [])
+      .map((line) => withoutClaim(copyTokens(line), claimTokens))
+      .filter((tokens) => tokens.length >= 3);
     let bodyHits = 0;
-    for (const slide of body) {
+    for (const raw of body) {
+      // A slide that only restates the product claim has too few own words to compare.
+      const slide = withoutClaim(raw, claimTokens);
+      if (slide.length < 3) continue;
       if (priorLines.some((line) => tokenJaccard(slide, line) >= 0.72)) bodyHits += 1;
     }
     if (bodyHits >= 2) {
