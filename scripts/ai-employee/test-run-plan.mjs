@@ -1392,7 +1392,8 @@ test("salinan judul, headline, dan badan ditolak sebelum disimpan", () => {
 test("run fokus membangun path baru saat semua path antrean ditolak", () => {
   const source = readFileSync(new URL("../../supabase/functions/ai-employee-run/index.ts", import.meta.url), "utf8");
   assert.match(source, /const MAX_PATH_REFILLS = 1;/);
-  assert.match(source, /const MAX_REFILL_PATH_ATTEMPTS = 2;/);
+  assert.match(source, /const MAX_REFILL_PATH_ATTEMPTS = 4;/);
+  assert.match(source, /rejectedIdeaIds\.has\(candidates\[index\]\.id\)/);
   assert.match(source, /new Set\(\[\.\.\.takenPairs, \.\.\.extraBlocked\]\)/);
   assert.match(source, /while \(attempts < maxAttempts\)/);
   assert.match(source, /refillCarouselPath = \(blocked\) => prepareCarouselPath\("path", blocked, MAX_REFILL_PATH_ATTEMPTS\)/);
