@@ -132,6 +132,12 @@ function checkRewriteNote(checkId: string): string {
   if (checkId === "messageStays") {
     return "Pemeriksaan messageStays gagal. Ganti headline dan kalimat slide 1.";
   }
+  if (checkId === "usesSlang") {
+    return "Pemeriksaan usesSlang gagal. Tulis ulang setiap vo dan Hook headline dengan bahasa lisan sehari-hari ke teman dekat: kamu, nggak, aja, banget, sih, deh, kok, dong bila pas. Hapus kata formal seperti Anda, tidak, sangat, namun, merupakan, dan oleh karena itu. Isi dan urutan slide tetap.";
+  }
+  if (checkId === "soundsSpoken") {
+    return "Pemeriksaan soundsSpoken gagal. Tulis ulang vo supaya terdengar seperti diucapkan, kalimat pendek dan wajar, bukan teks brosur. Isi dan urutan slide tetap.";
+  }
   return `Pemeriksaan ${checkId} gagal. Perbaiki draf tanpa menyalin rencana terakhir.`;
 }
 
