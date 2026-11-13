@@ -29,7 +29,14 @@ import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate"
 import { cn } from "@/shared/lib/utils";
 import { isGeminiBillingNoticeError, isGeminiBillingNoticeMessage } from "@/shared/ai/geminiSpendCap";
 import { askThinkingLab, parseModelJson, setThinkingAuditScope } from "@/thinking-lab/shared/ai";
-import { ACTIVE_SET_CAP, BT_FIX_MAX_ATTEMPTS, BT_FIX_SAME_GATE_STOP, THINKING_PARALLEL_CHECKS } from "@/thinking-lab/shared/limits";
+import {
+  ACTIVE_SET_CAP,
+  BT_FIX_MAX_ATTEMPTS,
+  BT_FIX_REPLACE_AFTER,
+  BT_FIX_SAME_GATE_STOP,
+  BT_FIX_STUCK_LESSONS,
+  THINKING_PARALLEL_CHECKS,
+} from "@/thinking-lab/shared/limits";
 import { startLimited } from "@/thinking-lab/shared/pool";
 import type { AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import {
@@ -94,6 +101,7 @@ import {
   mergeFixLessons,
   mergeGenerateLessons,
   dropFixLessons,
+  stuckBigThoughtFixes,
   auditSiblingGate,
   scoreAuditRow,
   siblingSetIsCurrent,
@@ -137,6 +145,8 @@ import {
   runBigThoughtIndividualChecks,
   runBigThoughtOpenChecks,
   runGenerateAdmissionChecks,
+  bigThoughtFixMode,
+  type BigThoughtFixMode,
 } from "@/thinking-lab/big-thought/passChecks";
 import { asBecauseClause, becauseSentence } from "@/thinking-lab/big-thought/because";
 import {
@@ -7583,7 +7593,7 @@ export function ThinkingLabPage() {
     await waitForChecklistReport(checklist);
   };
 
-  const repairFailedBigThought = async (code: string) => {
+  const repairFailedBigThought = async (code: string, force?: BigThoughtFixMode) => {
     if (!selected || !parentFp) return;
     const row = active.find((item) => item.code.toUpperCase() === code.toUpperCase());
     if (!row || row.status === "locked") return;
@@ -7622,6 +7632,19 @@ export function ThinkingLabPage() {
       record = { ...record, fixLessons: mergeFixLessons(record.fixLessons, [{ code: row.code, ...lesson }]) };
       await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: record });
     };
+    const closedNotice = () =>
+      setNotice(
+        t(
+          "thinkingLab.bt.fixClosed",
+          "Fix closed for {{code}}: it failed {{count}} times. Rewrite the reason, edit it by hand, or delete it.",
+        )
+          .replace("{{code}}", row.code)
+          .replace("{{count}}", String(learned.length)),
+      );
+    if (!force && learned.length >= BT_FIX_STUCK_LESSONS) {
+      closedNotice();
+      return;
+    }
     const refused = new Set<string>(learned.map((lesson) => lesson.statement.trim().toLowerCase()));
     refused.add(row.statement.trim().toLowerCase());
     let statement = row.statement;
@@ -7646,7 +7669,25 @@ export function ThinkingLabPage() {
       }
       return false;
     };
+    let lastMode: BigThoughtFixMode | null = null;
+    let closed = false;
     for (let attempt = 0; attempt < BT_FIX_MAX_ATTEMPTS && !replaced; attempt += 1) {
+      if (!force && learned.length >= BT_FIX_STUCK_LESSONS) {
+        closed = true;
+        break;
+      }
+      const mode = bigThoughtFixMode({
+        gate: shown.failure?.gate ?? "",
+        lessons: learned,
+        replaceAfter: BT_FIX_REPLACE_AFTER,
+        force,
+      });
+      // A new way of fixing gets its own tries before the same-check stop.
+      if (lastMode && mode !== lastMode) {
+        lastGate = "";
+        sameGateRuns = 0;
+      }
+      lastMode = mode;
       const script = await askScoped(
         "fix",
         row.code,
@@ -7656,6 +7697,7 @@ export function ThinkingLabPage() {
           keepers,
           scope,
           lessons: learned,
+          mode,
         }),
         0.2,
       );
@@ -7669,7 +7711,11 @@ export function ThinkingLabPage() {
         statement: next,
         parentStatement: becauseParent,
         others: keepers,
-        prior: fixPriorForNextSentence(shown.items, statement, next),
+        // A new reason is a new sentence: none of the old sentence's passes carry over.
+        prior:
+          mode === "replace"
+            ? shown.items.map((item) => ({ id: item.id, state: "pending" as const, reason: "" }))
+            : fixPriorForNextSentence(shown.items, statement, next),
         lessons: learned,
         ask: (prompt) => askScoped("fix", row.code, prompt, 0),
         onStep: (checklist) => publishFixChecklist(checklist),
@@ -7764,7 +7810,9 @@ export function ThinkingLabPage() {
       bigThoughtFixLessonsRef.current.delete(key);
       replaced = true;
     }
-    if (!replaced) {
+    if (!replaced && (closed || (!force && learned.length >= BT_FIX_STUCK_LESSONS))) {
+      closedNotice();
+    } else if (!replaced) {
       setNotice(
         stuckGate
           ? t(
@@ -7781,7 +7829,7 @@ export function ThinkingLabPage() {
     }
   };
 
-  const onFixBigThought = (code: string) => {
+  const onFixBigThought = (code: string, force?: BigThoughtFixMode) => {
     const key = code.trim().toUpperCase();
     if (!key || labRunRef.current || fixingBigThoughtRef.current.has(key)) return;
     labRunRef.current = true;
@@ -7789,7 +7837,7 @@ export function ThinkingLabPage() {
     setFixingBigThoughtCodes([...fixingBigThoughtRef.current]);
     void (async () => {
       try {
-        await repairFailedBigThought(key);
+        await repairFailedBigThought(key, force);
       } catch (error) {
         reportStepError(error);
       } finally {
@@ -9435,7 +9483,9 @@ export function ThinkingLabPage() {
                                       onDeleteBigThought={(bigThoughtId) =>
                                     setPendingDelete({ kind: "bigThought", id: bigThoughtId })
                                   }
-                                      onFixBigThought={onFixBigThought}
+                                      onFixBigThought={(code) => onFixBigThought(code)}
+                                      onRewriteBigThought={(code) => onFixBigThought(code, "replace")}
+                                      stuckFixes={stuckBigThoughtFixes(setRecord?.fixLessons, BT_FIX_STUCK_LESSONS)}
                                       checklists={bigThoughtChecklists}
                                       fixingCodes={fixingBigThoughtCodes}
                                     />

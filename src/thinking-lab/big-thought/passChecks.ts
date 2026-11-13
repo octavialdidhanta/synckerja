@@ -205,13 +205,42 @@ export function parseBigThoughtPassCheck(script: string | null): { pass: boolean
   return { pass: false, reason: UNDECIDED };
 }
 
+/** Checks that judge what kind of statement it is. Patching a part cannot change the kind. */
+export const BT_KIND_GATES = ["relation", "role", "explains"] as const;
+
+export type BigThoughtFixMode = "repair" | "replace";
+
+/** How many lessons failed on this check. Lesson reasons start with "<gate>: ". */
+export function lessonsOnGate(lessons: ReadonlyArray<{ reason: string }>, gate: string): number {
+  if (!gate) return 0;
+  const prefix = `${gate}:`;
+  return lessons.filter((lesson) => lesson.reason.trim().startsWith(prefix)).length;
+}
+
+/**
+ * Repair patches the failed part. Once a kind check (method, restatement, role, explains)
+ * has failed `replaceAfter` times, patching keeps the same idea, so the fix writes a new reason.
+ */
+export function bigThoughtFixMode(input: {
+  gate: string;
+  lessons: ReadonlyArray<{ reason: string }>;
+  replaceAfter: number;
+  force?: BigThoughtFixMode;
+}): BigThoughtFixMode {
+  if (input.force) return input.force;
+  if (!(BT_KIND_GATES as readonly string[]).includes(input.gate)) return "repair";
+  return lessonsOnGate(input.lessons, input.gate) >= input.replaceAfter ? "replace" : "repair";
+}
+
 export function buildBigThoughtFixPrompt(input: {
   parentStatement: string;
   failed: { code: string; statement: string };
   keepers: Array<{ code: string; statement: string }>;
   scope: FixScope;
   lessons?: Array<{ statement: string; reason: string }>;
+  mode?: BigThoughtFixMode;
 }): string {
+  if (input.mode === "replace") return buildBigThoughtReplacePrompt(input);
   const keeperLines =
     input.keepers.length === 0 ? "(none)" : input.keepers.map((row) => `${row.code}: ${row.statement}`).join("\n");
   const lessons = input.lessons ?? [];
@@ -243,6 +272,43 @@ export function buildBigThoughtFixPrompt(input: {
       lessons.map((lesson) => ({ reason: lesson.reason })),
       input.scope,
     ),
+  ].join("\n");
+}
+
+function buildBigThoughtReplacePrompt(input: {
+  parentStatement: string;
+  failed: { code: string; statement: string };
+  keepers: Array<{ code: string; statement: string }>;
+  lessons?: Array<{ statement: string; reason: string }>;
+}): string {
+  const keeperLines =
+    input.keepers.length === 0 ? "(none)" : input.keepers.map((row) => `${row.code}: ${row.statement}`).join("\n");
+  const lessons = input.lessons ?? [];
+  const lessonLines =
+    lessons.length === 0
+      ? "(none)"
+      : lessons.map((lesson) => `${lesson.statement}\nWhy it failed: ${lesson.reason}`).join("\n");
+  return [
+    "Write a new Big Thought for this place. Patching the failed one did not work: its idea keeps failing the same check.",
+    "Do not keep the failed sentence's idea, subject, or mechanism. Choose a different reason.",
+    "The sentence is one because-clause in the same language as the Master Thought.",
+    "It is a distinct material reason, basis, or evidence for why the Master Thought is true.",
+    "It is not a method, recipe, process, or way of doing something. It is not an outcome, a restatement, or an unpacking of the Master Thought.",
+    "It must explain the main claim of the Master Thought, not a side benefit.",
+    "Do not cover what a Big Thought that stays already covers.",
+    "Return JSON only: {\"items\":[{\"label\":\"\",\"statement\":\"...\"}]}",
+    "",
+    "Master Thought:",
+    input.parentStatement.trim(),
+    "",
+    "Failed Big Thought:",
+    `${input.failed.code}: ${input.failed.statement}`,
+    "",
+    "Big Thoughts that stay:",
+    keeperLines,
+    "",
+    "Earlier failures. Do not repeat these sentences or this mistake:",
+    lessonLines,
   ].join("\n");
 }
 

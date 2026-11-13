@@ -13,5 +13,14 @@ export const BT_FIX_MAX_ATTEMPTS = 3;
 /** A fix stops early when the same check fails this many tries in a row: the lessons are not moving it. */
 export const BT_FIX_SAME_GATE_STOP = 2;
 
+/**
+ * Failed rewrites of one Big Thought (kept as fix lessons) after which Fix is closed.
+ * The card then offers a fresh rewrite of the reason or deleting it.
+ */
+export const BT_FIX_STUCK_LESSONS = 6;
+
+/** Failures of the same kind check after which a fix writes a new reason instead of patching the old one. */
+export const BT_FIX_REPLACE_AFTER = 2;
+
 /** Thinking Lab checks run at the same time during an audit (per organization AI key). */
 export const THINKING_PARALLEL_CHECKS = 3;
