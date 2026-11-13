@@ -1,8 +1,8 @@
-import { readAngleGeneratePasses } from "@/thinking-lab/angle/passChecklist";
-import { normalizeAngleExample } from "@/thinking-lab/angle/example";
-import { normalizeAngleSubject } from "@/thinking-lab/angle/subject";
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
-import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
+import { readAngleGeneratePasses } from "./passChecklist";
+import { normalizeAngleExample } from "./example";
+import { normalizeAngleSubject } from "./subject";
+import { parseModelJson } from "../shared/parseModelJson";
+import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
 import type {
   AngleBoundedness,
   AngleConceptualForm,
@@ -12,7 +12,7 @@ import type {
   AngleResolution,
   AngleSemanticFacts,
   AngleTriState,
-} from "@/thinking-lab/angle/types";
+} from "./types";
 
 const CONCEPTUAL_FORMS = [
   "ANGLE_PROPOSITION",

@@ -1,5 +1,5 @@
-import { bigThoughtFingerprint, fingerprintsMatch, territoryFingerprint } from "@/thinking-lab/shared/fingerprint";
-import { canGenerateAngle as territoryIsLockedCurrent } from "@/thinking-lab/territory/eligibility";
+import { bigThoughtFingerprint, fingerprintsMatch, territoryFingerprint } from "../shared/fingerprint";
+import { canGenerateAngle as territoryIsLockedCurrent } from "../territory/eligibility";
 
 export type AngleParentDenial = "PARENT_MISSING" | "PARENT_UNLOCKED" | "PARENT_STALE" | "PARENT_CHAIN_INVALID";
 

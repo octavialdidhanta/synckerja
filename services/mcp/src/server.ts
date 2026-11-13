@@ -16,6 +16,7 @@ import {
   saveThinkingPlanDirect,
 } from "./db/thinkingLab";
 import { addThinkingTerritory, lockThinkingTerritories } from "./db/thinkingTerritory";
+import { addThinkingAngle, lockThinkingAngles } from "./db/thinkingAngle";
 import {
   addThinkingBigThought,
   createThinkingMaster,
@@ -162,6 +163,8 @@ const app = createApp({
   lockThinkingBigThoughts: (ctx, input) => lockThinkingBigThoughts(admin, ctx, input),
   addThinkingTerritory: (ctx, input) => addThinkingTerritory(admin, config, ctx, input),
   lockThinkingTerritories: (ctx, input) => lockThinkingTerritories(admin, ctx, input),
+  addThinkingAngle: (ctx, input) => addThinkingAngle(admin, config, ctx, input),
+  lockThinkingAngles: (ctx, input) => lockThinkingAngles(admin, ctx, input),
   listThinkingIdeas: (ctx) => listThinkingIdeas(admin, ctx),
   readThinkingChain: (ctx, ideaId) => readThinkingChain(admin, ctx, ideaId),
   checkThinkingExecution: (ctx, input) => checkThinkingExecution(admin, config, ctx, input),

@@ -1,7 +1,7 @@
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
-import { fingerprintsMatch } from "@/thinking-lab/shared/fingerprint";
-import { ANGLE_PASS_CHECK_IDS, type AnglePassCheckId } from "@/thinking-lab/angle/passChecklist";
-import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
+import { parseModelJson } from "../shared/parseModelJson";
+import { fingerprintsMatch } from "../shared/fingerprint";
+import { ANGLE_PASS_CHECK_IDS, type AnglePassCheckId } from "./passChecklist";
+import type { AuditVerdict } from "../shared/verdict";
 import type {
   AngleChallengerResult,
   AngleContainment,
@@ -10,7 +10,7 @@ import type {
   AngleResolution,
   AngleSetFacts,
   AngleTriState,
-} from "@/thinking-lab/angle/types";
+} from "./types";
 
 export type AngleGateFailure = {
   gate: AnglePassCheckId;

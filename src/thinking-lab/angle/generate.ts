@@ -1,15 +1,15 @@
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
-import { sameWording } from "@/thinking-lab/shared/distinct";
-import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
-import { normalizeAngleExample } from "@/thinking-lab/angle/example";
-import { normalizeAngleSubject } from "@/thinking-lab/angle/subject";
-import { ACTIVE_SET_CAP, MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "@/thinking-lab/shared/limits";
-import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
-import type { AngleParentDenial } from "@/thinking-lab/angle/eligibility";
-import { reviewAngleGenerativity, sealAngleFacts } from "@/thinking-lab/angle/generativity";
-import { admitAngle } from "@/thinking-lab/angle/policy";
-import { judgeAngle } from "@/thinking-lab/angle/semantic";
-import type { AngleSemanticFacts } from "@/thinking-lab/angle/types";
+import { parseModelJson } from "../shared/parseModelJson";
+import { sameWording } from "../shared/distinct";
+import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
+import { normalizeAngleExample } from "./example";
+import { normalizeAngleSubject } from "./subject";
+import { ACTIVE_SET_CAP, MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "../shared/limits";
+import type { IndividualAdmission } from "../shared/verdict";
+import type { AngleParentDenial } from "./eligibility";
+import { reviewAngleGenerativity, sealAngleFacts } from "./generativity";
+import { admitAngle } from "./policy";
+import { judgeAngle } from "./semantic";
+import type { AngleSemanticFacts } from "./types";
 
 export type AngleGenerateStop = null | "ENOUGH" | "CAP" | "ROUNDS";
 

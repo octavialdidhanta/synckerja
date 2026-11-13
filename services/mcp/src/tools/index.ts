@@ -142,6 +142,10 @@ export {
   territoryAddResult,
   territoryLockInput,
   territoryLockResult,
+  angleAddInput,
+  angleAddResult,
+  angleLockInput,
+  angleLockResult,
 } from "./thinking/treeWrite";
 export { chainReadInput, chainReadResult } from "./thinking/chainRead";
 export { executionCheckInput, executionCheckResult } from "./thinking/executionCheck";
