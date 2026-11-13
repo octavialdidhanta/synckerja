@@ -9,6 +9,8 @@ import { attachLeadMagnetDelivery, listLeadMagnetDrafts } from "./db/leadMagnet"
 import {
   checkThinkingExecution,
   listThinkingIdeas,
+  listThinkingMasters,
+  readThinkingTree,
   readThinkingChain,
   saveThinkingPlan,
   saveThinkingPlanDirect,
@@ -145,6 +147,8 @@ const app = createApp({
   getContentBrief: (ctx, id) => getContentBrief(admin, ctx, id),
   listLeadMagnetDrafts: (ctx, campaignId) => listLeadMagnetDrafts(admin, ctx, campaignId),
   attachLeadMagnetDelivery: (ctx, input) => attachLeadMagnetDelivery(admin, config.supabaseUrl, ctx, input),
+  listThinkingMasters: (ctx) => listThinkingMasters(admin, ctx),
+  readThinkingTree: (ctx, masterThoughtId) => readThinkingTree(admin, ctx, masterThoughtId),
   listThinkingIdeas: (ctx) => listThinkingIdeas(admin, ctx),
   readThinkingChain: (ctx, ideaId) => readThinkingChain(admin, ctx, ideaId),
   checkThinkingExecution: (ctx, input) => checkThinkingExecution(admin, config, ctx, input),
