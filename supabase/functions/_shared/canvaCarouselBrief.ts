@@ -216,7 +216,8 @@ function elementPieces(elements: string): { copy: string[]; labeled: CopyPiece[]
       label: (match[1] || match[2]) ? (match[1] || match[2]).toLowerCase() : null,
     });
   }
-  const tidy = (value: string) => value.replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
+  // The script sometimes ends a piece with ";" or "," as a separator: it is not part of the text.
+  const tidy = (value: string) => value.replace(/\s+/g, " ").trim().replace(/[.;,\s]+$/, "");
   const push = (kind: "copy" | "picture", label: string, value: string) => {
     let text = tidy(value);
     if (!text) return;
@@ -298,8 +299,8 @@ export function slideTexts(slide: CarouselSlide): { headline: string; small: str
     : [];
   const rest = pieces.labeled.slice(1).map((piece) => piece.text);
   if (sentences.length > 0) {
-    const headline = capWords(sentences[0].replace(/[.\s]+$/, ""), HEADLINE_WORDS);
-    return { headline, small, labels: [...sentences.slice(1).map((part) => part.replace(/[.\s]+$/, "")), ...rest] };
+    const headline = capWords(sentences[0].replace(/[.;,\s]+$/, ""), HEADLINE_WORDS);
+    return { headline, small, labels: [...sentences.slice(1).map((part) => part.replace(/[.;,\s]+$/, "")), ...rest] };
   }
   return { headline: small, small: "", labels: rest };
 }
@@ -345,6 +346,16 @@ const MEAT_SCENE = /\b(?:daging|kambing|sapi|domba|iga|meat|goat|mutton|lamb|bee
 const GOAT_SCENE = /\b(?:kambing|goat|mutton|domba|lamb)\b/i;
 const SKEWER_SCENE = /\b(?:sate|satay|skewers?)\b/i;
 
+/** Sate that really is minced meat around the stick: the cube rule would be wrong for it. */
+const MINCED_SATE = /\b(?:sate|satay)\s+(?:lilit|buntel|bakso)\b/i;
+const YOUNG_GOAT = /\b(?:kambing|domba|daging)\s+(?:yang\s+)?muda\b|\byoung\s+(?:goat|lamb)\b/i;
+const OLD_GOAT = /\b(?:kambing|domba|daging)\s+(?:yang\s+)?tua\b|\bold(?:er)?\s+(?:goat|lamb)\b/i;
+
+/** True when the content names minced sate (lilit, buntel, bakso). */
+export function mincedSate(text: string): boolean {
+  return MINCED_SATE.test(String(text ?? ""));
+}
+
 /**
  * Only for content that shows meat or skewers: the image model drew goat meat like pork.
  * Empty for every other business, so it never reaches a charity or a non-food catalog.
@@ -354,11 +365,14 @@ export function meatRule(text: string): string {
   const meat = MEAT_SCENE.test(source);
   const skewer = SKEWER_SCENE.test(source);
   if (!meat && !skewer) return "";
-  const parts = ["Meat rule: draw the exact animal named in the scene. The meat must never look like pork."];
+  const parts = ["Meat rule: draw the exact animal named in the scene. The meat must never look like pork: no thick skin, no fat rind, no wide white fat layers."];
   if (GOAT_SCENE.test(source)) {
-    parts.push("Goat meat (kambing) is deep red with a fine grain and only thin white fat, cut into small pieces. No thick skin, no fat rind, never pale pink.");
+    // Young and older goat look different; one color for both made young goat pale and pork-like.
+    parts.push("Goat meat (kambing) has a fine grain and only thin white fat, cut into small pieces. Young goat (muda) is fresh light red, never pale pink. Older goat (tua) is deep dark red with a coarser grain.");
   }
-  if (skewer) parts.push("Sate is cubed chunks of meat threaded on bamboo skewers, never minced, meatball or sausage shaped.");
+  if (skewer && !mincedSate(source)) {
+    parts.push("Sate is irregular cubes of meat with flat cut faces, charred edges and visible grain, threaded on bamboo skewers. Never round balls, minced, meatball or sausage shaped.");
+  }
   return parts.join(" ");
 }
 
@@ -373,10 +387,20 @@ export function photoRules(text: string): string {
 }
 
 /** A short reminder next to the scene itself: rules far from the scene were not followed. */
-export function meatHint(scene: string, goat: boolean): string {
+export function meatHint(scene: string, goat: boolean, minced = false): string {
   const hints: string[] = [];
-  if (SKEWER_SCENE.test(scene)) hints.push(goat ? "cubed goat meat chunks on bamboo skewers, not minced" : "cubed meat chunks on bamboo skewers, not minced");
-  else if (goat && MEAT_SCENE.test(scene)) hints.push("deep red goat meat with thin white fat, not pork-like");
+  if (SKEWER_SCENE.test(scene)) {
+    if (!minced && !mincedSate(scene)) {
+      hints.push(`irregular ${goat ? "goat " : ""}meat cubes, flat cut faces, charred edges, not balls`);
+    }
+  } else if (goat && MEAT_SCENE.test(scene)) {
+    const young = YOUNG_GOAT.test(scene);
+    const old = OLD_GOAT.test(scene);
+    if (young && old) hints.push("young goat light red, older goat dark red, thin fat, not pork-like");
+    else if (young) hints.push("light red young goat, fine grain, thin fat, not pale pink or pork-like");
+    else if (old) hints.push("dark red older goat, coarser grain, not pork-like");
+    else hints.push("red goat meat, fine grain, thin fat, not pork-like");
+  }
   return hints.length > 0 ? ` (${hints.join("; ")})` : "";
 }
 
@@ -400,6 +424,8 @@ const LAYOUT_LEAD = "Layout and type for every page, copied from the reference: 
 const LAYOUT_TAIL = " Take only this structure from the reference and fit it to each page's content.";
 const HIERARCHY_RULE =
   "On every page the headline is the biggest text. The small text sits near it and is clearly smaller. Never make the small text bigger than the headline.";
+/** Fonts only: each page keeps its own layout. */
+export const TYPE_RULE = "Use one headline font and one body font on every page. The layout of each page may differ.";
 
 function clipScene(text: string, limit: number): string {
   const clean = text.replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
@@ -473,6 +499,7 @@ export function buildCanvaCarouselBrief(input: {
   const meatText = [title, ...input.slides.map((slide) => `${slide.scene} ${slide.elements}`), ...(input.menus ?? []), ...(input.productPhotos ?? [])].join(" ");
   const meat = meatRule(meatText);
   const goat = GOAT_SCENE.test(meatText);
+  const minced = mincedSate(meatText);
   // A catalog is food when its product names (or its meat and sate scenes) name food; every
   // other business gets the product rule, so a charger is never shot like a warung dish.
   // A charger scene that mentions coffee is still a charger shop.
@@ -515,7 +542,7 @@ export function buildCanvaCarouselBrief(input: {
         if (scene) lines.push(`Setting only, no food drawn: ${scene}`);
         lines.push("Keep the center empty for the real product photo.");
       } else if (scene) {
-        lines.push(pictureInstruction(scene, meatHint(scene, goat)));
+        lines.push(pictureInstruction(scene, meatHint(scene, goat, minced)));
       }
       if (headline) lines.push(`Headline (biggest text): ${headline}`);
       if (small) lines.push(`Small text: ${small}`);
@@ -531,6 +558,7 @@ export function buildCanvaCarouselBrief(input: {
     paletteLine(input.palette),
     logoLine(input.logo),
     HIERARCHY_RULE,
+    TYPE_RULE,
     showsPerson ? PERSON_PHOTO_RULE : "",
     showsFood || (foodBusiness && products.length > 0) ? FOOD_PHOTO_RULE : "",
     !foodBusiness && products.length > 0 ? PRODUCT_PHOTO_RULE : "",
