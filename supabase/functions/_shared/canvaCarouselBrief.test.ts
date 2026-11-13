@@ -300,8 +300,11 @@ Deno.test("buildCanvaCarouselBrief moves drawing directions out of the slide tex
 
 Deno.test("meatRule only speaks for meat and skewers", () => {
   assertEquals(meatRule("Ibu memegang buku di taman"), "");
-  assertEquals(meatRule("Daging kambing mentah di talenan").includes("Goat meat (kambing) is deep red"), true);
-  assertEquals(meatRule("Sate ayam di piring").includes("never minced"), true);
+  assertEquals(meatRule("Daging kambing mentah di talenan").includes("Young goat (muda) is fresh light red"), true);
+  assertEquals(meatRule("Daging kambing mentah di talenan").includes("Older goat (tua) is deep dark red"), true);
+  assertEquals(meatRule("Sate ayam di piring").includes("Never round balls, minced"), true);
+  assertEquals(meatRule("Sate lilit ayam di piring").includes("irregular cubes"), false);
+  assertEquals(meatRule("Sate lilit ayam di piring").includes("Meat rule"), true);
   assertEquals(meatRule("Sate ayam di piring").includes("Goat meat"), false);
   const charity = buildCanvaCarouselBrief({
     title: "Hadir",
@@ -338,8 +341,13 @@ Deno.test("slideTexts turns an older Element note into a short title", () => {
 });
 
 Deno.test("meatHint sits next to sate and goat meat scenes only", () => {
-  assertEquals(meatHint("Piring berisi sate kambing hangat", true), " (cubed goat meat chunks on bamboo skewers, not minced)");
-  assertEquals(meatHint("Potongan daging kambing mentah di talenan", true), " (deep red goat meat with thin white fat, not pork-like)");
+  assertEquals(meatHint("Piring berisi sate kambing hangat", true), " (irregular goat meat cubes, flat cut faces, charred edges, not balls)");
+  assertEquals(meatHint("Piring berisi sate lilit hangat", false), "");
+  assertEquals(meatHint("Piring berisi sate ayam", false, true), "");
+  assertEquals(meatHint("Potongan daging kambing mentah di talenan", true), " (red goat meat, fine grain, thin fat, not pork-like)");
+  assertEquals(meatHint("Close-up daging kambing muda berwarna merah muda cerah", true).includes("light red young goat"), true);
+  assertEquals(meatHint("Potongan daging kambing tua yang gelap", true).includes("dark red older goat"), true);
+  assertEquals(meatHint("Dua piring: daging kambing muda dan daging kambing tua", true).includes("young goat light red, older goat dark red"), true);
   assertEquals(meatHint("Ibu tersenyum di dapur", true), "");
   assertEquals(meatHint("Ibu tersenyum di dapur", false), "");
 });
@@ -379,4 +387,16 @@ Deno.test("buildCanvaCarouselBrief keeps the food rule for a food catalog", () =
   assertEquals(brief.includes("Real menu shown: Sate Kambing Muda; Es Jeruk. Draw these exact dishes."), true);
   assertEquals(brief.includes(FOOD_PHOTO_RULE), true);
   assertEquals(brief.includes(PRODUCT_PHOTO_RULE), false);
+});
+
+Deno.test("buildCanvaCarouselBrief keeps one font, drops trailing separators", () => {
+  const slides = [
+    { label: "", scene: "Meja kayu", copy: "Halo kamu.", elements: "Hook headline: Bedanya apa sih?;", tagging: "" },
+    { label: "", scene: "Meja kayu", copy: "Oke.", elements: "Headline: Daging muda; Point: Serat halus, Lemak tipis;", tagging: "" },
+  ];
+  const brief = buildCanvaCarouselBrief({ title: "Tes", caption: "", slides });
+  assertEquals(brief.includes("Use one headline font and one body font on every page."), true);
+  assertEquals(brief.includes("Headline (biggest text): Bedanya apa sih?\n"), true);
+  assertEquals(brief.includes("?;"), false);
+  assertEquals(brief.includes("Lemak tipis;"), false);
 });
