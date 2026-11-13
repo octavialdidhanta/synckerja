@@ -712,6 +712,11 @@ describe("thinking lab connector visibility", () => {
     "thinking.angle.lock",
     "thinking.idea.add",
     "thinking.idea.lock",
+    "thinking.master.update",
+    "thinking.bigthought.update",
+    "thinking.territory.update",
+    "thinking.angle.update",
+    "thinking.idea.update",
     "thinking.pillars.recommend",
     "thinking.pillar.set",
     "thinking.pillar.remove",
@@ -753,6 +758,11 @@ describe("thinking lab connector visibility", () => {
     expect(names).not.toContain("thinking.angle.lock");
     expect(names).not.toContain("thinking.idea.add");
     expect(names).not.toContain("thinking.idea.lock");
+    expect(names).not.toContain("thinking.master.update");
+    expect(names).not.toContain("thinking.bigthought.update");
+    expect(names).not.toContain("thinking.territory.update");
+    expect(names).not.toContain("thinking.angle.update");
+    expect(names).not.toContain("thinking.idea.update");
     expect(names).not.toContain("thinking.pillars.recommend");
     expect(names).not.toContain("thinking.pillar.set");
     expect(names).not.toContain("thinking.pillar.remove");

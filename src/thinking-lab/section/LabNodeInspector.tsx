@@ -59,6 +59,8 @@ type LabNodeInspectorProps = {
   code?: string;
   /** Saved while some pass checks of its level were switched OFF. */
   unchecked?: boolean;
+  /** An ancestor was rewritten after this item passed. */
+  parentChanged?: boolean;
   title?: string;
   statement: string;
   example?: string;
@@ -96,6 +98,7 @@ type LabNodeInspectorProps = {
     checklistNote?: string;
     mechanismKeys?: Array<{ otherExplanation: string; close: string }>;
     unchecked?: boolean;
+    parentChanged?: boolean;
   }>;
   ideaHistory?: { passed: number; rejected: number; unverified: number; topFailed: string | null } | null;
   ideaRevisionTarget?: { nonce: number; decision: "LOLOS" | "DITOLAK" | "BELUM_TERVERIFIKASI" } | null;
@@ -536,10 +539,23 @@ function UncheckedBadge() {
   );
 }
 
+function ParentChangedBadge() {
+  const { t } = useAppTranslation();
+  return (
+    <span
+      className="rounded-full border border-sky-300 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-800"
+      title={t("thinkingLab.checks.parentChangedHint", "Kalimat induknya diubah setelah item ini lolos. Cek ulang bila perlu.")}
+    >
+      {t("thinkingLab.checks.parentChanged", "Induk berubah")}
+    </span>
+  );
+}
+
 export function LabNodeInspector({
   kind,
   code,
   unchecked,
+  parentChanged,
   title,
   statement,
   example,
@@ -758,6 +774,7 @@ export function LabNodeInspector({
             <span>{code?.trim() ? `${label} - ${code.trim()}` : label}</span>
             <NodeDefinitionInfo kind={kind} />
             {unchecked ? <UncheckedBadge /> : null}
+            {parentChanged ? <ParentChangedBadge /> : null}
           </p>
           {onEditStatement && !title && kind !== "territory" ? (
             <EditableStatement statement={statement} enabled pending={Boolean(pendingAction)} onSave={onEditStatement} />
@@ -1219,6 +1236,7 @@ export function LabNodeInspector({
                   <span className="text-[11px] font-semibold tracking-wide text-muted-foreground">{idea.code}</span>
                   {idea.verdict ? <VerdictChip verdict={idea.verdict} verbatim /> : null}
                   {idea.unchecked ? <UncheckedBadge /> : null}
+                  {idea.parentChanged ? <ParentChangedBadge /> : null}
                   {showIdeaMenu ? (
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>

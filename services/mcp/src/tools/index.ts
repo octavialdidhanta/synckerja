@@ -159,6 +159,18 @@ export {
   pillarRemoveInput,
   pillarRemoveResult,
 } from "./thinking/pillarWrite";
+export {
+  masterUpdateInput,
+  masterUpdateResult,
+  bigThoughtUpdateInput,
+  bigThoughtUpdateResult,
+  territoryUpdateInput,
+  territoryUpdateResult,
+  angleUpdateInput,
+  angleUpdateResult,
+  ideaUpdateInput,
+  ideaUpdateResult,
+} from "./thinking/treeUpdate";
 export { chainReadInput, chainReadResult } from "./thinking/chainRead";
 export { executionCheckInput, executionCheckResult } from "./thinking/executionCheck";
 export { planSaveInput, planSaveResult } from "./thinking/planSave";

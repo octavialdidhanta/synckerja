@@ -121,6 +121,11 @@ export type McpToolName =
   | "thinking.angle.lock"
   | "thinking.idea.add"
   | "thinking.idea.lock"
+  | "thinking.master.update"
+  | "thinking.bigthought.update"
+  | "thinking.territory.update"
+  | "thinking.angle.update"
+  | "thinking.idea.update"
   | "thinking.pillars.recommend"
   | "thinking.pillar.set"
   | "thinking.pillar.remove"
@@ -744,6 +749,46 @@ const TOOL_DEFINITIONS: McpTool[] = [
     name: "thinking.idea.lock",
     description:
       "Lock the Ideas of one locked Angle in Thinking Lab for the organization locked in this session, like Lock on the page. Requires angle_id. Every open Idea must have passed for its current sentence; otherwise nothing is locked and it returns each open Idea. Content pillars are chosen for a locked Idea.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.master.update",
+    description:
+      "Rewrite one Master Thought in Thinking Lab for the organization locked in this session. Requires master_thought_id and at least one of belief, prior_belief, audience. A new belief runs the switched-on Master Thought checks; only a pass is saved. A locked Master Thought stays locked; every Big Thought, Territory, Angle, and Idea under it stays locked and follows the new sentence, marked \"Induk berubah\" so it can be checked again on the page.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.bigthought.update",
+    description:
+      "Rewrite one Big Thought in Thinking Lab for the organization locked in this session, even when it is locked. Requires master_thought_id, big_thought_id, and statement; label is optional. Runs the switched-on Big Thought checks and the sibling check with the other Big Thoughts; only a pass is saved, with the same code. A locked Big Thought stays locked, and everything under it follows the new sentence, marked \"Induk berubah\".",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.territory.update",
+    description:
+      "Rewrite one Territory in Thinking Lab for the organization locked in this session, even when it is locked. Requires master_thought_id, territory_id, and statement. Runs the switched-on Territory checks and the sibling check; only a pass is saved, with the same code. A locked Territory stays locked, and its Angles and Ideas follow the new name, marked \"Induk berubah\".",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.angle.update",
+    description:
+      "Rewrite one Angle in Thinking Lab for the organization locked in this session, even when it is locked. Requires master_thought_id, angle_id, statement, subject, and example. Runs the switched-on Angle checks and the sibling check; only a pass is saved, with the same code. A locked Angle stays locked, and its Ideas follow the new sentence, marked \"Induk berubah\".",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.idea.update",
+    description:
+      "Rewrite one Idea in Thinking Lab for the organization locked in this session, even when it is locked. Requires master_thought_id, idea_id, statement, and keys; subject is optional. Same sentence form and checks as thinking.idea.add (switched-on checks only), compared with every other Idea under this Master Thought; only a pass is saved, with the same code. A locked Idea stays locked; its chosen pillars and Executions stay.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: THINKING_LAB_PAGE_PATH,

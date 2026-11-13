@@ -36,6 +36,13 @@ import type {
   PillarsRecommendResult,
   PillarWriteResult,
 } from "../tools/thinking/pillarWrite";
+import type {
+  MasterUpdateWrite,
+  BigThoughtUpdateWrite,
+  TerritoryUpdateWrite,
+  AngleUpdateWrite,
+  IdeaUpdateWrite,
+} from "../tools/thinking/treeUpdate";
 import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
 import type {
@@ -287,6 +294,16 @@ import {
   angleLockResult,
   ideaAddInput,
   ideaAddResult,
+  masterUpdateInput,
+  masterUpdateResult,
+  bigThoughtUpdateInput,
+  bigThoughtUpdateResult,
+  territoryUpdateInput,
+  territoryUpdateResult,
+  angleUpdateInput,
+  angleUpdateResult,
+  ideaUpdateInput,
+  ideaUpdateResult,
   ideaLockInput,
   ideaLockResult,
   pillarsRecommendInput,
@@ -457,6 +474,11 @@ export type McpReadDeps = {
   lockThinkingAngles: (ctx: McpAuthContext, input: AngleLockWrite) => Promise<ThinkingWriteResult>;
   addThinkingIdea: (ctx: McpAuthContext, input: IdeaAddWrite) => Promise<ThinkingWriteResult>;
   lockThinkingIdeas: (ctx: McpAuthContext, input: IdeaLockWrite) => Promise<ThinkingWriteResult>;
+  updateThinkingMaster: (ctx: McpAuthContext, input: MasterUpdateWrite) => Promise<ThinkingWriteResult>;
+  updateThinkingBigThought: (ctx: McpAuthContext, input: BigThoughtUpdateWrite) => Promise<ThinkingWriteResult>;
+  updateThinkingTerritory: (ctx: McpAuthContext, input: TerritoryUpdateWrite) => Promise<ThinkingWriteResult>;
+  updateThinkingAngle: (ctx: McpAuthContext, input: AngleUpdateWrite) => Promise<ThinkingWriteResult>;
+  updateThinkingIdea: (ctx: McpAuthContext, input: IdeaUpdateWrite) => Promise<ThinkingWriteResult>;
   recommendThinkingPillars: (ctx: McpAuthContext, input: PillarsRecommendRead) => Promise<PillarsRecommendResult>;
   setThinkingPillar: (ctx: McpAuthContext, input: PillarSetWrite) => Promise<PillarWriteResult>;
   removeThinkingPillar: (ctx: McpAuthContext, input: PillarRemoveWrite) => Promise<PillarWriteResult>;
@@ -830,6 +852,11 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "thinking.angle.lock": angleLockInput,
   "thinking.idea.add": ideaAddInput,
   "thinking.idea.lock": ideaLockInput,
+  "thinking.master.update": masterUpdateInput,
+  "thinking.bigthought.update": bigThoughtUpdateInput,
+  "thinking.territory.update": territoryUpdateInput,
+  "thinking.angle.update": angleUpdateInput,
+  "thinking.idea.update": ideaUpdateInput,
   "thinking.pillars.recommend": pillarsRecommendInput,
   "thinking.pillar.set": pillarSetInput,
   "thinking.pillar.remove": pillarRemoveInput,
@@ -1469,6 +1496,16 @@ async function runTool(
       return ideaAddResult(ctx, args, deps.addThinkingIdea);
     case "thinking.idea.lock":
       return ideaLockResult(ctx, args, deps.lockThinkingIdeas);
+    case "thinking.master.update":
+      return masterUpdateResult(ctx, args, deps.updateThinkingMaster);
+    case "thinking.bigthought.update":
+      return bigThoughtUpdateResult(ctx, args, deps.updateThinkingBigThought);
+    case "thinking.territory.update":
+      return territoryUpdateResult(ctx, args, deps.updateThinkingTerritory);
+    case "thinking.angle.update":
+      return angleUpdateResult(ctx, args, deps.updateThinkingAngle);
+    case "thinking.idea.update":
+      return ideaUpdateResult(ctx, args, deps.updateThinkingIdea);
     case "thinking.pillars.recommend":
       return pillarsRecommendResult(ctx, args, deps.recommendThinkingPillars);
     case "thinking.pillar.set":

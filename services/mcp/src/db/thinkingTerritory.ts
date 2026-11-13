@@ -28,7 +28,18 @@ import {
 import { ACTIVE_SET_CAP, TARGET_GENERATE_VALID } from "../../../../src/thinking-lab/shared/limits";
 import type { TerritorySemanticFacts } from "../../../../src/thinking-lab/territory/types";
 import type { JudgeConfig } from "./thinkingLab";
-import { loadCheckSettings, makeAsk, rpcError, sessionArgs, skippedChecks, type Deps, type Session, type ThinkingWriteResult } from "./thinkingWrite";
+import {
+  loadCheckSettings,
+  makeAsk,
+  rpcError,
+  sessionArgs,
+  skippedChecks,
+  type Deps,
+  type LevelWrite,
+  type Replace,
+  type Session,
+  type ThinkingWriteResult,
+} from "./thinkingWrite";
 
 type TerritoryRow = {
   id: string;
@@ -94,10 +105,12 @@ export async function addThinkingTerritory(
   ctx: Session,
   input: { bigThoughtId: string; statement: string },
   deps: Deps = {},
+  replace?: { row: Replace; persist: (write: LevelWrite) => Promise<ThinkingWriteResult> },
 ): Promise<ThinkingWriteResult> {
   const statement = input.statement.replace(/\s+/g, " ").trim();
   if (!statement) throw new Error("invalid_input");
-  const context = await loadContext(admin, ctx, input.bigThoughtId);
+  const loaded = await loadContext(admin, ctx, input.bigThoughtId);
+  const context = replace ? { ...loaded, territories: loaded.territories.filter((row) => row.id !== replace.row.id) } : loaded;
   const { parentFp, bigThoughtFp } = fingerprints(context);
   const parent = evaluateTerritoryParent(
     {
@@ -185,7 +198,7 @@ export async function addThinkingTerritory(
     };
   }
 
-  const code = nextTerritoryCode(context.master_codes);
+  const code = replace?.row.code ?? nextTerritoryCode(context.master_codes);
   const siblingRows = [...passed.map((row) => ({ code: row.code, statement: row.statement })), { code, statement }];
   let siblingSet = record.siblingSet;
   if (!skip.includes("siblingsDistinct") && siblingRows.length >= 2) {
@@ -234,6 +247,9 @@ export async function addThinkingTerritory(
     audit: { fingerprint: setFingerprint, items: nextItems },
     challenger: null,
   };
+  if (replace) {
+    return replace.persist({ code, statement, facts, setRecord: nextRecord, fingerprint: statementFingerprint });
+  }
   const sortOrder = context.territories.reduce((max, row) => Math.max(max, row.sort_order ?? 0), 0) + 1;
   const saved = await admin.rpc("mcp_add_thinking_territory", {
     ...sessionArgs(ctx),

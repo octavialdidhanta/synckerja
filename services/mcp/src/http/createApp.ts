@@ -35,6 +35,13 @@ import type {
   PillarsRecommendResult,
   PillarWriteResult,
 } from "../tools/thinking/pillarWrite";
+import type {
+  MasterUpdateWrite,
+  BigThoughtUpdateWrite,
+  TerritoryUpdateWrite,
+  AngleUpdateWrite,
+  IdeaUpdateWrite,
+} from "../tools/thinking/treeUpdate";
 import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
 import type { ThinkingScriptDraft } from "../tools/thinking/scriptInput";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
@@ -234,6 +241,11 @@ export type AppDeps = {
   lockThinkingAngles: (ctx: McpAuthContext, input: AngleLockWrite) => Promise<ThinkingWriteResult>;
   addThinkingIdea: (ctx: McpAuthContext, input: IdeaAddWrite) => Promise<ThinkingWriteResult>;
   lockThinkingIdeas: (ctx: McpAuthContext, input: IdeaLockWrite) => Promise<ThinkingWriteResult>;
+  updateThinkingMaster: (ctx: McpAuthContext, input: MasterUpdateWrite) => Promise<ThinkingWriteResult>;
+  updateThinkingBigThought: (ctx: McpAuthContext, input: BigThoughtUpdateWrite) => Promise<ThinkingWriteResult>;
+  updateThinkingTerritory: (ctx: McpAuthContext, input: TerritoryUpdateWrite) => Promise<ThinkingWriteResult>;
+  updateThinkingAngle: (ctx: McpAuthContext, input: AngleUpdateWrite) => Promise<ThinkingWriteResult>;
+  updateThinkingIdea: (ctx: McpAuthContext, input: IdeaUpdateWrite) => Promise<ThinkingWriteResult>;
   recommendThinkingPillars: (ctx: McpAuthContext, input: PillarsRecommendRead) => Promise<PillarsRecommendResult>;
   setThinkingPillar: (ctx: McpAuthContext, input: PillarSetWrite) => Promise<PillarWriteResult>;
   removeThinkingPillar: (ctx: McpAuthContext, input: PillarRemoveWrite) => Promise<PillarWriteResult>;

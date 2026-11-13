@@ -211,6 +211,21 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     lockThinkingIdeas: async () => {
       throw new Error("unused");
     },
+    updateThinkingMaster: async () => {
+      throw new Error("unused");
+    },
+    updateThinkingBigThought: async () => {
+      throw new Error("unused");
+    },
+    updateThinkingTerritory: async () => {
+      throw new Error("unused");
+    },
+    updateThinkingAngle: async () => {
+      throw new Error("unused");
+    },
+    updateThinkingIdea: async () => {
+      throw new Error("unused");
+    },
     recommendThinkingPillars: async () => {
       throw new Error("unused");
     },
