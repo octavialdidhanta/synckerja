@@ -14,7 +14,9 @@ import {
   parseLabSetRecord,
 } from "../../../../src/thinking-lab/big-thought/audit";
 import { nextBigThoughtCode, shownBigThoughtFacts } from "../../../../src/thinking-lab/big-thought/generate";
-import { bigThoughtFingerprint, incumbentSetFingerprint } from "../../../../src/thinking-lab/shared/fingerprint";
+import { bigThoughtFingerprint, fingerprintsMatch, incumbentSetFingerprint } from "../../../../src/thinking-lab/shared/fingerprint";
+import { individualAdmission } from "../../../../src/thinking-lab/big-thought/policy";
+import { bigThoughtListed } from "../../../../src/thinking-lab/big-thought/checklist";
 import { ACTIVE_SET_CAP } from "../../../../src/thinking-lab/shared/limits";
 import type { AuditItem, BigThoughtFacts } from "../../../../src/thinking-lab/big-thought/types";
 import { askJudge, type JudgeConfig } from "./thinkingLab";
@@ -157,8 +159,92 @@ type BigThoughtContext = {
   confirmed: boolean;
   locked: boolean;
   last_audit: unknown;
-  big_thoughts: Array<{ id: string; code: string; label: string; statement: string; status: string; sort_order: number }>;
+  big_thoughts: Array<{
+    id: string;
+    code: string;
+    label: string;
+    statement: string;
+    status: string;
+    sort_order: number;
+    canonical_semantic?: unknown;
+    semantic_fingerprint?: string | null;
+  }>;
 };
+
+async function loadBigThoughtContext(admin: SupabaseClient, ctx: Session, masterThoughtId: string): Promise<BigThoughtContext> {
+  const { data, error } = await admin.rpc("mcp_thinking_big_thought_context", {
+    ...sessionArgs(ctx),
+    p_master_thought_id: masterThoughtId,
+  });
+  if (error) rpcError(error);
+  if (!data || typeof data !== "object") throw new Error("not_found");
+  return data as BigThoughtContext;
+}
+
+/**
+ * Lock the Big Thought set, like Lock on the page: every listed Big Thought must show AUDIT_PASS
+ * for its current sentence. Locks those Big Thoughts and the Master Thought, so Territories can start.
+ */
+export async function lockThinkingBigThoughts(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: { masterThoughtId: string },
+): Promise<ThinkingWriteResult> {
+  const context = await loadBigThoughtContext(admin, ctx, input.masterThoughtId);
+  if (!context.confirmed) {
+    return { saved: false, failed: [{ check: "masterThought", reason: "Confirm the Master Thought first." }] };
+  }
+  if (context.locked) return { saved: true, id: input.masterThoughtId };
+  const masterStatement = context.statement.trim();
+  const parentFp = confirmedFingerprint(masterStatement, context.root_belief || masterStatement);
+  const record = parseLabSetRecord(context.last_audit) ?? emptySetRecord();
+  const auditByCode = new Map((record.audit?.items ?? []).map((item) => [item.code.toUpperCase(), item]));
+  const rows = context.big_thoughts
+    .filter((row) => row.status !== "rejected")
+    .map((row) => {
+      const fingerprint = bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp });
+      const facts = (row.canonical_semantic ?? null) as BigThoughtFacts | null;
+      const admission = individualAdmission({
+        facts,
+        factsCurrent: fingerprintsMatch(row.semantic_fingerprint ?? null, fingerprint),
+      });
+      const item = auditByCode.get(row.code.toUpperCase());
+      const passed =
+        row.status === "locked" ||
+        (item?.verdict === "AUDIT_PASS" &&
+          Boolean(item.statementFingerprint) &&
+          fingerprintsMatch(item.statementFingerprint ?? null, fingerprint));
+      const audit = passed ? "AUDIT_PASS" : item?.verdict === "AUDIT_FAIL" ? "AUDIT_FAIL" : null;
+      const listed = bigThoughtListed({
+        admission,
+        audit,
+        gateFailure: facts?.gateFailure ?? null,
+        auditGateFailure: item?.gateFailure ?? null,
+      });
+      return { row, passed, listed, reason: item?.gateFailure?.reason ?? "" };
+    })
+    .filter((entry) => entry.listed);
+  if (rows.length === 0) {
+    return { saved: false, failed: [{ check: "lock", reason: "Add at least one Big Thought that passes first." }] };
+  }
+  const open = rows.filter((entry) => !entry.passed);
+  if (open.length > 0) {
+    return {
+      saved: false,
+      failed: open.map((entry) => ({
+        check: entry.row.code,
+        reason: entry.reason || "This Big Thought has not passed its checks for the current sentence. Fix or delete it first.",
+      })),
+    };
+  }
+  const { error } = await admin.rpc("mcp_lock_thinking_big_thoughts", {
+    ...sessionArgs(ctx),
+    p_master_thought_id: input.masterThoughtId,
+    p_big_thought_ids: rows.filter((entry) => entry.row.status !== "locked").map((entry) => entry.row.id),
+  });
+  if (error) rpcError(error);
+  return { saved: true, id: input.masterThoughtId };
+}
 
 /**
  * One Big Thought written in chat. The individual checks (batched) and the sibling check run
@@ -174,13 +260,7 @@ export async function addThinkingBigThought(
 ): Promise<ThinkingWriteResult> {
   const statement = input.statement.replace(/\s+/g, " ").trim();
   if (!statement) throw new Error("invalid_input");
-  const { data, error } = await admin.rpc("mcp_thinking_big_thought_context", {
-    ...sessionArgs(ctx),
-    p_master_thought_id: input.masterThoughtId,
-  });
-  if (error) rpcError(error);
-  const context = data as BigThoughtContext | null;
-  if (!context) throw new Error("not_found");
+  const context = await loadBigThoughtContext(admin, ctx, input.masterThoughtId);
   if (!context.confirmed) {
     return { saved: false, failed: [{ check: "masterThought", reason: "Confirm the Master Thought first." }] };
   }
@@ -220,14 +300,18 @@ export async function addThinkingBigThought(
   }
 
   const siblingRows = [...keepers.map((row) => ({ code: row.code, statement: row.statement })), { code, statement }];
+  const siblingFingerprint = incumbentSetFingerprint({
+    masterThoughtFingerprint: parentFp,
+    bigThoughtFingerprints: siblingRows.map((row) =>
+      bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
+    ),
+  });
+  // One row needs no model call; the page stores this set too, so Lock sees a current sibling check.
+  const sibling = await judgeSiblingSet(
+    { parentStatement: masterStatement, rows: siblingRows, fingerprint: siblingFingerprint },
+    ask,
+  );
   if (siblingRows.length >= 2) {
-    const fingerprint = incumbentSetFingerprint({
-      masterThoughtFingerprint: parentFp,
-      bigThoughtFingerprints: siblingRows.map((row) =>
-        bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
-      ),
-    });
-    const sibling = await judgeSiblingSet({ parentStatement: masterStatement, rows: siblingRows, fingerprint }, ask);
     const gate = auditSiblingGate({
       code,
       siblingSet: sibling,
@@ -246,7 +330,7 @@ export async function addThinkingBigThought(
   const nextRecord = nextAuthoritativeSetRecord({
     record,
     parentFingerprint: parentFp,
-    siblingSet: record.siblingSet,
+    siblingSet: sibling,
     audit: { setFingerprint: record.audit?.setFingerprint ?? "", items },
     challenger: record.challenger,
   });

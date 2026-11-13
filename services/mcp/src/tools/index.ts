@@ -132,6 +132,8 @@ export { mastersListInput, mastersListResult, treeReadInput, treeReadResult } fr
 export {
   bigThoughtAddInput,
   bigThoughtAddResult,
+  bigThoughtLockInput,
+  bigThoughtLockResult,
   masterCatalogSetInput,
   masterCatalogSetResult,
   masterCreateInput,

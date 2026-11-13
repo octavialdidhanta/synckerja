@@ -190,6 +190,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     setThinkingMasterCatalog: async () => {
       throw new Error("unused");
     },
+    lockThinkingBigThoughts: async () => {
+      throw new Error("unused");
+    },
     readThinkingTree: async () => {
       throw new Error("unused");
     },
