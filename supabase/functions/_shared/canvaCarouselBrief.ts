@@ -87,17 +87,64 @@ export function carouselReferencePosition(slides: CarouselSlide[]): number | nul
   return chosen > 0 ? chosen : null;
 }
 
-const COLOR_SENTENCE = /\b(colou?rs?|palette|palet|warna|hex|red|blue|green|yellow|orange|purple|pink|black|white|gr[ae]y|brown|gold|navy|teal|beige|cream|maroon|cyan|magenta|merah|biru|hijau|kuning|ungu|hitam|putih|abu|emas|coklat)\b|#[0-9a-fA-F]{3,8}/i;
+const COLOR_WORD = /\b(colou?rs?|colou?red|palette|palet|warna|hex|reddish|red|blue|green|yellow|orange|purple|pink|black|white|gr[ae]y|brown|golden|gold|navy|teal|beige|cream|maroon|cyan|magenta|merah|biru|hijau|kuning|ungu|hitam|putih|abu-abu|abu|emas|coklat)\b|#[0-9a-fA-F]{3,8}\b/gi;
 const LOGO_SENTENCE = /\blogos?\b|wordmark|brand mark/i;
+const LAYOUT_ZONE = /\b(PHOTO|HEADLINE|TEXT|DECOR|TYPE)\s*:\s*/g;
 
-/** Drop any sentence that names a color. Layout reference is not a palette. */
+/**
+ * Layout reference text without colors or logos. Color words are taken out of the
+ * sentence instead of dropping it, so a long description keeps its positions and sizes.
+ */
 export function layoutOnlyDescription(text: string): string {
   return String(text ?? "")
     .split(/(?<=[.!?])\s+|\n+/)
     .map((part) => part.replace(/\s+/g, " ").trim())
-    .filter((part) => part.length > 0 && !COLOR_SENTENCE.test(part) && !LOGO_SENTENCE.test(part))
+    .filter((part) => part.length > 0 && !LOGO_SENTENCE.test(part))
+    .map((part) => part
+      .replace(COLOR_WORD, "")
+      .replace(/[*_`]+/g, "")
+      .replace(/^[-•\s]+/, "")
+      .replace(/\(\s*\)/g, "")
+      .replace(/\s+([,.;:])/g, "$1")
+      .replace(/([,;])\s*([,;.])/g, "$2")
+      .replace(/([,;])\s*(and|or)\s+/gi, "$1 ")
+      .replace(/\s+(and|or)\s*([,.;])/gi, "$2")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+      .replace(/^\p{Ll}/u, (letter) => letter.toUpperCase()))
+    .filter((part) => part.replace(/^(PHOTO|HEADLINE|TEXT|DECOR|TYPE)\s*:\s*/i, "").split(/\s+/).filter((word) => /\p{L}/u.test(word)).length >= 2)
     .join(" ")
-    .slice(0, 2400);
+    .slice(0, 8000);
+}
+
+/**
+ * Fit a layout note into the room left in the brief. Decorations go first, then the
+ * small text blocks; photo, headline and typeface are kept longest.
+ */
+export function fitLayoutNote(note: string, room: number): string {
+  const text = note.replace(/\s+/g, " ").trim();
+  if (room <= 0) return "";
+  if (text.length <= room) return text;
+  const marks = [...text.matchAll(LAYOUT_ZONE)];
+  let kept = text;
+  if (marks.length > 0) {
+    const zones = marks.map((mark, index) => ({
+      label: mark[1].toUpperCase(),
+      body: text.slice((mark.index ?? 0) + mark[0].length, marks[index + 1]?.index ?? text.length).trim(),
+    }));
+    const lead = text.slice(0, marks[0].index ?? 0).trim();
+    const join = (list: typeof zones) => [lead, ...list.map((zone) => `${zone.label}: ${zone.body}`)].filter(Boolean).join(" ");
+    let list = zones;
+    for (const drop of ["DECOR", "TEXT"]) {
+      if (join(list).length <= room) break;
+      list = list.filter((zone) => zone.label !== drop);
+    }
+    kept = join(list);
+  }
+  if (kept.length <= room) return kept;
+  const cut = kept.slice(0, room);
+  const stop = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("; "));
+  return (stop > room * 0.6 ? cut.slice(0, stop + 1) : cut.slice(0, cut.lastIndexOf(" ") > 0 ? cut.lastIndexOf(" ") : room)).trim();
 }
 
 function referenceNotes(styleLock: string): Map<number, string> {
@@ -105,13 +152,13 @@ function referenceNotes(styleLock: string): Map<number, string> {
   const notes = new Map<number, string>();
   const marks = [...cleaned.matchAll(/Referensi\s+([1-5])\s*:\s*/gi)];
   if (marks.length === 0) {
-    if (cleaned) notes.set(0, cleaned.slice(0, 800));
+    if (cleaned) notes.set(0, cleaned);
     return notes;
   }
   for (let index = 0; index < marks.length; index += 1) {
     const start = (marks[index].index ?? 0) + marks[index][0].length;
     const end = marks[index + 1]?.index ?? cleaned.length;
-    const note = cleaned.slice(start, end).replace(/\s+/g, " ").trim().slice(0, 800);
+    const note = cleaned.slice(start, end).replace(/\s+/g, " ").trim();
     if (note) notes.set(Number(marks[index][1]), note);
   }
   return notes;
@@ -220,6 +267,10 @@ function pictureInstruction(picture: string): string {
 }
 
 const BRIEF_LIMIT = 3500;
+/** Room the shared layout keeps before scenes are shortened further. */
+const LAYOUT_MIN_ROOM = 900;
+const LAYOUT_LEAD = "Layout and type for every page, copied from the reference: ";
+const LAYOUT_TAIL = " Follow this layout closely on each page.";
 
 function clipScene(text: string, limit: number): string {
   const clean = text.replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
@@ -287,7 +338,7 @@ export function buildCanvaCarouselBrief(input: {
       if (FOOD_SCENE.test(scene)) showsFood = true;
       if (PERSON_SCENE.test(scene)) showsPerson = true;
       const lines = [`Page ${index + 1}`];
-      if (note && !commonNote) lines.push(`Layout and type: ${note}`);
+      if (note && !commonNote) lines.push(`Layout and type: ${fitLayoutNote(note, 350)}`);
       const photoPage = index === input.slides.length - 1 && (input.productPhotos ?? []).length > 0;
       if (photoPage) {
         // The real photo is this page's food: draw only the setting around it.
@@ -301,7 +352,7 @@ export function buildCanvaCarouselBrief(input: {
       return lines.join("\n");
     })
     .join("\n");
-  const assemble = (pages: string) => [
+  const assemble = (pages: string, layout: string) => [
     `Design an Instagram carousel with ${input.slides.length} portrait 4:5 pages. One page per slide. Make every page editable.`,
     requiredFacts.length > 0 ? `Write exactly this on the last page: ${requiredFacts.join(" ")}` : "",
     forbiddenNote ? `Do not write any of this: ${forbiddenNote}` : "",
@@ -311,18 +362,24 @@ export function buildCanvaCarouselBrief(input: {
     showsFood || (input.menus ?? []).length > 0 || (input.productPhotos ?? []).length > 0 ? FOOD_PHOTO_RULE : "",
     menuLine([...(input.menus ?? []), ...(input.productPhotos ?? [])]),
     productPhotoLine(input.productPhotos),
-    commonNote ? `Layout and type for every page, copied from the reference: ${commonNote} Follow this layout closely on each page.` : "",
+    layout ? `${LAYOUT_LEAD}${layout}${LAYOUT_TAIL}` : "",
     `Title: ${title}.${captionLine}`,
     pages,
     "Write only the listed words. Draw the picture, and do not turn the picture instructions into text. Use the layout and the named typeface for that page.",
   ].filter(Boolean).join("\n");
-  // Shorten scenes before anything is cut, so the last page (CTA, required facts) always fits.
+  // The pages come first: scenes shrink before anything else is cut, so the last page
+  // (CTA, required facts) always fits. The shared reference layout gets the room left,
+  // and scenes shrink further only while that room is under LAYOUT_MIN_ROOM.
+  const layoutWanted = commonNote ? Math.min(commonNote.length, LAYOUT_MIN_ROOM) : 0;
   let brief = "";
   for (const limit of [400, 220, 150, 100, 60]) {
     showsFood = false;
     showsPerson = false;
-    brief = assemble(buildPages(limit));
-    if (brief.length <= BRIEF_LIMIT) break;
+    const pages = buildPages(limit);
+    const bare = assemble(pages, "");
+    const room = commonNote ? BRIEF_LIMIT - bare.length - LAYOUT_LEAD.length - LAYOUT_TAIL.length - 1 : 0;
+    brief = commonNote && room > 0 ? assemble(pages, fitLayoutNote(commonNote, room)) : bare;
+    if (brief.length <= BRIEF_LIMIT && room >= layoutWanted) break;
   }
   return brief.slice(0, BRIEF_LIMIT);
 }

@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { FOOD_PHOTO_RULE, PERSON_PHOTO_RULE, buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, layoutOnlyDescription } from "./canvaCarouselBrief.ts";
+import { FOOD_PHOTO_RULE, PERSON_PHOTO_RULE, buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, fitLayoutNote, layoutOnlyDescription } from "./canvaCarouselBrief.ts";
 
 const storyboard = [
   "| Timing | Visual | VO (Voice Over) | Scene Visual | Element Lainnya | Tagging |",
@@ -79,7 +79,7 @@ Deno.test("carouselSlidesFromBrief keeps copy, hook, and other elements", () => 
     palette: { primary: "#112233", secondary: "#445566", accent: "#778899" },
     logo: "required",
   });
-  assertEquals(locked.includes("Layout and type for every page, copied from the reference: Headline sits at the top."), true);
+  assertEquals(locked.includes("Layout and type for every page, copied from the reference: Bold poster, blocks, heavy sans type. Headline sits at the top."), true);
   assertEquals(locked.includes("\nLayout and type: "), false);
   assertEquals(locked.includes("named typeface"), true);
   assertEquals(locked.includes("red and yellow"), false);
@@ -107,7 +107,7 @@ Deno.test("carouselSlidesFromBrief keeps copy, hook, and other elements", () => 
   assertEquals(carouselPalette("tanpa warna"), null);
   assertEquals(
     layoutOnlyDescription("Photo on the left. Red blocks fill the page. The logo sits in a circle. Headline sits at the top."),
-    "Photo on the left. Headline sits at the top.",
+    "Photo on the left. Blocks fill the page. Headline sits at the top.",
   );
 });
 
@@ -242,4 +242,31 @@ Deno.test("buildCanvaCarouselBrief writes one shared reference layout once, mixe
   assertEquals(mixed.includes("Layout and type: Photo fills the lower half."), true);
   assertEquals(mixed.includes("Layout and type: Headline sits left in two lines."), true);
   assertEquals(mixed.includes("for every page"), false);
+});
+
+Deno.test("layoutOnlyDescription keeps a sentence and removes only its color words", () => {
+  assertEquals(
+    layoutOnlyDescription("HEADLINE: Bold black sans, top-left, two lines.\nTEXT: small red price tag at bottom right."),
+    "HEADLINE: Bold sans, top-left, two lines. TEXT: small price tag at bottom right.",
+  );
+});
+
+Deno.test("fitLayoutNote drops decorations, then small text, and keeps photo, headline, type", () => {
+  const note = "PHOTO: plate fills bottom 60%. HEADLINE: top-left two lines. TEXT: small tag bottom right. DECOR: thin frame around page. TYPE: Montserrat.";
+  assertEquals(fitLayoutNote(note, 500), note);
+  assertEquals(fitLayoutNote(note, 110), "PHOTO: plate fills bottom 60%. HEADLINE: top-left two lines. TEXT: small tag bottom right. TYPE: Montserrat.");
+  assertEquals(fitLayoutNote(note, 90), "PHOTO: plate fills bottom 60%. HEADLINE: top-left two lines. TYPE: Montserrat.");
+  assertEquals(fitLayoutNote(note, 0), "");
+});
+
+Deno.test("buildCanvaCarouselBrief gives a long shared layout the room the pages leave", () => {
+  const page = (n: number) => ({ label: "", scene: `Meja makan ${n}`, copy: `Halo ${n}`, elements: "Point: A. Referensi 1", tagging: "" });
+  const zone = (label: string) => `${label}: ${"detail ".repeat(60).trim()}.`;
+  const longNote = ["PHOTO", "HEADLINE", "TEXT", "DECOR", "TYPE"].map(zone).join(" ");
+  const brief = buildCanvaCarouselBrief({ title: "T", caption: "", slides: [page(1), page(2), page(3)], styleLock: `Referensi 1: ${longNote}` });
+  assertEquals(brief.length <= 3500, true);
+  assertEquals(brief.includes("PHOTO: detail"), true);
+  assertEquals(brief.includes("HEADLINE: detail"), true);
+  assertEquals(brief.includes("Page 3"), true);
+  assertEquals(brief.includes("Write only: Halo 3"), true);
 });
