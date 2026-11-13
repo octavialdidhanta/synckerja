@@ -1993,6 +1993,7 @@ export function ThinkingLabPage() {
         },
         judge: async (statement) => {
           const checklist = await runGenerateAdmissionChecks({
+            batch: true,
             statement,
             parentStatement: becauseParent,
             ask: (prompt) => askScoped("generate", "Big Thought", prompt, 0),
@@ -2234,6 +2235,7 @@ export function ThinkingLabPage() {
             );
           }
           const checked = await runTerritoryAdmissionChecks({
+            batch: true,
             statement,
             parentStatement: parent.statement,
             audience: parent.audience || selected?.audience,
@@ -7079,6 +7081,7 @@ export function ThinkingLabPage() {
         }
         const prior = fixPriorForNextTerritoryName(shown, draft, statement);
         const checked = await runTerritoryOpenChecks({
+          batch: true,
           statement,
           parentStatement: focusedThought.statement,
           audience: selected?.audience,
@@ -7301,6 +7304,7 @@ export function ThinkingLabPage() {
               .filter((item) => item.id !== row.id && passedCodes.has(item.code.toUpperCase()))
               .map((item) => item.statement);
           const run = await runTerritoryIndividualChecks({
+            batch: true,
             statement: row.statement,
             parentStatement: focusedThought.statement,
             audience: selected?.audience,
@@ -7623,6 +7627,7 @@ export function ThinkingLabPage() {
         continue;
       }
       const checked = await runBigThoughtOpenChecks({
+        batch: true,
         statement: next,
         parentStatement: becauseParent,
         others: keepers,
@@ -7822,6 +7827,7 @@ export function ThinkingLabPage() {
               .map((lesson) => ({ statement: lesson.statement, reason: lesson.reason })),
           ];
           const checked = await runBigThoughtIndividualChecks({
+            batch: true,
             statement: row.statement,
             parentStatement: becauseParent,
             others,
