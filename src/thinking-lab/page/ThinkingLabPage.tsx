@@ -29,7 +29,8 @@ import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate"
 import { cn } from "@/shared/lib/utils";
 import { isGeminiBillingNoticeError, isGeminiBillingNoticeMessage } from "@/shared/ai/geminiSpendCap";
 import { askThinkingLab, parseModelJson, setThinkingAuditScope } from "@/thinking-lab/shared/ai";
-import { ACTIVE_SET_CAP, BT_FIX_MAX_ATTEMPTS, BT_FIX_SAME_GATE_STOP } from "@/thinking-lab/shared/limits";
+import { ACTIVE_SET_CAP, BT_FIX_MAX_ATTEMPTS, BT_FIX_SAME_GATE_STOP, THINKING_PARALLEL_CHECKS } from "@/thinking-lab/shared/limits";
+import { startLimited } from "@/thinking-lab/shared/pool";
 import type { AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import {
   bigThoughtFingerprint,
@@ -3219,21 +3220,27 @@ export function ThinkingLabPage() {
         let siblingSet = storedIdeaSet;
         const siblingCache = new Map<string, NonNullable<typeof storedIdeaSet>>();
         let judgedEveryOpenIdea = false;
-        for (const row of openIdeas) {
-          const codeKey = row.code.toUpperCase();
-          if (heldPass.has(codeKey)) continue;
-          const carried = readIdeaGeneratePasses(row.canonicalSemantic.generatePasses);
-          const run = await runIdeaIndividualChecks({
+        // Each Idea's own checks run a few at once; the sibling check stays in order below.
+        const individualRuns = startLimited(
+          openIdeas.filter((row) => !heldPass.has(row.code.toUpperCase())),
+          (row) => row.code.toUpperCase(),
+          THINKING_PARALLEL_CHECKS,
+          (row) => runIdeaIndividualChecks({
             batch: true,
             statement: row.statement,
             parentStatement: focusedAngle.statement,
             ancestors,
             masterSubject,
             mechanismKeys: row.canonicalSemantic.mechanismKeys,
-            carried,
+            carried: readIdeaGeneratePasses(row.canonicalSemantic.generatePasses),
             ask: (prompt) => askThinkingLab(prompt, 0),
             onStep: (checks) => publishIdeaChecklist(row.code, checks),
-          });
+          }),
+        );
+        for (const row of openIdeas) {
+          const codeKey = row.code.toUpperCase();
+          if (heldPass.has(codeKey)) continue;
+          const run = await individualRuns.get(codeKey)!;
           if (!run.passed) {
             const failedCheck = run.checks.find((check) => check.state === "fail");
             const gate = failedCheck?.id ?? "sentenceForm";
@@ -6729,10 +6736,12 @@ export function ThinkingLabPage() {
         const failedByCode = new Map<string, { gate: AnglePassCheck["id"]; reason: string }>();
         let siblingSet = storedAngleSet;
         let resolvedSibling: { fingerprint: string; set: NonNullable<typeof siblingSet> } | null = null;
-        for (const row of admittedAngles) {
-          const codeKey = row.code.toUpperCase();
-          if (heldPass.has(codeKey)) continue;
-          const run = await runAngleIndividualChecks({
+        // Each Angle's own checks run a few at once; the sibling check stays in order below.
+        const individualRuns = startLimited(
+          admittedAngles.filter((row) => !heldPass.has(row.code.toUpperCase())),
+          (row) => row.code.toUpperCase(),
+          THINKING_PARALLEL_CHECKS,
+          (row) => runAngleIndividualChecks({
             batch: true,
             statement: row.statement,
             parentStatement: focusedTerritory.statement,
@@ -6742,7 +6751,12 @@ export function ThinkingLabPage() {
             carried: readAngleGeneratePasses(row.canonicalSemantic.generatePasses),
             ask: (prompt) => askThinkingLab(prompt, 0),
             onStep: (checks) => publishAngleChecklist(row.code, checks),
-          });
+          }),
+        );
+        for (const row of admittedAngles) {
+          const codeKey = row.code.toUpperCase();
+          if (heldPass.has(codeKey)) continue;
+          const run = await individualRuns.get(codeKey)!;
           if (!run.passed) {
             const failedCheck = run.checks.find((check) => check.state === "fail");
             const gate = failedCheck?.id ?? "stakeHolds";
@@ -7302,16 +7316,19 @@ export function ThinkingLabPage() {
           setTerritoryGenerateRun({ thoughtId: focusedThought.id, checks: shownAuditChecks, report });
           publishTerritoryChecklist(code, checks);
         };
-        for (const row of admittedTerritories) {
-          const codeKey = row.code.toUpperCase();
-          if (heldPass.has(codeKey)) continue;
-          shownAuditChecks = [];
-          let gloss: { sentence: string; question: string } | null = null;
-          const passedSiblings = () =>
-            admittedTerritories
-              .filter((item) => item.id !== row.id && passedCodes.has(item.code.toUpperCase()))
-              .map((item) => item.statement);
-          const run = await runTerritoryIndividualChecks({
+        // The checks of each name do not depend on the others: run a few at once. The sibling
+        // check below still goes name by name, against the names that passed before it.
+        const glossByCode = new Map<string, { sentence: string; question: string }>();
+        const individualRuns = startLimited(
+          admittedTerritories.filter((row) => !heldPass.has(row.code.toUpperCase())),
+          (row) => row.code.toUpperCase(),
+          THINKING_PARALLEL_CHECKS,
+          (row) => {
+            const passedSiblings = () =>
+              admittedTerritories
+                .filter((item) => item.id !== row.id && passedCodes.has(item.code.toUpperCase()))
+                .map((item) => item.statement);
+            return runTerritoryIndividualChecks({
             batch: true,
             statement: row.statement,
             parentStatement: focusedThought.statement,
@@ -7329,12 +7346,25 @@ export function ThinkingLabPage() {
                 siblings: passedSiblings(),
                 ask: (prompt) => askThinkingLab(prompt, 0.2),
               });
-              if (written.sentence && written.question) gloss = written;
+              if (written.sentence && written.question) glossByCode.set(row.code.toUpperCase(), written);
               return written.question;
             },
             ask: (prompt) => askThinkingLab(prompt, 0),
-            onStep: (checks) => publishAudit(row.code, checks),
+            onStep: (checks) => publishTerritoryChecklist(row.code, checks),
           });
+          },
+        );
+        for (const row of admittedTerritories) {
+          const codeKey = row.code.toUpperCase();
+          if (heldPass.has(codeKey)) continue;
+          shownAuditChecks = [];
+          const run = await individualRuns.get(codeKey)!;
+          let gloss: { sentence: string; question: string } | null = glossByCode.get(codeKey) ?? null;
+          const passedSiblings = () =>
+            admittedTerritories
+              .filter((item) => item.id !== row.id && passedCodes.has(item.code.toUpperCase()))
+              .map((item) => item.statement);
+          publishAudit(row.code, run.checks);
           if (!run.passed) {
             const failedCheck = run.checks.find((check) => check.state === "fail");
             const gate = failedCheck?.id ?? "partOfBigThought";

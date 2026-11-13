@@ -12,3 +12,6 @@ export const BT_FIX_MAX_ATTEMPTS = 3;
 
 /** A fix stops early when the same check fails this many tries in a row: the lessons are not moving it. */
 export const BT_FIX_SAME_GATE_STOP = 2;
+
+/** Thinking Lab checks run at the same time during an audit (per organization AI key). */
+export const THINKING_PARALLEL_CHECKS = 3;
