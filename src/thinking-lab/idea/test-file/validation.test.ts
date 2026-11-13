@@ -1623,3 +1623,17 @@ describe("framework v1.1 Idea form", () => {
     expect(hasHowIfOpening("Sate kambing muda lebih juicy.", angle)).toBe(false);
   });
 });
+
+describe("Idea language", () => {
+  it("reads an Indonesian Angle without the common joining words as Indonesian", async () => {
+    const { angleLanguage, howIfInstruction } = await import("@/thinking-lab/idea/validation");
+    const angle = "Kualitas potongan daging seringkali lebih tentang bentuknya daripada ketebalannya.";
+    expect(angleLanguage(angle)).toBe("id");
+    expect(howIfInstruction(angle)).toContain("Kita [bikin/ajak/tunjukkan/ciptakan]");
+  });
+
+  it("an unknown language keeps the Angle's language instead of defaulting to English", async () => {
+    const { howIfInstruction } = await import("@/thinking-lab/idea/validation");
+    expect(howIfInstruction("Qualité de la coupe")).toContain("same language as the Angle");
+  });
+});

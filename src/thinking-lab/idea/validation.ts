@@ -97,7 +97,7 @@ export type RelevantIdea = {
 };
 
 const ID_HINT =
-  /\b(yang|dan|untuk|dengan|dari|ini|tidak|agar|pada|dalam|adalah|atau|para|sebuah|karyawan|kinerja)\b/gi;
+  /\b(yang|dan|untuk|dengan|dari|ini|tidak|agar|pada|dalam|adalah|atau|para|sebuah|karyawan|kinerja|seringkali|sering|lebih|daripada|tentang|bukan|hanya|justru|padahal|juga|kita|di|ke|bisa|sangat|dianggap|tetap)\b/gi;
 const EN_HINT = /\b(the|and|with|from|this|that|without|when|because|employee|performance|does|into)\b/gi;
 // Framework v1.1: "Kita [bikin/ajak/tunjukkan]… sehingga…". The older "Bagaimana jika" stays valid.
 const INDONESIAN_OPENING = /^\s*(bagaimana\s+jika\b|kita\s+\S+[\s\S]*\bsehingga\b)/i;
@@ -124,7 +124,7 @@ export function howIfInstruction(angleStatement: string): string {
   if (language === "id")
     return 'Write the statement as "Kita [bikin/ajak/tunjukkan/ciptakan] … sehingga …": what we make happen, then what it makes true.';
   if (language === "en") return 'Write the statement as "We [make/invite/show/create] … so that …": what we make happen, then what it makes true.';
-  return 'Write the statement as "We [make/invite/show/create] … so that …" in the Angle\'s language.';
+  return 'Write the statement in the same language as the Angle. In Indonesian the form is "Kita [bikin/ajak/tunjukkan/ciptakan] … sehingga …"; in English "We [make/invite/show/create] … so that …".';
 }
 
 export function admissionForDecision(decision: IdeaValidationDecision): IndividualAdmission {
