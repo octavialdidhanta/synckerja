@@ -11,11 +11,12 @@ export const IDEA_GENERATOR_VERSION = "idea-k1k7/v1";
 export const IDEA_VALIDATOR_VERSION = "idea-audit/v2";
 export const IDEA_REVISION_CAP = 3;
 
+/** Framework v1.1 removed K2 (ordinary-life action). It stays in the list so stored results keep seven entries. */
 export const IDEA_K2_RULE =
-  "PASS only when the mechanism is a specific action people already do in ordinary life. The how-if may change how that action is used. Name the ordinary action first. Looking, comparing, asking, photographing, watching, or discussing can be that action. PASS when people already do that action, even when the how-if changes what they see or hear while doing it. Do not fail that action because the how-if names a tool. FAIL when the mechanism only works by creating a product, an automatic analysis, or a capability that is not part of ordinary life, and no ordinary action remains. A vague claim such as becoming more aware is not a mechanism. A reason that only restates the proposed product is not evidence.";
+  "Retired in framework v1.1. Always return PASS with an empty reason. Do not fail an idea because its action is not part of ordinary life.";
 
 export const IDEA_K7_RULE =
-  "PASS only when the mechanism fits the stored audience's needs, conditions, ability, time, and behavior, and it does not have to replace its own substance to be realized. The evidence names what this audience already does and what is still missing. FAIL when the missing piece is a product, system, or capability this audience does not have and cannot prepare from their current conditions. A claim that there is no new habit, or that the idea fits an existing routine, is not evidence. When the idea proposes a new habit, PASS only when a realistic way to adopt that habit is present. A short action inside time this audience already spends is a realistic way to adopt it. Judge this audience, not the people shown inside the idea. A video, story, demonstration, or conversation this audience can watch, hear, read, or join during time they already spend passes. The work done by a person inside that content is not a habit this audience must adopt. FAIL only when this audience themselves must gain a product, skill, profession, or commitment they cannot prepare from their current life. Do not fail because the mechanism does not guarantee, prove, or change the Angle's observation. That observation is what the idea is for. Comparing, asking, looking, reading, or hearing during time this audience already spends passes. Do not treat the idea's own boundary as the obstacle. The boundary is the part the how-if deliberately does not do. FAIL when that new habit has no existing moment in which it can happen. A habit that is not yet common is not automatically unrealistic. Distinguish a habit the audience is not yet used to, a habit that is difficult but possible, and a habit that is unrealistic for this audience. FAIL when the idea depends on unrealistic audience behavior, needs an unreasonable commitment, time, or resources with no way through that barrier, cannot be developed without creating another idea, or is only attractive in theory. Do not return BELUM_TERVERIFIKASI only because the audience field is empty when the Master Thought statement, the prior belief, or the root belief already names who is addressed. Do not invent an audience from the idea, the Territory, the Angle, or the Big Thought. When none of those stored Master Thought texts name who is addressed, return BELUM_TERVERIFIKASI and say that the Master Thought audience needs to be filled.";
+  "PASS when this audience can watch it or join it during time they already spend, without gaining a product, skill, profession, or commitment. PASS only when the mechanism fits the stored audience's needs, conditions, ability, time, and behavior, and it does not have to replace its own substance to be realized. The evidence names what this audience already does and what is still missing. FAIL when the missing piece is a product, system, or capability this audience does not have and cannot prepare from their current conditions. A claim that there is no new habit, or that the idea fits an existing routine, is not evidence. When the idea proposes a new habit, PASS only when a realistic way to adopt that habit is present. A short action inside time this audience already spends is a realistic way to adopt it. Judge this audience, not the people shown inside the idea. A video, story, demonstration, or conversation this audience can watch, hear, read, or join during time they already spend passes. The work done by a person inside that content is not a habit this audience must adopt. FAIL only when this audience themselves must gain a product, skill, profession, or commitment they cannot prepare from their current life. Do not fail because the mechanism does not guarantee, prove, or change the Angle's observation. That observation is what the idea is for. Comparing, asking, looking, reading, or hearing during time this audience already spends passes. Do not treat the idea's own boundary as the obstacle. The boundary is the part the how-if deliberately does not do. FAIL when that new habit has no existing moment in which it can happen. A habit that is not yet common is not automatically unrealistic. Distinguish a habit the audience is not yet used to, a habit that is difficult but possible, and a habit that is unrealistic for this audience. FAIL when the idea depends on unrealistic audience behavior, needs an unreasonable commitment, time, or resources with no way through that barrier, cannot be developed without creating another idea, or is only attractive in theory. Do not return BELUM_TERVERIFIKASI only because the audience field is empty when the Master Thought statement, the prior belief, or the root belief already names who is addressed. Do not invent an audience from the idea, the Territory, the Angle, or the Big Thought. When none of those stored Master Thought texts name who is addressed, return BELUM_TERVERIFIKASI and say that the Master Thought audience needs to be filled.";
 
 export type IdeaCriterion = {
   id: IdeaCriterionId;
@@ -98,9 +99,10 @@ export type RelevantIdea = {
 const ID_HINT =
   /\b(yang|dan|untuk|dengan|dari|ini|tidak|agar|pada|dalam|adalah|atau|para|sebuah|karyawan|kinerja)\b/gi;
 const EN_HINT = /\b(the|and|with|from|this|that|without|when|because|employee|performance|does|into)\b/gi;
-const INDONESIAN_OPENING = /^\s*bagaimana\s+jika\b/i;
-const ENGLISH_OPENING = /^\s*what\s+if\b/i;
-const ANY_OPENING = /^\s*(bagaimana\s+jika|what\s+if|et\s+si|was\s+wäre\s+wenn|e\s+se|y\s+si|如果)\b/i;
+// Framework v1.1: "Kita [bikin/ajak/tunjukkan]… sehingga…". The older "Bagaimana jika" stays valid.
+const INDONESIAN_OPENING = /^\s*(bagaimana\s+jika\b|kita\s+\S+[\s\S]*\bsehingga\b)/i;
+const ENGLISH_OPENING = /^\s*(what\s+if\b|we\s+\S+[\s\S]*\bso\s+that\b)/i;
+const ANY_OPENING = /^\s*((bagaimana\s+jika|what\s+if|et\s+si|was\s+wäre\s+wenn|e\s+se|y\s+si|如果)\b|kita\s+\S+[\s\S]*\bsehingga\b|we\s+\S+[\s\S]*\bso\s+that\b)/i;
 
 export function angleLanguage(statement: string): "id" | "en" | "other" {
   const indonesian = statement.match(ID_HINT)?.length ?? 0;
@@ -119,9 +121,10 @@ export function hasHowIfOpening(statement: string, angleStatement: string): bool
 
 export function howIfInstruction(angleStatement: string): string {
   const language = angleLanguage(angleStatement);
-  if (language === "id") return 'Begin the statement with "Bagaimana jika".';
-  if (language === "en") return 'Begin the statement with "What if".';
-  return 'Begin the statement with the words for "what if" in the Angle\'s language.';
+  if (language === "id")
+    return 'Write the statement as "Kita [bikin/ajak/tunjukkan/ciptakan] … sehingga …": what we make happen, then what it makes true.';
+  if (language === "en") return 'Write the statement as "We [make/invite/show/create] … so that …": what we make happen, then what it makes true.';
+  return 'Write the statement as "We [make/invite/show/create] … so that …" in the Angle\'s language.';
 }
 
 export function admissionForDecision(decision: IdeaValidationDecision): IndividualAdmission {
@@ -913,7 +916,7 @@ export function buildIdeaValidationPrompt(input: {
     "Judge only K1 through K7. Do not average them. One FAIL makes the idea rejected.",
     "A missing context is BELUM_TERVERIFIKASI. Do not invent a Big Thought, Territory, or reason.",
     "K6. The idea links to the stored Master Thought, Big Thought, and Territory. If one of those is missing or the link cannot be checked, K6 is BELUM_TERVERIFIKASI. Do not pass it from an assumption.",
-    "K1. The statement is one specific how-if proposal. Fail it when the substance is only a fact, insight, problem, goal, proposition, general strategy, consequence scenario, activity, or technique.",
+    "K1. The statement is one specific proposal, written as Kita … sehingga … (We … so that …) or as an older how-if. Fail it when the substance is only a fact, insight, problem, goal, proposition, general strategy, consequence scenario, activity, or technique.",
     "Do not fail K1 because the action is unusual or not part of ordinary life. That is another check.",
     "Containing one of those is allowed. It must not be the whole substance.",
     `K2. ${IDEA_K2_RULE}`,

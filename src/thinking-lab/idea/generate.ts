@@ -4,7 +4,6 @@ import type { IdeaDecision } from "@/thinking-lab/idea/setAudit";
 import {
   formatFailureMemory,
   howIfInstruction,
-  IDEA_K2_RULE,
   IDEA_K7_RULE,
   type FailureMemoryItem,
   type IdeaValidationDecision,
@@ -79,13 +78,12 @@ export function buildIdeaGeneratePrompt(input: {
   const failureBlock = (input.failures ?? []).length > 0 ? formatFailureMemory(input.failures ?? []) : lessonLines;
   return [
     "Write Idea candidates under one direct Angle.",
-    "An Idea is one specific how-if proposal.",
+    "An Idea is one specific proposal of what we make happen in front of the audience.",
     howIfInstruction(input.parentStatement),
     "Write the statement in the same language as the Angle.",
-    "K1. The statement is one specific how-if proposal. It fails when the substance is only a fact, an insight, a problem, a goal, a proposition, a general strategy, a consequence scenario, an activity, or a technique.",
-    "Do not reject a how-if because the action is unusual. That is a later check.",
+    "K1. The statement is one specific proposal in the form above. It fails when the substance is only a fact, an insight, a problem, a goal, a proposition, a general strategy, a consequence scenario, an activity, or a technique.",
+    "Do not reject a proposal because the action is unusual.",
     "Those may appear inside the proposal. They must not be the whole idea.",
-    `K2. ${IDEA_K2_RULE}`,
     "K3. The proposed mechanism can produce the stated value.",
     "The mechanism does not have to solve the whole Angle. It has to be able to produce the stated value.",
     "K4. A beneficiary, a relevant need, and the reason this mechanism could deliver that benefit are clear. A general claim such as increasing effectiveness is not enough.",
@@ -97,7 +95,7 @@ export function buildIdeaGeneratePrompt(input: {
     `K7. ${IDEA_K7_RULE}`,
     "Return a title, the concept, the core mechanism, and the value with the statement.",
     `Master Thought subject: ${input.masterSubject?.trim() || "(not sealed)"}`,
-    "Do not write a finished story. A story is a pillar, not an Idea.",
+    "The vehicle is a demonstration, an experiment, a comparison, or a situation. A story is not an Idea vehicle. Do not write a finished story. A story is a pillar.",
     "Do not restate the Angle as an observation or widen it into a life area.",
     ...ANCESTOR_STAKE_RULES,
     "Read every locked Idea. Do not reuse its meaning. A new wording of the same mechanism is still a repeat.",
