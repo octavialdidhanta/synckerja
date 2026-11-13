@@ -5,7 +5,15 @@ function stripEndPunctuation(value: string): string {
 }
 
 export function becauseConnector(text: string): "karena" | "because" {
-  if (/\b(yang|untuk|adalah|lebih|daripada|dengan|tidak|nggak|ini|itu|dan)\b/i.test(text)) return "karena";
+  // Common Indonesian function words. A sentence such as "lemak … masih terselip di dalam serat …, bukan …
+  // seperti …" has none of the first few, and was read as English.
+  if (
+    /\b(yang|untuk|adalah|lebih|daripada|dengan|tidak|nggak|ini|itu|dan|di|ke|dari|pada|dalam|masih|bukan|seperti|juga|sudah|belum|bisa|hanya|karena|sehingga|kami|kita|atau|saat)\b/i.test(
+      text,
+    )
+  ) {
+    return "karena";
+  }
   return "because";
 }
 

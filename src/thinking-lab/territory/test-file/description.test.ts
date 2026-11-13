@@ -123,3 +123,18 @@ describe("territory descriptions", () => {
     ).toBe("");
   });
 });
+
+describe("Territory area sentence prompt", () => {
+  it("keeps Indonesian for an Indonesian Big Thought and does not paste the audience description", async () => {
+    const { buildTerritoryLivedPrompt } = await import("@/thinking-lab/territory/description");
+    const prompt = buildTerritoryLivedPrompt({
+      territory: "Marbling steak wagyu",
+      parentStatement: "lemak kambing muda masih terselip di dalam serat dagingnya, bukan menumpuk di luar seperti pada kambing tua",
+      audience: "Pecinta daging usia 22–40 tahun di PIK yang menganggap sate kambing makanan kelas bawah",
+    });
+    expect(prompt).toContain("Write it in Indonesian.");
+    expect(prompt).toContain('Start the sentence with "Di wilayah ini,"');
+    expect(prompt).toContain("Do not copy that description into the sentence.");
+    expect(prompt).not.toContain("Use words this audience would use: Pecinta");
+  });
+});
