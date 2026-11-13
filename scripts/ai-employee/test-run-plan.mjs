@@ -883,7 +883,17 @@ test("cek execution menolak accepted true tanpa sepuluh cek", () => {
     script: { title: "Makan malam" },
   });
   assert.equal(missing.ok, false);
-  assert.equal(missing.check_id, "hookHolds");
+  // An absent check is not a failed hook.
+  assert.equal(missing.check_id, "checks_incomplete");
+  const failedSlang = executionVerdict({
+    statement: "Makan malam keluarga",
+    checks: checks.map((item) => (item.id === "usesSlang" ? { id: "usesSlang", state: "fail" } : item)),
+    facts: { resolution: "UNRESOLVED", relationToParent: "VALID_EXECUTION", unresolvedReasons: ["usesSlang: vo slide 2 pakai Anda", "unresolved"] },
+    script: { title: "Makan malam" },
+  });
+  assert.equal(failedSlang.ok, false);
+  assert.equal(failedSlang.check_id, "usesSlang");
+  assert.deepEqual(failedSlang.reasons, ["usesSlang: vo slide 2 pakai Anda"]);
   const shaped = executionVerdict({
     statement: "Makan malam keluarga",
     checks: Object.fromEntries(EXECUTION_CHECK_IDS.map((id) => [id, "Pass"])),

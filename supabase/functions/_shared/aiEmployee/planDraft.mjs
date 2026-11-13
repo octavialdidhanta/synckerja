@@ -684,7 +684,18 @@ export function executionVerdict(value) {
     && facts.unresolvedReasons.length === 0;
   const statement = typeof value.statement === "string" ? value.statement.trim() : "";
   if (!admitted || missing || !statement) {
-    return { ok: false, check_id: missing || (admitted ? "input" : "admission") };
+    // Name the check that really failed; an absent entry is not a failed hook.
+    const failed = EXECUTION_CHECK_IDS.find((id) => checks.some((item) => item.id === id && item.state === "fail"));
+    const reasons = facts.unresolvedReasons
+      .map((reason) => String(reason ?? "").replace(/\s+/g, " ").trim())
+      .filter((reason) => reason && reason !== "unresolved")
+      .slice(0, 3)
+      .map((reason) => reason.slice(0, 200));
+    return {
+      ok: false,
+      check_id: failed || (missing ? "checks_incomplete" : (admitted ? "input" : "admission")),
+      reasons,
+    };
   }
   const script = value.script && typeof value.script === "object" && !Array.isArray(value.script)
     ? value.script
@@ -910,6 +921,8 @@ export function buildExecutionCheckPrompt({ day, pillar, idea, draft, path = nul
       ? "pillarFits gagal bila cara saji di development tidak terlihat di slide. Fakta produk saja tidak membuat pilar itu terpenuhi."
       : "pillarFits gagal bila slide tidak menunjukkan cara pilar yang diminta membawa ide.",
     "messageStays gagal bila headline atau kalimat slide 1 mengulang rencana terakhir.",
+    "hookHolds menilai hook slide 1. Lulus bila hook ada, paling banyak 8 kata, nyambung dengan ide, dan membuat orang ingin geser ke slide berikutnya. Gagal hanya bila hook kosong, lebih dari 8 kata, tidak nyambung dengan ide, atau hanya nama menu tanpa alasan untuk berhenti scroll. Jangan gagalkan hookHolds hanya karena hook bisa dibuat lebih bagus.",
+    "usesSlang lulus bila vo dan hook memakai bahasa lisan santai ke teman (kamu, nggak, aja, banget, sih). Gagal bila memakai Anda atau kalimat formal brosur.",
     "Cek lain gagal bila draf kosong, tanggalnya salah, atau tidak membahas ide tersebut.",
     "formatHolds lulus untuk carousel rasio 4:5, meskipun ide asalnya format lain.",
     `Tanggal wajib ${day}. Pillar wajib ${pillar?.id ?? ""}. Nama pilar: ${clip(pillar?.name, 80)}.`,
@@ -925,7 +938,7 @@ export function buildExecutionCheckPrompt({ day, pillar, idea, draft, path = nul
     }),
     `checks wajib memuat id ini, masing-masing state pass atau fail: ${EXECUTION_CHECK_IDS.join(", ")}.`,
     "Setiap item checks berbentuk object dengan kunci id dan state. Jangan mengembalikan hanya kunci ok.",
-    "Bila ada cek yang gagal, state cek itu fail dan facts.unresolvedReasons memuat alasannya.",
+    "Bila ada cek yang gagal, state cek itu fail dan facts.unresolvedReasons memuat alasannya dalam satu kalimat konkret per cek, diawali id cek, misalnya \"hookHolds: hook 11 kata, terlalu panjang\".",
     "Bila draf lulus, semua state adalah pass, facts.resolution RESOLVED, facts.relationToParent VALID_EXECUTION, dan facts.unresolvedReasons array kosong.",
     "Kembalikan JSON saja dengan kunci statement, checks, facts, script. script adalah object dengan title. Jangan menulis path gambar.",
   ].filter(Boolean).join("\n");

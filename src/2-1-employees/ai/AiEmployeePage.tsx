@@ -1314,6 +1314,12 @@ export default function AiEmployeePage() {
           ? t("aiEmployee.schedule.catalogLimit", "Pilih satu katalog di brief.")
           : raw.includes("brief_missing")
           ? t("aiEmployee.schedule.briefMissing", "Isi katalog pada brief terlebih dahulu.")
+          : raw.includes("checks_failed")
+          ? t("aiEmployee.schedule.checksFailed", "Semua draf gagal dicek. Coba lagi.")
+          : raw.includes("time_budget")
+          ? t("aiEmployee.schedule.timeBudget", "Waktu pembuatan habis sebelum draf lolos. Coba lagi.")
+          : raw.includes("quota_exceeded")
+          ? t("aiEmployee.schedule.quota", "Kuota model hari ini habis.")
           : raw.includes("forbidden")
             ? t("aiEmployee.page.ownerOnly", "Hanya owner yang dapat mengubah data ini.")
             : t("aiEmployee.schedule.generateFailed", "Plan tidak dibuat.");
