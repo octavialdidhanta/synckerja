@@ -1546,3 +1546,15 @@ test("run berhenti sebelum batas 150 detik dan retry draf memakai temperature le
   assert.equal(JSON.parse(call.init.body).temperature, 0.7);
   assert.equal(JSON.parse(scriptAiCall({ url: "https://x.supabase.co", serviceRoleKey: "k", organizationId: "o", userId: "u", prompt: "p" }).init.body).temperature, 0);
 });
+
+test("brief boleh 6 fokus angle dan prompt menu tidak menjanjikan foto asli", () => {
+  const page = readFileSync(new URL("../../src/2-1-employees/ai/AiEmployeePage.tsx", import.meta.url), "utf8");
+  assert.match(page, /const MAX_BRIEF_ANGLES = 6;/);
+  assert.doesNotMatch(page, /value\.length >= 3;/);
+  const migration = readFileSync(new URL("../../supabase/migrations/20261113090000_ai_employee_brief_six_angles.sql", import.meta.url), "utf8");
+  assert.match(migration, /cardinality\(angle_ids\) <= 6/);
+  assert.match(migration, /'cardinality\(v_angles\) > 6'/);
+  const draft = readFileSync(new URL("../../supabase/functions/_shared/aiEmployee/planDraft.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(draft, /Foto asli menu terpilih akan dipasang/);
+  assert.match(draft, /Desainer menggambar makanan dari nama menu ini/);
+});
