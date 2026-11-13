@@ -118,6 +118,13 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
   const [isGoogleDriveDialogOpen, setIsGoogleDriveDialogOpen] = useState(false);
   const [isSocialLinksDialogOpen, setIsSocialLinksDialogOpen] = useState(false);
   const openPublishAfterApproveRef = useRef(false);
+  // Prod Approved opens Social Media Publish Setup once the saved approval reaches this row,
+  // so the setup's own "Prod approved" check already passes.
+  useEffect(() => {
+    if (!openPublishAfterApproveRef.current || plan.production_approved !== true) return;
+    openPublishAfterApproveRef.current = false;
+    setIsSocialLinksDialogOpen(true);
+  }, [plan.production_approved]);
   const [showApprovalOptions, setShowApprovalOptions] = useState({
     status: true,
     production_status: true
@@ -550,8 +557,10 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
         onProductionStatusChange(plan.id, batchUpdates.production_status);
       }
       if (batchUpdates.production_approved_date !== undefined) {
-      openPublishAfterApproveRef.current = checked;
+        onFieldChange(plan.id, 'production_approved_date', batchUpdates.production_approved_date);
       }
+      // Opened by the effect above once the approval is saved.
+      openPublishAfterApproveRef.current = checked;
     } catch (error) {
       devLog.error('Error updating production approved:', error);
       toast({
@@ -1255,6 +1264,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
     }
     onApprove={() => {
       const approvedDate = new Date().toISOString();
+      openPublishAfterApproveRef.current = true;
       onFieldChange(plan.id, 'production_approved', true);
       onFieldChange(plan.id, 'production_approved_date', approvedDate);
       onProductionStatusChange(plan.id, 'Approved');
