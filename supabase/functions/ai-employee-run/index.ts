@@ -48,6 +48,7 @@ import {
   hookFromElement,
   headlineFromElement,
   headlineRepeats,
+  openingStyleFor,
   orderCopyFallbackPaths,
   selectCopyPriors,
   pickUnusedIdea,
@@ -1225,6 +1226,13 @@ Deno.serve(async (req: Request) => {
           for (const row of recent.data ?? []) recentReferenceBriefs.push(String((row as { brief?: unknown }).brief ?? ""));
         }
       }
+      // Plans this employee already has: the opening style rotates from here.
+      const planCountResult = await admin
+        .from("social_media_plans")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", employee.organization_id)
+        .eq("pic_id", employeeId);
+      const openingSeed = planCountResult.count ?? 0;
       let dayIndex = 0;
       let ideaTries = 0;
       let ideaCap = focused ? Math.max(carouselPaths.length, 1) : 1;
@@ -1323,6 +1331,8 @@ Deno.serve(async (req: Request) => {
               path: promptPath,
               avoid,
               menus,
+              // A rejected draft also moves to the next opening style.
+              openingStyle: openingStyleFor(openingSeed + dayIndex + attempt - 1),
             }), avoid ? RETRY_TEMPERATURE : 0);
             if (result.kind !== "ok") return result;
             const parsed = parseCarouselDraft(result.script, draftNotes);
