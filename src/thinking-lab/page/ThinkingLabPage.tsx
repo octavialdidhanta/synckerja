@@ -29,7 +29,7 @@ import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate"
 import { cn } from "@/shared/lib/utils";
 import { isGeminiBillingNoticeError, isGeminiBillingNoticeMessage } from "@/shared/ai/geminiSpendCap";
 import { askThinkingLab, parseModelJson, setThinkingAuditScope } from "@/thinking-lab/shared/ai";
-import { ACTIVE_SET_CAP } from "@/thinking-lab/shared/limits";
+import { ACTIVE_SET_CAP, BT_FIX_MAX_ATTEMPTS, BT_FIX_SAME_GATE_STOP } from "@/thinking-lab/shared/limits";
 import type { AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import {
   bigThoughtFingerprint,
@@ -7601,7 +7601,22 @@ export function ThinkingLabPage() {
       setBigThoughtChecklists((current) => ({ ...current, [key]: checklist }));
       await waitForChecklistReport(checklist);
     };
-    for (let attempt = 0; attempt < 8 && !replaced; attempt += 1) {
+    // Same check failing again and again: more rewrites only spend calls.
+    let lastGate = "";
+    let sameGateRuns = 0;
+    let stuckGate = "";
+    let stuckReason = "";
+    const noteGate = (gate: string, reason: string): boolean => {
+      sameGateRuns = gate && gate === lastGate ? sameGateRuns + 1 : 1;
+      lastGate = gate;
+      if (gate && sameGateRuns >= BT_FIX_SAME_GATE_STOP) {
+        stuckGate = gate;
+        stuckReason = reason;
+        return true;
+      }
+      return false;
+    };
+    for (let attempt = 0; attempt < BT_FIX_MAX_ATTEMPTS && !replaced; attempt += 1) {
       const script = await askScoped(
         "fix",
         row.code,
@@ -7636,6 +7651,7 @@ export function ThinkingLabPage() {
         statement = next;
         shown = checked;
         scope = fixScopeFromChecks(shown.items);
+        if (noteGate(checked.failure?.gate ?? "", checked.failure?.reason ?? "")) break;
         continue;
       }
       const siblingRows = [
@@ -7673,6 +7689,7 @@ export function ThinkingLabPage() {
           statement = next;
           shown = settled;
           scope = fixScopeFromChecks(shown.items);
+          if (noteGate("sibling", siblingReason)) break;
           continue;
         }
       } else {
@@ -7719,10 +7736,17 @@ export function ThinkingLabPage() {
     }
     if (!replaced) {
       setNotice(
-        t(
-          "thinkingLab.bt.fixStillOpen",
-          "This Big Thought is still failing. Fix stays on this card, and the failures stay as lessons for the next round.",
-        ),
+        stuckGate
+          ? t(
+            "thinkingLab.bt.fixStuck",
+            "Fix stopped: the {{gate}} check failed again ({{reason}}). Edit this Big Thought by hand, or change the Master Thought, before trying again.",
+          )
+            .replace("{{gate}}", stuckGate)
+            .replace("{{reason}}", stuckReason.slice(0, 160) || "-")
+          : t(
+            "thinkingLab.bt.fixStillOpen",
+            "This Big Thought is still failing. Fix stays on this card, and the failures stay as lessons for the next round.",
+          ),
       );
     }
   };
