@@ -485,3 +485,29 @@ export function parseLabSetRecord(raw: unknown): LabSetRecord | null {
     generateLessons: readGenerateLessons(row.generateLessons),
   };
 }
+
+export type StuckFix = { count: number; reason: string };
+
+/**
+ * Big Thoughts whose fix failed `limit` times or more. Lessons are cleared when the
+ * Big Thought passes, is edited by hand, or is deleted, so this closes Fix only while
+ * the same failing sentence stays.
+ */
+export function stuckBigThoughtFixes(
+  lessons: readonly BigThoughtFixLesson[] | null | undefined,
+  limit: number,
+): Record<string, StuckFix> {
+  const byCode = new Map<string, BigThoughtFixLesson[]>();
+  for (const lesson of lessons ?? []) {
+    const key = lesson.code.trim().toUpperCase();
+    if (!key) continue;
+    byCode.set(key, [...(byCode.get(key) ?? []), lesson]);
+  }
+  const stuck: Record<string, StuckFix> = {};
+  for (const [code, rows] of byCode) {
+    if (rows.length < limit) continue;
+    const gated = [...rows].reverse().find((row) => /^[a-zA-Z]+:/.test(row.reason)) ?? rows[rows.length - 1];
+    stuck[code] = { count: rows.length, reason: gated.reason };
+  }
+  return stuck;
+}
