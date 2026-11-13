@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { addThinkingBigThought, createThinkingMaster, setThinkingMasterCatalog } from "../src/db/thinkingWrite";
+import {
+  addThinkingBigThought,
+  createThinkingMaster,
+  lockThinkingBigThoughts,
+  setThinkingMasterCatalog,
+} from "../src/db/thinkingWrite";
 
 const config = { supabaseUrl: "https://x", supabaseServiceRoleKey: "k", scheduledPostsInternalSecret: "s" };
 const ctx = { userId: "u", organizationId: "o" };
@@ -135,5 +140,47 @@ describe("thinking catalog", () => {
     const result = await setThinkingMasterCatalog(catalogAdmin(rows, calls), ctx, { masterThoughtId: masterId, catalog: "" });
     expect(result).toEqual({ saved: true, id: masterId, catalog: null });
     expect(calls[0].args.p_service_id).toBeNull();
+  });
+});
+
+describe("thinking.bigthought.lock", () => {
+  const masterStatement = "Sate kambing muda Sate Sultan PIK sama juicy-nya dengan steak wagyu MB7–MB9.";
+  const statement = "lemak kambing muda masih terselip di dalam serat dagingnya";
+
+  async function savedContext(): Promise<unknown> {
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const base = {
+      statement: masterStatement, root_belief: masterStatement, subject: masterStatement,
+      confirmed: true, locked: false, last_audit: null, big_thoughts: [],
+    };
+    await addThinkingBigThought(fakeAdmin(base, calls), config, ctx, { masterThoughtId: masterId, statement, label: "" }, {
+      ask: async (prompt) => batchAnswer(prompt, () => true),
+    });
+    const save = calls.find((call) => call.fn === "mcp_add_thinking_big_thought")!;
+    return {
+      ...base,
+      last_audit: save.args.p_last_audit,
+      big_thoughts: [{
+        id: "bt-1", code: "BT01", label: "", statement, status: "candidate", sort_order: 1,
+        canonical_semantic: save.args.p_facts, semantic_fingerprint: save.args.p_fingerprint,
+      }],
+    };
+  }
+
+  it("locks a set whose Big Thoughts all passed", async () => {
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const result = await lockThinkingBigThoughts(fakeAdmin(await savedContext(), calls), ctx, { masterThoughtId: masterId });
+    expect(result).toEqual({ saved: true, id: masterId });
+    expect(calls.at(-1)?.fn).toBe("mcp_lock_thinking_big_thoughts");
+    expect(calls.at(-1)?.args.p_big_thought_ids).toEqual(["bt-1"]);
+  });
+
+  it("does not lock when a Big Thought changed after its checks", async () => {
+    const context = (await savedContext()) as { big_thoughts: Array<{ statement: string }> };
+    context.big_thoughts[0].statement = "kalimat yang sudah diubah";
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const result = await lockThinkingBigThoughts(fakeAdmin(context, calls), ctx, { masterThoughtId: masterId });
+    expect(result.saved).toBe(false);
+    expect(calls.some((call) => call.fn === "mcp_lock_thinking_big_thoughts")).toBe(false);
   });
 });

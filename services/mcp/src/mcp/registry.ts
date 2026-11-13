@@ -114,6 +114,7 @@ export type McpToolName =
   | "thinking.master.create"
   | "thinking.bigthought.add"
   | "thinking.master.catalog.set"
+  | "thinking.bigthought.lock"
   | "thinking.ideas.list"
   | "thinking.chain.read"
   | "thinking.execution.check"
@@ -678,6 +679,14 @@ const TOOL_DEFINITIONS: McpTool[] = [
     name: "thinking.master.catalog.set",
     description:
       "Link one Thinking Lab Master Thought to a catalog for the organization locked in this session, like the Catalog dropdown on the page. Requires master_thought_id and catalog (the catalog name or id). An empty catalog clears the link. A name that matches none or several returns saved false with the catalog names and changes nothing. Does not change the belief or its tree.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.bigthought.lock",
+    description:
+      "Lock the Big Thought set of one Thinking Lab Master Thought for the organization locked in this session, like Lock on the page. Requires master_thought_id. Every Big Thought shown on the page must have passed its checks for its current sentence; otherwise nothing is locked and it returns saved false with each open Big Thought code and reason. On a pass it locks those Big Thoughts and the Master Thought and returns saved true. Territories can only be added under a locked Big Thought. After the lock, new Big Thoughts need Unlock on the page.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: THINKING_LAB_PAGE_PATH,

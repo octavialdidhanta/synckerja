@@ -22,6 +22,22 @@ export const bigThoughtAddInput = z.object({
   label: z.string().trim().max(80).optional(),
 }).strict();
 
+export const bigThoughtLockInput = z.object({
+  master_thought_id: z.string().uuid(),
+}).strict();
+
+export type BigThoughtLockWrite = { masterThoughtId: string };
+
+export function bigThoughtLockResult(
+  ctx: McpAuthContext,
+  args: Record<string, unknown>,
+  lock: (ctx: McpAuthContext, input: BigThoughtLockWrite) => Promise<ThinkingWriteResult>,
+): Promise<ThinkingWriteResult> {
+  const parsed = bigThoughtLockInput.safeParse(args);
+  if (!parsed.success) throw new Error("invalid_input");
+  return lock(ctx, { masterThoughtId: parsed.data.master_thought_id });
+}
+
 export type MasterCreateWrite = { belief: string; priorBelief: string; audience: string; catalog?: string };
 export type MasterCatalogWrite = { masterThoughtId: string; catalog: string };
 export type BigThoughtAddWrite = { masterThoughtId: string; statement: string; label: string };
