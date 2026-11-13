@@ -475,3 +475,83 @@ export function treeOptions(tree: TreeNode[], rows: RunLogRow[], filter: ChainFi
       return { id: node.id, label, runs: counts.get(node.id) ?? 0, ready: node.ready, inFocus: node.inFocus };
     });
 }
+
+export type CoverageCell = { plans: number; failed: number };
+export type CoverageRow = {
+  angleId: string;
+  label: string;
+  inFocus: boolean;
+  ideasReady: number;
+  ideasUsed: number;
+  cells: Record<string, CoverageCell>;
+  plans: number;
+  failed: number;
+};
+export type CoverageMap = { pillars: Array<{ id: string; label: string; plans: number }>; rows: CoverageRow[] };
+
+/**
+ * Angle × Pillar coverage of the shown runs: plans made per pair, and runs that tried the pair
+ * and saved nothing. Angles come from the Thinking Lab under the chosen chain, so angles with
+ * no run show as empty rows; columns are the pillars used, or the chosen pillar.
+ */
+export function coverageMap(tree: TreeNode[], rows: RunLogRow[], filter: ChainFilter, pillarId = ""): CoverageMap {
+  const pillarNames = new Map<string, string>();
+  const cells = new Map<string, Record<string, CoverageCell>>();
+  const usedIdeas = new Map<string, Set<string>>();
+  const add = (angleId: string, pillar: string, name: string, key: keyof CoverageCell) => {
+    if (!angleId || !pillar || (pillarId && pillar !== pillarId)) return;
+    if (name) pillarNames.set(pillar, name);
+    const row = cells.get(angleId) ?? {};
+    const cell = row[pillar] ?? { plans: 0, failed: 0 };
+    cell[key] += 1;
+    row[pillar] = cell;
+    cells.set(angleId, row);
+  };
+  for (const row of rows) {
+    if (row.plans.length > 0) {
+      for (const plan of row.plans) {
+        const angleId = plan.chain?.angle?.id ?? "";
+        add(angleId, plan.pillarId, plan.pillarName, "plans");
+        const ideaId = plan.chain?.idea?.id;
+        if (angleId && ideaId && (!pillarId || plan.pillarId === pillarId)) {
+          const set = usedIdeas.get(angleId) ?? new Set<string>();
+          set.add(ideaId);
+          usedIdeas.set(angleId, set);
+        }
+      }
+    } else if (row.attempt && row.status !== "succeeded" && row.status !== "running") {
+      add(row.attempt.chain?.angle?.id ?? "", row.attempt.pillarId, row.attempt.pillarName, "failed");
+    }
+  }
+  const angles = tree.length > 0
+    ? treeOptions(tree, rows, filter, "angle").map((option) => ({ id: option.id, label: option.label, inFocus: option.inFocus }))
+    : [...cells.keys()].map((id) => ({ id, label: id, inFocus: false }));
+  const pillarPlans = new Map<string, number>();
+  const result: CoverageRow[] = angles.map((angle) => {
+    const row = cells.get(angle.id) ?? {};
+    let plans = 0;
+    let failed = 0;
+    for (const [pillar, cell] of Object.entries(row)) {
+      plans += cell.plans;
+      failed += cell.failed;
+      pillarPlans.set(pillar, (pillarPlans.get(pillar) ?? 0) + cell.plans);
+    }
+    const ideas = tree.filter((node) => node.level === "idea" && node.parentId === angle.id);
+    return {
+      angleId: angle.id,
+      label: angle.label,
+      inFocus: angle.inFocus,
+      ideasReady: ideas.filter((node) => node.ready).length,
+      ideasUsed: usedIdeas.get(angle.id)?.size ?? 0,
+      cells: row,
+      plans,
+      failed,
+    };
+  });
+  const pillars = [...pillarNames.entries()]
+    .map(([id, label]) => ({ id, label, plans: pillarPlans.get(id) ?? 0 }))
+    .sort((left, right) => right.plans - left.plans || left.label.localeCompare(right.label));
+  // Focus angles first, then the busiest; empty angles stay so gaps show.
+  result.sort((left, right) => Number(right.inFocus) - Number(left.inFocus) || right.plans - left.plans || left.label.localeCompare(right.label));
+  return { pillars, rows: result };
+}

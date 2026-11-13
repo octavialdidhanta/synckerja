@@ -11,6 +11,7 @@ import { cn } from "@/shared/lib/utils";
 import {
   CHAIN_LEVELS,
   chainFilterActive,
+  coverageMap,
   chainOptions,
   ideaCode,
   jakartaMonth,
@@ -138,6 +139,7 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
   const [chainFilter, setChainFilter] = useState<ChainFilter>({});
   const [pillarFilter, setPillarFilter] = useState("");
   const [untouchedOnly, setUntouchedOnly] = useState(false);
+  const [showMap, setShowMap] = useState(true);
   const query = useRunLog(employeeId, month);
   const treeQuery = useThinkingTree(employeeId);
   const tree = useMemo(() => treeQuery.data?.tree ?? [], [treeQuery.data]);
@@ -176,6 +178,12 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
     [tree, chainRows, chainFilter],
   );
   const pillarChoices = useMemo(() => pillarOptions(pillars, pillarRows), [pillars, pillarRows]);
+  // Angle × Pillar: the runs under the chosen chain (and status, source), the chosen pillar as the only column.
+  const coverage = useMemo(() => coverageMap(tree, pillarRows, chainFilter, pillarFilter), [tree, pillarRows, chainFilter, pillarFilter]);
+  const focusCell = (angleId: string, pillarId: string) => {
+    setChainFilter((current) => (tree.length > 0 ? selectInTree(tree, current, "angle", angleId) : current));
+    setPillarFilter(pillarId);
+  };
   // Audit view: only what has no run yet, plus the item already chosen.
   const visible = (options: TreeOption[], chosen: string) =>
     untouchedOnly ? options.filter((option) => option.runs === 0 || option.id === chosen) : options;
@@ -358,6 +366,95 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
               <div className={cn("text-lg font-semibold", tone)}>{value}</div>
             </div>
           ))}
+        </div>
+      ) : null}
+
+      {log && coverage.rows.length > 0 ? (
+        <div className="mb-3 rounded-md border border-border">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium"
+            onClick={() => setShowMap((value) => !value)}
+          >
+            <span>
+              {t("aiEmployee.log.map.title", "Peta cakupan Angle × Pilar")}
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                {t("aiEmployee.log.map.hint", "angka = plan dibuat, merah = dicoba tapi gagal, kosong = belum dikerjain")}
+              </span>
+            </span>
+            <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", showMap && "rotate-180")} />
+          </button>
+          {showMap ? (
+            <div className="overflow-x-auto border-t border-border">
+              <table className="w-full border-collapse text-xs">
+                <thead>
+                  <tr>
+                    <th className="sticky left-0 z-10 min-w-[16rem] bg-card px-2 py-2 text-left font-medium text-muted-foreground">
+                      {t("aiEmployee.log.angle", "Angle")}
+                    </th>
+                    <th className="px-2 py-2 text-center font-medium text-muted-foreground">{t("aiEmployee.log.map.ideas", "Idea dipakai / siap")}</th>
+                    {coverage.pillars.map((pillar) => (
+                      <th key={pillar.id} className="max-w-[7rem] px-2 py-2 text-center font-medium text-muted-foreground" title={pillar.label}>
+                        <span className="line-clamp-2">{pillar.label}</span>
+                      </th>
+                    ))}
+                    <th className="px-2 py-2 text-center font-medium text-muted-foreground">{t("aiEmployee.log.map.total", "Total plan")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {coverage.rows.map((row) => (
+                    <tr key={row.angleId} className="border-t border-border">
+                      <td className="sticky left-0 z-10 bg-card px-2 py-1.5">
+                        <button
+                          type="button"
+                          className="block max-w-[22rem] truncate text-left hover:underline"
+                          title={row.label}
+                          onClick={() => focusCell(row.angleId, "")}
+                        >
+                          {row.label}
+                          {row.inFocus ? <span className="ml-1 text-muted-foreground">· {t("aiEmployee.log.filter.inFocus", "fokus")}</span> : null}
+                        </button>
+                      </td>
+                      <td className={cn("px-2 py-1.5 text-center", row.ideasUsed === 0 && "text-muted-foreground")}>
+                        {row.ideasUsed}/{row.ideasReady}
+                      </td>
+                      {coverage.pillars.map((pillar) => {
+                        const cell = row.cells[pillar.id];
+                        const plans = cell?.plans ?? 0;
+                        const failed = cell?.failed ?? 0;
+                        return (
+                          <td key={pillar.id} className="p-0.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => focusCell(row.angleId, pillar.id)}
+                              className={cn(
+                                "h-7 w-full min-w-[3rem] rounded",
+                                plans === 0 && failed === 0 && "text-muted-foreground/60 hover:bg-muted",
+                                plans === 1 && "bg-green-100 text-green-900",
+                                plans === 2 && "bg-green-200 text-green-900",
+                                plans >= 3 && "bg-green-400 text-white",
+                                plans === 0 && failed > 0 && "bg-red-50 text-red-700",
+                              )}
+                              title={`${row.label} × ${pillar.label}: ${plans} plan, ${failed} gagal`}
+                            >
+                              {plans > 0 ? plans : failed > 0 ? "" : "—"}
+                              {failed > 0 ? <span className="ml-1 text-red-700">{failed}✕</span> : null}
+                            </button>
+                          </td>
+                        );
+                      })}
+                      <td className={cn("px-2 py-1.5 text-center font-medium", row.plans === 0 && "text-muted-foreground")}>{row.plans}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {coverage.pillars.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-muted-foreground">
+                  {t("aiEmployee.log.map.noPillar", "Belum ada pilar yang dipakai untuk pilihan ini.")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
