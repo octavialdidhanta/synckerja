@@ -124,6 +124,7 @@ function territoryGateRules(
               "pass is true only when the question the Big Thought answers actually comes up in this area.",
               "pass is false when a different question comes up there, or the question only restates the Big Thought.",
               "Other questions coming up in that area do not make pass false.",
+              "The question that comes up must be one the Big Thought's own reason answers. A question about a different quality of the same subject is a different question, even when the topic is close: pass is false.",
               "Judge the supplied question only. Do not replace it with a question taken from the Territory name or from another subject.",
               questionText ? `Question the Big Thought answers: ${questionText}` : "No question was supplied, so pass is false.",
             ]

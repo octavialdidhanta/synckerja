@@ -1,7 +1,7 @@
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
-import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
-import { readIdeaGeneratePasses } from "@/thinking-lab/idea/generatePasses";
-import { ideaNodeSummary } from "@/thinking-lab/idea/subject";
+import { parseModelJson } from "../shared/parseModelJson";
+import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
+import { readIdeaGeneratePasses } from "./generatePasses";
+import { ideaNodeSummary } from "./subject";
 import type {
   IdeaBoundedness,
   IdeaCauseLock,
@@ -15,7 +15,7 @@ import type {
   IdeaResolution,
   IdeaSemanticFacts,
   IdeaTriState,
-} from "@/thinking-lab/idea/types";
+} from "./types";
 
 const FORMS = [
   "IDEA_CONCEPT",

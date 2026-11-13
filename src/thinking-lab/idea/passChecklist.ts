@@ -1,11 +1,11 @@
-import { IDEA_GENERATE_PASS_IDS, readIdeaGeneratePasses } from "@/thinking-lab/idea/generatePasses";
-import { announcedConclusionReason, ideaAnnouncesConclusion } from "@/thinking-lab/idea/semantic";
-import type { IdeaGeneratePass } from "@/thinking-lab/idea/types";
-import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
-import type { IdeaMechanismKey } from "@/thinking-lab/idea/types";
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
-import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "@/thinking-lab/shared/batchGates";
-import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
+import { IDEA_GENERATE_PASS_IDS, readIdeaGeneratePasses } from "./generatePasses";
+import { announcedConclusionReason, ideaAnnouncesConclusion } from "./semantic";
+import type { IdeaGeneratePass } from "./types";
+import type { AuditVerdict } from "../shared/verdict";
+import type { IdeaMechanismKey } from "./types";
+import { parseModelJson } from "../shared/parseModelJson";
+import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "../shared/batchGates";
+import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
 
 export const IDEA_PASS_CHECK_IDS = [
   "sentenceForm",

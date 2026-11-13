@@ -1,5 +1,5 @@
-import type { IdeaDecision, IdeaDiscovery } from "@/thinking-lab/idea/setAudit";
-import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
+import type { IdeaDecision, IdeaDiscovery } from "./setAudit";
+import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
 
 export type IdeaDiscoveryQuestion = {
   id: string;

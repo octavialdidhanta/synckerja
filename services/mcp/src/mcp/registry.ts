@@ -119,6 +119,7 @@ export type McpToolName =
   | "thinking.territory.lock"
   | "thinking.angle.add"
   | "thinking.angle.lock"
+  | "thinking.idea.add"
   | "thinking.ideas.list"
   | "thinking.chain.read"
   | "thinking.execution.check"
@@ -723,6 +724,14 @@ const TOOL_DEFINITIONS: McpTool[] = [
     name: "thinking.angle.lock",
     description:
       "Lock the Angles of one Territory in Thinking Lab for the organization locked in this session, like Lock on the page. Requires territory_id. Every admitted Angle must have passed for its current sentence; otherwise nothing is locked and it returns each open Angle. Ideas are added under a locked Angle.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.idea.add",
+    description:
+      "Add one Idea under a locked Angle in Thinking Lab for the organization locked in this session. Requires angle_id (from thinking.tree.read), statement, and keys; subject is optional. statement is one proposal in the Master Thought's language, written as Kita [bikin/ajak/tunjukkan/ciptakan] … sehingga … (We … so that …): a demonstration, experiment, comparison, or situation that makes the Angle happen in front of the audience, not a story and not a verbal explanation, with the Master Thought's subject visible as the cause. The audience must be able to watch it or join it, and it must be safe to copy. keys lists the other explanations a viewer might think of and how the Idea closes each one. K1-K7 run first, compared with every Idea under this Master Thought (an Idea that repeats another branch fails), then the page's Idea checks and the sibling check. Only a pass is saved, with the next ID code under the Angle; a fail returns each failed check and reason; rewrite and call again.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: THINKING_LAB_PAGE_PATH,

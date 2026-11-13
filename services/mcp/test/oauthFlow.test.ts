@@ -205,6 +205,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     lockThinkingAngles: async () => {
       throw new Error("unused");
     },
+    addThinkingIdea: async () => {
+      throw new Error("unused");
+    },
     readThinkingTree: async () => {
       throw new Error("unused");
     },

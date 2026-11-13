@@ -1,7 +1,7 @@
-import { IDEA_PASS_CHECK_IDS, type IdeaPassCheckId } from "@/thinking-lab/idea/passChecklist";
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
-import { fingerprintsMatch } from "@/thinking-lab/shared/fingerprint";
-import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
+import { IDEA_PASS_CHECK_IDS, type IdeaPassCheckId } from "./passChecklist";
+import { parseModelJson } from "../shared/parseModelJson";
+import { fingerprintsMatch } from "../shared/fingerprint";
+import type { AuditVerdict } from "../shared/verdict";
 
 export type IdeaTriState = true | false | "unresolved";
 export type IdeaResolution = "RESOLVED" | "UNRESOLVED";

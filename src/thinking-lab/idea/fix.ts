@@ -1,10 +1,10 @@
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
-import { fixScopeLines, openMistakeLines, type FixScope } from "@/thinking-lab/shared/fixScope";
-import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
-import { ideaWorldLines } from "@/thinking-lab/idea/discover";
-import { parseGeneratedIdeaDrafts, type IdeaDraft } from "@/thinking-lab/idea/generate";
-import { scoreIdeaAudit } from "@/thinking-lab/idea/setAudit";
-import type { IdeaDecision, IdeaSetFacts } from "@/thinking-lab/idea/setAudit";
+import { parseModelJson } from "../shared/parseModelJson";
+import { fixScopeLines, openMistakeLines, type FixScope } from "../shared/fixScope";
+import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
+import { ideaWorldLines } from "./discover";
+import { parseGeneratedIdeaDrafts, type IdeaDraft } from "./generate";
+import { scoreIdeaAudit } from "./setAudit";
+import type { IdeaDecision, IdeaSetFacts } from "./setAudit";
 
 export function buildIdeaFixOptionsPrompt(input: {
   parentStatement: string;
