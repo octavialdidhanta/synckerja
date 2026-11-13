@@ -21,9 +21,9 @@ import { ACTIVE_SET_CAP } from "../../../../src/thinking-lab/shared/limits";
 import type { AuditItem, BigThoughtFacts } from "../../../../src/thinking-lab/big-thought/types";
 import { askJudge, type JudgeConfig } from "./thinkingLab";
 
-type Session = { userId: string; organizationId: string };
+export type Session = { userId: string; organizationId: string };
 type Ask = (prompt: string) => Promise<string | null>;
-type Deps = { ask?: Ask; fetchImpl?: typeof fetch };
+export type Deps = { ask?: Ask; fetchImpl?: typeof fetch };
 
 export type ThinkingWriteResult =
   | { saved: true; id: string; code?: string; catalog?: string | null }
@@ -80,7 +80,7 @@ export async function setThinkingMasterCatalog(
 }
 
 /** All checks of one call share one time budget, like thinking.execution.check. */
-function makeAsk(config: JudgeConfig, ctx: Session, deps: Deps): Ask {
+export function makeAsk(config: JudgeConfig, ctx: Session, deps: Deps): Ask {
   const started = Date.now();
   return async (prompt) => {
     if (Date.now() - started > 90_000) throw new Error("judge_failed");
@@ -89,7 +89,7 @@ function makeAsk(config: JudgeConfig, ctx: Session, deps: Deps): Ask {
   };
 }
 
-function rpcError(error: { message?: string }): never {
+export function rpcError(error: { message?: string }): never {
   const message = error.message ?? "";
   if (message.includes("not_found")) throw new Error("not_found");
   if (message.includes("not_a_member") || message.includes("forbidden")) throw new Error("forbidden");
@@ -98,7 +98,7 @@ function rpcError(error: { message?: string }): never {
   throw new Error("request_failed");
 }
 
-function sessionArgs(ctx: Session): Record<string, unknown> {
+export function sessionArgs(ctx: Session): Record<string, unknown> {
   return { p_user_id: ctx.userId, p_organization_id: ctx.organizationId };
 }
 

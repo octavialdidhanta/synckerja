@@ -1,4 +1,4 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import { EXECUTION_PASS_CHECK_IDS } from "@/thinking-lab/execution/passChecklist";
 import { IMAGE_EXTRA_CHECK_IDS } from "@/thinking-lab/execution/imageChecklist";

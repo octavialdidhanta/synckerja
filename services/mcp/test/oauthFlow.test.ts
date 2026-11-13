@@ -193,6 +193,12 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     lockThinkingBigThoughts: async () => {
       throw new Error("unused");
     },
+    addThinkingTerritory: async () => {
+      throw new Error("unused");
+    },
+    lockThinkingTerritories: async () => {
+      throw new Error("unused");
+    },
     readThinkingTree: async () => {
       throw new Error("unused");
     },

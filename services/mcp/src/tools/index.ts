@@ -138,6 +138,10 @@ export {
   masterCatalogSetResult,
   masterCreateInput,
   masterCreateResult,
+  territoryAddInput,
+  territoryAddResult,
+  territoryLockInput,
+  territoryLockResult,
 } from "./thinking/treeWrite";
 export { chainReadInput, chainReadResult } from "./thinking/chainRead";
 export { executionCheckInput, executionCheckResult } from "./thinking/executionCheck";

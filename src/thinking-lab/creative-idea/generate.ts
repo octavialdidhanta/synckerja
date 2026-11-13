@@ -1,6 +1,6 @@
 import type { CreativeFailureItem } from "@/thinking-lab/creative-idea/validation";
 import { howIfInstruction } from "@/thinking-lab/idea/validation";
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import type { CreativeDraft, CreativeFormat } from "@/thinking-lab/creative-idea/types";
 import { CREATIVE_BATCH } from "@/thinking-lab/creative-idea/types";
 

@@ -1,7 +1,7 @@
 import { readAngleGeneratePasses } from "@/thinking-lab/angle/passChecklist";
 import { normalizeAngleExample } from "@/thinking-lab/angle/example";
 import { normalizeAngleSubject } from "@/thinking-lab/angle/subject";
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import type {
   AngleBoundedness,

@@ -1,4 +1,4 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import type { PillarFitStatus, StoredPillarReview } from "@/thinking-lab/creative-idea/types";
 import { PILLAR_REVIEW_LIMIT } from "@/thinking-lab/creative-idea/types";
 

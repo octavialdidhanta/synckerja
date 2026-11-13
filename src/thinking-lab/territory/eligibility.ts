@@ -1,4 +1,4 @@
-import { bigThoughtFingerprint, fingerprintsMatch, territoryFingerprint } from "@/thinking-lab/shared/fingerprint";
+import { bigThoughtFingerprint, fingerprintsMatch, territoryFingerprint } from "../shared/fingerprint";
 
 export type TerritoryParentDenial = "PARENT_MISSING" | "PARENT_UNLOCKED" | "PARENT_STALE";
 

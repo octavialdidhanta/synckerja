@@ -1,10 +1,10 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
-import { deriveTerritoryRelation } from "@/thinking-lab/territory/semantic";
+import { parseModelJson } from "../shared/parseModelJson";
+import { deriveTerritoryRelation } from "./semantic";
 import type {
   TerritoryGenerativity,
   TerritoryResolution,
   TerritorySemanticFacts,
-} from "@/thinking-lab/territory/types";
+} from "./types";
 
 const GENERATIVITY = ["SUFFICIENT", "INSUFFICIENT", "UNRESOLVED"] as const satisfies readonly TerritoryGenerativity[];
 

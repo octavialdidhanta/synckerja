@@ -1,5 +1,5 @@
-import { becauseConnector } from "@/thinking-lab/big-thought/because";
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { becauseConnector } from "./because";
+import { parseModelJson } from "../shared/parseModelJson";
 
 function plain(value: string): string {
   return value.trim().replace(/\s+/g, " ").trim();

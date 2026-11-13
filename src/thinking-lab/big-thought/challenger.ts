@@ -1,4 +1,4 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import type { Resolution } from "@/thinking-lab/shared/verdict";
 import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
 import type { ChallengerFacts, ChallengerStatus } from "@/thinking-lab/big-thought/types";

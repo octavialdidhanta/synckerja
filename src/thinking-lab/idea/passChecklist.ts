@@ -3,7 +3,7 @@ import { announcedConclusionReason, ideaAnnouncesConclusion } from "@/thinking-l
 import type { IdeaGeneratePass } from "@/thinking-lab/idea/types";
 import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
 import type { IdeaMechanismKey } from "@/thinking-lab/idea/types";
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "@/thinking-lab/shared/batchGates";
 import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 

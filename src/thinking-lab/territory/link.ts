@@ -1,4 +1,4 @@
-import { becauseConnector } from "@/thinking-lab/big-thought/because";
+import { becauseConnector } from "../big-thought/because";
 
 function stripEndPunctuation(value: string): string {
   return value.trim().replace(/[.。]+$/g, "").trim();

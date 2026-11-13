@@ -1,4 +1,4 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import { fixScopeLines, openMistakeLines, type FixScope } from "@/thinking-lab/shared/fixScope";
 import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import { scoreAngleAudit } from "@/thinking-lab/angle/setAudit";

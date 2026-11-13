@@ -1,6 +1,6 @@
-import { TARGET_GENERATE_VALID } from "@/thinking-lab/shared/limits";
-import type { TerritoryChallengerResult } from "@/thinking-lab/territory/types";
-import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
+import { TARGET_GENERATE_VALID } from "../shared/limits";
+import type { TerritoryChallengerResult } from "./types";
+import type { AuditVerdict } from "../shared/verdict";
 
 export type TerritoryStageAction = "fix" | "generate" | "audit" | "challenger" | "lock";
 

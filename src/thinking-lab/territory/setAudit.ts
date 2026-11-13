@@ -1,7 +1,7 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
-import { fingerprintsMatch } from "@/thinking-lab/shared/fingerprint";
-import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
-import { TERRITORY_PASS_CHECK_IDS, type TerritoryPassCheckId } from "@/thinking-lab/territory/passChecklist";
+import { parseModelJson } from "../shared/parseModelJson";
+import { fingerprintsMatch } from "../shared/fingerprint";
+import type { AuditVerdict } from "../shared/verdict";
+import { TERRITORY_PASS_CHECK_IDS, type TerritoryPassCheckId } from "./passChecklist";
 import type {
   TerritoryChallengerResult,
   TerritoryContainment,
@@ -10,7 +10,7 @@ import type {
   TerritoryResolution,
   TerritorySetFacts,
   TerritoryTriState,
-} from "@/thinking-lab/territory/types";
+} from "./types";
 
 export type TerritoryGateFailure = {
   gate: TerritoryPassCheckId;

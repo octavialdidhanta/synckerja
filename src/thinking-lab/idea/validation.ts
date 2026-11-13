@@ -1,4 +1,4 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 
 export const IDEA_CRITERIA = ["K1", "K2", "K3", "K4", "K5", "K6", "K7"] as const;

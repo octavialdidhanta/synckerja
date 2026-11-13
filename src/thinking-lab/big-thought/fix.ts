@@ -1,4 +1,4 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import { MAX_GENERATE_ROUNDS } from "@/thinking-lab/shared/limits";
 import { mergeExclusionEntries, siblingReasonProofReady } from "@/thinking-lab/big-thought/audit";
 import { parseGeneratedStatements } from "@/thinking-lab/big-thought/generate";

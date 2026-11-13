@@ -38,6 +38,38 @@ export function bigThoughtLockResult(
   return lock(ctx, { masterThoughtId: parsed.data.master_thought_id });
 }
 
+export const territoryAddInput = z.object({
+  big_thought_id: z.string().uuid(),
+  statement: sentence(120),
+}).strict();
+
+export const territoryLockInput = z.object({
+  big_thought_id: z.string().uuid(),
+}).strict();
+
+export type TerritoryAddWrite = { bigThoughtId: string; statement: string };
+export type TerritoryLockWrite = { bigThoughtId: string };
+
+export function territoryAddResult(
+  ctx: McpAuthContext,
+  args: Record<string, unknown>,
+  add: (ctx: McpAuthContext, input: TerritoryAddWrite) => Promise<ThinkingWriteResult>,
+): Promise<ThinkingWriteResult> {
+  const parsed = territoryAddInput.safeParse(args);
+  if (!parsed.success) throw new Error("invalid_input");
+  return add(ctx, { bigThoughtId: parsed.data.big_thought_id, statement: parsed.data.statement });
+}
+
+export function territoryLockResult(
+  ctx: McpAuthContext,
+  args: Record<string, unknown>,
+  lock: (ctx: McpAuthContext, input: TerritoryLockWrite) => Promise<ThinkingWriteResult>,
+): Promise<ThinkingWriteResult> {
+  const parsed = territoryLockInput.safeParse(args);
+  if (!parsed.success) throw new Error("invalid_input");
+  return lock(ctx, { bigThoughtId: parsed.data.big_thought_id });
+}
+
 export type MasterCreateWrite = { belief: string; priorBelief: string; audience: string; catalog?: string };
 export type MasterCatalogWrite = { masterThoughtId: string; catalog: string };
 export type BigThoughtAddWrite = { masterThoughtId: string; statement: string; label: string };

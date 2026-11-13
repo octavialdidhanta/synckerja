@@ -1,5 +1,5 @@
 import { IDEA_PASS_CHECK_IDS, type IdeaPassCheckId } from "@/thinking-lab/idea/passChecklist";
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import { fingerprintsMatch } from "@/thinking-lab/shared/fingerprint";
 import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
 

@@ -21,6 +21,8 @@ import type {
   BigThoughtLockWrite,
   MasterCatalogWrite,
   MasterCreateWrite,
+  TerritoryAddWrite,
+  TerritoryLockWrite,
 } from "../tools/thinking/treeWrite";
 import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
 import type { ThinkingScriptDraft } from "../tools/thinking/scriptInput";
@@ -215,6 +217,8 @@ export type AppDeps = {
   addThinkingBigThought: (ctx: McpAuthContext, input: BigThoughtAddWrite) => Promise<ThinkingWriteResult>;
   setThinkingMasterCatalog: (ctx: McpAuthContext, input: MasterCatalogWrite) => Promise<ThinkingWriteResult>;
   lockThinkingBigThoughts: (ctx: McpAuthContext, input: BigThoughtLockWrite) => Promise<ThinkingWriteResult>;
+  addThinkingTerritory: (ctx: McpAuthContext, input: TerritoryAddWrite) => Promise<ThinkingWriteResult>;
+  lockThinkingTerritories: (ctx: McpAuthContext, input: TerritoryLockWrite) => Promise<ThinkingWriteResult>;
   listThinkingIdeas: (ctx: McpAuthContext) => Promise<ThinkingIdeaRow[]>;
   readThinkingChain: (ctx: McpAuthContext, ideaId: string) => Promise<ThinkingChain>;
   checkThinkingExecution: (

@@ -1,5 +1,5 @@
 import { hasHowIfOpening } from "@/thinking-lab/idea/validation";
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import type {
   CreativeCriterion,
   CreativeCriterionId,

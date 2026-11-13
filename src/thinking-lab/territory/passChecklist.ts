@@ -1,6 +1,6 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
-import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "@/thinking-lab/shared/batchGates";
-import type { TerritoryGeneratePass } from "@/thinking-lab/territory/types";
+import { parseModelJson } from "../shared/parseModelJson";
+import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "../shared/batchGates";
+import type { TerritoryGeneratePass } from "./types";
 
 export const TERRITORY_PASS_CHECK_IDS = [
   "partOfBigThought",

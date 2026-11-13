@@ -22,6 +22,8 @@ import type {
   BigThoughtLockWrite,
   MasterCatalogWrite,
   MasterCreateWrite,
+  TerritoryAddWrite,
+  TerritoryLockWrite,
 } from "../tools/thinking/treeWrite";
 import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
@@ -264,6 +266,10 @@ import {
   bigThoughtAddResult,
   bigThoughtLockInput,
   bigThoughtLockResult,
+  territoryAddInput,
+  territoryAddResult,
+  territoryLockInput,
+  territoryLockResult,
   chainReadInput,
   chainReadResult,
   executionCheckInput,
@@ -420,6 +426,8 @@ export type McpReadDeps = {
   addThinkingBigThought: (ctx: McpAuthContext, input: BigThoughtAddWrite) => Promise<ThinkingWriteResult>;
   setThinkingMasterCatalog: (ctx: McpAuthContext, input: MasterCatalogWrite) => Promise<ThinkingWriteResult>;
   lockThinkingBigThoughts: (ctx: McpAuthContext, input: BigThoughtLockWrite) => Promise<ThinkingWriteResult>;
+  addThinkingTerritory: (ctx: McpAuthContext, input: TerritoryAddWrite) => Promise<ThinkingWriteResult>;
+  lockThinkingTerritories: (ctx: McpAuthContext, input: TerritoryLockWrite) => Promise<ThinkingWriteResult>;
   listThinkingIdeas: (ctx: McpAuthContext) => Promise<ThinkingIdeaRow[]>;
   readThinkingChain: (ctx: McpAuthContext, ideaId: string) => Promise<ThinkingChain>;
   checkThinkingExecution: (
@@ -784,6 +792,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "thinking.bigthought.add": bigThoughtAddInput,
   "thinking.master.catalog.set": masterCatalogSetInput,
   "thinking.bigthought.lock": bigThoughtLockInput,
+  "thinking.territory.add": territoryAddInput,
+  "thinking.territory.lock": territoryLockInput,
   "thinking.ideas.list": ideasListInput,
   "thinking.chain.read": chainReadInput,
   "thinking.execution.check": executionCheckInput,
@@ -1408,6 +1418,10 @@ async function runTool(
       return masterCatalogSetResult(ctx, args, deps.setThinkingMasterCatalog);
     case "thinking.bigthought.lock":
       return bigThoughtLockResult(ctx, args, deps.lockThinkingBigThoughts);
+    case "thinking.territory.add":
+      return territoryAddResult(ctx, args, deps.addThinkingTerritory);
+    case "thinking.territory.lock":
+      return territoryLockResult(ctx, args, deps.lockThinkingTerritories);
     case "thinking.ideas.list":
       return ideasListResult(ctx, deps.listThinkingIdeas);
     case "thinking.chain.read":

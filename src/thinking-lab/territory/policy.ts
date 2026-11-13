@@ -1,5 +1,5 @@
-import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
-import type { TerritorySemanticFacts } from "@/thinking-lab/territory/types";
+import type { IndividualAdmission } from "../shared/verdict";
+import type { TerritorySemanticFacts } from "./types";
 
 const REJECT_RELATIONS = new Set<TerritorySemanticFacts["relationToParent"]>([
   "OUT_OF_PARENT_SCOPE",

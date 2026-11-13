@@ -8,7 +8,7 @@ import {
   type FailureMemoryItem,
   type IdeaValidationDecision,
 } from "@/thinking-lab/idea/validation";
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 import type { IdeaParentDenial } from "@/thinking-lab/idea/eligibility";
