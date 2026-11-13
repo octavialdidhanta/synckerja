@@ -902,3 +902,20 @@ describe("unsupported premise warrant", () => {
     expect(admissionAllowed(purity!.expectedAdmission, individualAdmission({ facts: moral, factsCurrent: true }))).toBe(true);
   });
 });
+
+describe("sibling set prompt", () => {
+  it("shows no sample pair the model could copy, and drops pairs whose jobs differ", async () => {
+    const { buildSiblingSetPrompt } = await import("@/thinking-lab/big-thought/semantic");
+    const prompt = buildSiblingSetPrompt({
+      parentStatement: "Sate kambing muda sama juicy-nya dengan wagyu.",
+      rows: [
+        { code: "BT01", statement: "lemak kambing muda terselip di dalam serat" },
+        { code: "BT02", statement: "serat kambing muda halus dan pendek" },
+      ],
+      fingerprint: "fp",
+    });
+    expect(prompt).not.toContain('"a":"BT01"');
+    expect(prompt).not.toContain('"b":"BT03"');
+    expect(prompt).toContain("do not list that pair");
+  });
+});
