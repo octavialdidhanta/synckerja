@@ -120,6 +120,10 @@ export type McpToolName =
   | "thinking.angle.add"
   | "thinking.angle.lock"
   | "thinking.idea.add"
+  | "thinking.idea.lock"
+  | "thinking.pillars.recommend"
+  | "thinking.pillar.set"
+  | "thinking.pillar.remove"
   | "thinking.ideas.list"
   | "thinking.chain.read"
   | "thinking.execution.check"
@@ -732,6 +736,38 @@ const TOOL_DEFINITIONS: McpTool[] = [
     name: "thinking.idea.add",
     description:
       "Add one Idea under a locked Angle in Thinking Lab for the organization locked in this session. Requires angle_id (from thinking.tree.read), statement, and keys; subject is optional. statement is one proposal in the Master Thought's language, written as Kita [bikin/ajak/tunjukkan/ciptakan] … sehingga … (We … so that …): a demonstration, experiment, comparison, or situation that makes the Angle happen in front of the audience, not a story and not a verbal explanation, with the Master Thought's subject visible as the cause. The audience must be able to watch it or join it, and it must be safe to copy. keys lists the other explanations a viewer might think of and how the Idea closes each one. K1-K7 run first, compared with every Idea under this Master Thought (an Idea that repeats another branch fails), then the page's Idea checks and the sibling check. Only a pass is saved, with the next ID code under the Angle; a fail returns each failed check and reason; rewrite and call again.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.idea.lock",
+    description:
+      "Lock the Ideas of one locked Angle in Thinking Lab for the organization locked in this session, like Lock on the page. Requires angle_id. Every open Idea must have passed for its current sentence; otherwise nothing is locked and it returns each open Idea. Content pillars are chosen for a locked Idea.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.pillars.recommend",
+    description:
+      "Recommend up to three active content pillars for one locked, passed Idea in Thinking Lab for the organization locked in this session, like Review pillar on the page. Requires idea_id. Returns the pillars already chosen and each recommendation with content_pillar_id, pillar_name, development (how the Idea is developed in that pillar), and reason. Saves nothing; choose one with thinking.pillar.set.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.pillar.set",
+    description:
+      "Choose one content pillar for one locked, passed Idea in Thinking Lab for the organization locked in this session, or rewrite a pillar already chosen. Requires idea_id, content_pillar_id (an active pillar from thinking.pillars.recommend or thinking.chain.read), development (how the Idea is developed in that pillar, in the Idea's language), and reason (why the pillar fits). Same record as locking a pillar on the page; Executions for that pillar can start after. Returns every chosen pillar.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.pillar.remove",
+    description:
+      "Remove one chosen content pillar from one locked, passed Idea in Thinking Lab for the organization locked in this session. Requires idea_id and content_pillar_id. Executions already written for that pillar stay. Returns the pillars still chosen.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: THINKING_LAB_PAGE_PATH,

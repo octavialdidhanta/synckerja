@@ -208,6 +208,18 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     addThinkingIdea: async () => {
       throw new Error("unused");
     },
+    lockThinkingIdeas: async () => {
+      throw new Error("unused");
+    },
+    recommendThinkingPillars: async () => {
+      throw new Error("unused");
+    },
+    setThinkingPillar: async () => {
+      throw new Error("unused");
+    },
+    removeThinkingPillar: async () => {
+      throw new Error("unused");
+    },
     readThinkingTree: async () => {
       throw new Error("unused");
     },

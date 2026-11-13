@@ -28,6 +28,14 @@ import type {
   AngleLockWrite,
   IdeaAddWrite,
 } from "../tools/thinking/treeWrite";
+import type {
+  IdeaLockWrite,
+  PillarRemoveWrite,
+  PillarSetWrite,
+  PillarsRecommendRead,
+  PillarsRecommendResult,
+  PillarWriteResult,
+} from "../tools/thinking/pillarWrite";
 import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
 import type {
@@ -279,6 +287,14 @@ import {
   angleLockResult,
   ideaAddInput,
   ideaAddResult,
+  ideaLockInput,
+  ideaLockResult,
+  pillarsRecommendInput,
+  pillarsRecommendResult,
+  pillarSetInput,
+  pillarSetResult,
+  pillarRemoveInput,
+  pillarRemoveResult,
   chainReadInput,
   chainReadResult,
   executionCheckInput,
@@ -440,6 +456,10 @@ export type McpReadDeps = {
   addThinkingAngle: (ctx: McpAuthContext, input: AngleAddWrite) => Promise<ThinkingWriteResult>;
   lockThinkingAngles: (ctx: McpAuthContext, input: AngleLockWrite) => Promise<ThinkingWriteResult>;
   addThinkingIdea: (ctx: McpAuthContext, input: IdeaAddWrite) => Promise<ThinkingWriteResult>;
+  lockThinkingIdeas: (ctx: McpAuthContext, input: IdeaLockWrite) => Promise<ThinkingWriteResult>;
+  recommendThinkingPillars: (ctx: McpAuthContext, input: PillarsRecommendRead) => Promise<PillarsRecommendResult>;
+  setThinkingPillar: (ctx: McpAuthContext, input: PillarSetWrite) => Promise<PillarWriteResult>;
+  removeThinkingPillar: (ctx: McpAuthContext, input: PillarRemoveWrite) => Promise<PillarWriteResult>;
   listThinkingIdeas: (ctx: McpAuthContext) => Promise<ThinkingIdeaRow[]>;
   readThinkingChain: (ctx: McpAuthContext, ideaId: string) => Promise<ThinkingChain>;
   checkThinkingExecution: (
@@ -809,6 +829,10 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "thinking.angle.add": angleAddInput,
   "thinking.angle.lock": angleLockInput,
   "thinking.idea.add": ideaAddInput,
+  "thinking.idea.lock": ideaLockInput,
+  "thinking.pillars.recommend": pillarsRecommendInput,
+  "thinking.pillar.set": pillarSetInput,
+  "thinking.pillar.remove": pillarRemoveInput,
   "thinking.ideas.list": ideasListInput,
   "thinking.chain.read": chainReadInput,
   "thinking.execution.check": executionCheckInput,
@@ -1443,6 +1467,14 @@ async function runTool(
       return angleLockResult(ctx, args, deps.lockThinkingAngles);
     case "thinking.idea.add":
       return ideaAddResult(ctx, args, deps.addThinkingIdea);
+    case "thinking.idea.lock":
+      return ideaLockResult(ctx, args, deps.lockThinkingIdeas);
+    case "thinking.pillars.recommend":
+      return pillarsRecommendResult(ctx, args, deps.recommendThinkingPillars);
+    case "thinking.pillar.set":
+      return pillarSetResult(ctx, args, deps.setThinkingPillar);
+    case "thinking.pillar.remove":
+      return pillarRemoveResult(ctx, args, deps.removeThinkingPillar);
     case "thinking.ideas.list":
       return ideasListResult(ctx, deps.listThinkingIdeas);
     case "thinking.chain.read":

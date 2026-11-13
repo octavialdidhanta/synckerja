@@ -711,6 +711,10 @@ describe("thinking lab connector visibility", () => {
     "thinking.angle.add",
     "thinking.angle.lock",
     "thinking.idea.add",
+    "thinking.idea.lock",
+    "thinking.pillars.recommend",
+    "thinking.pillar.set",
+    "thinking.pillar.remove",
     "thinking.ideas.list",
     "thinking.chain.read",
     "thinking.execution.check",
@@ -748,6 +752,10 @@ describe("thinking lab connector visibility", () => {
     expect(names).not.toContain("thinking.angle.add");
     expect(names).not.toContain("thinking.angle.lock");
     expect(names).not.toContain("thinking.idea.add");
+    expect(names).not.toContain("thinking.idea.lock");
+    expect(names).not.toContain("thinking.pillars.recommend");
+    expect(names).not.toContain("thinking.pillar.set");
+    expect(names).not.toContain("thinking.pillar.remove");
     expect(names).not.toContain("thinking.execution.check");
     expect(names).not.toContain("thinking.plan.save");
     expect(names).not.toContain("thinking.plan.direct");

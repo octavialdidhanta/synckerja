@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { addThinkingIdea } from "../src/db/thinkingIdea";
+import { addThinkingIdea, lockThinkingIdeas } from "../src/db/thinkingIdea";
 import { confirmedFingerprint } from "../../../src/thinking-lab/master-thought/semantic";
 import {
+  ideaFingerprint,
   angleFingerprint,
   bigThoughtFingerprint,
   territoryFingerprint,
@@ -82,5 +83,37 @@ describe("thinking.idea.add", () => {
     });
     expect(result).toMatchObject({ saved: true });
     expect(asked).toBe(0);
+  });
+});
+
+describe("thinking.idea.lock", () => {
+  const row = (validation: unknown) => ({
+    id: "99999999-9999-4999-8999-999999999999",
+    code: "ID01",
+    statement,
+    angle_id: angleId,
+    admission: "GENERATE_VALID",
+    status: "candidate",
+    sort_order: 1,
+    validation,
+  });
+  const fp = ideaFingerprint({ statement, angleFingerprint: anFp });
+  const set = { schema: "thinking-lab/idea-set/v1", repairCount: 0, siblingSet: null, audit: { fingerprint: "", items: [{ code: "ID01", verdict: "AUDIT_PASS", statementFingerprint: fp }] } };
+
+  it("refuses an Idea without a current pass", async () => {
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const result = await lockThinkingIdeas(fakeAdmin(context("locked", [row({ decision: "LOLOS" })]), calls), ctx, { angleId });
+    expect(result.saved).toBe(false);
+    expect(calls.some((call) => call.fn === "mcp_lock_thinking_ideas")).toBe(false);
+  });
+
+  it("locks passing Ideas with their fingerprint", async () => {
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const base = context("locked", [row({ decision: "LOLOS" })]);
+    const data = { ...base, angle: { ...base.angle, idea_set: set } };
+    const result = await lockThinkingIdeas(fakeAdmin(data, calls), ctx, { angleId });
+    expect(result.saved).toBe(true);
+    const lock = calls.find((call) => call.fn === "mcp_lock_thinking_ideas")!;
+    expect((lock.args.p_rows as Array<{ fingerprint: string }>)[0].fingerprint).toBe(fp);
   });
 });
