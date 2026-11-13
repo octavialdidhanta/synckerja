@@ -2,7 +2,9 @@ function relaxModelJson(source: string): string {
   return source.replace(/,\s*""\s*(?=[}\]])/g, "").replace(/,\s*([}\]])/g, "$1");
 }
 
-export function parseModelJson(script: string): unknown | null {
+/** A missing reply (null) reads as no JSON instead of throwing. */
+export function parseModelJson(script: string | null | undefined): unknown | null {
+  if (!script) return null;
   const trimmed = script.trim();
   const objectAt = trimmed.indexOf("{");
   const arrayAt = trimmed.indexOf("[");

@@ -111,6 +111,8 @@ export type McpToolName =
   | "habits.check"
   | "thinking.masters.list"
   | "thinking.tree.read"
+  | "thinking.master.create"
+  | "thinking.bigthought.add"
   | "thinking.ideas.list"
   | "thinking.chain.read"
   | "thinking.execution.check"
@@ -652,6 +654,22 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Read one Master Thought's whole Thinking Lab tree for the organization locked in this session: Big Thoughts, Territories, Angles, and Ideas, with each item's code, sentence, status, admission, audit verdict, and the first failure reason. Requires master_thought_id from thinking.masters.list. Read only. Use it to see what passed, what failed and why, and which branch still needs work.",
     scopes: ["content:read"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.master.create",
+    description:
+      "Create one Master Thought in Thinking Lab for the organization locked in this session, from a belief written in chat. Requires belief and prior_belief (the old belief it shifts); audience is optional. The belief is checked first, with the same rule as Keep as written on the page: exactly one claim, one sentence, not a promotion (a product claim is allowed; an offer, guarantee, price, discount, challenge, call to buy, or tagline is not), and a real shift from the old belief. On a pass it is saved as confirmed and returns saved true with its id. On a fail nothing is saved and it returns saved false with the reasons; rewrite the belief and call again. Does not create Big Thoughts.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.bigthought.add",
+    description:
+      "Add one Big Thought to a confirmed, unlocked Master Thought in Thinking Lab for the organization locked in this session. Requires master_thought_id and statement; label (a 2-4 word name) is optional. Write statement as the because-clause only, in the Master Thought's language, without the Master Thought and without the word karena or because: one distinct reason, basis, or evidence for why the Master Thought is true, not a method, outcome, example, or restatement, and not a repeat of another Big Thought. sehingga is not needed. The same pass checks as the page run first, then the check against the other Big Thoughts. On a pass it is saved with its code and the page shows it as checked. On a fail nothing is saved and it returns the failed check and the reason; rewrite and call again. A Master Thought holds at most 6 Big Thoughts.",
+    scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: THINKING_LAB_PAGE_PATH,
   },
