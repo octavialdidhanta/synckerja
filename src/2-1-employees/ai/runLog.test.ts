@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chainOptions, parseThinkingTree, treeOptions, ideaCode, jakartaMonth, parseRunLog, rowFitsChain, runReason, setChainLevel, shiftMonth, summarizeRows } from "./runLog";
+import { chainOptions, parsePillars, pillarOptions, rowFitsPillar, selectInTree, parseThinkingTree, treeOptions, ideaCode, jakartaMonth, parseRunLog, rowFitsChain, runReason, setChainLevel, shiftMonth, summarizeRows } from "./runLog";
 
 const t = (_key: string, fallback: string) => fallback;
 
@@ -159,5 +159,39 @@ describe("thinking tree options", () => {
     expect(ideas.map((option) => `${option.id}:${option.runs}:${option.ready}`).join(",")).toBe("i1:1:true,i2:0:false");
     expect(treeOptions(tree, log.rows, { master: "m2" }, "idea").length).toBe(0);
     expect(treeOptions(tree, log.rows, {}, "angle")[0].inFocus).toBe(true);
+  });
+});
+
+describe("idea picks its parents, pillar filter", () => {
+  const raw = [
+    { level: "master", id: "m1", label: "Garansi empuk" },
+    { level: "bigThought", id: "b1", parent_id: "m1", code: "BT01", label: "Pemilihan Daging" },
+    { level: "territory", id: "t1", parent_id: "b1", code: "TR01", label: "diskusi kuliner" },
+    { level: "angle", id: "a1", parent_id: "t1", code: "AN01", label: "Angle satu" },
+    { level: "idea", id: "i1", parent_id: "a1", code: "ID01", label: "Idea satu" },
+    { level: "pillar", id: "p1", label: "Myth vs Fact", in_focus: false },
+    { level: "pillar", id: "p2", label: "Did You Know?", in_focus: false },
+  ];
+  const tree = parseThinkingTree(raw);
+
+  it("fills every parent of a chosen idea and clears below a chosen parent", () => {
+    expect(selectInTree(tree, {}, "idea", "i1")).toEqual({ master: "m1", bigThought: "b1", territory: "t1", angle: "a1", idea: "i1" });
+    expect(selectInTree(tree, { master: "m1", bigThought: "b1", territory: "t1", angle: "a1", idea: "i1" }, "territory", "t1"))
+      .toEqual({ master: "m1", bigThought: "b1", territory: "t1" });
+    expect(selectInTree(tree, { master: "m1", angle: "a1" }, "angle", "")).toEqual({ master: "m1" });
+  });
+
+  it("counts runs per pillar, tried pillars included, used first", () => {
+    const log = parseRunLog({
+      rows: [
+        { id: "r1", status: "succeeded", plans: [{ id: "x", pillar_id: "p2", pillar_name: "Did You Know?" }] },
+        { id: "r2", status: "failed", plans: [], attempt: { pillar_id: "p9", pillar_name: "1-Minute Case Study" } },
+      ],
+    });
+    const options = pillarOptions(parsePillars(raw), log.rows);
+    expect(options.map((option) => `${option.label}:${option.runs}`).join(",")).toBe("1-Minute Case Study:1,Did You Know?:1,Myth vs Fact:0");
+    expect(rowFitsPillar(log.rows[1], "p9")).toBe(true);
+    expect(rowFitsPillar(log.rows[0], "p9")).toBe(false);
+    expect(rowFitsPillar(log.rows[0], "")).toBe(true);
   });
 });

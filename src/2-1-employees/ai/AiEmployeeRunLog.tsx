@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
+import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -13,10 +14,14 @@ import {
   chainOptions,
   ideaCode,
   jakartaMonth,
+  parsePillars,
   parseRunLog,
   parseThinkingTree,
+  pillarOptions,
   rowFitsChain,
+  rowFitsPillar,
   runReason,
+  selectInTree,
   setChainLevel,
   shiftMonth,
   summarizeRows,
@@ -26,6 +31,7 @@ import {
   type IdeaChain,
   type RunLogPlan,
   type RunLogRow,
+  type TreeOption,
 } from "./runLog";
 
 export const RUN_LOG_KEY = "ai-employee-run-log";
@@ -57,7 +63,7 @@ function useThinkingTree(employeeId: string) {
     queryFn: async () => {
       const { data, error } = await supabase.rpc("ai_employee_thinking_tree", { p_employee_id: employeeId });
       if (error) throw error;
-      return parseThinkingTree(data);
+      return { tree: parseThinkingTree(data), pillars: parsePillars(data) };
     },
   });
 }
@@ -130,9 +136,12 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [chainFilter, setChainFilter] = useState<ChainFilter>({});
+  const [pillarFilter, setPillarFilter] = useState("");
+  const [untouchedOnly, setUntouchedOnly] = useState(false);
   const query = useRunLog(employeeId, month);
   const treeQuery = useThinkingTree(employeeId);
-  const tree = treeQuery.data ?? [];
+  const tree = useMemo(() => treeQuery.data?.tree ?? [], [treeQuery.data]);
+  const pillars = useMemo(() => treeQuery.data?.pillars ?? [], [treeQuery.data]);
   const log = query.data;
   const thisMonth = jakartaMonth();
 
@@ -142,8 +151,12 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
     if (sourceFilter !== "all" && row.source !== sourceFilter) return false;
     return true;
   }), [log, statusFilter, sourceFilter]);
-  const rows = useMemo(() => baseRows.filter((row) => rowFitsChain(row, chainFilter)), [baseRows, chainFilter]);
-  const filtered = statusFilter !== "all" || sourceFilter !== "all" || chainFilterActive(chainFilter);
+  // The chain counts follow the chosen pillar, and the pillar counts follow the chosen chain.
+  const chainRows = useMemo(() => baseRows.filter((row) => rowFitsPillar(row, pillarFilter)), [baseRows, pillarFilter]);
+  const pillarRows = useMemo(() => baseRows.filter((row) => rowFitsChain(row, chainFilter)), [baseRows, chainFilter]);
+  const rows = useMemo(() => pillarRows.filter((row) => rowFitsPillar(row, pillarFilter)), [pillarRows, pillarFilter]);
+  const strategyFiltered = chainFilterActive(chainFilter) || Boolean(pillarFilter);
+  const filtered = statusFilter !== "all" || sourceFilter !== "all" || strategyFiltered;
   const levelLabels: Record<ChainLevel, string> = {
     master: t("aiEmployee.log.master", "Master Thought"),
     bigThought: t("aiEmployee.log.bigThought", "Big Thought"),
@@ -157,16 +170,32 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
     () => Object.fromEntries(CHAIN_LEVELS.map((level) => [
       level,
       tree.length > 0
-        ? treeOptions(tree, baseRows, chainFilter, level)
-        : chainOptions(baseRows, chainFilter, level).map((option) => ({ ...option, ready: true, inFocus: false })),
-    ])) as Record<ChainLevel, ReturnType<typeof treeOptions>>,
-    [tree, baseRows, chainFilter],
+        ? treeOptions(tree, chainRows, chainFilter, level)
+        : chainOptions(chainRows, chainFilter, level).map((option) => ({ ...option, ready: true, inFocus: false })),
+    ])) as Record<ChainLevel, TreeOption[]>,
+    [tree, chainRows, chainFilter],
   );
+  const pillarChoices = useMemo(() => pillarOptions(pillars, pillarRows), [pillars, pillarRows]);
+  // Audit view: only what has no run yet, plus the item already chosen.
+  const visible = (options: TreeOption[], chosen: string) =>
+    untouchedOnly ? options.filter((option) => option.runs === 0 || option.id === chosen) : options;
+  const chooseLevel = (level: ChainLevel, next: string) => {
+    const id = next === "all" ? "" : next;
+    // Picking an idea (or any level) fills its parents up to Master Thought from the tree.
+    setChainFilter((current) => (tree.length > 0 ? selectInTree(tree, current, level, id) : setChainLevel(current, level, id)));
+  };
+  // The Thinking Lab ids stay the same across months, so the filters stay too.
   const changeMonth = (step: number) => {
     setMonth((value) => shiftMonth(value, step));
-    setChainFilter({});
     setOpenRow(null);
   };
+  const optionText = (option: TreeOption) => (
+    <span className={cn("block max-w-[24rem] truncate", option.runs === 0 && "text-muted-foreground")}>
+      {option.label} ({option.runs})
+      {option.inFocus ? ` · ${t("aiEmployee.log.filter.inFocus", "fokus")}` : ""}
+      {!option.ready ? ` · ${t("aiEmployee.log.filter.notLocked", "belum dikunci")}` : ""}
+    </span>
+  );
 
   const monthLabel = useMemo(() => {
     const [year, value] = month.split("-").map(Number);
@@ -251,18 +280,18 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
         </div>
       </div>
 
-      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {CHAIN_LEVELS.map((level, index) => {
           const parent = index > 0 ? CHAIN_LEVELS[index - 1] : null;
-          const options = levelOptions[level];
           const value = chainFilter[level] ?? "all";
+          const options = visible(levelOptions[level], value);
           return (
             <div key={level} className="flex min-w-0 flex-col gap-1">
               <span className="text-xs text-muted-foreground">{levelLabels[level]}</span>
               <Select
                 value={value}
                 disabled={options.length === 0 && value === "all"}
-                onValueChange={(next) => setChainFilter((current) => setChainLevel(current, level, next === "all" ? "" : next))}
+                onValueChange={(next) => chooseLevel(level, next)}
               >
                 <SelectTrigger className="h-8 min-w-0 text-sm">
                   <SelectValue />
@@ -275,11 +304,7 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
                   </SelectItem>
                   {options.map((option) => (
                     <SelectItem key={option.id} value={option.id}>
-                      <span className={cn("block max-w-[24rem] truncate", option.runs === 0 && "text-muted-foreground")}>
-                        {option.label} ({option.runs})
-                        {option.inFocus ? ` · ${t("aiEmployee.log.filter.inFocus", "fokus")}` : ""}
-                        {!option.ready ? ` · ${t("aiEmployee.log.filter.notLocked", "belum dikunci")}` : ""}
-                      </span>
+                      {optionText(option)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -287,14 +312,43 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
             </div>
           );
         })}
-      </div>
-      {chainFilterActive(chainFilter) ? (
-        <div className="-mt-1 mb-3">
-          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setChainFilter({})}>
-            {t("aiEmployee.log.filter.clearChain", "Hapus filter Master Thought sampai Idea")}
-          </Button>
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="text-xs text-muted-foreground">{t("aiEmployee.log.pillar", "Pilar")}</span>
+          <Select value={pillarFilter || "all"} onValueChange={(next) => setPillarFilter(next === "all" ? "" : next)}>
+            <SelectTrigger className="h-8 min-w-0 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="max-w-[28rem]">
+              <SelectItem value="all">{t("aiEmployee.log.filter.all", "Semua")}</SelectItem>
+              {visible(pillarChoices, pillarFilter).map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {optionText({ ...option, inFocus: false })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      ) : null}
+      </div>
+      <div className="-mt-1 mb-3 flex flex-wrap items-center gap-3">
+        <label className="flex cursor-pointer items-center gap-2 text-xs">
+          <Checkbox checked={untouchedOnly} onCheckedChange={(value) => setUntouchedOnly(value === true)} />
+          {t("aiEmployee.log.filter.untouchedOnly", "Tampilkan yang belum dikerjain saja")}
+        </label>
+        {strategyFiltered ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={() => {
+              setChainFilter({});
+              setPillarFilter("");
+            }}
+          >
+            {t("aiEmployee.log.filter.clearChain", "Hapus filter Master Thought sampai Pilar")}
+          </Button>
+        ) : null}
+      </div>
 
       {chips.length > 0 ? (
         <div className="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-6">

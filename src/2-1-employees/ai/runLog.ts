@@ -22,6 +22,7 @@ export type RunLogPlan = {
   id: string;
   title: string;
   postDate: string | null;
+  pillarId: string;
   pillarName: string;
   chain: IdeaChain | null;
   ideaMonthCount: number;
@@ -40,7 +41,7 @@ export type RunLogRow = {
   finishedAt: string | null;
   note: string;
   planCount: number;
-  attempt: { chain: IdeaChain | null; pillarName: string } | null;
+  attempt: { chain: IdeaChain | null; pillarId: string; pillarName: string } | null;
   plans: RunLogPlan[];
 };
 
@@ -122,7 +123,7 @@ export function parseRunLog(value: unknown): RunLog {
         finishedAt: text(row.finished_at) || null,
         note: text(row.note),
         planCount: count(row.plan_count),
-        attempt: attempt ? { chain: chainOf(attempt.chain), pillarName: text(attempt.pillar_name) } : null,
+        attempt: attempt ? { chain: chainOf(attempt.chain), pillarId: text(attempt.pillar_id), pillarName: text(attempt.pillar_name) } : null,
         plans: plans.flatMap((entry) => {
           const plan = record(entry);
           if (!plan || !text(plan.id)) return [];
@@ -131,6 +132,7 @@ export function parseRunLog(value: unknown): RunLog {
             id: text(plan.id),
             title: text(plan.title),
             postDate: text(plan.post_date) || null,
+            pillarId: text(plan.pillar_id),
             pillarName: text(plan.pillar_name),
             chain: chainOf(plan.chain),
             ideaMonthCount: count(plan.idea_month_count),
@@ -341,6 +343,68 @@ export type TreeNode = {
 };
 
 export type TreeOption = ChainOption & { ready: boolean; inFocus: boolean };
+
+/** Pillars the employee may use, sent with the tree as level "pillar". */
+export type PillarNode = { id: string; label: string; inBrief: boolean };
+
+export function parsePillars(value: unknown): PillarNode[] {
+  return (Array.isArray(value) ? value : []).flatMap((item) => {
+    const row = record(item);
+    if (!row || row.level !== "pillar" || !text(row.id)) return [];
+    return [{ id: text(row.id), label: text(row.label).trim(), inBrief: row.in_focus === true }];
+  });
+}
+
+/** Pillars of a run: its plans, or the pillar it tried when no plan came. */
+export function rowPillars(row: RunLogRow): Array<{ id: string; name: string }> {
+  const fromPlans = row.plans.filter((plan) => plan.pillarId).map((plan) => ({ id: plan.pillarId, name: plan.pillarName }));
+  if (fromPlans.length > 0) return fromPlans;
+  return row.attempt?.pillarId ? [{ id: row.attempt.pillarId, name: row.attempt.pillarName }] : [];
+}
+
+export function rowFitsPillar(row: RunLogRow, pillarId: string): boolean {
+  return !pillarId || rowPillars(row).some((pillar) => pillar.id === pillarId);
+}
+
+/**
+ * Pillar choices with run counts, used ones first. A pillar a run used that is no longer in
+ * the list (the brief changed) is still offered.
+ */
+export function pillarOptions(pillars: PillarNode[], rows: RunLogRow[]): TreeOption[] {
+  const counts = new Map<string, number>();
+  const names = new Map<string, string>();
+  for (const row of rows) {
+    const seen = new Set<string>();
+    for (const pillar of rowPillars(row)) {
+      if (seen.has(pillar.id)) continue;
+      seen.add(pillar.id);
+      counts.set(pillar.id, (counts.get(pillar.id) ?? 0) + 1);
+      if (pillar.name) names.set(pillar.id, pillar.name);
+    }
+  }
+  const listed = new Map(pillars.map((pillar) => [pillar.id, pillar]));
+  for (const [id, name] of names) if (!listed.has(id)) listed.set(id, { id, label: name, inBrief: false });
+  return [...listed.values()]
+    .map((pillar) => ({ id: pillar.id, label: pillar.label || "—", runs: counts.get(pillar.id) ?? 0, ready: true, inFocus: pillar.inBrief }))
+    .sort((left, right) => right.runs - left.runs || left.label.localeCompare(right.label));
+}
+
+/**
+ * Choose one node: its parents up to Master Thought are filled from the tree, the levels
+ * below it are cleared. An empty id clears that level and the ones below.
+ */
+export function selectInTree(tree: TreeNode[], filter: ChainFilter, level: ChainLevel, id: string): ChainFilter {
+  if (!id) return setChainLevel(filter, level, "");
+  const byId = new Map(tree.map((node) => [node.id, node]));
+  const next: ChainFilter = {};
+  let current = byId.get(id);
+  if (!current) return setChainLevel(filter, level, id);
+  for (let guard = 0; current && guard < CHAIN_LEVELS.length; guard += 1) {
+    next[current.level] = current.id;
+    current = byId.get(current.parentId);
+  }
+  return next;
+}
 
 export function parseThinkingTree(value: unknown): TreeNode[] {
   const list = Array.isArray(value) ? value : [];
