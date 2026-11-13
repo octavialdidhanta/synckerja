@@ -1141,8 +1141,8 @@ function menuLines(menus) {
   if (list.length === 0) return [];
   return [
     "Tambahkan kunci sub_service_ids di JSON yang sama: array 0 sampai 3 id dari daftar Menu di bawah, urut dari menu paling utama.",
-    "Pilih hanya menu yang makanannya benar-benar tampil di visual atau disebut di vo. Baca nama menu dengan teliti: sate kambing bukan sate babi atau sate ayam. Kosongkan array bila tidak ada menu yang cocok.",
-    "Desainer menggambar makanan dari nama menu ini. Pada visual slide yang menampilkan makanan itu, sebut nama menunya persis.",
+    "Menu adalah produk katalog ini: makanan, barang, atau jasa. Pilih hanya menu yang produknya benar-benar tampil di visual atau disebut di vo. Baca nama menu dengan teliti, varian yang mirip bukan produk yang sama: sate kambing bukan sate babi atau sate ayam, charger 20W bukan charger 65W. Kosongkan array bila tidak ada menu yang cocok.",
+    "Desainer menggambar produk dari nama menu ini. Pada visual slide yang menampilkan produk itu, sebut nama menunya persis.",
     `Menu: ${JSON.stringify(list)}`,
   ];
 }
