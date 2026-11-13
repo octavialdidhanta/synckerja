@@ -267,15 +267,41 @@ export function shortSlideText(text: string, maxWords = SMALL_TEXT_WORDS): strin
   return head.replace(/[,;:\s]+$/, "").trim();
 }
 
+/** Notes an older storyboard wrote in Element ("Foto ...", "Klaim: ...") that are not a title. */
+const NOTE_LEAD = /^(foto|gambar|visual|catatan|keterangan|deskripsi)\b/i;
+const NOTE_LABEL = /^(klaim|fakta|jaminan|info)\s*:\s*/i;
+const HEADLINE_WORDS = 10;
+
+function capWords(text: string, max: number): string {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= max) return text.trim();
+  return words.slice(0, max).join(" ").replace(/[,;:\s]+$/, "");
+}
+
 /** Headline, small text and small labels of one slide, in that order of size. */
 export function slideTexts(slide: CarouselSlide): { headline: string; small: string; labels: string[] } {
   const pieces = elementPieces(slide.elements);
-  const headlinePiece = pieces.labeled.find((piece) => piece.label === "hook headline" || piece.label === "headline")
-    ?? pieces.labeled[0];
+  const labeledHeadline = pieces.labeled.find((piece) => piece.label === "hook headline" || piece.label === "headline");
   const small = shortSlideText(slide.copy);
-  const labels = pieces.labeled.filter((piece) => piece !== headlinePiece).map((piece) => piece.text);
-  if (headlinePiece) return { headline: headlinePiece.text, small, labels };
-  return { headline: small, small: "", labels };
+  if (labeledHeadline) {
+    const labels = pieces.labeled.filter((piece) => piece !== labeledHeadline).map((piece) => piece.text);
+    return { headline: labeledHeadline.text, small, labels };
+  }
+  // No 'Headline:' label (older storyboards): the first real sentence of Element is the
+  // title, at most about 10 words; notes such as "Foto ..." are dropped.
+  const first = pieces.labeled[0];
+  const sentences = first
+    ? sentencesOf(first.text)
+      .filter((sentence) => !NOTE_LEAD.test(sentence))
+      .map((sentence) => sentence.replace(NOTE_LABEL, "").trim())
+      .filter(Boolean)
+    : [];
+  const rest = pieces.labeled.slice(1).map((piece) => piece.text);
+  if (sentences.length > 0) {
+    const headline = capWords(sentences[0].replace(/[.\s]+$/, ""), HEADLINE_WORDS);
+    return { headline, small, labels: [...sentences.slice(1).map((part) => part.replace(/[.\s]+$/, "")), ...rest] };
+  }
+  return { headline: small, small: "", labels: rest };
 }
 
 function referenceSlot(elements: string): number | null {
@@ -342,12 +368,20 @@ export function photoRules(text: string): string {
   ].filter(Boolean).join(" ");
 }
 
-function pictureInstruction(picture: string): string {
+/** A short reminder next to the scene itself: rules far from the scene were not followed. */
+export function meatHint(scene: string, goat: boolean): string {
+  const hints: string[] = [];
+  if (SKEWER_SCENE.test(scene)) hints.push(goat ? "cubed goat meat chunks on bamboo skewers, not minced" : "cubed meat chunks on bamboo skewers, not minced");
+  else if (goat && MEAT_SCENE.test(scene)) hints.push("deep red goat meat with thin white fat, not pork-like");
+  return hints.length > 0 ? ` (${hints.join("; ")})` : "";
+}
+
+function pictureInstruction(picture: string, hint = ""): string {
   const marks: string[] = [];
   if (PERSON_SCENE.test(picture)) marks.push("Real person photo.");
   if (FOOD_SCENE.test(picture)) marks.push("Real food photo.");
-  if (marks.length === 0) return `Draw: ${picture}`;
-  return `${marks.join(" ")} Scene: ${picture}`;
+  if (marks.length === 0) return `Draw: ${picture}${hint}`;
+  return `${marks.join(" ")} Scene: ${picture}${hint}`;
 }
 
 /** First try: room for full scenes and a detailed layout. */
@@ -362,7 +396,6 @@ const LAYOUT_LEAD = "Layout and type for every page, copied from the reference: 
 const LAYOUT_TAIL = " Take only this structure from the reference and fit it to each page's content.";
 const HIERARCHY_RULE =
   "On every page the headline is the biggest text. The small text sits near it and is clearly smaller. Never make the small text bigger than the headline.";
-const CONSISTENCY_RULE = "Use the same frame, grid, and fonts on every page so the pages read as one set.";
 
 function clipScene(text: string, limit: number): string {
   const clean = text.replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
@@ -433,6 +466,7 @@ export function buildCanvaCarouselBrief(input: {
     : sharedNote;
   const meatText = [title, ...input.slides.map((slide) => `${slide.scene} ${slide.elements}`), ...(input.menus ?? []), ...(input.productPhotos ?? [])].join(" ");
   const meat = meatRule(meatText);
+  const goat = GOAT_SCENE.test(meatText);
   let showsFood = false;
   let showsPerson = false;
   const buildPages = (sceneLimit: number) => input.slides
@@ -468,7 +502,7 @@ export function buildCanvaCarouselBrief(input: {
         if (scene) lines.push(`Setting only, no food drawn: ${scene}`);
         lines.push("Keep the center empty for the real product photo.");
       } else if (scene) {
-        lines.push(pictureInstruction(scene));
+        lines.push(pictureInstruction(scene, meatHint(scene, goat)));
       }
       if (headline) lines.push(`Headline (biggest text): ${headline}`);
       if (small) lines.push(`Small text: ${small}`);
@@ -484,7 +518,6 @@ export function buildCanvaCarouselBrief(input: {
     paletteLine(input.palette),
     logoLine(input.logo),
     HIERARCHY_RULE,
-    CONSISTENCY_RULE,
     showsPerson ? PERSON_PHOTO_RULE : "",
     showsFood || (input.menus ?? []).length > 0 || (input.productPhotos ?? []).length > 0 ? FOOD_PHOTO_RULE : "",
     meat,

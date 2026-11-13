@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { FOOD_PHOTO_RULE, PERSON_PHOTO_RULE, buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, fitLayoutNote, layoutOnlyDescription, meatRule, shortSlideText, slideTexts } from "./canvaCarouselBrief.ts";
+import { FOOD_PHOTO_RULE, PERSON_PHOTO_RULE, buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, fitLayoutNote, layoutOnlyDescription, meatHint, meatRule, shortSlideText, slideTexts } from "./canvaCarouselBrief.ts";
 
 const storyboard = [
   "| Timing | Visual | VO (Voice Over) | Scene Visual | Element Lainnya | Tagging |",
@@ -81,7 +81,7 @@ Deno.test("carouselSlidesFromBrief keeps copy, hook, and other elements", () => 
   });
   assertEquals(locked.includes("Layout and type for every page, copied from the reference: Bold poster, blocks, heavy sans type. Headline sits at the top. Take only this structure"), true);
   assertEquals(locked.includes("\nLayout and type: "), false);
-  assertEquals(locked.includes("Use the same frame, grid, and fonts on every page"), true);
+  assertEquals(locked.includes("Use the same frame, grid, and fonts on every page"), false);
   assertEquals(locked.includes("red and yellow"), false);
   assertEquals(locked.includes("primary #112233"), true);
   assertEquals(locked.includes("secondary #445566"), true);
@@ -325,4 +325,21 @@ Deno.test("buildCanvaCarouselBrief keeps scenes at least 220 characters before t
   assertEquals(brief.length <= 5000, true);
   assertEquals(brief.includes(scene.replace(/[.\s]+$/, "")), true);
   assertEquals(brief.includes("copied from the reference: PHOTO: detail"), true);
+});
+
+Deno.test("slideTexts turns an older Element note into a short title", () => {
+  const photo = slideTexts({ label: "", scene: "Sate", copy: "Makanya kita cuma pakai daging muda.", elements: "Foto Sate Kambing Full Daging. Klaim: Daging kambing muda berkualitas tinggi. Referensi 2", tagging: "" });
+  assertEquals(photo.headline, "Daging kambing muda berkualitas tinggi");
+  const long = slideTexts({ label: "", scene: "Grafik", copy: "Nah, ini dia rahasianya!", elements: "Perbandingan keempukan daging kambing muda yang tinggi dan daging kambing tua yang rendah sekali. Referensi 2", tagging: "" });
+  assertEquals(long.headline.split(" ").length <= 10, true);
+  const labeled = slideTexts({ label: "", scene: "Sate", copy: "Teks.", elements: "Headline: Garansi Empuk. Point: Kambing muda", tagging: "" });
+  assertEquals(labeled.headline, "Garansi Empuk");
+  assertEquals(labeled.labels, ["Kambing muda"]);
+});
+
+Deno.test("meatHint sits next to sate and goat meat scenes only", () => {
+  assertEquals(meatHint("Piring berisi sate kambing hangat", true), " (cubed goat meat chunks on bamboo skewers, not minced)");
+  assertEquals(meatHint("Potongan daging kambing mentah di talenan", true), " (deep red goat meat with thin white fat, not pork-like)");
+  assertEquals(meatHint("Ibu tersenyum di dapur", true), "");
+  assertEquals(meatHint("Ibu tersenyum di dapur", false), "");
 });

@@ -742,13 +742,9 @@ Deno.serve(async (req: Request) => {
           .map((id: unknown) => String(id))
           .filter((id: string) => isUuid(id));
         if (catalogIds.length > 0) {
-          const briefSubs = await admin
-            .from("ai_employee_briefs")
-            .select("sub_service_ids")
-            .eq("employee_id", employeeId)
-            .eq("organization_id", employee.organization_id)
-            .maybeSingle();
-          const allowedSubs = (Array.isArray(briefSubs.data?.sub_service_ids) ? briefSubs.data.sub_service_ids : [])
+          // The brief scope already carries the chosen sub categories; the table itself is
+          // closed to the server role.
+          const allowedSubs = (Array.isArray(brief?.sub_service_ids) ? brief.sub_service_ids : [])
             .map((id: unknown) => String(id))
             .filter((id: string) => isUuid(id));
           let subQuery = admin
