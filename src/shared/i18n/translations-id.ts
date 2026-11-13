@@ -117,6 +117,8 @@ export const idTranslations: TranslationDictionary = {
   "thinkingLab.confirm.deleteAngleBody": "Angle ini beserta Idea di bawahnya akan dihapus. Tindakan ini tidak bisa dibatalkan.",
   "thinkingLab.confirm.deleteExecutionTitle": "Hapus Execution ini?",
   "thinkingLab.confirm.deleteExecutionBody": "Script VO untuk pillar ini akan dihapus. Tindakan ini tidak bisa dibatalkan.",
+  "thinkingLab.mt.writtenFailed": "Master Thought ini belum bisa dipakai apa adanya: {{reasons}} Pilih salah satu keyakinan di bawah, atau edit.",
+  "thinkingLab.mt.writtenUndecided": "Pemeriksaannya belum bisa diputuskan.",
   "thinkingLab.bt.empty": "Belum ada Big Thought.",
   "thinkingLab.bt.generating": "Sedang membuat Big Thought…",
   "thinkingLab.bt.generateNoneAdmitted": "Tidak ada Big Thought baru yang lolos pemeriksaan Generate.",

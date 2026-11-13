@@ -606,6 +606,64 @@ export function filterBeliefCandidates(candidates: Array<string | BeliefOption>,
   return kept;
 }
 
+/** Framework v1.1: a Master Thought may be a product claim, never a promotion. */
+export const MASTER_PROMO_RULE =
+  "A product claim may be the belief. A promotion is not: an offer, a guarantee, a price, a discount, a challenge to the reader, a call to buy or try, or a tagline.";
+
+export type WrittenBeliefCheck = { pass: boolean; reasons: string[] };
+
+/** A belief the user typed and keeps goes through the same bar as a chosen option. */
+export function buildWrittenBeliefCheckPrompt(input: { belief: string; priorBelief?: string }): string {
+  const priorBelief = input.priorBelief?.trim() ?? "";
+  return [
+    "Judge this Master Thought the user wrote. Do not rewrite it.",
+    "oneClaim: pass only when it states exactly one claim. Two independent beliefs joined with dan or and fail.",
+    "oneSentence: pass only when it is one grammatical sentence that still reads as one spoken sentence with a comma and karena or because after it. Several sentences, a question, or an exclamation added to the claim fail.",
+    `notPromo: ${MASTER_PROMO_RULE} Fail when any promotion is present, even next to a good claim.`,
+    ...(priorBelief ? ["shift: pass only when it shifts the old belief. Copying or only repeating the old belief fails."] : []),
+    "Write each reason in the same language as the belief, in one short sentence a user can act on. Name the words that fail.",
+    'Return JSON only: {"checks":[{"id":"oneClaim","pass":true,"reason":""}]}',
+    "Include one entry for each check id named above.",
+    "",
+    "Belief:",
+    input.belief.trim(),
+    ...(priorBelief ? ["", "Old belief:", priorBelief] : []),
+  ].join("\n");
+}
+
+export function parseWrittenBeliefCheck(raw: unknown, ids: readonly string[]): WrittenBeliefCheck | null {
+  const row = recordOf(raw);
+  const list = Array.isArray(row?.checks) ? row.checks : null;
+  if (!list) return null;
+  const reasons: string[] = [];
+  const seen = new Set<string>();
+  for (const item of list) {
+    const entry = recordOf(item);
+    const id = typeof entry?.id === "string" ? entry.id : "";
+    if (!entry || !ids.includes(id)) continue;
+    seen.add(id);
+    if (entry.pass === true) continue;
+    const reason = typeof entry.reason === "string" ? entry.reason.trim() : "";
+    reasons.push(reason || id);
+  }
+  if (ids.some((id) => !seen.has(id))) return null;
+  return { pass: reasons.length === 0, reasons };
+}
+
+/** Two tries. An answer that cannot be read counts as not passed, so a typed belief never skips the check. */
+export async function checkWrittenBelief(
+  input: { belief: string; priorBelief?: string },
+  ask: (prompt: string) => Promise<string | null>,
+): Promise<WrittenBeliefCheck> {
+  const ids = ["oneClaim", "oneSentence", "notPromo", ...(input.priorBelief?.trim() ? ["shift"] : [])];
+  const prompt = buildWrittenBeliefCheckPrompt(input);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const parsed = parseWrittenBeliefCheck(parseModelJson(await ask(prompt)), ids);
+    if (parsed) return parsed;
+  }
+  return { pass: false, reasons: ["UNDECIDED"] };
+}
+
 export function buildBeliefOptionsPrompt(input: {
   planted: string;
   priorBelief?: string;
@@ -616,6 +674,8 @@ export function buildBeliefOptionsPrompt(input: {
   return [
     "Write three beliefs the user can plant as a Master Thought.",
     "Each belief states exactly one claim. A sentence that joins two independent beliefs with dan or and is not one claim.",
+    MASTER_PROMO_RULE,
+    "Keep only the belief when the new belief also carries a promotion. Do not carry the promotion into any belief.",
     "Length may be short or detailed. Do not prefer a shorter sentence.",
     "Each belief is one grammatical clause. Read the belief, then a comma, then karena or because. It must sound like one spoken sentence.",
     "Do not start a belief with karena or because.",
@@ -659,6 +719,8 @@ export function buildBeliefOptionCheckPrompt(input: {
     "Judge each belief on its own.",
     "Pass only when it states exactly one claim and reads as one spoken sentence before karena or because.",
     "A sentence that joins two independent beliefs with dan or and fails.",
+    MASTER_PROMO_RULE,
+    "A belief that carries a promotion fails.",
     "A title, a fragment, or a line that starts with karena or because fails.",
     "Fail a belief that leaves the shift between the old belief and the new belief.",
     "Fail a belief that adds a topic, benefit, feeling, or situation that neither the old belief nor the new belief carries.",
