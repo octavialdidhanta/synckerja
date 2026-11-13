@@ -187,6 +187,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     addThinkingBigThought: async () => {
       throw new Error("unused");
     },
+    setThinkingMasterCatalog: async () => {
+      throw new Error("unused");
+    },
     readThinkingTree: async () => {
       throw new Error("unused");
     },

@@ -15,7 +15,7 @@ import {
   saveThinkingPlan,
   saveThinkingPlanDirect,
 } from "./db/thinkingLab";
-import { addThinkingBigThought, createThinkingMaster } from "./db/thinkingWrite";
+import { addThinkingBigThought, createThinkingMaster, setThinkingMasterCatalog } from "./db/thinkingWrite";
 import { listContentCalendar, listCrmLeads, listOkrCycles, listOkrDepartments, listOkrObjectives } from "./db/phase1Reads";
 import {
   listAdsAccounts,
@@ -152,6 +152,7 @@ const app = createApp({
   readThinkingTree: (ctx, masterThoughtId) => readThinkingTree(admin, ctx, masterThoughtId),
   createThinkingMaster: (ctx, input) => createThinkingMaster(admin, config, ctx, input),
   addThinkingBigThought: (ctx, input) => addThinkingBigThought(admin, config, ctx, input),
+  setThinkingMasterCatalog: (ctx, input) => setThinkingMasterCatalog(admin, ctx, input),
   listThinkingIdeas: (ctx) => listThinkingIdeas(admin, ctx),
   readThinkingChain: (ctx, ideaId) => readThinkingChain(admin, ctx, ideaId),
   checkThinkingExecution: (ctx, input) => checkThinkingExecution(admin, config, ctx, input),

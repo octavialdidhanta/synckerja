@@ -17,7 +17,7 @@ import type {
 import type { ThinkingScriptDraft } from "../tools/thinking/scriptInput";
 import type { ThinkingPlanDirectInput } from "../tools/thinking/planDirect";
 import type { ThinkingWriteResult } from "../db/thinkingWrite";
-import type { BigThoughtAddWrite, MasterCreateWrite } from "../tools/thinking/treeWrite";
+import type { BigThoughtAddWrite, MasterCatalogWrite, MasterCreateWrite } from "../tools/thinking/treeWrite";
 import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
 import type {
@@ -253,6 +253,8 @@ import {
   treeReadResult,
   masterCreateInput,
   masterCreateResult,
+  masterCatalogSetInput,
+  masterCatalogSetResult,
   bigThoughtAddInput,
   bigThoughtAddResult,
   chainReadInput,
@@ -409,6 +411,7 @@ export type McpReadDeps = {
   readThinkingTree: (ctx: McpAuthContext, masterThoughtId: string) => Promise<ThinkingTree>;
   createThinkingMaster: (ctx: McpAuthContext, input: MasterCreateWrite) => Promise<ThinkingWriteResult>;
   addThinkingBigThought: (ctx: McpAuthContext, input: BigThoughtAddWrite) => Promise<ThinkingWriteResult>;
+  setThinkingMasterCatalog: (ctx: McpAuthContext, input: MasterCatalogWrite) => Promise<ThinkingWriteResult>;
   listThinkingIdeas: (ctx: McpAuthContext) => Promise<ThinkingIdeaRow[]>;
   readThinkingChain: (ctx: McpAuthContext, ideaId: string) => Promise<ThinkingChain>;
   checkThinkingExecution: (
@@ -771,6 +774,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "thinking.tree.read": treeReadInput,
   "thinking.master.create": masterCreateInput,
   "thinking.bigthought.add": bigThoughtAddInput,
+  "thinking.master.catalog.set": masterCatalogSetInput,
   "thinking.ideas.list": ideasListInput,
   "thinking.chain.read": chainReadInput,
   "thinking.execution.check": executionCheckInput,
@@ -1391,6 +1395,8 @@ async function runTool(
       return masterCreateResult(ctx, args, deps.createThinkingMaster);
     case "thinking.bigthought.add":
       return bigThoughtAddResult(ctx, args, deps.addThinkingBigThought);
+    case "thinking.master.catalog.set":
+      return masterCatalogSetResult(ctx, args, deps.setThinkingMasterCatalog);
     case "thinking.ideas.list":
       return ideasListResult(ctx, deps.listThinkingIdeas);
     case "thinking.chain.read":

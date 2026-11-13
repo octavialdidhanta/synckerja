@@ -35,11 +35,20 @@ export type ThinkingMasterRow = {
   big_thoughts: number;
   ideas: number;
   updated_at: string;
+  catalog: string | null;
 };
 
 /** Master Thought down to Idea, with status, admission, audit verdict, and the first failure reason per item. */
 export type ThinkingTree = {
-  master: { id: string; statement: string; prior_belief: string; audience: string; subject: string; status: string };
+  master: {
+    id: string;
+    statement: string;
+    prior_belief: string;
+    audience: string;
+    subject: string;
+    status: string;
+    catalog: string | null;
+  };
   big_thoughts: unknown[];
 };
 
