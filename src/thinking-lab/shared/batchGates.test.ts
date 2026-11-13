@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { runBigThoughtOpenChecks, runGenerateAdmissionChecks } from "@/thinking-lab/big-thought/passChecks";
 import { runTerritoryIndividualChecks } from "@/thinking-lab/territory/passChecklist";
+import { runAngleIndividualChecks } from "@/thinking-lab/angle/passChecklist";
+import { runIdeaIndividualChecks } from "@/thinking-lab/idea/passChecklist";
 import { askBatchGates, buildBatchGatePrompt, isUndecided, parseBatchGates } from "@/thinking-lab/shared/batchGates";
 
 describe("batched pass checks", () => {
@@ -102,4 +104,36 @@ describe("runners with batch on", () => {
     expect(result.passed).toBe(true);
     expect(model.count()).toBe(1);
   });
+
+  it("checks an Angle in one call, keeping the subject and example checks that need no model", async () => {
+    const model = batchModel({ clearBoundary: "Terlalu luas." });
+    const result = await runAngleIndividualChecks({
+      batch: true,
+      statement: "Orang bayar mahal buat suasana steakhouse, padahal yang diingat rasa dagingnya.",
+      parentStatement: "Steakhouse",
+      subject: "rasa daging yang diingat",
+      example: "Pulang dari steakhouse, yang diceritain ke teman cuma rasa steaknya.",
+      ask: model.ask,
+      onStep: () => {},
+    });
+    expect(model.count()).toBe(1);
+    expect(result.passed).toBe(false);
+    expect(result.checks.find((check) => check.id === "clearBoundary")?.state).toBe("fail");
+  });
+
+  it("checks an Idea in one call", async () => {
+    const model = batchModel();
+    const result = await runIdeaIndividualChecks({
+      batch: true,
+      statement: "Kita ajak dua orang blind test sate kambing muda dan steak, sehingga rasa yang diingat terlihat tanpa nama tempat.",
+      parentStatement: "Orang bayar mahal buat suasana, padahal yang diingat rasanya.",
+      masterSubject: "sate kambing muda Sate Sultan PIK",
+      mechanismKeys: [{ otherExplanation: "lapar", close: "dua-duanya dicicipi saat sama-sama kenyang" }],
+      ask: model.ask,
+      onStep: () => {},
+    });
+    expect(result.passed).toBe(true);
+    expect(model.count()).toBe(1);
+  });
 });
+

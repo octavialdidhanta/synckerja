@@ -2474,6 +2474,7 @@ export function ThinkingLabPage() {
             );
           }
           const checked = await runAngleAdmissionChecks({
+            batch: true,
             statement,
             parentStatement: parent.statement,
             ancestors: parent.ancestors,
@@ -3036,6 +3037,7 @@ export function ThinkingLabPage() {
             : row.canonicalSemantic.mechanismKeys;
         const subject = draft.subject.trim() || row.canonicalSemantic.subject;
         const checked = await runIdeaOpenChecks({
+          batch: true,
           statement: draft.statement,
           parentStatement: focusedAngle.statement,
           ancestors,
@@ -3222,6 +3224,7 @@ export function ThinkingLabPage() {
           if (heldPass.has(codeKey)) continue;
           const carried = readIdeaGeneratePasses(row.canonicalSemantic.generatePasses);
           const run = await runIdeaIndividualChecks({
+            batch: true,
             statement: row.statement,
             parentStatement: focusedAngle.statement,
             ancestors,
@@ -6365,6 +6368,7 @@ export function ThinkingLabPage() {
               ? shown
               : scope.preserve.map((id) => ({ id: id as AnglePassCheck["id"], state: "pass" as const }));
           const checked = await runAngleOpenChecks({
+            batch: true,
             statement: currentStatement,
             parentStatement: focusedTerritory.statement,
             ancestors: angleAncestors,
@@ -6438,6 +6442,7 @@ export function ThinkingLabPage() {
               ? shown
               : scope.preserve.map((id) => ({ id: id as AnglePassCheck["id"], state: "pass" as const }));
           const checked = await runAngleOpenChecks({
+            batch: true,
             statement: currentStatement,
             parentStatement: focusedTerritory.statement,
             ancestors: angleAncestors,
@@ -6520,6 +6525,7 @@ export function ThinkingLabPage() {
           continue;
         }
         const checked = await runAngleOpenChecks({
+          batch: true,
           statement,
           parentStatement: focusedTerritory.statement,
           ancestors: angleAncestors,
@@ -6660,6 +6666,7 @@ export function ThinkingLabPage() {
         if (!draft?.statement || bannedNames.has(draft.statement.trim().toLowerCase())) return;
         const code = nextAngleCode(known.map((row) => row.code));
         const checked = await runAngleAdmissionChecks({
+          batch: true,
           statement: draft.statement,
           parentStatement: focusedTerritory.statement,
           ancestors: angleAncestors,
@@ -6726,6 +6733,7 @@ export function ThinkingLabPage() {
           const codeKey = row.code.toUpperCase();
           if (heldPass.has(codeKey)) continue;
           const run = await runAngleIndividualChecks({
+            batch: true,
             statement: row.statement,
             parentStatement: focusedTerritory.statement,
             ancestors: angleAncestors,
