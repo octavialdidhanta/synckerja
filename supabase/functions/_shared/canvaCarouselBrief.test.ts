@@ -79,7 +79,8 @@ Deno.test("carouselSlidesFromBrief keeps copy, hook, and other elements", () => 
     palette: { primary: "#112233", secondary: "#445566", accent: "#778899" },
     logo: "required",
   });
-  assertEquals(locked.includes("Layout and type: Headline sits at the top."), true);
+  assertEquals(locked.includes("Layout and type for every page, copied from the reference: Headline sits at the top."), true);
+  assertEquals(locked.includes("\nLayout and type: "), false);
   assertEquals(locked.includes("named typeface"), true);
   assertEquals(locked.includes("red and yellow"), false);
   assertEquals(locked.includes("primary #112233"), true);
@@ -218,4 +219,27 @@ Deno.test("buildCanvaCarouselBrief names the menus without reserving a photo slo
   assertEquals(brief.includes("Keep the center empty"), false);
   assertEquals(brief.includes("goes in the center of the last page"), false);
   assertEquals(brief.includes("Setting only, no food drawn"), false);
+});
+
+Deno.test("buildCanvaCarouselBrief writes one shared reference layout once, mixed slots per page", () => {
+  const page = (elements: string) => ({ label: "", scene: "Meja makan", copy: "Halo", elements, tagging: "" });
+  const styleLock = "Referensi 1: Photo fills the lower half. Referensi 2: Headline sits left in two lines.";
+  const same = buildCanvaCarouselBrief({
+    title: "T",
+    caption: "",
+    slides: [page("Hook headline: A. Referensi 2"), page("Point: B. Referensi 2")],
+    styleLock,
+  });
+  assertEquals(same.split("Headline sits left in two lines.").length - 1, 1);
+  assertEquals(same.includes("Layout and type for every page, copied from the reference: Headline sits left"), true);
+  assertEquals(same.includes("Photo fills the lower half"), false);
+  const mixed = buildCanvaCarouselBrief({
+    title: "T",
+    caption: "",
+    slides: [page("Hook headline: A. Referensi 1"), page("Point: B. Referensi 2")],
+    styleLock,
+  });
+  assertEquals(mixed.includes("Layout and type: Photo fills the lower half."), true);
+  assertEquals(mixed.includes("Layout and type: Headline sits left in two lines."), true);
+  assertEquals(mixed.includes("for every page"), false);
 });

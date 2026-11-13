@@ -461,6 +461,40 @@ export function referencePositions(brief) {
   return positions.sort((left, right) => left - right);
 }
 
+/**
+ * One layout reference for the next carousel, rotated over the brief's slots:
+ * a slot no recent plan used comes first, then the one used longest ago.
+ * priorBriefs are storyboard markdowns, newest first.
+ */
+export function rotateReference(positions, priorBriefs) {
+  const allowed = referencePositions({ references: (positions ?? []).map((position) => ({ position })) });
+  if (allowed.length === 0) return null;
+  const lastSeen = new Map();
+  (Array.isArray(priorBriefs) ? priorBriefs : []).forEach((brief, index) => {
+    const match = /referensi\s*:?\s*([1-5])\b/i.exec(String(brief ?? ""));
+    const position = match ? Number(match[1]) : 0;
+    if (allowed.includes(position) && !lastSeen.has(position)) lastSeen.set(position, index);
+  });
+  let chosen = allowed[0];
+  let oldest = -1;
+  for (const position of allowed) {
+    const age = lastSeen.has(position) ? lastSeen.get(position) : Number.MAX_SAFE_INTEGER;
+    if (age > oldest) {
+      oldest = age;
+      chosen = position;
+    }
+  }
+  return chosen;
+}
+
+/** The brief limited to one reference slot, so every slide of this carousel uses it. */
+export function briefWithReference(brief, position) {
+  if (!brief || typeof brief !== "object" || !position) return brief;
+  const rows = Array.isArray(brief.references) ? brief.references : [];
+  const kept = rows.filter((row) => Number(row?.position) === position);
+  return kept.length > 0 ? { ...brief, references: kept } : brief;
+}
+
 function referenceInstruction(brief) {
   const positions = referencePositions(brief);
   if (positions.length === 0) return "";

@@ -869,7 +869,9 @@ async function referenceStyleLock(
   if (!apiKey) return "";
   const model = geminiModel(String(config?.model ?? ""));
   const notes: string[] = [];
-  for (const row of ordered.slice(0, 5)) {
+  // A carousel built on one slot only needs that slot described.
+  const described = preferred && ordered[0] && Number(ordered[0].position) === preferred ? ordered.slice(0, 1) : ordered.slice(0, 5);
+  for (const row of described) {
     const path = String(row.storage_path);
     const signed = await admin.storage.from(REFERENCE_BUCKET).createSignedUrl(path, 120);
     const url = signed.data?.signedUrl ?? "";
@@ -896,11 +898,12 @@ async function referenceStyleLock(
                 },
               },
               {
-                text: `This image is layout reference ${row.position}. Reply with two short sentences only. First sentence: where the picture and the text blocks sit. Second sentence: the font family if you recognize it, otherwise the letter style, plus its weight and case. Do not mention colors, logos, or the words printed on the image. Maximum 40 words.`,
+                text: `This image is layout reference ${row.position} for an Instagram carousel page. Describe its layout so a designer can rebuild it without seeing it. Write short plain sentences covering, in order: the main photo (where it sits, how much of the page it fills, its crop or shape); the headline (position, alignment, size compared to the page, number of lines); the smaller text blocks and labels and where they sit; any frames, shapes, stickers, badges or dividers and where they sit; the typeface (name it if you recognize it, otherwise its style, weight and case). Do not mention any color, logo, brand name, or the words printed on the image. Maximum 110 words.`,
               },
             ],
           }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 160 },
+          // gemini-2.5 spends output tokens on thinking first; turn it off so the reply is not cut.
+          generationConfig: { temperature: 0.2, maxOutputTokens: 600, thinkingConfig: { thinkingBudget: 0 } },
         }),
       },
     );

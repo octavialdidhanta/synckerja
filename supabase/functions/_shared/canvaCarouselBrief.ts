@@ -97,7 +97,7 @@ export function layoutOnlyDescription(text: string): string {
     .map((part) => part.replace(/\s+/g, " ").trim())
     .filter((part) => part.length > 0 && !COLOR_SENTENCE.test(part) && !LOGO_SENTENCE.test(part))
     .join(" ")
-    .slice(0, 900);
+    .slice(0, 2400);
 }
 
 function referenceNotes(styleLock: string): Map<number, string> {
@@ -105,13 +105,13 @@ function referenceNotes(styleLock: string): Map<number, string> {
   const notes = new Map<number, string>();
   const marks = [...cleaned.matchAll(/Referensi\s+([1-5])\s*:\s*/gi)];
   if (marks.length === 0) {
-    if (cleaned) notes.set(0, cleaned.slice(0, 280));
+    if (cleaned) notes.set(0, cleaned.slice(0, 800));
     return notes;
   }
   for (let index = 0; index < marks.length; index += 1) {
     const start = (marks[index].index ?? 0) + marks[index][0].length;
     const end = marks[index + 1]?.index ?? cleaned.length;
-    const note = cleaned.slice(start, end).replace(/\s+/g, " ").trim().slice(0, 280);
+    const note = cleaned.slice(start, end).replace(/\s+/g, " ").trim().slice(0, 800);
     if (note) notes.set(Number(marks[index][1]), note);
   }
   return notes;
@@ -265,6 +265,10 @@ export function buildCanvaCarouselBrief(input: {
   const notes = referenceNotes(input.styleLock ?? "");
   const sharedNote = notes.get(0) ?? "";
   const captionLine = caption ? ` Caption: ${caption}` : "";
+  // When every page uses the same reference, write its layout once instead of on each page.
+  const pageSlots = input.slides.map((slide) => referenceSlot(slide.elements));
+  const commonSlot = pageSlots.every((slot) => slot === pageSlots[0]) ? pageSlots[0] : null;
+  const commonNote = (commonSlot ? notes.get(commonSlot) : "") || sharedNote;
   let showsFood = false;
   let showsPerson = false;
   const buildPages = (sceneLimit: number) => input.slides
@@ -283,7 +287,7 @@ export function buildCanvaCarouselBrief(input: {
       if (FOOD_SCENE.test(scene)) showsFood = true;
       if (PERSON_SCENE.test(scene)) showsPerson = true;
       const lines = [`Page ${index + 1}`];
-      if (note) lines.push(`Layout and type: ${note}`);
+      if (note && !commonNote) lines.push(`Layout and type: ${note}`);
       const photoPage = index === input.slides.length - 1 && (input.productPhotos ?? []).length > 0;
       if (photoPage) {
         // The real photo is this page's food: draw only the setting around it.
@@ -307,6 +311,7 @@ export function buildCanvaCarouselBrief(input: {
     showsFood || (input.menus ?? []).length > 0 || (input.productPhotos ?? []).length > 0 ? FOOD_PHOTO_RULE : "",
     menuLine([...(input.menus ?? []), ...(input.productPhotos ?? [])]),
     productPhotoLine(input.productPhotos),
+    commonNote ? `Layout and type for every page, copied from the reference: ${commonNote} Follow this layout closely on each page.` : "",
     `Title: ${title}.${captionLine}`,
     pages,
     "Write only the listed words. Draw the picture, and do not turn the picture instructions into text. Use the layout and the named typeface for that page.",

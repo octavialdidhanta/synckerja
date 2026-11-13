@@ -66,6 +66,8 @@ import {
   secretMatches,
   signRunnerJwt,
   validatePlanDraft,
+  rotateReference,
+  briefWithReference,
 } from "../../supabase/functions/_shared/aiEmployee/planDraft.mjs";
 
 const pillarId = "11111111-1111-4111-8111-111111111111";
@@ -1557,4 +1559,20 @@ test("brief boleh 6 fokus angle dan prompt menu tidak menjanjikan foto asli", ()
   const draft = readFileSync(new URL("../../supabase/functions/_shared/aiEmployee/planDraft.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(draft, /Foto asli menu terpilih akan dipasang/);
   assert.match(draft, /Desainer menggambar makanan dari nama menu ini/);
+});
+
+test("rotasi referensi: slot yang belum dipakai dulu, lalu yang paling lama", () => {
+  assert.equal(rotateReference([1, 2, 3], ["x Referensi 1", "y Referensi 1"]), 2);
+  assert.equal(rotateReference([1, 2, 3], ["Referensi 2", "Referensi 3", "Referensi 1"]), 1);
+  assert.equal(rotateReference([1, 2, 3], ["Referensi 3", "Referensi 1", "Referensi 2"]), 2);
+  assert.equal(rotateReference([4, 2], []), 2);
+  assert.equal(rotateReference([], ["Referensi 1"]), null);
+  assert.equal(rotateReference([1, 2], ["Referensi 5"]), 1);
+});
+
+test("brief dibatasi ke satu slot referensi", () => {
+  const brief = { voice: "v", references: [{ position: 1 }, { position: 3 }] };
+  assert.deepEqual(briefWithReference(brief, 3).references, [{ position: 3 }]);
+  assert.equal(briefWithReference(brief, null), brief);
+  assert.equal(briefWithReference(brief, 2), brief);
 });

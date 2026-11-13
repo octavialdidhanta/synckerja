@@ -38,6 +38,8 @@ import {
   parseCarouselDraft,
   pickMenuIds,
   referencePositions,
+  rotateReference,
+  briefWithReference,
   parseChatReply,
   parseExecutionVerdict,
   copyClaimTokens,
@@ -1202,6 +1204,20 @@ Deno.serve(async (req: Request) => {
           lines: [],
         });
       }
+      // Storyboards of this employee's latest plans, newest first, for reference rotation.
+      const recentReferenceBriefs: string[] = [];
+      {
+        const recent = await admin
+          .from("social_media_plans")
+          .select("brief")
+          .eq("organization_id", employee.organization_id)
+          .eq("pic_id", employeeId)
+          .order("created_at", { ascending: false })
+          .limit(10);
+        if (!recent.error) {
+          for (const row of recent.data ?? []) recentReferenceBriefs.push(String((row as { brief?: unknown }).brief ?? ""));
+        }
+      }
       let dayIndex = 0;
       let ideaTries = 0;
       let ideaCap = focused ? Math.max(carouselPaths.length, 1) : 1;
@@ -1261,9 +1277,12 @@ Deno.serve(async (req: Request) => {
           stop = "pillar_cap";
           break;
         }
-        const promptBrief = focused
+        const voicedBrief = focused
           ? { ...brief, voice: String(path?.prompt_voice ?? brief?.voice ?? "") }
           : brief;
+        // One layout reference per carousel, rotated so every slot gets used.
+        const referenceSlot = rotateReference(referencePositions(brief), recentReferenceBriefs);
+        const promptBrief = briefWithReference(voicedBrief, referenceSlot);
         const promptPath = focused ? path : null;
         const service = chooseBrandFocus({ brief, catalog, dayIndex: catalogIndex, allowOverride: false });
         if (!service) {
@@ -1470,6 +1489,7 @@ Deno.serve(async (req: Request) => {
         takeProduct();
         idea.used = true;
         planIds.push(String(createdId));
+        if (referenceSlot) recentReferenceBriefs.unshift(`Referensi ${referenceSlot}`);
         rememberCopy(copyMemory, plan, day, service.id, choice.name);
         calendar.push({ post_date: day, content_pillar_id: choice.id });
         nayaPlans.push({ post_date: day, content_pillar_id: choice.id, author_employee_id: employeeId });
