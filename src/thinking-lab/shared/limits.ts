@@ -3,3 +3,12 @@ export const TARGET_GENERATE_VALID = 3;
 export const ACTIVE_SET_CAP = 6;
 
 export const MAX_GENERATE_ROUNDS = 2;
+
+/**
+ * Rewrites one Big Thought fix click may try. Each try is a rewrite plus its checks
+ * (about 8 model calls); 8 tries spent over 60 calls and still failed.
+ */
+export const BT_FIX_MAX_ATTEMPTS = 3;
+
+/** A fix stops early when the same check fails this many tries in a row: the lessons are not moving it. */
+export const BT_FIX_SAME_GATE_STOP = 2;
