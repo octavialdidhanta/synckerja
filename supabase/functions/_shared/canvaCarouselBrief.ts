@@ -187,9 +187,27 @@ const ELEMENT_MARK = /(Hook headline|Headline|Point|Ajakan|Tips|Pesan Utama|Pesa
 const PICTURE_LABEL = new Set(["visual hook", "ilustrasi", "gambar", "dialog bubble", "arah gambar"]);
 const PICTURE_LEAD = /^(ilustrasi|gambar|visual hook|dialog bubble|arah gambar)\b[:\s,-]*/i;
 
-function elementPieces(elements: string): { copy: string[]; picture: string[] } {
+/** Drawing directions an older storyboard wrote as copy: they belong to the picture. */
+const DIRECTION_LEAD = /^(infografis|infographic|panah|arrow|ikon|icon|diagram|grafik|chart|tanda panah|lingkaran|garis penunjuk)\b/i;
+
+type CopyPiece = { label: string; text: string };
+
+const ABBREVIATION = /\b(vs|dll|dsb|dkk|tgl|no|hlm|min|maks|kg|gr|rp)\./gi;
+
+/** Sentences of a short text; "vs." and similar abbreviations do not end a sentence. */
+function sentencesOf(text: string): string[] {
+  const guarded = text.replace(ABBREVIATION, (match) => match.slice(0, -1) + "\u0000");
+  return guarded
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.replace(/\u0000/g, ".").trim())
+    .filter(Boolean);
+}
+
+function elementPieces(elements: string): { copy: string[]; labeled: CopyPiece[]; picture: string[] } {
   const source = elements.replace(/\s+/g, " ").trim();
-  if (!source) return { copy: [], picture: [] };
+  const labeled: CopyPiece[] = [];
+  const picture: string[] = [];
+  if (!source) return { copy: [], labeled, picture };
   const marks: Array<{ index: number; end: number; label: string | null }> = [];
   for (const match of source.matchAll(ELEMENT_MARK)) {
     marks.push({
@@ -198,31 +216,66 @@ function elementPieces(elements: string): { copy: string[]; picture: string[] } 
       label: (match[1] || match[2]) ? (match[1] || match[2]).toLowerCase() : null,
     });
   }
-  const copy: string[] = [];
-  const picture: string[] = [];
-  const push = (kind: "copy" | "picture", value: string) => {
-    let text = value.replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
+  const tidy = (value: string) => value.replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
+  const push = (kind: "copy" | "picture", label: string, value: string) => {
+    let text = tidy(value);
     if (!text) return;
-    if (kind === "copy" && PICTURE_LEAD.test(text)) {
-      text = text.replace(PICTURE_LEAD, "").trim().replace(/[.\s]+$/, "");
-      if (!text) return;
+    if (kind === "picture") {
       picture.push(text);
       return;
     }
-    (kind === "picture" ? picture : copy).push(text);
+    if (PICTURE_LEAD.test(text)) {
+      text = tidy(text.replace(PICTURE_LEAD, ""));
+      if (text) picture.push(text);
+      return;
+    }
+    // "Serat halus. Panah menunjuk ke serat" keeps the label and draws the arrow.
+    const kept: string[] = [];
+    for (const sentence of sentencesOf(text)) {
+      if (DIRECTION_LEAD.test(sentence)) picture.push(tidy(sentence));
+      else kept.push(sentence);
+    }
+    if (kept.length > 0) labeled.push({ label, text: tidy(kept.join(" ")) });
   };
   if (marks.length === 0) {
-    push("copy", source);
-    return { copy, picture };
+    push("copy", "", source);
+  } else {
+    if (marks[0].index > 0) push("copy", "", source.slice(0, marks[0].index));
+    for (let index = 0; index < marks.length; index += 1) {
+      const mark = marks[index];
+      if (!mark.label) continue;
+      const next = marks[index + 1]?.index ?? source.length;
+      push(PICTURE_LABEL.has(mark.label) ? "picture" : "copy", mark.label, source.slice(mark.end, next));
+    }
   }
-  if (marks[0].index > 0) push("copy", source.slice(0, marks[0].index));
-  for (let index = 0; index < marks.length; index += 1) {
-    const mark = marks[index];
-    if (!mark.label) continue;
-    const next = marks[index + 1]?.index ?? source.length;
-    push(PICTURE_LABEL.has(mark.label) ? "picture" : "copy", source.slice(mark.end, next));
-  }
-  return { copy, picture };
+  return { copy: labeled.map((piece) => piece.text), labeled, picture };
+}
+
+const SMALL_TEXT_WORDS = 12;
+
+/** The slide's spoken line as on-slide small text: one sentence, about 12 words at most. */
+export function shortSlideText(text: string, maxWords = SMALL_TEXT_WORDS): string {
+  const clean = String(text ?? "").replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+  const sentences = sentencesOf(clean);
+  const fitting = sentences.find((sentence) => sentence.split(" ").length <= maxWords + 2);
+  if (fitting) return fitting.trim();
+  const words = sentences[0].split(" ");
+  const head = words.slice(0, maxWords).join(" ");
+  const comma = head.lastIndexOf(",");
+  if (comma > 0 && head.slice(0, comma).split(" ").length >= Math.ceil(maxWords / 2)) return head.slice(0, comma).trim();
+  return head.replace(/[,;:\s]+$/, "").trim();
+}
+
+/** Headline, small text and small labels of one slide, in that order of size. */
+export function slideTexts(slide: CarouselSlide): { headline: string; small: string; labels: string[] } {
+  const pieces = elementPieces(slide.elements);
+  const headlinePiece = pieces.labeled.find((piece) => piece.label === "hook headline" || piece.label === "headline")
+    ?? pieces.labeled[0];
+  const small = shortSlideText(slide.copy);
+  const labels = pieces.labeled.filter((piece) => piece !== headlinePiece).map((piece) => piece.text);
+  if (headlinePiece) return { headline: headlinePiece.text, small, labels };
+  return { headline: small, small: "", labels };
 }
 
 function referenceSlot(elements: string): number | null {
@@ -258,6 +311,37 @@ export const PERSON_PHOTO_RULE =
 export const FOOD_PHOTO_RULE =
   "Food photo rule: real food shot on a real camera in a real Indonesian warung, natural or warm light, true colors, charred grill edges, uneven grill marks, sauce that is not plastic-glossy, small imperfections, shallow depth of field. Not CGI, 3D, illustration, oversaturated, or too perfect.";
 
+const MEAT_SCENE = /\b(?:daging|kambing|sapi|domba|iga|meat|goat|mutton|lamb|beef)\b/i;
+const GOAT_SCENE = /\b(?:kambing|goat|mutton|domba|lamb)\b/i;
+const SKEWER_SCENE = /\b(?:sate|satay|skewers?)\b/i;
+
+/**
+ * Only for content that shows meat or skewers: the image model drew goat meat like pork.
+ * Empty for every other business, so it never reaches a charity or a non-food catalog.
+ */
+export function meatRule(text: string): string {
+  const source = String(text ?? "");
+  const meat = MEAT_SCENE.test(source);
+  const skewer = SKEWER_SCENE.test(source);
+  if (!meat && !skewer) return "";
+  const parts = ["Meat rule: draw the exact animal named in the scene. The meat must never look like pork."];
+  if (GOAT_SCENE.test(source)) {
+    parts.push("Goat meat (kambing) is deep red with a fine grain and only thin white fat, cut into small pieces. No thick skin, no fat rind, never pale pink.");
+  }
+  if (skewer) parts.push("Sate is cubed chunks of meat threaded on bamboo skewers, never minced, meatball or sausage shaped.");
+  return parts.join(" ");
+}
+
+/** Photo rules that fit a picture description, for prompts outside the carousel brief. */
+export function photoRules(text: string): string {
+  const source = String(text ?? "");
+  return [
+    PERSON_SCENE.test(source) ? PERSON_PHOTO_RULE : "",
+    FOOD_SCENE.test(source) ? FOOD_PHOTO_RULE : "",
+    meatRule(source),
+  ].filter(Boolean).join(" ");
+}
+
 function pictureInstruction(picture: string): string {
   const marks: string[] = [];
   if (PERSON_SCENE.test(picture)) marks.push("Real person photo.");
@@ -266,11 +350,19 @@ function pictureInstruction(picture: string): string {
   return `${marks.join(" ")} Scene: ${picture}`;
 }
 
-const BRIEF_LIMIT = 3500;
-/** Room the shared layout keeps before scenes are shortened further. */
+/** First try: room for full scenes and a detailed layout. */
+export const BRIEF_LIMIT_FULL = 5000;
+/** Retry size when Canva does not accept the full brief. */
+export const BRIEF_LIMIT_SHORT = 3500;
+/** Room the shared layout keeps before scenes are shortened below SCENE_FLOOR. */
 const LAYOUT_MIN_ROOM = 900;
+/** Scenes are not shortened below this while the layout can still give up room. */
+const SCENE_FLOOR = 220;
 const LAYOUT_LEAD = "Layout and type for every page, copied from the reference: ";
-const LAYOUT_TAIL = " Follow this layout closely on each page.";
+const LAYOUT_TAIL = " Take only this structure from the reference and fit it to each page's content.";
+const HIERARCHY_RULE =
+  "On every page the headline is the biggest text. The small text sits near it and is clearly smaller. Never make the small text bigger than the headline.";
+const CONSISTENCY_RULE = "Use the same frame, grid, and fonts on every page so the pages read as one set.";
 
 function clipScene(text: string, limit: number): string {
   const clean = text.replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
@@ -295,6 +387,20 @@ function productPhotoLine(names?: string[]): string {
   return `A real photo of ${main} goes in the center of the last page only. Keep that center empty. Photograph the food yourself on the other pages.`;
 }
 
+/** A required fact (phone, price, link) taken out of a text, so it shows only in the contact box. */
+function withoutFact(text: string, fact: string): string {
+  const source = String(text ?? "");
+  const digits = fact.replace(/\D/g, "");
+  let result = source;
+  if (digits.length >= 10 && digits.length === fact.length) {
+    const pattern = new RegExp(`(?:\\+?62|0)?[\\s.-]*${digits.replace(/^(?:62|0)/, "").split("").join("[\\s.-]*")}`, "g");
+    result = source.replace(pattern, " ");
+  } else if (fact) {
+    result = source.split(fact).join(" ");
+  }
+  return result.replace(/\s+/g, " ").replace(/\s+([,.!?])/g, "$1").replace(/^[,.;:\s-]+|[,;:\s-]+$/g, "").trim();
+}
+
 export function buildCanvaCarouselBrief(input: {
   title: string;
   caption: string;
@@ -308,7 +414,8 @@ export function buildCanvaCarouselBrief(input: {
   productPhotos?: string[];
   requiredNote?: string;
   forbiddenNote?: string;
-}): string {
+}, options: { limit?: number } = {}): string {
+  const limitChars = options.limit && options.limit > 0 ? options.limit : BRIEF_LIMIT_FULL;
   const title = input.title.replace(/\s+/g, " ").trim().slice(0, 200) || "Carousel";
   const caption = input.caption.replace(/\s+/g, " ").trim().slice(0, 280);
   const requiredFacts = briefFacts(input.requiredNote).slice(0, 5);
@@ -317,9 +424,15 @@ export function buildCanvaCarouselBrief(input: {
   const sharedNote = notes.get(0) ?? "";
   const captionLine = caption ? ` Caption: ${caption}` : "";
   // When every page uses the same reference, write its layout once instead of on each page.
+  // A slot whose image is gone falls back to the reference that was described.
   const pageSlots = input.slides.map((slide) => referenceSlot(slide.elements));
-  const commonSlot = pageSlots.every((slot) => slot === pageSlots[0]) ? pageSlots[0] : null;
-  const commonNote = (commonSlot ? notes.get(commonSlot) : "") || sharedNote;
+  const sameSlot = pageSlots.every((slot) => slot === pageSlots[0]);
+  const commonSlot = sameSlot ? pageSlots[0] : null;
+  const commonNote = sameSlot
+    ? (commonSlot ? notes.get(commonSlot) : "") || sharedNote || ([...notes.values()][0] ?? "")
+    : sharedNote;
+  const meatText = [title, ...input.slides.map((slide) => `${slide.scene} ${slide.elements}`), ...(input.menus ?? []), ...(input.productPhotos ?? [])].join(" ");
+  const meat = meatRule(meatText);
   let showsFood = false;
   let showsPerson = false;
   const buildPages = (sceneLimit: number) => input.slides
@@ -327,19 +440,29 @@ export function buildCanvaCarouselBrief(input: {
       const pieces = elementPieces(slide.elements);
       const slot = referenceSlot(slide.elements);
       const note = (slot ? notes.get(slot) : "") || sharedNote;
-      const words = [slide.copy, ...pieces.copy].map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean);
-      if (index === input.slides.length - 1) {
+      const last = index === input.slides.length - 1;
+      const texts = slideTexts(slide);
+      let { headline, small } = texts;
+      let labels = [...texts.labels, slide.tagging].map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean);
+      const contact: string[] = [];
+      if (last) {
         for (const fact of requiredFacts) {
-          if (!words.some((word) => textHasFact(word, fact))) words.push(fact);
+          headline = withoutFact(headline, fact);
+          small = withoutFact(small, fact);
+          labels = labels.map((label) => withoutFact(label, fact)).filter(Boolean);
+          contact.push(fact);
         }
       }
-      const picture = [slide.scene, ...pieces.picture].map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean);
+      if (small && small.toLowerCase() === headline.toLowerCase()) small = "";
+      const picture = [slide.scene, ...pieces.picture]
+        .map((part) => part.replace(/\s+/g, " ").trim().replace(/[.\s]+$/, ""))
+        .filter(Boolean);
       const scene = clipScene(picture.join(". "), sceneLimit);
       if (FOOD_SCENE.test(scene)) showsFood = true;
       if (PERSON_SCENE.test(scene)) showsPerson = true;
       const lines = [`Page ${index + 1}`];
       if (note && !commonNote) lines.push(`Layout and type: ${fitLayoutNote(note, 350)}`);
-      const photoPage = index === input.slides.length - 1 && (input.productPhotos ?? []).length > 0;
+      const photoPage = last && (input.productPhotos ?? []).length > 0;
       if (photoPage) {
         // The real photo is this page's food: draw only the setting around it.
         if (scene) lines.push(`Setting only, no food drawn: ${scene}`);
@@ -347,39 +470,46 @@ export function buildCanvaCarouselBrief(input: {
       } else if (scene) {
         lines.push(pictureInstruction(scene));
       }
-      if (words.length > 0) lines.push(`Write only: ${words.join(" | ")}`);
-      if (slide.tagging) lines.push(`Small label: ${slide.tagging}`);
+      if (headline) lines.push(`Headline (biggest text): ${headline}`);
+      if (small) lines.push(`Small text: ${small}`);
+      if (labels.length > 0) lines.push(`Small labels: ${labels.join(" | ")}`);
+      if (contact.length > 0) lines.push(`Contact box, separate at the bottom of this page: ${contact.join(" ")}`);
       return lines.join("\n");
     })
     .join("\n");
   const assemble = (pages: string, layout: string) => [
     `Design an Instagram carousel with ${input.slides.length} portrait 4:5 pages. One page per slide. Make every page editable.`,
-    requiredFacts.length > 0 ? `Write exactly this on the last page: ${requiredFacts.join(" ")}` : "",
+    requiredFacts.length > 0 ? `Write exactly this on the last page, in its contact box: ${requiredFacts.join(" ")}` : "",
     forbiddenNote ? `Do not write any of this: ${forbiddenNote}` : "",
     paletteLine(input.palette),
     logoLine(input.logo),
+    HIERARCHY_RULE,
+    CONSISTENCY_RULE,
     showsPerson ? PERSON_PHOTO_RULE : "",
     showsFood || (input.menus ?? []).length > 0 || (input.productPhotos ?? []).length > 0 ? FOOD_PHOTO_RULE : "",
+    meat,
     menuLine([...(input.menus ?? []), ...(input.productPhotos ?? [])]),
     productPhotoLine(input.productPhotos),
     layout ? `${LAYOUT_LEAD}${layout}${LAYOUT_TAIL}` : "",
     `Title: ${title}.${captionLine}`,
     pages,
-    "Write only the listed words. Draw the picture, and do not turn the picture instructions into text. Use the layout and the named typeface for that page.",
+    "Write only the headline, small text, small labels, and contact box listed for each page. Draw the picture, and do not turn the picture instructions into text.",
   ].filter(Boolean).join("\n");
-  // The pages come first: scenes shrink before anything else is cut, so the last page
-  // (CTA, required facts) always fits. The shared reference layout gets the room left,
-  // and scenes shrink further only while that room is under LAYOUT_MIN_ROOM.
+  // Pages first: the last page (CTA, required facts) always fits. Scenes stay at least
+  // SCENE_FLOOR long while the shared layout can still give up room; the layout keeps
+  // LAYOUT_MIN_ROOM before scenes go below their fuller sizes.
   const layoutWanted = commonNote ? Math.min(commonNote.length, LAYOUT_MIN_ROOM) : 0;
   let brief = "";
-  for (const limit of [400, 220, 150, 100, 60]) {
+  for (const sceneLimit of [600, 400, 300, SCENE_FLOOR, 150, 100, 60]) {
     showsFood = false;
     showsPerson = false;
-    const pages = buildPages(limit);
+    const pages = buildPages(sceneLimit);
     const bare = assemble(pages, "");
-    const room = commonNote ? BRIEF_LIMIT - bare.length - LAYOUT_LEAD.length - LAYOUT_TAIL.length - 1 : 0;
+    const room = commonNote ? limitChars - bare.length - LAYOUT_LEAD.length - LAYOUT_TAIL.length - 1 : 0;
     brief = commonNote && room > 0 ? assemble(pages, fitLayoutNote(commonNote, room)) : bare;
-    if (brief.length <= BRIEF_LIMIT && room >= layoutWanted) break;
+    if (brief.length > limitChars) continue;
+    if (sceneLimit > SCENE_FLOOR && room < layoutWanted) continue;
+    break;
   }
-  return brief.slice(0, BRIEF_LIMIT);
+  return brief.slice(0, limitChars);
 }

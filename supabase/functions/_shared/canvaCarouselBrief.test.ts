@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { FOOD_PHOTO_RULE, PERSON_PHOTO_RULE, buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, fitLayoutNote, layoutOnlyDescription } from "./canvaCarouselBrief.ts";
+import { FOOD_PHOTO_RULE, PERSON_PHOTO_RULE, buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, fitLayoutNote, layoutOnlyDescription, meatRule, shortSlideText, slideTexts } from "./canvaCarouselBrief.ts";
 
 const storyboard = [
   "| Timing | Visual | VO (Voice Over) | Scene Visual | Element Lainnya | Tagging |",
@@ -67,9 +67,9 @@ Deno.test("carouselSlidesFromBrief keeps copy, hook, and other elements", () => 
     caption: "Lihat lagi #keluarga",
     slides,
   });
-  assertEquals(brief.includes("Write only: Ibu mengira sibuk adalah sayang. | Sibuk bukan sayang"), true);
+  assertEquals(brief.includes("Headline (biggest text): Sibuk bukan sayang\nSmall text: Ibu mengira sibuk adalah sayang."), true);
   assertEquals(brief.includes("Real person photo. Scene: Ibu memandang kalender. Kalender menutup wajah"), true);
-  assertEquals(brief.includes("Write only: Anak butuh ibu yang hadir. | Kontras ekspresi ibu dan anak"), true);
+  assertEquals(brief.includes("Headline (biggest text): Kontras ekspresi ibu dan anak\nSmall text: Anak butuh ibu yang hadir."), true);
   assertEquals(brief.includes("Visual hook:"), false);
   const locked = buildCanvaCarouselBrief({
     title: "Hadir",
@@ -79,9 +79,9 @@ Deno.test("carouselSlidesFromBrief keeps copy, hook, and other elements", () => 
     palette: { primary: "#112233", secondary: "#445566", accent: "#778899" },
     logo: "required",
   });
-  assertEquals(locked.includes("Layout and type for every page, copied from the reference: Bold poster, blocks, heavy sans type. Headline sits at the top."), true);
+  assertEquals(locked.includes("Layout and type for every page, copied from the reference: Bold poster, blocks, heavy sans type. Headline sits at the top. Take only this structure"), true);
   assertEquals(locked.includes("\nLayout and type: "), false);
-  assertEquals(locked.includes("named typeface"), true);
+  assertEquals(locked.includes("Use the same frame, grid, and fonts on every page"), true);
   assertEquals(locked.includes("red and yellow"), false);
   assertEquals(locked.includes("primary #112233"), true);
   assertEquals(locked.includes("secondary #445566"), true);
@@ -89,8 +89,8 @@ Deno.test("carouselSlidesFromBrief keeps copy, hook, and other elements", () => 
   assertEquals(locked.includes("text color"), false);
   assertEquals(locked.includes("Leave the top center of every page empty."), true);
   assertEquals(locked.includes("Do not draw a logo"), false);
-  assertEquals(locked.includes("Write only the listed words"), true);
-  assertEquals(locked.includes("Write only: Ibu mengira sibuk adalah sayang."), true);
+  assertEquals(locked.includes("Write only the headline, small text, small labels, and contact box"), true);
+  assertEquals(locked.includes("Small text: Ibu mengira sibuk adalah sayang."), true);
   const plain = buildCanvaCarouselBrief({
     title: "Hadir",
     caption: "Lihat lagi #keluarga",
@@ -133,7 +133,7 @@ Deno.test("carouselReferencePosition keeps one agreed slot", () => {
   const slides = carouselSlidesFromBrief(withReference);
   assertEquals(carouselReferencePosition(slides), 2);
   const brief = buildCanvaCarouselBrief({ title: "Hadir", caption: "Lihat lagi #keluarga", slides });
-  assertEquals(brief.includes("Write only: Anak butuh ibu yang hadir. | Kontras ekspresi ibu dan anak"), true);
+  assertEquals(brief.includes("Headline (biggest text): Kontras ekspresi ibu dan anak"), true);
   assertEquals(brief.includes("Referensi 2"), false);
   const directions = carouselSlidesFromBrief([
     "| Timing | Visual | Scene Visual | Teks | Element Lainnya | Tagging |",
@@ -147,8 +147,8 @@ Deno.test("carouselReferencePosition keeps one agreed slot", () => {
   const directed = buildCanvaCarouselBrief({ title: "Hadir", caption: "Lihat", slides: directions });
   assertEquals(directed.includes("Ilustrasi anak bingung"), false);
   assertEquals(directed.includes("Gambar ibu dan anak"), false);
-  assertEquals(/Write only:[^\n]*Apa yang ingin kamu lakukan hari ini/.test(directed), false);
-  assertEquals(directed.includes("Write only: Ajarkan keseimbangan. | Keseimbangan & Kehadiran"), true);
+  assertEquals(/(Headline|Small text|Small labels)[^\n]*Apa yang ingin kamu lakukan hari ini/.test(directed), false);
+  assertEquals(directed.includes("Headline (biggest text): Keseimbangan & Kehadiran\nSmall text: Ajarkan keseimbangan."), true);
   assertEquals(directed.includes("Real person photo. Scene: Anak di meja belajar. anak bingung dengan tumpukan buku"), true);
   const mixed = slides.map((slide, index) => (
     index === 1 ? { ...slide, elements: slide.elements.replace("Referensi 2", "Referensi 4") } : slide
@@ -171,10 +171,10 @@ Deno.test("buildCanvaCarouselBrief writes the required note and photographs a pe
     requiredNote: "Cantumkan nomor telepon 081234567890 di slide terakhir.",
     forbiddenNote: "harga promo",
   });
-  assertEquals(brief.includes("Write exactly this on the last page: 081234567890"), true);
+  assertEquals(brief.includes("Write exactly this on the last page, in its contact box: 081234567890"), true);
   assertEquals(brief.includes("Cantumkan nomor telepon"), false);
   assertEquals(brief.includes("Do not write any of this: harga promo"), true);
-  assertEquals(brief.includes("Write only: Hubungi jam buka. | Ajakan singkat di bawah | 081234567890"), true);
+  assertEquals(brief.includes("Headline (biggest text): Ajakan singkat di bawah\nSmall text: Hubungi jam buka.\nContact box, separate at the bottom of this page: 081234567890"), true);
   assertEquals(brief.includes("Real food photo. Scene: Sate kambing di atas piring"), true);
   assertEquals(brief.split(FOOD_PHOTO_RULE).length - 1, 1);
   assertEquals(brief.includes("Draw: Sate kambing di atas piring"), false);
@@ -199,10 +199,10 @@ Deno.test("buildCanvaCarouselBrief shortens scenes so the last page always fits"
     productPhotos: ["Sate Kambing Full Daging"],
     requiredNote: "Cantumkan nomor telepon 085923305709 di slide terakhir.",
   });
-  assertEquals(brief.length <= 3500, true);
+  assertEquals(brief.length <= 5000, true);
   assertEquals(brief.includes("Page 8"), true);
   assertEquals(brief.includes("Keep the center empty for the real product photo."), true);
-  assertEquals(brief.includes("Write only the listed words."), true);
+  assertEquals(brief.includes("Contact box, separate at the bottom of this page: 085923305709"), true);
   assertEquals(brief.split(FOOD_PHOTO_RULE).length - 1, 1);
   assertEquals(brief.split(PERSON_PHOTO_RULE).length - 1, 1);
 });
@@ -264,9 +264,65 @@ Deno.test("buildCanvaCarouselBrief gives a long shared layout the room the pages
   const zone = (label: string) => `${label}: ${"detail ".repeat(60).trim()}.`;
   const longNote = ["PHOTO", "HEADLINE", "TEXT", "DECOR", "TYPE"].map(zone).join(" ");
   const brief = buildCanvaCarouselBrief({ title: "T", caption: "", slides: [page(1), page(2), page(3)], styleLock: `Referensi 1: ${longNote}` });
-  assertEquals(brief.length <= 3500, true);
+  assertEquals(brief.length <= 5000, true);
   assertEquals(brief.includes("PHOTO: detail"), true);
   assertEquals(brief.includes("HEADLINE: detail"), true);
   assertEquals(brief.includes("Page 3"), true);
-  assertEquals(brief.includes("Write only: Halo 3"), true);
+  assertEquals(brief.includes("Headline (biggest text): A\nSmall text: Halo 3"), true);
+});
+
+Deno.test("slideTexts puts the headline first and trims the spoken line to about 12 words", () => {
+  const texts = slideTexts({
+    label: "Slide 2",
+    scene: "Daging di talenan",
+    copy: "Daging kambing muda itu warnanya cenderung merah muda cerah, terus seratnya juga halus dan nggak terlalu kelihatan.",
+    elements: "Infografis: Perbandingan daging muda vs. tua. Headline: Muda vs Tua. Referensi 2",
+    tagging: "",
+  });
+  assertEquals(texts.headline, "Muda vs Tua");
+  assertEquals(texts.small.split(" ").length <= 12, true);
+  assertEquals(texts.labels.some((label) => /Infografis/i.test(label)), false);
+  assertEquals(shortSlideText("Jadi, kamu nggak perlu khawatir lagi dagingnya alot atau susah dikunyah."), "Jadi, kamu nggak perlu khawatir lagi dagingnya alot atau susah dikunyah.");
+});
+
+Deno.test("buildCanvaCarouselBrief moves drawing directions out of the slide text", () => {
+  const slides = carouselSlidesFromBrief([
+    "| Timing | Visual | Scene Visual | Teks | Element Lainnya | Tagging |",
+    "| --- | --- | --- | --- | --- | --- |",
+    "| Slide 1 |  | Daging kambing di talenan | Kenali dagingnya dulu. | Hook headline: Muda atau tua? Visual hook: Dua potong daging. |  |",
+    "| Slide 2 |  | Daging muda close-up | Seratnya halus. | Teks: Serat Daging Halus. Panah menunjuk ke serat daging. |  |",
+  ].join("\n"));
+  const brief = buildCanvaCarouselBrief({ title: "Daging", caption: "#tes", slides });
+  assertEquals(brief.includes("Headline (biggest text): Serat Daging Halus"), true);
+  assertEquals(/(Headline|Small text|Small labels)[^\n]*Panah/.test(brief), false);
+  assertEquals(brief.includes("Panah menunjuk ke serat daging"), true);
+});
+
+Deno.test("meatRule only speaks for meat and skewers", () => {
+  assertEquals(meatRule("Ibu memegang buku di taman"), "");
+  assertEquals(meatRule("Daging kambing mentah di talenan").includes("Goat meat (kambing) is deep red"), true);
+  assertEquals(meatRule("Sate ayam di piring").includes("never minced"), true);
+  assertEquals(meatRule("Sate ayam di piring").includes("Goat meat"), false);
+  const charity = buildCanvaCarouselBrief({
+    title: "Hadir",
+    caption: "#keluarga",
+    slides: carouselSlidesFromBrief(storyboard),
+  });
+  assertEquals(charity.includes("Meat rule"), false);
+});
+
+Deno.test("buildCanvaCarouselBrief falls back to the described reference when the slot is gone", () => {
+  const page = (n: number) => ({ label: "", scene: `Meja makan ${n}`, copy: `Halo ${n}`, elements: "Point: A. Referensi 3", tagging: "" });
+  const brief = buildCanvaCarouselBrief({ title: "T", caption: "", slides: [page(1), page(2)], styleLock: "Referensi 1: PHOTO: fills the lower half." });
+  assertEquals(brief.includes("copied from the reference: PHOTO: fills the lower half."), true);
+});
+
+Deno.test("buildCanvaCarouselBrief keeps scenes at least 220 characters before trimming the layout", () => {
+  const scene = "Pelanggan tersenyum memegang tusuk sate kambing di warung ramai, lampu hangat, asap tipis dari panggangan arang, meja kayu tua, piring kecil berisi bawang merah dan cabai, gelas es teh manis di samping piring.";
+  const rows = Array.from({ length: 8 }, (_, index) => ({ label: "", scene, copy: `Kalimat ${index + 1} singkat.`, elements: "Headline: Judul. Referensi 1", tagging: "" }));
+  const longNote = ["PHOTO", "HEADLINE", "TEXT", "DECOR", "TYPE"].map((label) => `${label}: ${"detail ".repeat(80).trim()}.`).join(" ");
+  const brief = buildCanvaCarouselBrief({ title: "T", caption: "#tes", slides: rows, styleLock: `Referensi 1: ${longNote}` });
+  assertEquals(brief.length <= 5000, true);
+  assertEquals(brief.includes(scene.replace(/[.\s]+$/, "")), true);
+  assertEquals(brief.includes("copied from the reference: PHOTO: detail"), true);
 });
