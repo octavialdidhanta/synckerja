@@ -81,7 +81,8 @@ const FORMS: Record<ChainLevel, string[]> = {
 function cleanRules(lines: readonly string[]): string {
   return lines
     .map((line) => line.trim())
-    .filter((line) => line && !/: \(none\)$/.test(line) && !/^(Subject|Example|Audience|Question|Master subject)\b.*:\s*$/.test(line))
+    // Lines that only describe a missing input of one real check (no question, no subject) are not part of the rule.
+    .filter((line) => line && !/: \(none\)$/.test(line) && !/^No .+ (was|were) (supplied|named), so pass is false\.$/.test(line))
     .join(" ");
 }
 
