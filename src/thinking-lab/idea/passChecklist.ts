@@ -270,15 +270,22 @@ export async function runIdeaAdmissionChecks(input: {
   statement: string;
   parentStatement: string;
   ancestors?: AncestorStake[];
+  /** Checks switched OFF for this organization: treated as passed, never asked. */
+  skip?: readonly string[];
   ask: (prompt: string) => Promise<string | null>;
   onStep: (checks: IdeaPassCheck[]) => void;
 }): Promise<{ checks: IdeaPassCheck[]; passed: boolean }> {
   const checks = ideaAdmissionChecks();
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
-  const batched = await batchedIdeaAnswers({ ...input, open: IDEA_GENERATE_PASS_IDS });
+  const batched = await batchedIdeaAnswers({ ...input, open: IDEA_GENERATE_PASS_IDS.filter((id) => !input.skip?.includes(id)) });
   for (const id of IDEA_GENERATE_PASS_IDS) {
     const index = checks.findIndex((check) => check.id === id);
+    if (input.skip?.includes(id)) {
+      checks[index] = { id, state: "pass" };
+      publish();
+      continue;
+    }
     checks[index] = { id, state: "running" };
     publish();
     const prompt = buildIdeaPassPrompt({

@@ -57,6 +57,8 @@ export type TerritoryAuditNote =
 type LabNodeInspectorProps = {
   kind: "master" | "bigThought" | "territory" | "angle" | "idea";
   code?: string;
+  /** Saved while some pass checks of its level were switched OFF. */
+  unchecked?: boolean;
   title?: string;
   statement: string;
   example?: string;
@@ -93,6 +95,7 @@ type LabNodeInspectorProps = {
     checklist?: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
     checklistNote?: string;
     mechanismKeys?: Array<{ otherExplanation: string; close: string }>;
+    unchecked?: boolean;
   }>;
   ideaHistory?: { passed: number; rejected: number; unverified: number; topFailed: string | null } | null;
   ideaRevisionTarget?: { nonce: number; decision: "LOLOS" | "DITOLAK" | "BELUM_TERVERIFIKASI" } | null;
@@ -521,9 +524,22 @@ function ideaNotesWithoutCard(notes: string[], codes: string[]): string[] {
   });
 }
 
+function UncheckedBadge() {
+  const { t } = useAppTranslation();
+  return (
+    <span
+      className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800"
+      title={t("thinkingLab.checks.uncheckedHint", "Disimpan saat sebagian syarat lolos OFF.")}
+    >
+      {t("thinkingLab.checks.unchecked", "Tanpa cek")}
+    </span>
+  );
+}
+
 export function LabNodeInspector({
   kind,
   code,
+  unchecked,
   title,
   statement,
   example,
@@ -741,6 +757,7 @@ export function LabNodeInspector({
             <span className="h-3.5 w-3.5 shrink-0 rounded-[4px] bg-[#1e4a86]" aria-hidden />
             <span>{code?.trim() ? `${label} - ${code.trim()}` : label}</span>
             <NodeDefinitionInfo kind={kind} />
+            {unchecked ? <UncheckedBadge /> : null}
           </p>
           {onEditStatement && !title && kind !== "territory" ? (
             <EditableStatement statement={statement} enabled pending={Boolean(pendingAction)} onSave={onEditStatement} />
@@ -1201,6 +1218,7 @@ export function LabNodeInspector({
                 <div className="mb-3 flex items-center gap-1.5">
                   <span className="text-[11px] font-semibold tracking-wide text-muted-foreground">{idea.code}</span>
                   {idea.verdict ? <VerdictChip verdict={idea.verdict} verbatim /> : null}
+                  {idea.unchecked ? <UncheckedBadge /> : null}
                   {showIdeaMenu ? (
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>

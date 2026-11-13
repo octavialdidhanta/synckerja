@@ -381,6 +381,8 @@ export async function runGenerateAdmissionChecks(input: {
   batch?: boolean;
   statement: string;
   parentStatement: string;
+  /** Checks switched OFF for this organization: treated as passed, never asked. */
+  skip?: readonly string[];
   ask: (prompt: string) => Promise<string | null>;
   onStep?: (checklist: PassChecklist) => void | Promise<void>;
 }): Promise<PassChecklist> {
@@ -391,7 +393,7 @@ export async function runGenerateAdmissionChecks(input: {
   await publish("duplicate", "checked", "pass");
   const batched = await batchedBigThoughtAnswers({
     batch: input.batch,
-    open: ["resolved", "relation"],
+    open: (["resolved", "relation"] as const).filter((id) => !input.skip?.includes(id)),
     statement: input.statement,
     parentStatement: input.parentStatement,
     others: [],
@@ -399,6 +401,11 @@ export async function runGenerateAdmissionChecks(input: {
   });
   for (const id of ["resolved", "relation"] as const) {
     const index = items.findIndex((item) => item.id === id);
+    if (input.skip?.includes(id)) {
+      items[index] = { id, state: "pass", reason: "" };
+      await publish(id, "checked", "pass");
+      continue;
+    }
     items[index] = { id, state: "checking", reason: "" };
     await publish(id, "checking", "pass");
     const parsed = await askGate({
