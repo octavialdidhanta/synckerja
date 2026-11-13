@@ -1,0 +1,24 @@
+import { describe, expect, it } from "vitest";
+import { readThinkingDefinitions } from "../src/db/thinkingDefinitions";
+
+const ctx = { userId: "u", organizationId: "o" };
+
+describe("thinking.definitions.read", () => {
+  it("returns every level with its check rules and the organization's switches", async () => {
+    const admin = {
+      rpc: async (fn: string) => {
+        if (fn === "mcp_thinking_check_settings") return { data: { "idea.K3": true }, error: null };
+        return { data: null, error: null };
+      },
+    } as never;
+    const result = await readThinkingDefinitions(admin, ctx, { language: "id" });
+    expect(result.levels.map((level) => level.level)).toEqual(["master", "bigThought", "territory", "angle", "idea", "pillar", "execution"]);
+    const idea = result.levels.find((level) => level.level === "idea")!;
+    expect(idea.checks.find((check) => check.id === "K3")?.on).toBe(true);
+    expect(idea.checks.find((check) => check.id === "K4")?.on).toBe(false);
+    for (const level of result.levels.slice(0, 5)) {
+      expect(level.definition.length).toBeGreaterThan(20);
+      for (const check of level.checks) expect(check.rule.length).toBeGreaterThan(10);
+    }
+  });
+});

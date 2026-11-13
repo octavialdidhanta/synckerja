@@ -110,6 +110,7 @@ export type McpToolName =
   | "habits.list"
   | "habits.check"
   | "thinking.masters.list"
+  | "thinking.definitions.read"
   | "thinking.tree.read"
   | "thinking.master.create"
   | "thinking.bigthought.add"
@@ -656,6 +657,14 @@ const TOOL_DEFINITIONS: McpTool[] = [
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: LEAD_MAGNET_PAGE_PATH,
+  },
+  {
+    name: "thinking.definitions.read",
+    description:
+      "Read what every level of the Thinking Lab chain is (Master Thought, Big Thought, Territory, Angle, Idea, Pillar, Execution) for the organization locked in this session: its definition, the shape it is written in, and every pass check with its exact rule and whether that check is switched on for this organization. Read this before drafting or rewriting a chain in chat. Changes nothing. Optional language: id (default) or en for check labels.",
+    scopes: ["content:read"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
   },
   {
     name: "thinking.masters.list",

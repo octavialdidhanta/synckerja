@@ -120,7 +120,7 @@ function keyLines(keys: IdeaMechanismKey[] | undefined): string[] {
 }
 
 /** The rule text of one Idea check, shared by the one-check and the batched prompts. */
-function ideaGateRules(id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number], masterSubject?: string): string[] {
+export function ideaGateRules(id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number], masterSubject?: string): string[] {
   const subject = masterSubject?.trim() ?? "";
   return (
     id === "sentenceForm"

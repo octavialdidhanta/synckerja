@@ -1088,7 +1088,7 @@ const AUDITOR_STANCE = [
   "The Angle, the Territory, and the Big Thought are different. Do not treat them as the same thing.",
 ].join(" ");
 
-const CRITERION_RULE: Record<IdeaCriterionId, string> = {
+export const CRITERION_RULE: Record<IdeaCriterionId, string> = {
   K1: "pass is true only when the statement is one specific how-if proposal. pass is false when the substance is only a fact, an insight, a problem, a goal, a proposition, a general strategy, a consequence scenario, an activity, or a technique. Those may appear inside the proposal. They must not be the whole substance. Do not fail because the action is unusual or not part of ordinary life. That is another check.",
   K2: IDEA_K2_RULE,
   K3: "PASS only when the proposed mechanism can logically produce the stated value. FAIL when the result does not follow from the mechanism, or a basic contradiction is present. Do not fail because the mechanism does not directly solve, guarantee, or overcome the Angle's problem. That problem is what the idea is for. Fail only when this idea's stated value does not follow from the mechanism.",

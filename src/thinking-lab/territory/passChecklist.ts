@@ -97,7 +97,7 @@ export function individualPassChecksCleared(checks: readonly TerritoryPassCheck[
 }
 
 /** The rule text of one Territory check, shared by the one-check and the batched prompts. */
-function territoryGateRules(
+export function territoryGateRules(
   id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number],
   audience?: string,
   question?: string,

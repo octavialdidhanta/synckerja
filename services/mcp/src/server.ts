@@ -19,6 +19,7 @@ import { addThinkingTerritory, lockThinkingTerritories } from "./db/thinkingTerr
 import { addThinkingAngle, lockThinkingAngles } from "./db/thinkingAngle";
 import { addThinkingIdea, lockThinkingIdeas } from "./db/thinkingIdea";
 import { recommendThinkingPillars, removeThinkingPillar, setThinkingPillar } from "./db/thinkingPillar";
+import { readThinkingDefinitions } from "./db/thinkingDefinitions";
 import {
   updateThinkingAngle,
   updateThinkingBigThought,
@@ -166,6 +167,7 @@ const app = createApp({
   attachLeadMagnetDelivery: (ctx, input) => attachLeadMagnetDelivery(admin, config.supabaseUrl, ctx, input),
   listThinkingMasters: (ctx) => listThinkingMasters(admin, ctx),
   readThinkingTree: (ctx, masterThoughtId) => readThinkingTree(admin, ctx, masterThoughtId),
+  readThinkingDefinitions: (ctx, input) => readThinkingDefinitions(admin, ctx, input),
   createThinkingMaster: (ctx, input) => createThinkingMaster(admin, config, ctx, input),
   addThinkingBigThought: (ctx, input) => addThinkingBigThought(admin, config, ctx, input),
   setThinkingMasterCatalog: (ctx, input) => setThinkingMasterCatalog(admin, ctx, input),
