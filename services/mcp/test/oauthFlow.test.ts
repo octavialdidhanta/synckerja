@@ -235,6 +235,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     removeThinkingPillar: async () => {
       throw new Error("unused");
     },
+    readThinkingDefinitions: async () => {
+      throw new Error("unused");
+    },
     readThinkingTree: async () => {
       throw new Error("unused");
     },

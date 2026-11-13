@@ -171,6 +171,7 @@ export {
   ideaUpdateInput,
   ideaUpdateResult,
 } from "./thinking/treeUpdate";
+export { definitionsReadInput, definitionsReadResult } from "./thinking/definitionsRead";
 export { chainReadInput, chainReadResult } from "./thinking/chainRead";
 export { executionCheckInput, executionCheckResult } from "./thinking/executionCheck";
 export { planSaveInput, planSaveResult } from "./thinking/planSave";

@@ -35,6 +35,7 @@ import type {
   PillarsRecommendResult,
   PillarWriteResult,
 } from "../tools/thinking/pillarWrite";
+import type { DefinitionsRead, DefinitionsReadResult } from "../tools/thinking/definitionsRead";
 import type {
   MasterUpdateWrite,
   BigThoughtUpdateWrite,
@@ -231,6 +232,7 @@ export type AppDeps = {
   ) => Promise<LeadMagnetDeliveryResult>;
   listThinkingMasters: (ctx: McpAuthContext) => Promise<ThinkingMasterRow[]>;
   readThinkingTree: (ctx: McpAuthContext, masterThoughtId: string) => Promise<ThinkingTree>;
+  readThinkingDefinitions: (ctx: McpAuthContext, input: DefinitionsRead) => Promise<DefinitionsReadResult>;
   createThinkingMaster: (ctx: McpAuthContext, input: MasterCreateWrite) => Promise<ThinkingWriteResult>;
   addThinkingBigThought: (ctx: McpAuthContext, input: BigThoughtAddWrite) => Promise<ThinkingWriteResult>;
   setThinkingMasterCatalog: (ctx: McpAuthContext, input: MasterCatalogWrite) => Promise<ThinkingWriteResult>;

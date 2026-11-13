@@ -9,6 +9,7 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { NODE_DEFINITIONS } from "@/thinking-lab/shared/definitions";
 import { MasterCatalogField } from "@/thinking-lab/section/MasterCatalogField";
 import type { LabCatalog } from "@/thinking-lab/master-thought/useLabCatalogs";
 import { cn } from "@/shared/lib/utils";
@@ -171,33 +172,7 @@ type LabNodeInspectorProps = {
   onStopExecution?: () => void;
 };
 
-const NODE_DEFINITIONS = {
-  master: {
-    label: "Master Thought",
-    body: "Master Thought menetapkan keyakinan tujuan: kita ingin orang percaya bahwa ini benar. Bukan tagline dan bukan klaim produk.",
-    note: "Subjeknya harus jelas, karena subjek itu yang nanti diuji sebagai penyebab di Idea. Audiens target belum sepenuhnya memercayainya.",
-  },
-  bigThought: {
-    label: "Big Thought",
-    body: "Big Thought memberi alasan: Master Thought benar karena alasan ini. Setiap Big Thought membawa alasan dasar yang berbeda.",
-    note: "Kalau alasan ini dicabut, Master Thought kehilangan satu alasan untuk dipercaya. Ia canggung sebagai nama ruang atau sebagai pengamatan.",
-  },
-  territory: {
-    label: "Territory",
-    body: "Territory menunjuk ruang. Ia area pembahasan di dunia audiens: fenomena, kebiasaan, momen hidup, budaya, atau masalah sehari-hari, tempat alasan Big Thought bisa dibicarakan. Bentuknya kata benda atau frasa benda, tanpa klaim.",
-    note: "Ia bagian dari Big Thought, bukan kata kunci Big Thought. Bahasanya bahasa audiens. Di area itu, pertanyaan yang dijawab Big Thought memang muncul. Areanya cukup luas untuk beberapa Angle.",
-  },
-  angle: {
-    label: "Angle",
-    body: "Angle mengangkat pengamatan di dalam Territory: hal yang jarang disadari, kontradiksi, atau ketegangan.",
-    note: "Bukan alasan. Kalau kalimatnya masuk mulus ke bentuk karena, ia sedang mengerjakan pekerjaan Big Thought. Pengamatan itu disertai satu contoh situasi yang bisa ditunjuk, tanpa menjadi Idea.",
-  },
-  idea: {
-    label: "Idea",
-    body: "Idea merancang mekanisme: konsep konkret yang membuat Angle terjadi, terlihat, atau terbukti, lewat demonstrasi, eksperimen, perbandingan, atau situasi.",
-    note: "Bentuknya satu kalimat: kita bikin, ajak, tunjukkan, atau ciptakan sesuatu sehingga Angle terbukti. Kunci mekanisme ditulis terpisah di bawah kalimat. Pillar dipilih nanti.",
-  },
-} as const;
+// One source with the MCP definitions tool.
 
 export function NodeDefinitionInfo({ kind }: { kind: keyof typeof NODE_DEFINITIONS }) {
   const definition = NODE_DEFINITIONS[kind];

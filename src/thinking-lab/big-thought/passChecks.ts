@@ -89,7 +89,7 @@ export function lessonsForPassGate(
 }
 
 /** The rule text of one Big Thought check, shared by the one-check and the batched prompts. */
-function bigThoughtGateRules(id: (typeof INDIVIDUAL_GATE_IDS)[number]): string[] {
+export function bigThoughtGateRules(id: (typeof INDIVIDUAL_GATE_IDS)[number]): string[] {
   return (
     id === "resolved"
       ? [

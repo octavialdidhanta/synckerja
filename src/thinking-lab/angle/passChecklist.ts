@@ -110,7 +110,7 @@ export function individualAnglePassChecksCleared(checks: readonly AnglePassCheck
 }
 
 /** The rule text of one Angle check, shared by the one-check and the batched prompts. */
-function angleGateRules(id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number], subject?: string, example?: string): string[] {
+export function angleGateRules(id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number], subject?: string, example?: string): string[] {
   return (
     id === "stakeHolds"
       ? [

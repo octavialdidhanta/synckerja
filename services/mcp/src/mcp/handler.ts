@@ -36,6 +36,7 @@ import type {
   PillarsRecommendResult,
   PillarWriteResult,
 } from "../tools/thinking/pillarWrite";
+import type { DefinitionsRead, DefinitionsReadResult } from "../tools/thinking/definitionsRead";
 import type {
   MasterUpdateWrite,
   BigThoughtUpdateWrite,
@@ -273,6 +274,8 @@ import {
   ideasListInput,
   ideasListResult,
   mastersListInput,
+  definitionsReadInput,
+  definitionsReadResult,
   mastersListResult,
   treeReadInput,
   treeReadResult,
@@ -464,6 +467,7 @@ export type McpReadDeps = {
   ) => Promise<LeadMagnetDeliveryResult>;
   listThinkingMasters: (ctx: McpAuthContext) => Promise<ThinkingMasterRow[]>;
   readThinkingTree: (ctx: McpAuthContext, masterThoughtId: string) => Promise<ThinkingTree>;
+  readThinkingDefinitions: (ctx: McpAuthContext, input: DefinitionsRead) => Promise<DefinitionsReadResult>;
   createThinkingMaster: (ctx: McpAuthContext, input: MasterCreateWrite) => Promise<ThinkingWriteResult>;
   addThinkingBigThought: (ctx: McpAuthContext, input: BigThoughtAddWrite) => Promise<ThinkingWriteResult>;
   setThinkingMasterCatalog: (ctx: McpAuthContext, input: MasterCatalogWrite) => Promise<ThinkingWriteResult>;
@@ -841,6 +845,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "habits.list": habitsListInput,
   "habits.check": habitCheckInput,
   "thinking.masters.list": mastersListInput,
+  "thinking.definitions.read": definitionsReadInput,
   "thinking.tree.read": treeReadInput,
   "thinking.master.create": masterCreateInput,
   "thinking.bigthought.add": bigThoughtAddInput,
@@ -1472,6 +1477,8 @@ async function runTool(
       );
     case "habits.list":
       return habitsListResult(ctx, optionalString(args.date), deps.listHabits);
+    case "thinking.definitions.read":
+      return definitionsReadResult(ctx, args, deps.readThinkingDefinitions);
     case "thinking.masters.list":
       return mastersListResult(ctx, deps.listThinkingMasters);
     case "thinking.tree.read":
