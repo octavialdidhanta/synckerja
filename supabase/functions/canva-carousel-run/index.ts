@@ -1,7 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, layoutOnlyDescription } from "../_shared/canvaCarouselBrief.ts";
+import { BRIEF_LIMIT_FULL, BRIEF_LIMIT_SHORT, buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, layoutOnlyDescription } from "../_shared/canvaCarouselBrief.ts";
 import { callCanvaTool, canvaEditingMode, listCanvaMcpTools, type CanvaEditingMode } from "../_shared/canvaMcp.ts";
 import { readCanvaToolJson } from "../_shared/canvaMcpParse.ts";
 import { getCanvaAccessToken } from "../_shared/canvaToken.ts";
@@ -870,7 +870,8 @@ async function referenceStyleLock(
   const model = geminiModel(String(config?.model ?? ""));
   const notes: string[] = [];
   // A carousel built on one slot only needs that slot described.
-  const described = preferred && ordered[0] && Number(ordered[0].position) === preferred ? ordered.slice(0, 1) : ordered.slice(0, 5);
+  // A slot whose image was removed falls back to the first reference instead of describing all of them.
+  const described = preferred ? ordered.slice(0, 1) : ordered.slice(0, 5);
   for (const row of described) {
     const path = String(row.storage_path);
     const signed = await admin.storage.from(REFERENCE_BUCKET).createSignedUrl(path, 120);
@@ -900,15 +901,15 @@ async function referenceStyleLock(
               {
                 text: [
                   `This image is layout reference ${row.position} for one Instagram carousel page (portrait 4:5).`,
-                  "Describe its layout so a designer who never sees it can rebuild it. Be as detailed as you need.",
+                  "Describe only its layout, so a designer who never sees it can rebuild the same structure with different content. Be as detailed as you need.",
                   "Answer in exactly these five labelled lines, each label once, in this order:",
-                  "PHOTO: where the main photo or picture sits, what share of the page it fills in percent, its crop or shape, what it shows in general terms.",
-                  "HEADLINE: position, alignment, size compared to the page width, number of lines, weight, case, any tilt or overlap with the photo.",
-                  "TEXT: every smaller text block, label, price tag or call to action, with its position and size.",
-                  "DECOR: frames, shapes, stickers, badges, dividers, shadows, textures, and where each sits.",
+                  "PHOTO: where the main picture area sits, what share of the page it fills in percent, and its crop or frame shape. Do not say what the picture shows.",
+                  "HEADLINE: position, alignment, size compared to the page width, number of lines, weight, case, any tilt or overlap with the picture.",
+                  "TEXT: each smaller text block or label box, with its position and size. Call them by role only, such as small label box or button box.",
+                  "DECOR: frames, shapes, badges, dividers, shadows, textures, and where each sits, described by shape only.",
                   "TYPE: the typeface by name if you recognize it, otherwise its style, weight and case, for headline and body.",
                   "Use positions like top-left, center, bottom third, and sizes in percent of the page.",
-                  "Do not mention any color, logo, brand name, or the words printed on the image.",
+                  "Never name the food, objects, people, products, apps, prices, tablecloth or background pattern in the image. Never mention any color, logo, brand name, or the words printed on it.",
                 ].join("\n"),
               },
             ],
@@ -1184,17 +1185,20 @@ Deno.serve(async (req: Request) => {
     ).catch(() => "");
     const logo = await selectedLogo(admin, planId);
     const productPhotos = await briefProductPhotos(admin, planId).catch(() => []);
-    const brief = buildCanvaCarouselBrief({
+    const briefInput = {
       title: String(plan.title ?? ""),
       caption: String(captions?.[0]?.content ?? ""),
       slides,
       styleLock,
       palette: carouselPalette(String(plan.brief ?? "")),
-      logo: logo ? "required" : "none",
+      logo: (logo ? "required" : "none") as "required" | "none",
       menus: productPhotos.map((photo) => photo.name),
       requiredNote: String(employeeBrief?.required_notes ?? ""),
       forbiddenNote: String(employeeBrief?.forbidden_notes ?? ""),
-    });
+    };
+    let brief = buildCanvaCarouselBrief(briefInput, { limit: BRIEF_LIMIT_FULL });
+    // Canva has not documented a brief limit: a shorter brief is the retry when the long one fails.
+    const shortBrief = buildCanvaCarouselBrief(briefInput, { limit: BRIEF_LIMIT_SHORT });
 
     console.log(JSON.stringify({ event: "canva_brief", plan_id: planId, chars: brief.length, brief }));
 
@@ -1221,12 +1225,25 @@ Deno.serve(async (req: Request) => {
         user_intent: USER_INTENT,
       });
     } catch (error) {
-      if (!/format|portrait|design type/i.test(publicError(error))) throw error;
-      retriedWithoutFormat = true;
-      created = await callTool(admin, organizationId, token, "create-design", {
-        brief,
-        user_intent: USER_INTENT,
-      });
+      const message = publicError(error);
+      if (/format|portrait|design type/i.test(message)) {
+        retriedWithoutFormat = true;
+        created = await callTool(admin, organizationId, token, "create-design", {
+          brief,
+          user_intent: USER_INTENT,
+        });
+      } else if (brief.length > shortBrief.length && !pollIsTransient(message)) {
+        // The long brief may be what Canva refused: try the short one once.
+        console.log(JSON.stringify({ event: "canva_brief_retry_short", plan_id: planId, chars: shortBrief.length, failure: message }));
+        brief = shortBrief;
+        created = await callTool(admin, organizationId, token, "create-design", {
+          brief,
+          format: PORTRAIT_FORMAT,
+          user_intent: USER_INTENT,
+        });
+      } else {
+        throw error;
+      }
     }
     token = created.token;
     const formatRejected = !retriedWithoutFormat
@@ -1235,6 +1252,21 @@ Deno.serve(async (req: Request) => {
     if (formatRejected) {
       created = await callTool(admin, organizationId, token, "create-design", {
         brief,
+        user_intent: USER_INTENT,
+      });
+      token = created.token;
+    }
+    if ((created.job.status === "failed" || !created.job.jobId) && brief.length > shortBrief.length) {
+      console.log(JSON.stringify({
+        event: "canva_brief_retry_short",
+        plan_id: planId,
+        chars: shortBrief.length,
+        failure: created.job.failureMessage.slice(0, 200),
+      }));
+      brief = shortBrief;
+      created = await callTool(admin, organizationId, token, "create-design", {
+        brief,
+        ...(retriedWithoutFormat || formatRejected ? {} : { format: PORTRAIT_FORMAT }),
         user_intent: USER_INTENT,
       });
       token = created.token;

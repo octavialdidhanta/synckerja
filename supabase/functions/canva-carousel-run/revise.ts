@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callCanvaTool, canvaEditingMode, listCanvaMcpTools } from "../_shared/canvaMcp.ts";
 import { readCanvaToolJson } from "../_shared/canvaMcpParse.ts";
+import { photoRules } from "../_shared/canvaCarouselBrief.ts";
 import { getCanvaAccessToken } from "../_shared/canvaToken.ts";
 
 type TextElement = { elementId: string; text: string; page: number };
@@ -775,8 +776,10 @@ export async function reviseCarousel(
             image.kind === "replace" ? "Edit the reference image." : "Create a simple graphic.",
             "Keep the same illustration style.",
             image.prompt,
+            // Food, meat and people in a revised picture follow the same rules as the first design.
+            photoRules(image.prompt),
             "Do not add written text.",
-          ].join(" "),
+          ].filter(Boolean).join(" "),
           image.kind === "replace" ? reference?.assetId ?? "" : "",
         );
         token = generated.token;
