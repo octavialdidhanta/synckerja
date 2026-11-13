@@ -131,6 +131,7 @@ export async function addThinkingIdea(
   const ask = makeAsk(config, ctx, deps);
   const peers = crossPeersFromIdeas(ideas);
   const checked = await runIdeaPassChecks({
+    batch: true,
     statement,
     angle: context.angle.statement,
     territory: context.territory.statement,

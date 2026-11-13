@@ -315,6 +315,55 @@ describe("idea K1–K7", () => {
     expect(validation.decision).toBe("LOLOS");
   });
 
+  it("batch asks every open check in one call", async () => {
+    const asked: string[] = [];
+    const validation = await runIdeaPassChecks({
+      statement: "Bagaimana jika penugasan proyek memakai skor tim?",
+      mechanism: "Tugas dibagi menurut hasil tim",
+      value: "Orang tidak dipilah sendirian",
+      angle: ANGLE,
+      territory: TERRITORY,
+      bigThought: BIG,
+      masterThought: MASTER,
+      failures: [],
+      validatedAt: NOW,
+      batch: true,
+      ask: async (prompt) => {
+        const single = prompt.match(/Decide check (K\d)/)?.[1];
+        asked.push(single ?? "batch");
+        if (single) return auditPass(single);
+        return JSON.stringify(Object.fromEntries(["K1", "K3", "K4", "K6", "K7"].map((id) => [id, JSON.parse(auditPass(id))])));
+      },
+    });
+    expect(asked).toEqual(["batch"]);
+    expect(validation.decision).toBe("LOLOS");
+  });
+
+  it("batch: a fail is decided again by the one-check prompt", async () => {
+    const asked: string[] = [];
+    const validation = await runIdeaPassChecks({
+      statement: "Bagaimana jika penugasan proyek memakai skor tim?",
+      mechanism: "Tugas dibagi menurut hasil tim",
+      value: "Orang tidak dipilah sendirian",
+      angle: ANGLE,
+      territory: TERRITORY,
+      bigThought: BIG,
+      masterThought: MASTER,
+      failures: [],
+      validatedAt: NOW,
+      batch: true,
+      ask: async (prompt) => {
+        const single = prompt.match(/Decide check (K\d)/)?.[1];
+        asked.push(single ?? "batch");
+        if (single) return auditPass(single);
+        const rows = Object.fromEntries(["K1", "K4", "K6", "K7"].map((id) => [id, JSON.parse(auditPass(id))]));
+        return JSON.stringify({ ...rows, K3: { pass: false, reason: "Nilainya tidak mengikuti mekanisme." } });
+      },
+    });
+    expect(asked).toEqual(["batch", "K3"]);
+    expect(validation.decision).toBe("LOLOS");
+  });
+
   it("shows the failed requirement and stops there", async () => {
     const asked: string[] = [];
     const validation = await runIdeaPassChecks({
