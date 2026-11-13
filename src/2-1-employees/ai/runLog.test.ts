@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ideaCode, jakartaMonth, parseRunLog, runReason, shiftMonth } from "./runLog";
+import { chainOptions, ideaCode, jakartaMonth, parseRunLog, rowFitsChain, runReason, setChainLevel, shiftMonth, summarizeRows } from "./runLog";
 
 const t = (_key: string, fallback: string) => fallback;
 
@@ -74,5 +74,49 @@ describe("months", () => {
 
   it("uses the Jakarta month", () => {
     expect(jakartaMonth(new Date("2026-10-31T18:00:00Z"))).toBe("2026-11");
+  });
+});
+
+describe("chain filters", () => {
+  const chain = (master: string, angle: string, idea: string) => ({
+    idea: { id: idea, code: idea.toUpperCase(), statement: `Idea ${idea}` },
+    angle: { id: angle, code: angle.toUpperCase(), statement: `Angle ${angle}` },
+    territory: { id: "t1", code: "TR01", statement: "Territory" },
+    big_thought: { id: "b1", code: "BT01", statement: "Big" },
+    master: { id: master, statement: `Master ${master}` },
+  });
+  const log = parseRunLog({
+    rows: [
+      { id: "r1", status: "succeeded", plans: [{ id: "p1", chain: chain("m1", "a1", "i1") }] },
+      { id: "r2", status: "failed", plans: [], attempt: { chain: chain("m1", "a2", "i2"), pillar_name: "P" } },
+      { id: "r3", status: "succeeded", plans: [{ id: "p3", chain: chain("m2", "a3", "i3") }] },
+      { id: "r4", status: "deferred", plans: [] },
+    ],
+  });
+
+  it("lists children of the chosen parent only", () => {
+    expect(chainOptions(log.rows, {}, "master").map((option) => option.id).join(",")).toBe("m1,m2");
+    expect(chainOptions(log.rows, { master: "m1" }, "angle").map((option) => option.id).join(",")).toBe("a1,a2");
+    expect(chainOptions(log.rows, { master: "m1" }, "angle")[0].label).toBe("A1 · Angle a1");
+  });
+
+  it("filters runs, including the idea a failed run tried", () => {
+    const filter = { master: "m1" };
+    expect(log.rows.filter((row) => rowFitsChain(row, filter)).map((row) => row.id).join(",")).toBe("r1,r2");
+    expect(log.rows.filter((row) => rowFitsChain(row, {})).length).toBe(4);
+  });
+
+  it("clears the levels below a changed parent", () => {
+    expect(setChainLevel({ master: "m1", angle: "a1", idea: "i1" }, "master", "m2")).toEqual({ master: "m2" });
+    expect(setChainLevel({ master: "m1", angle: "a1" }, "angle", "")).toEqual({ master: "m1" });
+  });
+
+  it("recounts the summary for the shown runs", () => {
+    const summary = summarizeRows(log.rows.filter((row) => rowFitsChain(row, { master: "m1" })));
+    expect(summary.runs).toBe(2);
+    expect(summary.succeeded).toBe(1);
+    expect(summary.failed).toBe(1);
+    expect(summary.plans).toBe(1);
+    expect(summary.uniqueIdeas).toBe(1);
   });
 });
