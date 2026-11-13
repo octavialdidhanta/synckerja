@@ -68,6 +68,11 @@ import {
   validatePlanDraft,
   rotateReference,
   briefWithReference,
+  hookFromElement,
+  headlineFromElement,
+  headlineRepeats,
+  openingStyleFor,
+  usedOpenings,
 } from "../../supabase/functions/_shared/aiEmployee/planDraft.mjs";
 
 const pillarId = "11111111-1111-4111-8111-111111111111";
@@ -1575,4 +1580,45 @@ test("brief dibatasi ke satu slot referensi", () => {
   assert.deepEqual(briefWithReference(brief, 3).references, [{ position: 3 }]);
   assert.equal(briefWithReference(brief, null), brief);
   assert.equal(briefWithReference(brief, 2), brief);
+});
+
+test("judul slide dibaca dari Hook headline atau Headline, berhenti di Arah gambar", () => {
+  assert.equal(hookFromElement("Hook headline: Alot? Bye-bye! Visual hook: Sate. Arah gambar: panah"), "Alot? Bye-bye!");
+  assert.equal(hookFromElement("Hook headline: Alot? Arah gambar: panah ke daging. Visual hook: Sate"), "Alot?");
+  assert.equal(headlineFromElement("Headline: Garansi Daging Empuk. Point: Kambing muda. Referensi 2"), "Garansi Daging Empuk");
+  assert.equal(headlineFromElement("Headline: Serat Halus. Arah gambar: panah ke serat"), "Serat Halus");
+  assert.equal(headlineFromElement("Warna: merah muda"), "");
+});
+
+test("judul slide yang berulang hanya dilaporkan", () => {
+  const priors = [{ title: "Plan lama", headlines: ["Garansi Rasa Daging Empuk Banget"] }];
+  const found = headlineRepeats(["Garansi Rasa Daging Empuk Banget", "Serat Halus Kambing Muda"], priors);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].prior_title, "Plan lama");
+  assert.equal(headlineRepeats(["Judul baru sama sekali beda"], priors).length, 0);
+});
+
+test("prompt SOP1 meminta Headline, Arah gambar, dan vo paling banyak 12 kata", () => {
+  const prompt = buildSop1Prompt({ day: "2026-11-14", pillar: { id: "p", name: "P" }, steps: [], catalog: [], thinking: [], feedback: [], plans: [], brief: null, performance: [], service: null, idea: null, product: [] });
+  assert.match(prompt, /paling banyak 12 kata/);
+  assert.match(prompt, /'Headline: \.\.\.'/);
+  assert.match(prompt, /'Arah gambar: \.\.\.'/);
+});
+
+test("gaya pembuka bergilir dan pembuka lama dilarang sejak percobaan pertama", () => {
+  const seen = new Set(Array.from({ length: 6 }, (_, index) => openingStyleFor(index).id));
+  assert.equal(seen.size, 6);
+  assert.equal(openingStyleFor(6).id, openingStyleFor(0).id);
+  assert.equal(openingStyleFor(-1).id, openingStyleFor(5).id);
+  const priors = [
+    { title: "A", opening: "Pernah nggak sih kamu makan sate kambing tapi dagingnya alot?", hook: "Daging Kambing Alot? Bye-bye deh!" },
+    { title: "B", opening: "Pernah nggak sih kamu bingung milih daging?", hook: "" },
+  ];
+  const used = usedOpenings(priors);
+  assert.equal(used.phrases.includes("Pernah nggak sih kamu makan sate kambing tapi dagingnya alot?"), true);
+  assert.deepEqual(used.starts, ["pernah nggak sih"]);
+  const prompt = buildSop1Prompt({ day: "2026-11-14", pillar: { id: "p", name: "P" }, steps: [], catalog: [], thinking: [], feedback: [], plans: priors, brief: null, performance: [], service: null, idea: null, product: [], openingStyle: openingStyleFor(0) });
+  assert.match(prompt, /Gaya pembuka slide 1 wajib: Fakta mengejutkan/);
+  assert.match(prompt, /Jangan memulai Hook headline atau vo slide 1 dengan kata-kata ini: \["pernah nggak sih"\]/);
+  assert.match(prompt, /Pernah nggak sih kamu makan sate kambing tapi dagingnya alot\?/);
 });

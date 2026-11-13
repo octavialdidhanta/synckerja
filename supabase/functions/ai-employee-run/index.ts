@@ -46,6 +46,9 @@ import {
   copyCollides,
   copyFingerprint,
   hookFromElement,
+  headlineFromElement,
+  headlineRepeats,
+  openingStyleFor,
   orderCopyFallbackPaths,
   selectCopyPriors,
   pickUnusedIdea,
@@ -99,6 +102,7 @@ type CopyPrior = {
   hook: string;
   opening: string;
   lines: string[];
+  headlines?: string[];
 };
 
 function copyPriorFromBrief(row: Record<string, unknown>, pillarName: string): CopyPrior {
@@ -114,6 +118,7 @@ function copyPriorFromBrief(row: Record<string, unknown>, pillarName: string): C
     hook: hookFromElement(slides[0]?.elements ?? ""),
     opening: lines[0] ?? "",
     lines,
+    headlines: slides.map((slide) => headlineFromElement(slide.elements)).filter(Boolean),
   };
 }
 
@@ -129,6 +134,9 @@ function rememberCopy(memory: CopyPrior[], plan: { title?: string; slides?: unkn
     hook: fingerprint.hook,
     opening: fingerprint.lines[0] ?? "",
     lines: fingerprint.lines,
+    headlines: (Array.isArray(plan.slides) ? plan.slides : [])
+      .map((slide) => headlineFromElement((slide as { element?: unknown })?.element))
+      .filter(Boolean),
   });
 }
 
@@ -1218,6 +1226,13 @@ Deno.serve(async (req: Request) => {
           for (const row of recent.data ?? []) recentReferenceBriefs.push(String((row as { brief?: unknown }).brief ?? ""));
         }
       }
+      // Plans this employee already has: the opening style rotates from here.
+      const planCountResult = await admin
+        .from("social_media_plans")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", employee.organization_id)
+        .eq("pic_id", employeeId);
+      const openingSeed = planCountResult.count ?? 0;
       let dayIndex = 0;
       let ideaTries = 0;
       let ideaCap = focused ? Math.max(carouselPaths.length, 1) : 1;
@@ -1316,6 +1331,8 @@ Deno.serve(async (req: Request) => {
               path: promptPath,
               avoid,
               menus,
+              // A rejected draft also moves to the next opening style.
+              openingStyle: openingStyleFor(openingSeed + dayIndex + attempt - 1),
             }), avoid ? RETRY_TEMPERATURE : 0);
             if (result.kind !== "ok") return result;
             const parsed = parseCarouselDraft(result.script, draftNotes);
@@ -1356,6 +1373,11 @@ Deno.serve(async (req: Request) => {
             if (attempt >= 3) { idea.skip = true; break; }
             avoid = collision.reason;
             continue;
+          }
+          // Slide titles are what Canva shows biggest; repeats are only logged for now.
+          const repeated = headlineRepeats(candidate.slides.map((slide) => headlineFromElement(slide.element)), compared);
+          if (repeated.length > 0) {
+            console.log(JSON.stringify({ event: "sop1_headline_repeat", run_id: runId, attempt, draft_title: candidate.title, repeats: repeated.slice(0, 5) }));
           }
           const judge = async (draft: typeof candidate) => withRetry(async () => {
             const result = await modelScript(buildExecutionCheckPrompt({
