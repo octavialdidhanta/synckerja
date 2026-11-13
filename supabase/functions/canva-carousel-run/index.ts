@@ -898,12 +898,23 @@ async function referenceStyleLock(
                 },
               },
               {
-                text: `This image is layout reference ${row.position} for an Instagram carousel page. Describe its layout so a designer can rebuild it without seeing it. Write short plain sentences covering, in order: the main photo (where it sits, how much of the page it fills, its crop or shape); the headline (position, alignment, size compared to the page, number of lines); the smaller text blocks and labels and where they sit; any frames, shapes, stickers, badges or dividers and where they sit; the typeface (name it if you recognize it, otherwise its style, weight and case). Do not mention any color, logo, brand name, or the words printed on the image. Maximum 110 words.`,
+                text: [
+                  `This image is layout reference ${row.position} for one Instagram carousel page (portrait 4:5).`,
+                  "Describe its layout so a designer who never sees it can rebuild it. Be as detailed as you need.",
+                  "Answer in exactly these five labelled lines, each label once, in this order:",
+                  "PHOTO: where the main photo or picture sits, what share of the page it fills in percent, its crop or shape, what it shows in general terms.",
+                  "HEADLINE: position, alignment, size compared to the page width, number of lines, weight, case, any tilt or overlap with the photo.",
+                  "TEXT: every smaller text block, label, price tag or call to action, with its position and size.",
+                  "DECOR: frames, shapes, stickers, badges, dividers, shadows, textures, and where each sits.",
+                  "TYPE: the typeface by name if you recognize it, otherwise its style, weight and case, for headline and body.",
+                  "Use positions like top-left, center, bottom third, and sizes in percent of the page.",
+                  "Do not mention any color, logo, brand name, or the words printed on the image.",
+                ].join("\n"),
               },
             ],
           }],
           // gemini-2.5 spends output tokens on thinking first; turn it off so the reply is not cut.
-          generationConfig: { temperature: 0.2, maxOutputTokens: 600, thinkingConfig: { thinkingBudget: 0 } },
+          generationConfig: { temperature: 0.2, maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } },
         }),
       },
     );
@@ -914,6 +925,13 @@ async function referenceStyleLock(
     const text = layoutOnlyDescription((body.candidates?.[0]?.content?.parts ?? [])
       .map((part) => part.text ?? "")
       .join(" "));
+    console.log(JSON.stringify({
+      event: "canva_layout_description",
+      employee_id: employeeId,
+      position: Number(row.position),
+      chars: text.length,
+      text: text.slice(0, 2000),
+    }));
     if (text) notes.push(`Referensi ${row.position}: ${text}`);
   }
   return notes.join(" ");
@@ -1177,6 +1195,8 @@ Deno.serve(async (req: Request) => {
       requiredNote: String(employeeBrief?.required_notes ?? ""),
       forbiddenNote: String(employeeBrief?.forbidden_notes ?? ""),
     });
+
+    console.log(JSON.stringify({ event: "canva_brief", plan_id: planId, chars: brief.length, brief }));
 
     let token = await accessToken(admin, organizationId);
     let tools: string[] = [];
