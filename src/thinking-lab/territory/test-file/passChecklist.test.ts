@@ -23,7 +23,7 @@ describe("territory pass checklist", () => {
     expect(prompt).toContain("pass is false when the name is not an area in the audience's world");
     expect(prompt).not.toContain("pass is false only when");
     expect(prompt).toContain("does not make the name a copied keyword");
-    expect(prompt).toContain("does not make pass false");
+    expect(prompt).toContain("so general that any Big Thought of this Master Thought could be placed there");
     expect(prompt).toContain("return pass true");
     expect(prompt).toContain("Makan siang kantor");
     expect(
@@ -56,21 +56,21 @@ describe("territory pass checklist", () => {
         statement: "Makan siang kantor",
         parentStatement: parent,
       }),
-    ).toContain("several different Angles");
+    ).toContain("Name them in your reasoning before you decide.");
     expect(
       buildTerritoryPassPrompt({
         id: "wideEnough",
         statement: "Daging sate",
         parentStatement: parent,
       }),
-    ).toContain("If the only observation you can cite comes from the Big Thought, pass is true.");
+    ).toContain("at least two different rarely noticed observations in this place, besides the Big Thought's own answer");
     expect(
       buildTerritoryPassPrompt({
         id: "wideEnough",
         statement: "Daging sate",
         parentStatement: parent,
       }),
-    ).toContain("only observation you can cite comes from the Big Thought, return pass true");
+    ).toContain("When you cannot name two different observations there besides the Big Thought's answer, do not return pass true.");
     expect(
       buildTerritoryPassPrompt({
         id: "wideEnough",
@@ -145,7 +145,7 @@ describe("territory pass checklist", () => {
     const ask = vi.fn(async (prompt: string) => {
       if (prompt.includes("how the audience would name")) return '{"pass":true,"reason":""}';
       if (prompt.includes("question the Big Thought answers")) return '{"pass":true,"reason":""}';
-      if (prompt.includes("several different Angles")) return '{"pass":true,"reason":""}';
+      if (prompt.includes("Name them in your reasoning before you decide.")) return '{"pass":true,"reason":""}';
       return '{"pass":false,"reason":"should not be asked"}';
     });
     const ensureQuestion = vi.fn(async () => "Pertanyaan baru");
