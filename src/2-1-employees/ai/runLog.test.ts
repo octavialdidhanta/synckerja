@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chainOptions, parsePillars, pillarOptions, rowFitsPillar, selectInTree, parseThinkingTree, treeOptions, ideaCode, jakartaMonth, parseRunLog, rowFitsChain, runReason, setChainLevel, shiftMonth, summarizeRows } from "./runLog";
+import { coverageMap, chainOptions, parsePillars, pillarOptions, rowFitsPillar, selectInTree, parseThinkingTree, treeOptions, ideaCode, jakartaMonth, parseRunLog, rowFitsChain, runReason, setChainLevel, shiftMonth, summarizeRows } from "./runLog";
 
 const t = (_key: string, fallback: string) => fallback;
 
@@ -193,5 +193,42 @@ describe("idea picks its parents, pillar filter", () => {
     expect(rowFitsPillar(log.rows[1], "p9")).toBe(true);
     expect(rowFitsPillar(log.rows[0], "p9")).toBe(false);
     expect(rowFitsPillar(log.rows[0], "")).toBe(true);
+  });
+});
+
+describe("coverage map", () => {
+  const tree = parseThinkingTree([
+    { level: "master", id: "m1", label: "MT" },
+    { level: "bigThought", id: "b1", parent_id: "m1", code: "BT01", label: "BT" },
+    { level: "territory", id: "t1", parent_id: "b1", code: "TR01", label: "TR" },
+    { level: "angle", id: "a1", parent_id: "t1", code: "AN01", label: "Satu", in_focus: true },
+    { level: "angle", id: "a2", parent_id: "t1", code: "AN02", label: "Dua" },
+    { level: "idea", id: "i1", parent_id: "a1", code: "ID01", label: "x", ready: true },
+    { level: "idea", id: "i2", parent_id: "a1", code: "ID02", label: "y", ready: true },
+  ]);
+  const chain = { idea: { id: "i1", code: "ID01", statement: "x" }, angle: { id: "a1", code: "AN01", statement: "Satu" } };
+  const log = parseRunLog({
+    rows: [
+      { id: "r1", status: "succeeded", plans: [{ id: "p1", pillar_id: "pa", pillar_name: "Myth vs Fact", chain }] },
+      { id: "r2", status: "succeeded", plans: [{ id: "p2", pillar_id: "pa", pillar_name: "Myth vs Fact", chain }] },
+      { id: "r3", status: "failed", plans: [], attempt: { pillar_id: "pb", pillar_name: "Case Study", chain } },
+    ],
+  });
+
+  it("counts plans and failed tries per angle and pillar, empty angles kept", () => {
+    const map = coverageMap(tree, log.rows, {});
+    expect(map.pillars.map((pillar) => `${pillar.label}:${pillar.plans}`).join(",")).toBe("Myth vs Fact:2,Case Study:0");
+    expect(map.rows.map((row) => row.angleId).join(",")).toBe("a1,a2");
+    expect(map.rows[0].cells.pa.plans).toBe(2);
+    expect(map.rows[0].cells.pb.failed).toBe(1);
+    expect(`${map.rows[0].ideasUsed}/${map.rows[0].ideasReady}`).toBe("1/2");
+    expect(map.rows[1].plans).toBe(0);
+  });
+
+  it("keeps only the chosen pillar", () => {
+    const map = coverageMap(tree, log.rows, {}, "pb");
+    expect(map.pillars.map((pillar) => pillar.id).join(",")).toBe("pb");
+    expect(map.rows[0].plans).toBe(0);
+    expect(map.rows[0].failed).toBe(1);
   });
 });
