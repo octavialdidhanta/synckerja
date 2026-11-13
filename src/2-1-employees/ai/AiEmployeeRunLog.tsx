@@ -14,11 +14,13 @@ import {
   ideaCode,
   jakartaMonth,
   parseRunLog,
+  parseThinkingTree,
   rowFitsChain,
   runReason,
   setChainLevel,
   shiftMonth,
   summarizeRows,
+  treeOptions,
   type ChainFilter,
   type ChainLevel,
   type IdeaChain,
@@ -42,6 +44,20 @@ function useRunLog(employeeId: string, month: string) {
       });
       if (error) throw error;
       return parseRunLog(data);
+    },
+  });
+}
+
+/** The organization's whole Thinking Lab tree, so filters also show branches never used. */
+function useThinkingTree(employeeId: string) {
+  return useQuery({
+    queryKey: [RUN_LOG_KEY, "tree", employeeId],
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("ai_employee_thinking_tree", { p_employee_id: employeeId });
+      if (error) throw error;
+      return parseThinkingTree(data);
     },
   });
 }
@@ -115,14 +131,18 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [chainFilter, setChainFilter] = useState<ChainFilter>({});
   const query = useRunLog(employeeId, month);
+  const treeQuery = useThinkingTree(employeeId);
+  const tree = treeQuery.data ?? [];
   const log = query.data;
   const thisMonth = jakartaMonth();
 
-  const rows = useMemo(() => (log?.rows ?? []).filter((row) => {
+  // Status and source first: the run counts in the chain filters follow them.
+  const baseRows = useMemo(() => (log?.rows ?? []).filter((row) => {
     if (statusFilter !== "all" && statusGroup(row.status) !== statusFilter) return false;
     if (sourceFilter !== "all" && row.source !== sourceFilter) return false;
-    return rowFitsChain(row, chainFilter);
-  }), [log, statusFilter, sourceFilter, chainFilter]);
+    return true;
+  }), [log, statusFilter, sourceFilter]);
+  const rows = useMemo(() => baseRows.filter((row) => rowFitsChain(row, chainFilter)), [baseRows, chainFilter]);
   const filtered = statusFilter !== "all" || sourceFilter !== "all" || chainFilterActive(chainFilter);
   const levelLabels: Record<ChainLevel, string> = {
     master: t("aiEmployee.log.master", "Master Thought"),
@@ -131,10 +151,16 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
     angle: t("aiEmployee.log.angle", "Angle"),
     idea: t("aiEmployee.log.idea", "Idea"),
   };
-  // Choices of each level come from the runs of this month under the levels chosen above it.
+  // Choices of each level: the whole Thinking Lab under the levels chosen above it, with this
+  // month's runs (0 for branches never used). Without the tree, only branches that have runs.
   const levelOptions = useMemo(
-    () => Object.fromEntries(CHAIN_LEVELS.map((level) => [level, chainOptions(log?.rows ?? [], chainFilter, level)])) as Record<ChainLevel, ReturnType<typeof chainOptions>>,
-    [log, chainFilter],
+    () => Object.fromEntries(CHAIN_LEVELS.map((level) => [
+      level,
+      tree.length > 0
+        ? treeOptions(tree, baseRows, chainFilter, level)
+        : chainOptions(baseRows, chainFilter, level).map((option) => ({ ...option, ready: true, inFocus: false })),
+    ])) as Record<ChainLevel, ReturnType<typeof treeOptions>>,
+    [tree, baseRows, chainFilter],
   );
   const changeMonth = (step: number) => {
     setMonth((value) => shiftMonth(value, step));
@@ -249,7 +275,11 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
                   </SelectItem>
                   {options.map((option) => (
                     <SelectItem key={option.id} value={option.id}>
-                      <span className="block max-w-[24rem] truncate">{option.label} ({option.runs})</span>
+                      <span className={cn("block max-w-[24rem] truncate", option.runs === 0 && "text-muted-foreground")}>
+                        {option.label} ({option.runs})
+                        {option.inFocus ? ` · ${t("aiEmployee.log.filter.inFocus", "fokus")}` : ""}
+                        {!option.ready ? ` · ${t("aiEmployee.log.filter.notLocked", "belum dikunci")}` : ""}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>

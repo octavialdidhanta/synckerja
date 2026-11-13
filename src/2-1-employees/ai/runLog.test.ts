@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chainOptions, ideaCode, jakartaMonth, parseRunLog, rowFitsChain, runReason, setChainLevel, shiftMonth, summarizeRows } from "./runLog";
+import { chainOptions, parseThinkingTree, treeOptions, ideaCode, jakartaMonth, parseRunLog, rowFitsChain, runReason, setChainLevel, shiftMonth, summarizeRows } from "./runLog";
 
 const t = (_key: string, fallback: string) => fallback;
 
@@ -118,5 +118,46 @@ describe("chain filters", () => {
     expect(summary.failed).toBe(1);
     expect(summary.plans).toBe(1);
     expect(summary.uniqueIdeas).toBe(1);
+  });
+});
+
+describe("thinking tree options", () => {
+  const tree = parseThinkingTree([
+    { level: "master", id: "m1", label: "Garansi empuk", ready: true },
+    { level: "master", id: "m2", label: "Bebas prengus", ready: true },
+    { level: "bigThought", id: "b1", parent_id: "m1", code: "BT01", label: "Pemilihan Daging", ready: true },
+    { level: "bigThought", id: "b2", parent_id: "m1", code: "BT02", label: "Proses Memasak", ready: true },
+    { level: "bigThought", id: "b3", parent_id: "m2", code: "BT01", label: "Daging Pilihan", ready: true },
+    { level: "territory", id: "t1", parent_id: "b1", code: "TR01", label: "diskusi kuliner", ready: true },
+    { level: "angle", id: "a1", parent_id: "t1", code: "AN01", label: "Angle satu", ready: true, in_focus: true },
+    { level: "idea", id: "i1", parent_id: "a1", code: "ID01", label: "Idea satu", ready: true },
+    { level: "idea", id: "i2", parent_id: "a1", code: "ID02", label: "Idea dua", ready: false },
+    { level: "other", id: "x" },
+  ]);
+  const log = parseRunLog({
+    rows: [{ id: "r1", status: "succeeded", plans: [{ id: "p1", chain: {
+      idea: { id: "i1", code: "ID01", statement: "Idea satu" },
+      angle: { id: "a1", code: "AN01", statement: "Angle satu" },
+      territory: { id: "t1", code: "TR01", statement: "diskusi kuliner" },
+      big_thought: { id: "b1", code: "BT01", statement: "x" },
+      master: { id: "m1", statement: "Garansi empuk" },
+    } }] }],
+  });
+
+  it("lists every branch, used or not, with the parent named while it is open", () => {
+    const thoughts = treeOptions(tree, log.rows, {}, "bigThought");
+    expect(thoughts.length).toBe(3);
+    expect(thoughts[0].label).toBe("BT01 · Pemilihan Daging — Garansi empuk");
+    expect(thoughts.map((option) => option.runs).join(",")).toBe("1,0,0");
+  });
+
+  it("limits children to the chosen parent and drops the hint", () => {
+    const thoughts = treeOptions(tree, log.rows, { master: "m1" }, "bigThought");
+    expect(thoughts.map((option) => option.id).join(",")).toBe("b1,b2");
+    expect(thoughts[1].label).toBe("BT02 · Proses Memasak");
+    const ideas = treeOptions(tree, log.rows, { master: "m1", angle: "a1" }, "idea");
+    expect(ideas.map((option) => `${option.id}:${option.runs}:${option.ready}`).join(",")).toBe("i1:1:true,i2:0:false");
+    expect(treeOptions(tree, log.rows, { master: "m2" }, "idea").length).toBe(0);
+    expect(treeOptions(tree, log.rows, {}, "angle")[0].inFocus).toBe(true);
   });
 });

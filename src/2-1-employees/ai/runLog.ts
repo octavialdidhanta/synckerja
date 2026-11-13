@@ -328,3 +328,86 @@ export function summarizeRows(rows: RunLogRow[]): RunLogSummary {
   summary.uniqueIdeas = ideas.size;
   return summary;
 }
+
+/** One node of the organization's Thinking Lab tree. */
+export type TreeNode = {
+  level: ChainLevel;
+  id: string;
+  parentId: string;
+  code: string;
+  label: string;
+  ready: boolean;
+  inFocus: boolean;
+};
+
+export type TreeOption = ChainOption & { ready: boolean; inFocus: boolean };
+
+export function parseThinkingTree(value: unknown): TreeNode[] {
+  const list = Array.isArray(value) ? value : [];
+  return list.flatMap((item) => {
+    const row = record(item);
+    const level = text(row?.level) as ChainLevel;
+    if (!row || !CHAIN_LEVELS.includes(level) || !text(row.id)) return [];
+    return [{
+      level,
+      id: text(row.id),
+      parentId: text(row.parent_id),
+      code: text(row.code).trim(),
+      label: text(row.label).replace(/\s+/g, " ").trim(),
+      ready: row.ready === true,
+      inFocus: row.in_focus === true,
+    }];
+  });
+}
+
+function shorten(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max - 1).trimEnd()}…` : value;
+}
+
+/** Runs per Thinking Lab node (any level), each run counted once per node. */
+export function runsPerNode(rows: RunLogRow[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const ids = new Set<string>();
+    for (const chain of rowChains(row)) {
+      CHAIN_LEVELS.forEach((level) => {
+        const id = chain[level]?.id;
+        if (id) ids.add(id);
+      });
+    }
+    ids.forEach((id) => counts.set(id, (counts.get(id) ?? 0) + 1));
+  }
+  return counts;
+}
+
+/**
+ * Choices of one level from the whole Thinking Lab tree, under the levels chosen above it,
+ * including branches with no run yet (0), so what is uneven or untouched shows up.
+ */
+export function treeOptions(tree: TreeNode[], rows: RunLogRow[], filter: ChainFilter, level: ChainLevel): TreeOption[] {
+  const byId = new Map(tree.map((node) => [node.id, node]));
+  const depth = CHAIN_LEVELS.indexOf(level);
+  const counts = runsPerNode(rows);
+  const ancestor = (node: TreeNode, wanted: ChainLevel): TreeNode | null => {
+    let current: TreeNode | undefined = node;
+    for (let guard = 0; current && guard < CHAIN_LEVELS.length; guard += 1) {
+      if (current.level === wanted) return current;
+      current = byId.get(current.parentId);
+    }
+    return null;
+  };
+  return tree
+    .filter((node) => node.level === level)
+    .filter((node) => CHAIN_LEVELS.slice(0, depth).every((parent) => !filter[parent] || ancestor(node, parent)?.id === filter[parent]))
+    .map((node) => {
+      const parentLevel = depth > 0 ? CHAIN_LEVELS[depth - 1] : null;
+      const parent = parentLevel ? byId.get(node.parentId) : undefined;
+      // Codes repeat under each parent (two BT01): name the parent while it is not chosen.
+      const hint = parentLevel && !filter[parentLevel] && parent
+        ? ` — ${shorten(parent.code ? `${parent.code} ${parent.label}` : parent.label, 32)}`
+        : "";
+      const body = shorten(node.label, 70);
+      const label = `${node.code ? `${node.code} · ${body}` : body}${hint}`;
+      return { id: node.id, label, runs: counts.get(node.id) ?? 0, ready: node.ready, inFocus: node.inFocus };
+    });
+}
