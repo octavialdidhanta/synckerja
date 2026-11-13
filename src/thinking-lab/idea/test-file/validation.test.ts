@@ -1639,7 +1639,7 @@ describe("Idea language", () => {
 });
 
 describe("K evidence that quotes the idea", () => {
-  it("K1 passes when the explanation says why in its own words, and stays unverified when it only repeats the idea", async () => {
+  it("K1 may quote the idea; other checks may not", async () => {
     const { parseIdeaCriterion } = await import("@/thinking-lab/idea/validation");
     const statement = "Kita belah sate kambing muda dan wagyu berdampingan sehingga terlihat cairan keluar dari lemak di dalam serat.";
     const quoted = parseIdeaCriterion(
@@ -1647,7 +1647,9 @@ describe("K evidence that quotes the idea", () => {
       { statement, id: "K1" },
     );
     expect(quoted.status).toBe("PASS");
-    const bare = parseIdeaCriterion(JSON.stringify({ status: "PASS", evidence: statement, explanation: statement }), { statement, id: "K1" });
-    expect(bare.status).toBe("BELUM_TERVERIFIKASI");
+    const bare = parseIdeaCriterion(JSON.stringify({ pass: true, reason: statement }), { statement, id: "K1" });
+    expect(bare.status).toBe("PASS");
+    const other = parseIdeaCriterion(JSON.stringify({ pass: true, reason: statement }), { statement, id: "K3" });
+    expect(other.status).toBe("BELUM_TERVERIFIKASI");
   });
 });

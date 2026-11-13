@@ -1228,12 +1228,12 @@ export function parseIdeaCriterion(
   }
   if (status === "PASS") {
     const sentence = explanation;
-    // K1 judges the sentence itself, so quoting it is its evidence when the explanation says why in other words.
-    // For every other check, the idea sentence alone is not evidence.
-    const explainedApart = input.id === "K1" && Boolean(sentence && input.statement && !sameText(sentence, input.statement));
+    // K1 judges the sentence itself (its opening is also checked in code), so quoting the sentence is its
+    // evidence. For every other check, the idea sentence alone is not evidence.
+    const k1 = input.id === "K1";
     const copiedStatement = Boolean(
       input.statement &&
-        !explainedApart &&
+        !k1 &&
         ((evidence && sameText(evidence, input.statement)) || (!evidence && sentence && sameText(sentence, input.statement))),
     );
     const missingContextLink = input.requireContextLinks && (!masterThoughtLink || !bigThoughtLink || !territoryLink);
@@ -1257,6 +1257,14 @@ export function parseIdeaCriterion(
             .filter((line) => line.trim() && !line.endsWith(": "))
             .join("\n")
         : sentenceText;
+    const quotesStatement = Boolean(
+      input.statement &&
+        ((sentence && sameText(sentence, input.statement)) || (evidence && sameText(evidence, input.statement))),
+    );
+    if (k1 && quotesStatement && (!sentence || sameText(sentence, input.statement ?? ""))) {
+      const quoted = "The sentence is one specific proposal in the Idea form.";
+      return pack("PASS", { evidence: evidence || input.statement, explanation: quoted, weakness: weakness || quoted });
+    }
     if (evidence && explanation && weakness) {
       return pack("PASS", { evidence, explanation: shownExplanation(explanation), weakness });
     }
