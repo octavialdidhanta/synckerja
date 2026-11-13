@@ -1,21 +1,21 @@
-import { sameIdeaConcept } from "@/thinking-lab/idea/conceptIdentity";
-import { ideaWorldLines } from "@/thinking-lab/idea/discover";
-import type { IdeaDecision } from "@/thinking-lab/idea/setAudit";
+import { sameIdeaConcept } from "./conceptIdentity";
+import { ideaWorldLines } from "./discover";
+import type { IdeaDecision } from "./setAudit";
 import {
   formatFailureMemory,
   howIfInstruction,
   IDEA_K7_RULE,
   type FailureMemoryItem,
   type IdeaValidationDecision,
-} from "@/thinking-lab/idea/validation";
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
-import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
-import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
-import type { IdeaParentDenial } from "@/thinking-lab/idea/eligibility";
-import { admitIdea } from "@/thinking-lab/idea/policy";
-import { judgeIdea, normalizeIdeaFacts, readMechanismKeys } from "@/thinking-lab/idea/semantic";
-import { ideaNodeSummary } from "@/thinking-lab/idea/subject";
-import type { IdeaMechanismKey, IdeaSemanticFacts } from "@/thinking-lab/idea/types";
+} from "./validation";
+import { parseModelJson } from "../shared/parseModelJson";
+import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
+import type { IndividualAdmission } from "../shared/verdict";
+import type { IdeaParentDenial } from "./eligibility";
+import { admitIdea } from "./policy";
+import { judgeIdea, normalizeIdeaFacts, readMechanismKeys } from "./semantic";
+import { ideaNodeSummary } from "./subject";
+import type { IdeaMechanismKey, IdeaSemanticFacts } from "./types";
 
 export const TARGET_IDEA_VALID = 5;
 export const IDEA_ACTIVE_CAP = 10;

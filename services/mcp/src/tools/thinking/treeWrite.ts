@@ -109,6 +109,38 @@ export function angleLockResult(
   return lock(ctx, { territoryId: parsed.data.territory_id });
 }
 
+export const ideaAddInput = z.object({
+  angle_id: z.string().uuid(),
+  statement: sentence(600),
+  subject: z.string().trim().max(120).optional(),
+  keys: z.array(z.object({
+    other_explanation: sentence(300),
+    close: sentence(300),
+  }).strict()).min(1).max(5),
+}).strict();
+
+export type IdeaAddWrite = {
+  angleId: string;
+  statement: string;
+  subject: string;
+  keys: Array<{ otherExplanation: string; close: string }>;
+};
+
+export function ideaAddResult(
+  ctx: McpAuthContext,
+  args: Record<string, unknown>,
+  add: (ctx: McpAuthContext, input: IdeaAddWrite) => Promise<ThinkingWriteResult>,
+): Promise<ThinkingWriteResult> {
+  const parsed = ideaAddInput.safeParse(args);
+  if (!parsed.success) throw new Error("invalid_input");
+  return add(ctx, {
+    angleId: parsed.data.angle_id,
+    statement: parsed.data.statement,
+    subject: parsed.data.subject ?? "",
+    keys: parsed.data.keys.map((key) => ({ otherExplanation: key.other_explanation, close: key.close })),
+  });
+}
+
 export type MasterCreateWrite = { belief: string; priorBelief: string; audience: string; catalog?: string };
 export type MasterCatalogWrite = { masterThoughtId: string; catalog: string };
 export type BigThoughtAddWrite = { masterThoughtId: string; statement: string; label: string };

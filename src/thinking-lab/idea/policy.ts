@@ -1,5 +1,5 @@
-import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
-import type { IdeaSemanticFacts } from "@/thinking-lab/idea/types";
+import type { IndividualAdmission } from "../shared/verdict";
+import type { IdeaSemanticFacts } from "./types";
 
 const REJECT_RELATIONS = new Set<IdeaSemanticFacts["relationToParent"]>([
   "OUT_OF_PARENT_SCOPE",

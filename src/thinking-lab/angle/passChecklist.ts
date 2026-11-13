@@ -116,6 +116,7 @@ function angleGateRules(id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number], subject?
       ? [
           "pass is true only when this Angle would stop being coherent if the distinctive stake of this Territory, or of the Big Thought or Master Thought above it, is removed.",
           "pass is false when the sentence would still stand as an Angle after that stake is removed.",
+          "Also name which part of the Big Thought's reason becomes more believable when this observation is true. pass is false when no part of that reason becomes more believable, even when the observation is true and stays inside the Territory.",
         ]
       : id === "observationShape"
         ? [

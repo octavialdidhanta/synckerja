@@ -26,6 +26,7 @@ import type {
   TerritoryLockWrite,
   AngleAddWrite,
   AngleLockWrite,
+  IdeaAddWrite,
 } from "../tools/thinking/treeWrite";
 import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
@@ -276,6 +277,8 @@ import {
   angleAddResult,
   angleLockInput,
   angleLockResult,
+  ideaAddInput,
+  ideaAddResult,
   chainReadInput,
   chainReadResult,
   executionCheckInput,
@@ -436,6 +439,7 @@ export type McpReadDeps = {
   lockThinkingTerritories: (ctx: McpAuthContext, input: TerritoryLockWrite) => Promise<ThinkingWriteResult>;
   addThinkingAngle: (ctx: McpAuthContext, input: AngleAddWrite) => Promise<ThinkingWriteResult>;
   lockThinkingAngles: (ctx: McpAuthContext, input: AngleLockWrite) => Promise<ThinkingWriteResult>;
+  addThinkingIdea: (ctx: McpAuthContext, input: IdeaAddWrite) => Promise<ThinkingWriteResult>;
   listThinkingIdeas: (ctx: McpAuthContext) => Promise<ThinkingIdeaRow[]>;
   readThinkingChain: (ctx: McpAuthContext, ideaId: string) => Promise<ThinkingChain>;
   checkThinkingExecution: (
@@ -804,6 +808,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "thinking.territory.lock": territoryLockInput,
   "thinking.angle.add": angleAddInput,
   "thinking.angle.lock": angleLockInput,
+  "thinking.idea.add": ideaAddInput,
   "thinking.ideas.list": ideasListInput,
   "thinking.chain.read": chainReadInput,
   "thinking.execution.check": executionCheckInput,
@@ -1436,6 +1441,8 @@ async function runTool(
       return angleAddResult(ctx, args, deps.addThinkingAngle);
     case "thinking.angle.lock":
       return angleLockResult(ctx, args, deps.lockThinkingAngles);
+    case "thinking.idea.add":
+      return ideaAddResult(ctx, args, deps.addThinkingIdea);
     case "thinking.ideas.list":
       return ideasListResult(ctx, deps.listThinkingIdeas);
     case "thinking.chain.read":

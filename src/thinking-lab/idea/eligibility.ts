@@ -1,6 +1,6 @@
-import { angleFingerprint, fingerprintsMatch, territoryFingerprint } from "@/thinking-lab/shared/fingerprint";
-import type { AngleParentDenial } from "@/thinking-lab/angle/eligibility";
-import { evaluateAngleParent } from "@/thinking-lab/angle/eligibility";
+import { angleFingerprint, fingerprintsMatch, territoryFingerprint } from "../shared/fingerprint";
+import type { AngleParentDenial } from "../angle/eligibility";
+import { evaluateAngleParent } from "../angle/eligibility";
 
 export type IdeaParentDenial = AngleParentDenial | "PARENT_UNLOCKED" | "PARENT_STALE" | "PARENT_MISSING";
 

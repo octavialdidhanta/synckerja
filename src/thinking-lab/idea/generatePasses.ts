@@ -1,4 +1,4 @@
-import type { IdeaGeneratePass } from "@/thinking-lab/idea/types";
+import type { IdeaGeneratePass } from "./types";
 
 export const IDEA_GENERATE_PASS_IDS = [
   "sentenceForm",
