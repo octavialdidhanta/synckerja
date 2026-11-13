@@ -1563,7 +1563,7 @@ test("brief boleh 6 fokus angle dan prompt menu tidak menjanjikan foto asli", ()
   assert.match(migration, /'cardinality\(v_angles\) > 6'/);
   const draft = readFileSync(new URL("../../supabase/functions/_shared/aiEmployee/planDraft.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(draft, /Foto asli menu terpilih akan dipasang/);
-  assert.match(draft, /Desainer menggambar makanan dari nama menu ini/);
+  assert.match(draft, /Desainer menggambar produk dari nama menu ini/);
 });
 
 test("rotasi referensi: slot yang belum dipakai dulu, lalu yang paling lama", () => {

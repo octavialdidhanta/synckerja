@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { FOOD_PHOTO_RULE, PERSON_PHOTO_RULE, buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, fitLayoutNote, layoutOnlyDescription, meatHint, meatRule, shortSlideText, slideTexts } from "./canvaCarouselBrief.ts";
+import { FOOD_PHOTO_RULE, PERSON_PHOTO_RULE, PRODUCT_PHOTO_RULE, buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, fitLayoutNote, layoutOnlyDescription, meatHint, meatRule, shortSlideText, slideTexts } from "./canvaCarouselBrief.ts";
 
 const storyboard = [
   "| Timing | Visual | VO (Voice Over) | Scene Visual | Element Lainnya | Tagging |",
@@ -342,4 +342,41 @@ Deno.test("meatHint sits next to sate and goat meat scenes only", () => {
   assertEquals(meatHint("Potongan daging kambing mentah di talenan", true), " (deep red goat meat with thin white fat, not pork-like)");
   assertEquals(meatHint("Ibu tersenyum di dapur", true), "");
   assertEquals(meatHint("Ibu tersenyum di dapur", false), "");
+});
+
+Deno.test("buildCanvaCarouselBrief gives a non-food catalog the product rule, not the food rule", () => {
+  const page = (scene: string, elements: string) => ({ label: "", scene, copy: "Ngecas jadi cepet banget.", elements, tagging: "" });
+  const slides = [
+    page("Tangan mencolokkan charger ke HP di meja kerja, ada cangkir kopi", "Hook headline: HP lowbat terus?"),
+    page("Close up kepala charger dan kabel USB-C", "Headline: Fast charging 20W"),
+  ];
+  const brief = buildCanvaCarouselBrief({ title: "Charger", caption: "", slides, menus: ["Charger 20W USB-C"] });
+  assertEquals(brief.includes("Real products shown: Charger 20W USB-C. Draw these exact products."), true);
+  assertEquals(brief.includes("dishes"), false);
+  assertEquals(brief.includes(PRODUCT_PHOTO_RULE), true);
+  assertEquals(brief.includes(FOOD_PHOTO_RULE), true, "the coffee cup on page 1 is still food in that scene");
+  assertEquals(brief.includes("Meat rule"), false);
+  const plain = buildCanvaCarouselBrief({
+    title: "Charger",
+    caption: "",
+    slides: [page("Close up kepala charger", "Hook headline: HP lowbat terus?"), page("Kabel USB-C", "Headline: 20W")],
+    menus: ["Charger 20W USB-C"],
+    productPhotos: ["Charger 20W USB-C"],
+  });
+  assertEquals(plain.includes(FOOD_PHOTO_RULE), false);
+  assertEquals(plain.includes("Photograph the product yourself"), true);
+  assertEquals(plain.includes("Real food photo."), false);
+});
+
+Deno.test("buildCanvaCarouselBrief keeps the food rule for a food catalog", () => {
+  const page = (scene: string) => ({ label: "", scene, copy: "Enak.", elements: "Headline: Mantap", tagging: "" });
+  const brief = buildCanvaCarouselBrief({
+    title: "Sate",
+    caption: "",
+    slides: [page("Pelanggan tersenyum di warung"), page("Meja kayu di warung")],
+    menus: ["Sate Kambing Muda", "Es Jeruk"],
+  });
+  assertEquals(brief.includes("Real menu shown: Sate Kambing Muda; Es Jeruk. Draw these exact dishes."), true);
+  assertEquals(brief.includes(FOOD_PHOTO_RULE), true);
+  assertEquals(brief.includes(PRODUCT_PHOTO_RULE), false);
 });

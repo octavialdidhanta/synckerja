@@ -327,11 +327,15 @@ function logoLine(logo?: "required" | "none"): string {
 
 const PERSON_SCENE = /(orang|manusia|pria|wanita|perempuan|laki-laki|ibu|ayah|bapak|anak|chef|koki|pelanggan|pelayan|penjual|pembeli|pegawai|karyawan|kasir|barista|bayi|nenek|kakek|suami|istri|remaja|bocah|gadis|pemuda|pemudi|tamu|keluarga|\bperson\b|\bpeople\b|\bman\b|\bwoman\b|\bchild\b|\bboy\b|\bgirl\b)/i;
 
-const FOOD_SCENE = /\b(?:sate|satay|kambing|daging|sop|soto|gulai|iga|nasi|ayam|bebek|ikan|udang|makanan|hidangan|masakan|menu|piring|mangkuk|tusuk|tusukan|bumbu|sambal|kuah|lontong|ketupat|panggang|bakar|goreng|food|dish|meal|plate|skewers?)\b/i;
+const FOOD_SCENE = /\b(?:sate|satay|kambing|daging|sop|soto|gulai|iga|nasi|ayam|bebek|ikan|udang|makanan|hidangan|masakan|kuliner|piring|mangkuk|gule|tongseng|tengkleng|rendang|bakso|mie|kerupuk|minuman|kopi|teh|jus|jeruk|es|tusuk|tusukan|bumbu|sambal|kuah|lontong|ketupat|panggang|bakar|goreng|food|dish|meal|plate|drinks?|beverage|skewers?)\b/i;
 
 /** Written once for the carousel; pages that show people point to it. */
 export const PERSON_PHOTO_RULE =
   "Person photo rule: photograph real humans with natural skin and a real camera. Not an illustration, cartoon, 3D render, or synthetic face.";
+
+/** Written once for a carousel of products that are not food (chargers, clothes, services). */
+export const PRODUCT_PHOTO_RULE =
+  "Product photo rule: the real product shot on a real camera, with the true shape, size, ports, buttons, cables and finish of the product named. No invented logos, brand names or printed text on the product. Not CGI, 3D render, illustration, or too perfect.";
 
 /** Written once for the carousel; pages that show food point to it. */
 export const FOOD_PHOTO_RULE =
@@ -405,19 +409,21 @@ function clipScene(text: string, limit: number): string {
   return (space > limit * 0.6 ? cut.slice(0, space) : cut).replace(/[,.;:\s]+$/, "");
 }
 
-function menuLine(names?: string[]): string {
+function menuLine(names?: string[], food = true): string {
   const list = (names ?? [])
     .map((name) => name.replace(/\s+/g, " ").trim())
     .filter(Boolean)
     .slice(0, 3);
   if (list.length === 0) return "";
-  return `Real menu shown: ${list.join("; ")}. Draw these exact dishes.`;
+  return food
+    ? `Real menu shown: ${list.join("; ")}. Draw these exact dishes.`
+    : `Real products shown: ${list.join("; ")}. Draw these exact products.`;
 }
 
-function productPhotoLine(names?: string[]): string {
+function productPhotoLine(names?: string[], food = true): string {
   const main = (names ?? []).map((name) => name.replace(/\s+/g, " ").trim()).find(Boolean);
   if (!main) return "";
-  return `A real photo of ${main} goes in the center of the last page only. Keep that center empty. Photograph the food yourself on the other pages.`;
+  return `A real photo of ${main} goes in the center of the last page only. Keep that center empty. Photograph the ${food ? "food" : "product"} yourself on the other pages.`;
 }
 
 /** A required fact (phone, price, link) taken out of a text, so it shows only in the contact box. */
@@ -467,6 +473,13 @@ export function buildCanvaCarouselBrief(input: {
   const meatText = [title, ...input.slides.map((slide) => `${slide.scene} ${slide.elements}`), ...(input.menus ?? []), ...(input.productPhotos ?? [])].join(" ");
   const meat = meatRule(meatText);
   const goat = GOAT_SCENE.test(meatText);
+  // A catalog is food when its product names (or its meat and sate scenes) name food; every
+  // other business gets the product rule, so a charger is never shot like a warung dish.
+  // A charger scene that mentions coffee is still a charger shop.
+  const products = [...(input.menus ?? []), ...(input.productPhotos ?? [])];
+  const foodBusiness = products.length > 0
+    ? products.some((name) => FOOD_SCENE.test(name)) || meat !== ""
+    : FOOD_SCENE.test(meatText);
   let showsFood = false;
   let showsPerson = false;
   const buildPages = (sceneLimit: number) => input.slides
@@ -519,10 +532,11 @@ export function buildCanvaCarouselBrief(input: {
     logoLine(input.logo),
     HIERARCHY_RULE,
     showsPerson ? PERSON_PHOTO_RULE : "",
-    showsFood || (input.menus ?? []).length > 0 || (input.productPhotos ?? []).length > 0 ? FOOD_PHOTO_RULE : "",
+    showsFood || (foodBusiness && products.length > 0) ? FOOD_PHOTO_RULE : "",
+    !foodBusiness && products.length > 0 ? PRODUCT_PHOTO_RULE : "",
     meat,
-    menuLine([...(input.menus ?? []), ...(input.productPhotos ?? [])]),
-    productPhotoLine(input.productPhotos),
+    menuLine(products, foodBusiness),
+    productPhotoLine(input.productPhotos, foodBusiness),
     layout ? `${LAYOUT_LEAD}${layout}${LAYOUT_TAIL}` : "",
     `Title: ${title}.${captionLine}`,
     pages,
