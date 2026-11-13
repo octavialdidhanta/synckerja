@@ -328,7 +328,7 @@ function failedResult(checks: ReadonlyArray<{ id: string; state: string; enabled
   };
 }
 
-async function askJudge(
+export async function askJudge(
   config: JudgeConfig,
   ctx: Session,
   prompt: string,

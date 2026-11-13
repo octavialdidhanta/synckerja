@@ -702,6 +702,8 @@ describe("thinking lab connector visibility", () => {
   const thinkingTools = [
     "thinking.masters.list",
     "thinking.tree.read",
+    "thinking.master.create",
+    "thinking.bigthought.add",
     "thinking.ideas.list",
     "thinking.chain.read",
     "thinking.execution.check",
@@ -730,6 +732,8 @@ describe("thinking lab connector visibility", () => {
     expect(names).toContain("thinking.tree.read");
     expect(names).toContain("thinking.ideas.list");
     expect(names).toContain("thinking.chain.read");
+    expect(names).not.toContain("thinking.master.create");
+    expect(names).not.toContain("thinking.bigthought.add");
     expect(names).not.toContain("thinking.execution.check");
     expect(names).not.toContain("thinking.plan.save");
     expect(names).not.toContain("thinking.plan.direct");

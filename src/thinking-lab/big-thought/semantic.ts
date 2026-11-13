@@ -1,6 +1,6 @@
 import { BECAUSE_RESULT_LINES } from "@/thinking-lab/big-thought/because";
 import { individualChecklistPassed, readGateFailure, readGeneratePasses } from "@/thinking-lab/big-thought/checklist";
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import type { Resolution, TriState } from "@/thinking-lab/shared/verdict";
 import type {
   BigThoughtFacts,

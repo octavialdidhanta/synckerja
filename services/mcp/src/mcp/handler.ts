@@ -16,6 +16,8 @@ import type {
 } from "../db/thinkingLab";
 import type { ThinkingScriptDraft } from "../tools/thinking/scriptInput";
 import type { ThinkingPlanDirectInput } from "../tools/thinking/planDirect";
+import type { ThinkingWriteResult } from "../db/thinkingWrite";
+import type { BigThoughtAddWrite, MasterCreateWrite } from "../tools/thinking/treeWrite";
 import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
 import type {
@@ -249,6 +251,10 @@ import {
   mastersListResult,
   treeReadInput,
   treeReadResult,
+  masterCreateInput,
+  masterCreateResult,
+  bigThoughtAddInput,
+  bigThoughtAddResult,
   chainReadInput,
   chainReadResult,
   executionCheckInput,
@@ -401,6 +407,8 @@ export type McpReadDeps = {
   ) => Promise<LeadMagnetDeliveryResult>;
   listThinkingMasters: (ctx: McpAuthContext) => Promise<ThinkingMasterRow[]>;
   readThinkingTree: (ctx: McpAuthContext, masterThoughtId: string) => Promise<ThinkingTree>;
+  createThinkingMaster: (ctx: McpAuthContext, input: MasterCreateWrite) => Promise<ThinkingWriteResult>;
+  addThinkingBigThought: (ctx: McpAuthContext, input: BigThoughtAddWrite) => Promise<ThinkingWriteResult>;
   listThinkingIdeas: (ctx: McpAuthContext) => Promise<ThinkingIdeaRow[]>;
   readThinkingChain: (ctx: McpAuthContext, ideaId: string) => Promise<ThinkingChain>;
   checkThinkingExecution: (
@@ -761,6 +769,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "habits.check": habitCheckInput,
   "thinking.masters.list": mastersListInput,
   "thinking.tree.read": treeReadInput,
+  "thinking.master.create": masterCreateInput,
+  "thinking.bigthought.add": bigThoughtAddInput,
   "thinking.ideas.list": ideasListInput,
   "thinking.chain.read": chainReadInput,
   "thinking.execution.check": executionCheckInput,
@@ -1377,6 +1387,10 @@ async function runTool(
       return mastersListResult(ctx, deps.listThinkingMasters);
     case "thinking.tree.read":
       return treeReadResult(ctx, requiredString(args.master_thought_id), deps.readThinkingTree);
+    case "thinking.master.create":
+      return masterCreateResult(ctx, args, deps.createThinkingMaster);
+    case "thinking.bigthought.add":
+      return bigThoughtAddResult(ctx, args, deps.addThinkingBigThought);
     case "thinking.ideas.list":
       return ideasListResult(ctx, deps.listThinkingIdeas);
     case "thinking.chain.read":

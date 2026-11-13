@@ -1,7 +1,7 @@
 import { bigThoughtRepeats } from "@/thinking-lab/big-thought/label";
 import type { PassChecklist, PassGateCheck, PassGateId } from "@/thinking-lab/big-thought/checklist";
 import { PASS_GATE_IDS } from "@/thinking-lab/big-thought/checklist";
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "@/thinking-lab/shared/batchGates";
 import { fixScopeLines, openMistakeLines, type FixScope } from "@/thinking-lab/shared/fixScope";
 import { parseGeneratedBigThoughts, shownBigThoughtFacts } from "@/thinking-lab/big-thought/generate";

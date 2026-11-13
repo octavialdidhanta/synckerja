@@ -1,0 +1,206 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  acceptChosenBelief,
+  beliefsMatch,
+  checkWrittenBelief,
+  confirmedFingerprint,
+} from "../../../../src/thinking-lab/master-thought/semantic";
+import { runBigThoughtIndividualChecks } from "../../../../src/thinking-lab/big-thought/passChecks";
+import { judgeSiblingSet } from "../../../../src/thinking-lab/big-thought/semantic";
+import {
+  auditSiblingGate,
+  emptySetRecord,
+  nextAuthoritativeSetRecord,
+  parseLabSetRecord,
+} from "../../../../src/thinking-lab/big-thought/audit";
+import { nextBigThoughtCode, shownBigThoughtFacts } from "../../../../src/thinking-lab/big-thought/generate";
+import { bigThoughtFingerprint, incumbentSetFingerprint } from "../../../../src/thinking-lab/shared/fingerprint";
+import { ACTIVE_SET_CAP } from "../../../../src/thinking-lab/shared/limits";
+import type { AuditItem, BigThoughtFacts } from "../../../../src/thinking-lab/big-thought/types";
+import { askJudge, type JudgeConfig } from "./thinkingLab";
+
+type Session = { userId: string; organizationId: string };
+type Ask = (prompt: string) => Promise<string | null>;
+type Deps = { ask?: Ask; fetchImpl?: typeof fetch };
+
+export type ThinkingWriteResult =
+  | { saved: true; id: string; code?: string }
+  | { saved: false; failed: Array<{ check: string; reason: string }> };
+
+/** All checks of one call share one time budget, like thinking.execution.check. */
+function makeAsk(config: JudgeConfig, ctx: Session, deps: Deps): Ask {
+  const started = Date.now();
+  return async (prompt) => {
+    if (Date.now() - started > 90_000) throw new Error("judge_failed");
+    if (deps.ask) return deps.ask(prompt);
+    return askJudge(config, ctx, prompt, deps.fetchImpl ?? fetch);
+  };
+}
+
+function rpcError(error: { message?: string }): never {
+  const message = error.message ?? "";
+  if (message.includes("not_found")) throw new Error("not_found");
+  if (message.includes("not_a_member") || message.includes("forbidden")) throw new Error("forbidden");
+  if (message.includes("invalid_input")) throw new Error("invalid_input");
+  if (message.includes("duplicate key")) throw new Error("conflict");
+  throw new Error("request_failed");
+}
+
+function sessionArgs(ctx: Session): Record<string, unknown> {
+  return { p_user_id: ctx.userId, p_organization_id: ctx.organizationId };
+}
+
+/** Same bar as Keep as written on the page: one claim, one sentence, no promotion, a real shift. */
+export async function createThinkingMaster(
+  admin: SupabaseClient,
+  config: JudgeConfig,
+  ctx: Session,
+  input: { belief: string; priorBelief: string; audience: string },
+  deps: Deps = {},
+): Promise<ThinkingWriteResult> {
+  const belief = input.belief.replace(/\s+/g, " ").trim();
+  const priorBelief = input.priorBelief.replace(/\s+/g, " ").trim();
+  if (!belief || !priorBelief) throw new Error("invalid_input");
+  if (beliefsMatch(belief, priorBelief)) {
+    return { saved: false, failed: [{ check: "shift", reason: "The new belief repeats the old belief." }] };
+  }
+  const check = await checkWrittenBelief({ belief, priorBelief }, makeAsk(config, ctx, deps));
+  if (!check.pass) {
+    return {
+      saved: false,
+      failed: check.reasons.map((reason) => ({
+        check: "masterThought",
+        reason: reason === "UNDECIDED" ? "The check could not be decided. Try again." : reason,
+      })),
+    };
+  }
+  const facts = acceptChosenBelief(belief);
+  const { data, error } = await admin.rpc("mcp_create_thinking_master", {
+    ...sessionArgs(ctx),
+    p_statement: belief,
+    p_prior_belief: priorBelief,
+    p_audience: input.audience.trim(),
+    p_facts: facts,
+    p_fingerprint: confirmedFingerprint(belief, belief),
+  });
+  if (error) rpcError(error);
+  if (typeof data !== "string") throw new Error("request_failed");
+  return { saved: true, id: data };
+}
+
+type BigThoughtContext = {
+  statement: string;
+  root_belief: string;
+  subject: string;
+  confirmed: boolean;
+  locked: boolean;
+  last_audit: unknown;
+  big_thoughts: Array<{ id: string; code: string; label: string; statement: string; status: string; sort_order: number }>;
+};
+
+/**
+ * One Big Thought written in chat. The individual checks (batched) and the sibling check run
+ * exactly as on the page; a pass is saved with the same facts, fingerprint, and audit item the
+ * page writes after a successful Fix, so the page shows it as checked.
+ */
+export async function addThinkingBigThought(
+  admin: SupabaseClient,
+  config: JudgeConfig,
+  ctx: Session,
+  input: { masterThoughtId: string; statement: string; label: string },
+  deps: Deps = {},
+): Promise<ThinkingWriteResult> {
+  const statement = input.statement.replace(/\s+/g, " ").trim();
+  if (!statement) throw new Error("invalid_input");
+  const { data, error } = await admin.rpc("mcp_thinking_big_thought_context", {
+    ...sessionArgs(ctx),
+    p_master_thought_id: input.masterThoughtId,
+  });
+  if (error) rpcError(error);
+  const context = data as BigThoughtContext | null;
+  if (!context) throw new Error("not_found");
+  if (!context.confirmed) {
+    return { saved: false, failed: [{ check: "masterThought", reason: "Confirm the Master Thought first." }] };
+  }
+  if (context.locked) {
+    return { saved: false, failed: [{ check: "masterThought", reason: "This Master Thought is locked." }] };
+  }
+  const active = context.big_thoughts.filter((row) => row.status !== "rejected");
+  if (active.length >= ACTIVE_SET_CAP) {
+    return { saved: false, failed: [{ check: "cap", reason: `A Master Thought holds at most ${ACTIVE_SET_CAP} Big Thoughts.` }] };
+  }
+  const record = parseLabSetRecord(context.last_audit) ?? emptySetRecord();
+  const passedCodes = new Set(
+    (record.audit?.items ?? []).filter((item) => item.verdict === "AUDIT_PASS").map((item) => item.code.toUpperCase()),
+  );
+  const keepers = active
+    .filter((row) => row.status === "locked" || passedCodes.has(row.code.toUpperCase()))
+    .map((row) => ({ code: row.code, statement: row.statement, label: row.label }));
+  const masterStatement = context.statement.trim();
+  const becauseParent = (context.subject || masterStatement).trim();
+  const parentFp = confirmedFingerprint(masterStatement, context.root_belief || masterStatement);
+  const code = nextBigThoughtCode(context.big_thoughts.map((row) => row.code));
+  const ask = makeAsk(config, ctx, deps);
+
+  const checked = await runBigThoughtIndividualChecks({
+    batch: true,
+    statement,
+    parentStatement: becauseParent,
+    others: keepers,
+    ask,
+  });
+  if (!checked.passed) {
+    const failure = checked.failure;
+    return {
+      saved: false,
+      failed: [{ check: failure?.gate ?? "undecided", reason: failure?.reason || "This check could not be decided." }],
+    };
+  }
+
+  const siblingRows = [...keepers.map((row) => ({ code: row.code, statement: row.statement })), { code, statement }];
+  if (siblingRows.length >= 2) {
+    const fingerprint = incumbentSetFingerprint({
+      masterThoughtFingerprint: parentFp,
+      bigThoughtFingerprints: siblingRows.map((row) =>
+        bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
+      ),
+    });
+    const sibling = await judgeSiblingSet({ parentStatement: masterStatement, rows: siblingRows, fingerprint }, ask);
+    const gate = auditSiblingGate({
+      code,
+      siblingSet: sibling,
+      siblingSetCurrent: true,
+      activeCodes: siblingRows.map((row) => row.code),
+    });
+    if (!gate.passed) return { saved: false, failed: [{ check: "sibling", reason: gate.reason }] };
+  }
+
+  const facts: BigThoughtFacts = { ...shownBigThoughtFacts(code, statement), generatePasses: ["resolved", "relation"] };
+  const statementFingerprint = bigThoughtFingerprint({ statement, masterThoughtFingerprint: parentFp });
+  const items: AuditItem[] = [
+    ...(record.audit?.items ?? []).filter((item) => item.code.toUpperCase() !== code.toUpperCase()),
+    { code, verdict: "AUDIT_PASS", statementFingerprint, gatesChecked: true },
+  ];
+  const nextRecord = nextAuthoritativeSetRecord({
+    record,
+    parentFingerprint: parentFp,
+    siblingSet: record.siblingSet,
+    audit: { setFingerprint: record.audit?.setFingerprint ?? "", items },
+    challenger: record.challenger,
+  });
+  const sortOrder = context.big_thoughts.reduce((max, row) => Math.max(max, row.sort_order ?? 0), 0) + 1;
+  const saved = await admin.rpc("mcp_add_thinking_big_thought", {
+    ...sessionArgs(ctx),
+    p_master_thought_id: input.masterThoughtId,
+    p_code: code,
+    p_label: input.label.trim(),
+    p_statement: statement,
+    p_sort_order: sortOrder,
+    p_facts: JSON.parse(JSON.stringify(facts)) as unknown,
+    p_fingerprint: statementFingerprint,
+    p_last_audit: JSON.parse(JSON.stringify(nextRecord)) as unknown,
+  });
+  if (saved.error) rpcError(saved.error);
+  if (typeof saved.data !== "string") throw new Error("request_failed");
+  return { saved: true, id: saved.data, code };
+}
