@@ -235,6 +235,8 @@ export async function runAngleGenerate<
 >(input: {
   loadParent: () => Promise<{ ok: true; parent: AngleGenerateParent } | { ok: false; reason: AngleParentDenial }>;
   incumbents: T[];
+  /** Codes already used anywhere under this Master Thought. New codes continue after them. */
+  reservedCodes?: readonly string[];
   topUp?: boolean;
   propose: (
     plan: PlannedAngleGenerate,
@@ -295,7 +297,7 @@ export async function runAngleGenerate<
         draft.subject && keptSubjects.some((subject) => sameWording(draft.subject, subject)),
       );
       if (repeatedStatement || repeatedSubject) continue;
-      const code = nextAngleCode(incumbents.map((row) => row.code));
+      const code = nextAngleCode([...(input.reservedCodes ?? []), ...incumbents.map((row) => row.code)]);
       const facts = await input.judge(gate.parent, code, draft.statement);
       const admission = admitAngle(facts);
       const saved = await input.persist({

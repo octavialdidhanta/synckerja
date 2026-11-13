@@ -2165,6 +2165,8 @@ export function ThinkingLabPage() {
             bigThoughtId,
             masterThoughtFingerprint: parentFp,
           }),
+        // TR codes are unique per Master Thought, so the mind map and the run log name one Territory each.
+        reservedCodes: (labTerritories.data ?? []).map((row) => row.code),
         incumbents: known.map((row) => ({
           code: row.code,
           statement: row.statement,
@@ -2429,6 +2431,8 @@ export function ThinkingLabPage() {
             expectedBigThoughtId: territory.bigThoughtId,
             masterThoughtFingerprint: parentFp,
           }),
+        // AN codes are unique per Master Thought.
+        reservedCodes: (labAngles.data ?? []).map((row) => row.code),
         incumbents: known.map((row) => ({
           code: row.code,
           statement: row.statement,
@@ -6682,7 +6686,7 @@ export function ThinkingLabPage() {
         );
         const draft = parseGeneratedAngleDrafts(parseModelJson(script))[0];
         if (!draft?.statement || bannedNames.has(draft.statement.trim().toLowerCase())) return;
-        const code = nextAngleCode(known.map((row) => row.code));
+        const code = nextAngleCode((labAngles.data ?? []).map((row) => row.code));
         const checked = await runAngleAdmissionChecks({
           batch: true,
           statement: draft.statement,
@@ -6954,7 +6958,7 @@ export function ThinkingLabPage() {
       const known = (labTerritories.data ?? []).filter((row) => row.bigThoughtId === focusedThought.id);
       if (admittedTerritories.length >= ACTIVE_SET_CAP) return;
       const statement = territoryChallenger.materialGapDescription.trim();
-      const code = nextTerritoryCode(known.map((row) => row.code));
+      const code = nextTerritoryCode((labTerritories.data ?? []).map((row) => row.code));
       const facts = await judgeAndSealTerritory({
         parentStatement: focusedThought.statement,
         ancestors: territoryAncestors,

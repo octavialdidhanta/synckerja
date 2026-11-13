@@ -366,6 +366,8 @@ export async function runTerritoryGenerate<
     relationToParent?: TerritoryRelation;
   },
 >(input: {
+  /** Codes already used anywhere under this Master Thought. New codes continue after them. */
+  reservedCodes?: readonly string[];
   loadParent: () => Promise<
     { ok: true; parent: TerritoryGenerateParent } | { ok: false; reason: TerritoryParentDenial }
   >;
@@ -409,7 +411,7 @@ export async function runTerritoryGenerate<
     const statements = (await input.propose({ ...plan, needed: askFor }, gate.parent, incumbents)).slice(0, askFor);
     if (input.carryLessons && statements.length === 0) break;
     const room = Math.max(0, ACTIVE_SET_CAP - activeCount);
-    const reserved = incumbents.map((row) => row.code);
+    const reserved = [...(input.reservedCodes ?? []), ...incumbents.map((row) => row.code)];
     const keptStatements = incumbents
       .filter((row) => row.admission === "GENERATE_VALID")
       .map((row) => row.statement);

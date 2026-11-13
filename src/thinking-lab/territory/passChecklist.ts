@@ -107,10 +107,10 @@ function territoryGateRules(
   return (
     id === "partOfBigThought"
       ? [
-          "pass is true when the name is an area in the audience's world where this Big Thought can be discussed, and the name is not a keyword copied from the Big Thought.",
-          "pass is false when the name is not an area in the audience's world, or when the name is only a keyword copied from the Big Thought: its title, its reason, or a short restatement of its words.",
+          "pass is true only when the name is an area in the audience's world that is part of this Big Thought: the Big Thought's own reason is something people in that area actually meet, so it can be discussed there specifically, and the name is not a keyword copied from the Big Thought.",
+          "pass is false when the name is not an area in the audience's world, when the name is only a keyword copied from the Big Thought (its title, its reason, or a short restatement of its words), or when the area is so general that any Big Thought of this Master Thought could be placed there just as well.",
           "A word that also appears in the Big Thought does not make the name a copied keyword when the name still names a different area.",
-          "Being able to discuss other subjects in that area does not make pass false.",
+          "That the area also holds other subjects is fine. What matters is that this Big Thought's reason is met there, not only that it could be connected.",
           "Kurir paket passes under a Big Thought about delivery cost. Biaya kirim fails because it copies the Big Thought.",
         ]
       : id === "audienceLanguage"
@@ -129,10 +129,9 @@ function territoryGateRules(
             ]
             : [
               "An Angle is one observation inside a Territory. This check asks whether the name is still a place or has already become one Angle.",
-              "pass is true when the name is a place where several different Angles can live, and a second observation can be pointed at there without leaving the name or only restating the first.",
-              "pass is false only when the name itself is already one observation, one claim, one conclusion, or one method.",
-              "The Big Thought's answer is one future Angle. Quoting that answer is not proof the place holds only one observation. If the only observation you can cite comes from the Big Thought, pass is true.",
-              "A narrow place still passes. Do not fail a recognizable place because the Big Thought is specific, or because the other Angles have not been written yet.",
+              "pass is true only when you can name at least two different rarely noticed observations in this place, besides the Big Thought's own answer, without leaving the name and without one only restating the other. Name them in your reasoning before you decide.",
+              "pass is false when the name itself is already one observation, one claim, one conclusion, or one method, or when the only observation you can name there is the Big Thought's own answer, or when fewer than two other observations can be named.",
+              "Do not fail only because the other Angles have not been written yet. Judge whether they could be.",
               "Kurir paket passes under a Big Thought that one courier type is cheaper. Route, weight, and speed remain other observations. Kurir motor lebih murah fails because the name is already that one claim.",
               "When pass is false, the reason names the observation already stated by the Territory name. Do not quote the Big Thought's answer as that observation.",
             ]
@@ -141,9 +140,9 @@ function territoryGateRules(
 
 function territoryDecisionHint(id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number]): string {
   return id === "partOfBigThought"
-      ? "When the name is a recognizable area and the only doubt is a shared word or whether the area is exclusive to the Big Thought, return pass true. When you cannot decide whether it names an area at all, do not return pass true."
+      ? "When the only doubt is a shared word, return pass true. When the Big Thought's reason is not actually met in that area, or you cannot decide whether it names an area at all, do not return pass true."
       : id === "wideEnough"
-        ? "When the name is a recognizable place and the only observation you can cite comes from the Big Thought, return pass true. When the name itself is already one observation or one claim, do not return pass true."
+        ? "When you cannot name two different observations there besides the Big Thought's answer, do not return pass true. When the name itself is already one observation or one claim, do not return pass true."
         : "When you cannot decide, do not return pass true.";
 }
 
