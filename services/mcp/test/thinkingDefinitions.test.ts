@@ -22,3 +22,12 @@ describe("thinking.definitions.read", () => {
     }
   });
 });
+
+describe("definition rules", () => {
+  it("leave out lines about a missing input", async () => {
+    const admin = { rpc: async () => ({ data: {}, error: null }) } as never;
+    const result = await readThinkingDefinitions(admin, { userId: "u", organizationId: "o" }, { language: "id" });
+    const rules = result.levels.flatMap((level) => level.checks.map((check) => check.rule));
+    expect(rules.some((rule) => rule.includes("was supplied") || rule.includes("was named, so"))).toBe(false);
+  });
+});

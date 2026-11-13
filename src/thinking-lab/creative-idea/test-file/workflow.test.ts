@@ -260,8 +260,12 @@ describe("pillar review", () => {
     description: index === 0 ? "Cerita kinerja karyawan" : "Umum",
   }));
 
+  it("offers every pillar by default", () => {
+    expect(selectPillarReviewSet(pillars, "kinerja karyawan yang tersebar").reviewed).toHaveLength(14);
+  });
+
   it("reviews a bounded subset and leaves the rest not reviewed", () => {
-    const split = selectPillarReviewSet(pillars, "kinerja karyawan yang tersebar");
+    const split = selectPillarReviewSet(pillars, "kinerja karyawan yang tersebar", 12);
     expect(split.reviewed).toHaveLength(12);
     expect(split.reviewed[0]?.name).toBe("Kinerja tim");
     expect(split.unreviewed).toHaveLength(2);

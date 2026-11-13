@@ -13,7 +13,11 @@ export const CREATIVE_VALIDATION_SCHEMA = "thinking-lab/creative-idea-validation
 export const CREATIVE_GENERATOR_VERSION = "creative-idea/v1";
 export const CREATIVE_VALIDATOR_VERSION = "creative-audit/v1";
 export const CREATIVE_BATCH = 3;
-export const PILLAR_REVIEW_LIMIT = 12;
+/**
+ * Every active pillar is offered to the model (names and short details only). Ranking by shared words
+ * missed most pillars when the idea and the pillar names were in different languages.
+ */
+export const PILLAR_REVIEW_LIMIT = 150;
 
 export type CreativeCriterion = {
   id: CreativeCriterionId;
