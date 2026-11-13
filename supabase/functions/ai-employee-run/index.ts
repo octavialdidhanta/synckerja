@@ -140,7 +140,18 @@ function rememberCopy(memory: CopyPrior[], plan: { title?: string; slides?: unkn
   });
 }
 
-function checkRewriteNote(checkId: string): string {
+function checkRewriteNote(checkId: string, reasons: string[] = []): string {
+  const why = reasons.length > 0 ? ` Alasan pemeriksa: ${reasons.join(" | ")}.` : "";
+  return baseRewriteNote(checkId) + why;
+}
+
+function baseRewriteNote(checkId: string): string {
+  if (checkId === "hookHolds") {
+    return "Pemeriksaan hookHolds gagal. Tulis ulang Hook headline slide 1: paling banyak 8 kata, bahasa santai, langsung menyentuh ide (misalnya pertanyaan atau pernyataan yang bikin penasaran), jangan hanya nama menu. Slide lain tetap.";
+  }
+  if (checkId === "checks_incomplete") {
+    return "Pemeriksaan belum lengkap. Pastikan slide 1 punya Hook headline dan Visual hook, setiap slide punya vo santai, dan isi mengikuti Development pilar.";
+  }
   if (checkId === "pillarFits") {
     return "Pemeriksaan pillarFits gagal. Bentuk slide harus mengikuti Development pilar, bukan iklan produk yang sama.";
   }
@@ -1404,7 +1415,7 @@ Deno.serve(async (req: Request) => {
           if (!nextVerdict?.ok) {
             lastReject = String(nextVerdict?.check_id ?? "unparsed").slice(0, 40);
             if (attempt >= 3) { idea.skip = true; break; }
-            avoid = checkRewriteNote(lastReject);
+            avoid = checkRewriteNote(lastReject, Array.isArray(nextVerdict?.reasons) ? nextVerdict.reasons : []);
             continue;
           }
           if (!dryRun) {
@@ -1528,8 +1539,13 @@ Deno.serve(async (req: Request) => {
           model_calls: modelCalls,
         }, 500);
       }
-      const status = stop === "quota" ? "deferred" : "succeeded";
       const savedCount = dryRun ? drafts.length : planIds.length;
+      // Nothing saved because every draft failed the checks is a failure, not a success.
+      const status = stop === "quota"
+        ? "deferred"
+        : stop === "ideas_exhausted" && savedCount === 0
+          ? "failed"
+          : "succeeded";
       const label = stop === "quota"
         ? "quota"
         : stop === "pillar_cap"
@@ -1544,6 +1560,9 @@ Deno.serve(async (req: Request) => {
         ok: status === "succeeded",
         mode: "sop1",
         status,
+        // The page shows why no plan came: every draft failed the checks, or time/quota ran out.
+        ...(status === "failed" ? { error: label } : {}),
+        ...(status === "deferred" ? { error: timeBudgetHit ? "time_budget" : "quota_exceeded" } : {}),
         dry_run: dryRun,
         run_id: runId,
         model_calls: modelCalls,
