@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addThinkingBigThought, createThinkingMaster } from "../src/db/thinkingWrite";
+import { addThinkingBigThought, createThinkingMaster, setThinkingMasterCatalog } from "../src/db/thinkingWrite";
 
 const config = { supabaseUrl: "https://x", supabaseServiceRoleKey: "k", scheduledPostsInternalSecret: "s" };
 const ctx = { userId: "u", organizationId: "o" };
@@ -96,5 +96,44 @@ describe("thinking.bigthought.add", () => {
       masterThoughtId: masterId, statement, label: "",
     }, { ask: async () => null });
     expect(result).toEqual({ saved: false, failed: [{ check: "masterThought", reason: "Confirm the Master Thought first." }] });
+  });
+});
+
+describe("thinking catalog", () => {
+  function catalogAdmin(rows: Array<{ id: string; name: string }>, calls: Array<{ fn: string; args: Record<string, unknown> }>) {
+    return {
+      rpc: async (fn: string, args: Record<string, unknown>) => {
+        calls.push({ fn, args });
+        if (fn === "mcp_thinking_catalogs") {
+          const query = String(args.p_query ?? "").toLowerCase();
+          return { data: query ? rows.filter((row) => row.name.toLowerCase().includes(query)) : rows, error: null };
+        }
+        if (fn === "mcp_set_thinking_master_catalog") return { data: null, error: null };
+        return { data: "22222222-2222-4222-8222-222222222222", error: null };
+      },
+    } as never;
+  }
+  const rows = [{ id: "cat-1", name: "Sate Sultan PIK" }, { id: "cat-2", name: "Sate Sultan Pluit" }];
+
+  it("links one matching catalog", async () => {
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const result = await setThinkingMasterCatalog(catalogAdmin(rows, calls), ctx, { masterThoughtId: masterId, catalog: "PIK" });
+    expect(result).toEqual({ saved: true, id: masterId, catalog: "Sate Sultan PIK" });
+    expect(calls.at(-1)?.args.p_service_id).toBe("cat-1");
+  });
+
+  it("returns the choices when the name matches several", async () => {
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const result = await setThinkingMasterCatalog(catalogAdmin(rows, calls), ctx, { masterThoughtId: masterId, catalog: "Sultan" });
+    expect(result.saved).toBe(false);
+    if (!result.saved) expect(result.catalogs).toEqual(["Sate Sultan PIK", "Sate Sultan Pluit"]);
+    expect(calls.some((call) => call.fn === "mcp_set_thinking_master_catalog")).toBe(false);
+  });
+
+  it("clears the link with an empty catalog", async () => {
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const result = await setThinkingMasterCatalog(catalogAdmin(rows, calls), ctx, { masterThoughtId: masterId, catalog: "" });
+    expect(result).toEqual({ saved: true, id: masterId, catalog: null });
+    expect(calls[0].args.p_service_id).toBeNull();
   });
 });

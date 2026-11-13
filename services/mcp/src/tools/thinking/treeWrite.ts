@@ -8,6 +8,12 @@ export const masterCreateInput = z.object({
   belief: sentence(400),
   prior_belief: sentence(400),
   audience: z.string().trim().max(400).optional(),
+  catalog: z.string().trim().max(200).optional(),
+}).strict();
+
+export const masterCatalogSetInput = z.object({
+  master_thought_id: z.string().uuid(),
+  catalog: z.string().trim().max(200),
 }).strict();
 
 export const bigThoughtAddInput = z.object({
@@ -16,7 +22,8 @@ export const bigThoughtAddInput = z.object({
   label: z.string().trim().max(80).optional(),
 }).strict();
 
-export type MasterCreateWrite = { belief: string; priorBelief: string; audience: string };
+export type MasterCreateWrite = { belief: string; priorBelief: string; audience: string; catalog?: string };
+export type MasterCatalogWrite = { masterThoughtId: string; catalog: string };
 export type BigThoughtAddWrite = { masterThoughtId: string; statement: string; label: string };
 
 export function masterCreateResult(
@@ -30,7 +37,18 @@ export function masterCreateResult(
     belief: parsed.data.belief,
     priorBelief: parsed.data.prior_belief,
     audience: parsed.data.audience ?? "",
+    catalog: parsed.data.catalog,
   });
+}
+
+export function masterCatalogSetResult(
+  ctx: McpAuthContext,
+  args: Record<string, unknown>,
+  set: (ctx: McpAuthContext, input: MasterCatalogWrite) => Promise<ThinkingWriteResult>,
+): Promise<ThinkingWriteResult> {
+  const parsed = masterCatalogSetInput.safeParse(args);
+  if (!parsed.success) throw new Error("invalid_input");
+  return set(ctx, { masterThoughtId: parsed.data.master_thought_id, catalog: parsed.data.catalog });
 }
 
 export function bigThoughtAddResult(

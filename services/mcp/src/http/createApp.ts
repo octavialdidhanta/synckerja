@@ -16,7 +16,7 @@ import type {
 } from "../db/thinkingLab";
 import type { ThinkingPlanDirectInput } from "../tools/thinking/planDirect";
 import type { ThinkingWriteResult } from "../db/thinkingWrite";
-import type { BigThoughtAddWrite, MasterCreateWrite } from "../tools/thinking/treeWrite";
+import type { BigThoughtAddWrite, MasterCatalogWrite, MasterCreateWrite } from "../tools/thinking/treeWrite";
 import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
 import type { ThinkingScriptDraft } from "../tools/thinking/scriptInput";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
@@ -208,6 +208,7 @@ export type AppDeps = {
   readThinkingTree: (ctx: McpAuthContext, masterThoughtId: string) => Promise<ThinkingTree>;
   createThinkingMaster: (ctx: McpAuthContext, input: MasterCreateWrite) => Promise<ThinkingWriteResult>;
   addThinkingBigThought: (ctx: McpAuthContext, input: BigThoughtAddWrite) => Promise<ThinkingWriteResult>;
+  setThinkingMasterCatalog: (ctx: McpAuthContext, input: MasterCatalogWrite) => Promise<ThinkingWriteResult>;
   listThinkingIdeas: (ctx: McpAuthContext) => Promise<ThinkingIdeaRow[]>;
   readThinkingChain: (ctx: McpAuthContext, ideaId: string) => Promise<ThinkingChain>;
   checkThinkingExecution: (

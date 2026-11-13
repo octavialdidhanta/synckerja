@@ -704,6 +704,7 @@ describe("thinking lab connector visibility", () => {
     "thinking.tree.read",
     "thinking.master.create",
     "thinking.bigthought.add",
+    "thinking.master.catalog.set",
     "thinking.ideas.list",
     "thinking.chain.read",
     "thinking.execution.check",
@@ -734,6 +735,7 @@ describe("thinking lab connector visibility", () => {
     expect(names).toContain("thinking.chain.read");
     expect(names).not.toContain("thinking.master.create");
     expect(names).not.toContain("thinking.bigthought.add");
+    expect(names).not.toContain("thinking.master.catalog.set");
     expect(names).not.toContain("thinking.execution.check");
     expect(names).not.toContain("thinking.plan.save");
     expect(names).not.toContain("thinking.plan.direct");

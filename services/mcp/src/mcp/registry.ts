@@ -113,6 +113,7 @@ export type McpToolName =
   | "thinking.tree.read"
   | "thinking.master.create"
   | "thinking.bigthought.add"
+  | "thinking.master.catalog.set"
   | "thinking.ideas.list"
   | "thinking.chain.read"
   | "thinking.execution.check"
@@ -644,7 +645,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "thinking.masters.list",
     description:
-      "List up to 30 Master Thoughts in Thinking Lab for the organization locked in this session, newest first. Returns the id, Master Thought sentence, old belief, audience, status, and how many Big Thoughts and Ideas each has. Does not create or change anything.",
+      "List up to 30 Master Thoughts in Thinking Lab for the organization locked in this session, newest first. Returns the id, Master Thought sentence, old belief, audience, status, linked catalog name, and how many Big Thoughts and Ideas each has. Does not create or change anything.",
     scopes: ["content:read"],
     moduleKey: "digitalMarketing",
     pagePath: THINKING_LAB_PAGE_PATH,
@@ -660,7 +661,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "thinking.master.create",
     description:
-      "Create one Master Thought in Thinking Lab for the organization locked in this session, from a belief written in chat. Requires belief and prior_belief (the old belief it shifts); audience is optional. The belief is checked first, with the same rule as Keep as written on the page: exactly one claim, one sentence, not a promotion (a product claim is allowed; an offer, guarantee, price, discount, challenge, call to buy, or tagline is not), and a real shift from the old belief. On a pass it is saved as confirmed and returns saved true with its id. On a fail nothing is saved and it returns saved false with the reasons; rewrite the belief and call again. Does not create Big Thoughts.",
+      "Create one Master Thought in Thinking Lab for the organization locked in this session, from a belief written in chat. Requires belief and prior_belief (the old belief it shifts); audience and catalog are optional. catalog is the name or id of an active catalog (the Catalog dropdown on the page); a name that matches none or several returns saved false with the catalog names and nothing is saved. The belief is checked first, with the same rule as Keep as written on the page: exactly one claim, one sentence, not a promotion (a product claim is allowed; an offer, guarantee, price, discount, challenge, call to buy, or tagline is not), and a real shift from the old belief. On a pass it is saved as confirmed and returns saved true with its id. On a fail nothing is saved and it returns saved false with the reasons; rewrite the belief and call again. Does not create Big Thoughts.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: THINKING_LAB_PAGE_PATH,
@@ -669,6 +670,14 @@ const TOOL_DEFINITIONS: McpTool[] = [
     name: "thinking.bigthought.add",
     description:
       "Add one Big Thought to a confirmed, unlocked Master Thought in Thinking Lab for the organization locked in this session. Requires master_thought_id and statement; label (a 2-4 word name) is optional. Write statement as the because-clause only, in the Master Thought's language, without the Master Thought and without the word karena or because: one distinct reason, basis, or evidence for why the Master Thought is true, not a method, outcome, example, or restatement, and not a repeat of another Big Thought. sehingga is not needed. The same pass checks as the page run first, then the check against the other Big Thoughts. On a pass it is saved with its code and the page shows it as checked. On a fail nothing is saved and it returns the failed check and the reason; rewrite and call again. A Master Thought holds at most 6 Big Thoughts.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.master.catalog.set",
+    description:
+      "Link one Thinking Lab Master Thought to a catalog for the organization locked in this session, like the Catalog dropdown on the page. Requires master_thought_id and catalog (the catalog name or id). An empty catalog clears the link. A name that matches none or several returns saved false with the catalog names and changes nothing. Does not change the belief or its tree.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: THINKING_LAB_PAGE_PATH,

@@ -24,8 +24,58 @@ type Ask = (prompt: string) => Promise<string | null>;
 type Deps = { ask?: Ask; fetchImpl?: typeof fetch };
 
 export type ThinkingWriteResult =
-  | { saved: true; id: string; code?: string }
-  | { saved: false; failed: Array<{ check: string; reason: string }> };
+  | { saved: true; id: string; code?: string; catalog?: string | null }
+  | { saved: false; failed: Array<{ check: string; reason: string }>; catalogs?: string[] };
+
+type CatalogMatch = { ok: true; id: string; name: string } | { ok: false; result: ThinkingWriteResult };
+
+/** One active catalog by id or name. None or several matches return the choices instead. */
+async function resolveCatalog(admin: SupabaseClient, ctx: Session, query: string): Promise<CatalogMatch> {
+  const { data, error } = await admin.rpc("mcp_thinking_catalogs", { ...sessionArgs(ctx), p_query: query });
+  if (error) rpcError(error);
+  const rows = (Array.isArray(data) ? data : []) as Array<{ id: string; name: string }>;
+  if (rows.length === 1) return { ok: true, id: rows[0].id, name: rows[0].name };
+  const all = rows.length > 1 ? rows : await (async () => {
+    const listed = await admin.rpc("mcp_thinking_catalogs", { ...sessionArgs(ctx), p_query: null });
+    if (listed.error) rpcError(listed.error);
+    return (Array.isArray(listed.data) ? listed.data : []) as Array<{ id: string; name: string }>;
+  })();
+  return {
+    ok: false,
+    result: {
+      saved: false,
+      failed: [{
+        check: "catalog",
+        reason: rows.length > 1 ? `"${query}" matches several catalogs. Name one.` : `No active catalog matches "${query}".`,
+      }],
+      catalogs: all.map((row) => row.name),
+    },
+  };
+}
+
+/** Link a Master Thought to a catalog, or clear it with an empty catalog. */
+export async function setThinkingMasterCatalog(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: { masterThoughtId: string; catalog: string },
+): Promise<ThinkingWriteResult> {
+  const query = input.catalog.trim();
+  let serviceId: string | null = null;
+  let name: string | null = null;
+  if (query) {
+    const match = await resolveCatalog(admin, ctx, query);
+    if (!match.ok) return match.result;
+    serviceId = match.id;
+    name = match.name;
+  }
+  const { error } = await admin.rpc("mcp_set_thinking_master_catalog", {
+    ...sessionArgs(ctx),
+    p_master_thought_id: input.masterThoughtId,
+    p_service_id: serviceId,
+  });
+  if (error) rpcError(error);
+  return { saved: true, id: input.masterThoughtId, catalog: name };
+}
 
 /** All checks of one call share one time budget, like thinking.execution.check. */
 function makeAsk(config: JudgeConfig, ctx: Session, deps: Deps): Ask {
@@ -55,12 +105,15 @@ export async function createThinkingMaster(
   admin: SupabaseClient,
   config: JudgeConfig,
   ctx: Session,
-  input: { belief: string; priorBelief: string; audience: string },
+  input: { belief: string; priorBelief: string; audience: string; catalog?: string },
   deps: Deps = {},
 ): Promise<ThinkingWriteResult> {
   const belief = input.belief.replace(/\s+/g, " ").trim();
   const priorBelief = input.priorBelief.replace(/\s+/g, " ").trim();
   if (!belief || !priorBelief) throw new Error("invalid_input");
+  const catalogQuery = input.catalog?.trim() ?? "";
+  const catalog = catalogQuery ? await resolveCatalog(admin, ctx, catalogQuery) : null;
+  if (catalog && !catalog.ok) return catalog.result;
   if (beliefsMatch(belief, priorBelief)) {
     return { saved: false, failed: [{ check: "shift", reason: "The new belief repeats the old belief." }] };
   }
@@ -85,6 +138,15 @@ export async function createThinkingMaster(
   });
   if (error) rpcError(error);
   if (typeof data !== "string") throw new Error("request_failed");
+  if (catalog?.ok) {
+    const linked = await admin.rpc("mcp_set_thinking_master_catalog", {
+      ...sessionArgs(ctx),
+      p_master_thought_id: data,
+      p_service_id: catalog.id,
+    });
+    if (linked.error) rpcError(linked.error);
+    return { saved: true, id: data, catalog: catalog.name };
+  }
   return { saved: true, id: data };
 }
 
