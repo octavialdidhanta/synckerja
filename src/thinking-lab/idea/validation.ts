@@ -622,6 +622,18 @@ export function applyContextRules(
           }),
     );
   }
+  // Framework v1.1 retired K2. It always passes, whatever the model or an older run returned.
+  criteria = forceCriterion(
+    criteria,
+    "K2",
+    "PASS",
+    formatAuditReason({
+      status: "PASS",
+      evidence: "Retired in framework v1.1.",
+      explanation: "K2 is no longer a requirement.",
+      weakness: "Retired in framework v1.1.",
+    }),
+  );
   const missing = [
     !input.masterThought?.trim() ? "Master Thought" : "",
     !input.bigThought.trim() ? "Big Thought" : "",
@@ -1301,7 +1313,7 @@ export async function runIdeaPassChecks(input: {
   const storedFail = prior?.failed[0];
   const storedOpen = storedFail ? undefined : prior?.unverified?.[0];
   const stored = storedFail ?? storedOpen;
-  if (stored && !(stored.id === "K1" && !k1FailIsHowIf(stored.reason))) {
+  if (stored && stored.id !== "K2" && !(stored.id === "K1" && !k1FailIsHowIf(stored.reason))) {
     const slot = criteria.find((criterion) => criterion.id === stored.id);
     if (slot) {
       const status: IdeaCriterionStatus = storedFail ? "FAIL" : "BELUM_TERVERIFIKASI";
@@ -1344,6 +1356,16 @@ export async function runIdeaPassChecks(input: {
       slot.explanation = kept.explanation;
       slot.weakness = kept.weakness;
       show(id, "PASS", lessonSentence(slot));
+      continue;
+    }
+    if (id === "K2") {
+      // Retired in framework v1.1: no model call.
+      slot.status = "PASS";
+      slot.evidence = "Retired in framework v1.1.";
+      slot.explanation = "K2 is no longer a requirement.";
+      slot.weakness = "Retired in framework v1.1.";
+      slot.reason = formatAuditReason(slot);
+      show(id, "PASS", slot.explanation);
       continue;
     }
     checks[index] = { id, state: "running" };
