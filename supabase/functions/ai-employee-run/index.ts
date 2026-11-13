@@ -1100,6 +1100,8 @@ Deno.serve(async (req: Request) => {
                 is_repeat: false,
                 idea_statement: candidate.statement,
                 angle_statement: candidate.angleStatement,
+                territory_statement: candidate.territoryStatement,
+                big_thought_statement: candidate.bigThoughtStatement,
                 master_statement: candidate.masterStatement,
               }];
             }
