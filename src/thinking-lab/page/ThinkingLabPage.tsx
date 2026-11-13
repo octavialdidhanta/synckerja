@@ -15,6 +15,8 @@ import {
 } from "@/shared/components/ui/alert-dialog";
 import { Accordion } from "@/shared/components/ui/accordion";
 import { CheckSettingsDialog } from "@/thinking-lab/section/CheckSettingsDialog";
+import { skippedChecks, type CheckLevel } from "@/thinking-lab/shared/checkSettings";
+import { useCheckSettings } from "@/thinking-lab/shared/useCheckSettings";
 import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,
@@ -538,6 +540,16 @@ type LabFocus =
 
 /** The open node survives a remount of the page (e.g. an auth/access re-check), so the user is not sent back to the start. */
 const LAB_VIEW_KEY = "thinking-lab:view";
+/** True when this item was saved while some pass checks of its level were switched OFF. */
+function savedUnchecked(
+  items: ReadonlyArray<{ code: string; skipped?: string[] }> | null | undefined,
+  code: string | null | undefined,
+): boolean {
+  if (!code) return false;
+  const item = items?.find((entry) => entry.code.toUpperCase() === code.toUpperCase());
+  return Boolean(item?.skipped?.length);
+}
+
 type StoredLabView = { organizationId: string; selectedId: string | null; focus: LabFocus | null; composerOpen: boolean };
 
 function readStoredLabView(): StoredLabView | null {
@@ -571,6 +583,15 @@ export function ThinkingLabPage() {
   const queryClient = useQueryClient();
   const masters = useMasterThought();
   const catalogs = useLabCatalogs(masters.organizationId);
+  const checkSettingsQuery = useCheckSettings(masters.organizationId);
+  const checkSettingsRef = useRef(checkSettingsQuery.data?.checks);
+  checkSettingsRef.current = checkSettingsQuery.data?.checks;
+  /** Checks switched OFF for this organization, read at call time. */
+  const skipFor = (level: CheckLevel) => skippedChecks(checkSettingsRef.current, level);
+  const skippedMark = (level: CheckLevel): { skipped?: string[] } => {
+    const skipped = skipFor(level);
+    return skipped.length ? { skipped } : {};
+  };
   const [storedView] = useState(readStoredLabView);
   const [selectedId, setSelectedId] = useState<string | null>(() => storedView?.selectedId ?? null);
   const [newPrior, setNewPrior] = useState("");
@@ -2006,6 +2027,7 @@ export function ThinkingLabPage() {
         },
         judge: async (statement) => {
           const checklist = await runGenerateAdmissionChecks({
+            skip: skipFor("bigThought"),
             batch: true,
             statement,
             parentStatement: becauseParent,
@@ -2250,6 +2272,7 @@ export function ThinkingLabPage() {
             );
           }
           const checked = await runTerritoryAdmissionChecks({
+            skip: skipFor("territory"),
             batch: true,
             statement,
             parentStatement: parent.statement,
@@ -2491,6 +2514,7 @@ export function ThinkingLabPage() {
             );
           }
           const checked = await runAngleAdmissionChecks({
+            skip: skipFor("angle"),
             batch: true,
             statement,
             parentStatement: parent.statement,
@@ -2737,6 +2761,7 @@ export function ThinkingLabPage() {
         judge: async (_parent, code, statement, mechanismKeys) => {
           const draft = draftByStatement.get(statement.trim().toLowerCase());
           let validation = await runIdeaPassChecks({
+            skip: skipFor("idea"),
             batch: true,
             statement,
             title: draft?.subject ?? "",
@@ -2754,7 +2779,7 @@ export function ThinkingLabPage() {
             ask: (prompt) => askThinkingLab(prompt, 0),
             onStep: publishLive,
           });
-          if (validation.decision === "LOLOS") {
+          if (validation.decision === "LOLOS" && !skipFor("idea").includes("K5")) {
             const batchPeers = [
               ...storedPeers,
               ...staged.map((row) => ({
@@ -2996,10 +3021,10 @@ export function ThinkingLabPage() {
         const items = previousItems.some((item) => item.code.toUpperCase() === codeKey)
           ? previousItems.map((item) =>
               item.code.toUpperCase() === codeKey
-                ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint }
+                ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("idea") }
                 : item,
             )
-          : [...previousItems, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint }];
+          : [...previousItems, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("idea") }];
         setRecord = {
           ...setRecord,
           audit: { fingerprint: setRecord.audit?.fingerprint ?? "", items },
@@ -3055,6 +3080,7 @@ export function ThinkingLabPage() {
             : row.canonicalSemantic.mechanismKeys;
         const subject = draft.subject.trim() || row.canonicalSemantic.subject;
         const checked = await runIdeaOpenChecks({
+          skip: skipFor("idea"),
           batch: true,
           statement: draft.statement,
           parentStatement: focusedAngle.statement,
@@ -3084,7 +3110,7 @@ export function ThinkingLabPage() {
         const sealed = lockedIdeas
           .filter((item) => item.code.toUpperCase() !== row.code.toUpperCase())
           .map((item) => ({ code: item.code, statement: item.statement }));
-        let siblingPass = siblingRows.length + sealed.length < 2;
+        let siblingPass = skipFor("idea").includes("siblingsDistinct") || siblingRows.length + sealed.length < 2;
         let siblingReason = "";
         if (!siblingPass) {
           const fingerprint = ideaSetFingerprint({
@@ -3203,6 +3229,7 @@ export function ThinkingLabPage() {
         items: openIdeas.map((row) => ({
           code: row.code,
           verdict: "AUDIT_PASS" as const,
+          ...skippedMark("idea"),
           statementFingerprint: ideaFingerprint({
             statement: row.statement,
             angleFingerprint: parentAngleFingerprint,
@@ -3243,6 +3270,7 @@ export function ThinkingLabPage() {
           (row) => row.code.toUpperCase(),
           THINKING_PARALLEL_CHECKS,
           (row) => runIdeaIndividualChecks({
+            skip: skipFor("idea"),
             batch: true,
             statement: row.statement,
             parentStatement: focusedAngle.statement,
@@ -3273,7 +3301,7 @@ export function ThinkingLabPage() {
             { code: row.code, statement: row.statement },
           ];
           const sealed = lockedIdeas.map((item) => ({ code: item.code, statement: item.statement }));
-          let siblingPass = siblingRows.length + sealed.length < 2;
+          let siblingPass = skipFor("idea").includes("siblingsDistinct") || siblingRows.length + sealed.length < 2;
           if (!siblingPass) {
             publishIdeaChecklist(row.code, beginIdeaSiblingCheck(run.checks));
             const fingerprint = ideaSetFingerprint({
@@ -3329,6 +3357,7 @@ export function ThinkingLabPage() {
                 code: row.code,
                 verdict: "AUDIT_PASS" as const,
                 statementFingerprint: previous?.statementFingerprint ?? statementFingerprint,
+                ...(previous?.skipped ? { skipped: previous?.skipped } : {}),
               },
             ];
           }
@@ -3344,7 +3373,7 @@ export function ThinkingLabPage() {
             ];
           }
           if (!passedCodes.has(codeKey)) return [];
-          return [{ code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint }];
+          return [{ code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("idea") }];
         });
         await ideaSet.save.mutateAsync({
           schema: "thinking-lab/idea-set/v1",
@@ -3749,6 +3778,8 @@ export function ThinkingLabPage() {
     peers: CrossIdeaPeer[],
     historyAvailable: boolean,
   ): Promise<IdeaValidation> => {
+    // The cross-branch comparison is K5; with K5 OFF it is not asked.
+    if (skipFor("idea").includes("K5")) return candidate.validation;
     try {
       const [settled] = await judgeCrossIdeas({
         candidates: [candidate],
@@ -3781,6 +3812,7 @@ export function ThinkingLabPage() {
       const failures = failureItemsFromIdeas(loaded.ideas, focusedAngle.id);
       const peers = crossPeersFromIdeas(loaded.ideas);
       const checked = await runIdeaPassChecks({
+        skip: skipFor("idea"),
         batch: true,
         statement,
         angle: focusedAngle.statement,
@@ -3838,6 +3870,7 @@ export function ThinkingLabPage() {
       const failures = failureItemsFromIdeas(loaded.ideas, idea.angleId);
       const peers = crossPeersFromIdeas(loaded.ideas.filter((row) => row.id !== idea.id));
       const checked = await runIdeaPassChecks({
+        skip: skipFor("idea"),
         batch: true,
         statement,
         angle: angle.statement,
@@ -3932,6 +3965,7 @@ export function ThinkingLabPage() {
           return;
         }
         const checked = await runIdeaPassChecks({
+          skip: skipFor("idea"),
           batch: true,
           statement: draft.statement,
           title: draft.subject || current.title,
@@ -6279,10 +6313,10 @@ export function ThinkingLabPage() {
         const items = previousItems.some((item) => item.code.toUpperCase() === codeKey)
           ? previousItems.map((item) =>
               item.code.toUpperCase() === codeKey
-                ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint }
+                ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("angle") }
                 : item,
             )
-          : [...previousItems, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint }];
+          : [...previousItems, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("angle") }];
         setRecord = {
           ...setRecord,
           audit: { fingerprint: setRecord.audit?.fingerprint ?? "", items },
@@ -6297,7 +6331,7 @@ export function ThinkingLabPage() {
             .map((item) => ({ code: item.code, statement: item.statement })),
           { code: row.code, statement },
         ];
-        if (siblingRows.length < 2) {
+        if (siblingRows.length < 2 || skipFor("angle").includes("siblingsDistinct")) {
           return { pass: true, reason: "", settled: finishAngleSiblingCheck(checks, true, "") };
         }
         const siblingFingerprint = angleSetFingerprint({
@@ -6395,6 +6429,7 @@ export function ThinkingLabPage() {
               ? shown
               : scope.preserve.map((id) => ({ id: id as AnglePassCheck["id"], state: "pass" as const }));
           const checked = await runAngleOpenChecks({
+            skip: skipFor("angle"),
             batch: true,
             statement: currentStatement,
             parentStatement: focusedTerritory.statement,
@@ -6469,6 +6504,7 @@ export function ThinkingLabPage() {
               ? shown
               : scope.preserve.map((id) => ({ id: id as AnglePassCheck["id"], state: "pass" as const }));
           const checked = await runAngleOpenChecks({
+            skip: skipFor("angle"),
             batch: true,
             statement: currentStatement,
             parentStatement: focusedTerritory.statement,
@@ -6552,6 +6588,7 @@ export function ThinkingLabPage() {
           continue;
         }
         const checked = await runAngleOpenChecks({
+          skip: skipFor("angle"),
           batch: true,
           statement,
           parentStatement: focusedTerritory.statement,
@@ -6693,6 +6730,7 @@ export function ThinkingLabPage() {
         if (!draft?.statement || bannedNames.has(draft.statement.trim().toLowerCase())) return;
         const code = nextAngleCode((labAngles.data ?? []).map((row) => row.code));
         const checked = await runAngleAdmissionChecks({
+          skip: skipFor("angle"),
           batch: true,
           statement: draft.statement,
           parentStatement: focusedTerritory.statement,
@@ -6762,6 +6800,7 @@ export function ThinkingLabPage() {
           (row) => row.code.toUpperCase(),
           THINKING_PARALLEL_CHECKS,
           (row) => runAngleIndividualChecks({
+            skip: skipFor("angle"),
             batch: true,
             statement: row.statement,
             parentStatement: focusedTerritory.statement,
@@ -6792,7 +6831,7 @@ export function ThinkingLabPage() {
             { code: row.code, statement: row.statement },
           ];
           publishAngleChecklist(row.code, beginAngleSiblingCheck(run.checks));
-          let siblingPass = siblingRows.length < 2;
+          let siblingPass = skipFor("angle").includes("siblingsDistinct") || siblingRows.length < 2;
           let siblingReason = "";
           if (!siblingPass) {
             const fingerprint = angleSetFingerprint({
@@ -6850,10 +6889,11 @@ export function ThinkingLabPage() {
                 code: row.code,
                 verdict: "AUDIT_PASS" as const,
                 statementFingerprint: previous.statementFingerprint ?? statementFingerprint,
+                ...(previous.skipped ? { skipped: previous.skipped } : {}),
               };
             }
           }
-          if (passedCodes.has(codeKey)) return { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint };
+          if (passedCodes.has(codeKey)) return { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("angle") };
           const failure = failedByCode.get(codeKey);
           return {
             code: row.code,
@@ -7123,6 +7163,7 @@ export function ThinkingLabPage() {
         }
         const prior = fixPriorForNextTerritoryName(shown, draft, statement);
         const checked = await runTerritoryOpenChecks({
+          skip: skipFor("territory"),
           batch: true,
           statement,
           parentStatement: focusedThought.statement,
@@ -7150,7 +7191,7 @@ export function ThinkingLabPage() {
             .map((item) => ({ code: item.code, statement: item.statement })),
           { code: row.code, statement },
         ];
-        let siblingPass = siblingAlreadyPassed || siblingRows.length < 2;
+        let siblingPass = skipFor("territory").includes("siblingsDistinct") || siblingAlreadyPassed || siblingRows.length < 2;
         let siblingReason = "";
         if (!siblingPass) {
           publishTerritoryChecklist(row.code, beginSiblingCheck(checked.checks));
@@ -7223,10 +7264,10 @@ export function ThinkingLabPage() {
         const items = previousItems.some((item) => item.code.toUpperCase() === codeKey)
           ? previousItems.map((item) =>
               item.code.toUpperCase() === codeKey
-                ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint }
+                ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("territory") }
                 : item,
             )
-          : [...previousItems, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint }];
+          : [...previousItems, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("territory") }];
         setRecord = {
           ...setRecord,
           audit: { fingerprint: setRecord.audit?.fingerprint ?? "", items },
@@ -7349,6 +7390,7 @@ export function ThinkingLabPage() {
                 .filter((item) => item.id !== row.id && passedCodes.has(item.code.toUpperCase()))
                 .map((item) => item.statement);
             return runTerritoryIndividualChecks({
+            skip: skipFor("territory"),
             batch: true,
             statement: row.statement,
             parentStatement: focusedThought.statement,
@@ -7400,7 +7442,7 @@ export function ThinkingLabPage() {
             { code: row.code, statement: row.statement },
           ];
           publishAudit(row.code, beginSiblingCheck(run.checks));
-          let siblingPass = siblingRows.length < 2;
+          let siblingPass = skipFor("territory").includes("siblingsDistinct") || siblingRows.length < 2;
           let siblingReason = "";
           if (!siblingPass) {
             const fingerprint = territorySetFingerprint({
@@ -7481,10 +7523,11 @@ export function ThinkingLabPage() {
                 code: row.code,
                 verdict: "AUDIT_PASS" as const,
                 statementFingerprint: previous.statementFingerprint ?? statementFingerprint,
+                ...(previous.skipped ? { skipped: previous.skipped } : {}),
               };
             }
           }
-          if (passedCodes.has(codeKey)) return { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint };
+          if (passedCodes.has(codeKey)) return { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("territory") };
           const failure = failedByCode.get(codeKey);
           return {
             code: row.code,
@@ -7717,6 +7760,7 @@ export function ThinkingLabPage() {
         continue;
       }
       const checked = await runBigThoughtOpenChecks({
+        skip: skipFor("bigThought"),
         batch: true,
         statement: next,
         parentStatement: becauseParent,
@@ -7744,7 +7788,7 @@ export function ThinkingLabPage() {
         ...keepers.map((item) => ({ code: item.code, statement: item.statement })),
         { code: row.code, statement: next },
       ];
-      let siblingPass = siblingRows.length < 2;
+      let siblingPass = skipFor("bigThought").includes("sibling") || siblingRows.length < 2;
       let siblingReason = "";
       if (!siblingPass) {
         const fingerprint = incumbentSetFingerprint({
@@ -7802,10 +7846,10 @@ export function ThinkingLabPage() {
       const items = previous.some((item) => item.code.toUpperCase() === key)
         ? previous.map((item) =>
             item.code.toUpperCase() === key
-              ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, gatesChecked: true as const }
+              ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, gatesChecked: true as const, ...skippedMark("bigThought") }
               : item,
           )
-        : [...previous, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, gatesChecked: true as const }];
+        : [...previous, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, gatesChecked: true as const, ...skippedMark("bigThought") }];
       const nextRecord = nextAuthoritativeSetRecord({
         record,
         parentFingerprint: parentFp,
@@ -7923,6 +7967,7 @@ export function ThinkingLabPage() {
               .map((lesson) => ({ statement: lesson.statement, reason: lesson.reason })),
           ];
           const checked = await runBigThoughtIndividualChecks({
+            skip: skipFor("bigThought"),
             batch: true,
             statement: row.statement,
             parentStatement: becauseParent,
@@ -7943,7 +7988,7 @@ export function ThinkingLabPage() {
           (row) => heldPass.has(row.code.toUpperCase()) || passedIndividual.has(row.code.toUpperCase()),
         );
         let sibling = setRecord?.siblingSet ?? null;
-        if (passedIndividual.size > 0 && siblingRows.length >= 2) {
+        if (passedIndividual.size > 0 && siblingRows.length >= 2 && !skipFor("bigThought").includes("sibling")) {
           const fingerprint = incumbentSetFingerprint({
             masterThoughtFingerprint: parentFp,
             bigThoughtFingerprints: siblingRows.map((row) =>
@@ -7997,7 +8042,14 @@ export function ThinkingLabPage() {
             masterThoughtFingerprint: parentFp,
           });
           if (heldPass.has(codeKey) || passedIndividual.has(codeKey)) {
-            return { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, gatesChecked: true as const };
+            const skipped = heldPass.has(codeKey) ? [] : skipFor("bigThought");
+            return {
+              code: row.code,
+              verdict: "AUDIT_PASS" as const,
+              statementFingerprint,
+              gatesChecked: true as const,
+              ...(skipped.length ? { skipped } : {}),
+            };
           }
           const failure = failures.get(codeKey);
           return {
@@ -8759,6 +8811,20 @@ export function ThinkingLabPage() {
                           ) : selected && locked ? (
                             focus?.masterId === selected.id ? (
                               <LabNodeInspector
+                                unchecked={
+                                  focus.kind === "idea"
+                                    ? savedUnchecked(ideaSet.data?.audit?.items, focusedIdea?.code)
+                                    : focus.kind === "angle"
+                                      ? savedUnchecked(angleSet.data?.audit?.items, focusedAngle?.code)
+                                      : focus.kind === "territory"
+                                        ? savedUnchecked(territorySet.data?.audit?.items, focusedTerritory?.code)
+                                        : focus.kind === "bigThought"
+                                          ? savedUnchecked(
+                                              setRecord?.audit?.items,
+                                              lockedChildren.get(selected.id)?.find((child) => child.id === focus.thoughtId)?.code,
+                                            )
+                                          : false
+                                }
                                 kind={
                                   focus.kind === "idea"
                                     ? "idea"
@@ -8960,6 +9026,7 @@ export function ThinkingLabPage() {
                                           showChecklistPending: false,
                                           canRevise: canReviseIdea(row, angleIdeaRows, validation.decision),
                                           checklistNote: ideaChecklists[row.code.toUpperCase()]?.note,
+                                          unchecked: savedUnchecked(ideaSet.data?.audit?.items, row.code),
                                         };
                                       })
                                     : undefined
@@ -9376,7 +9443,7 @@ export function ThinkingLabPage() {
                                       const prior = priorDraft.trim();
                                       const ask = (prompt: string) => askThinkingLab(prompt, 0);
                                       // A belief typed by hand meets the same bar as a chosen option.
-                                      const check = await checkWrittenBelief({ belief: planted, priorBelief: prior }, ask);
+                                      const check = await checkWrittenBelief({ belief: planted, priorBelief: prior, skip: skipFor("master") }, ask);
                                       if (!check.pass) {
                                         toast.error(
                                           t(

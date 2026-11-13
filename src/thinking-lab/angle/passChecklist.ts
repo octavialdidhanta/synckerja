@@ -260,15 +260,22 @@ export async function runAngleAdmissionChecks(input: {
   statement: string;
   parentStatement: string;
   ancestors?: AncestorStake[];
+  /** Checks switched OFF for this organization: treated as passed, never asked. */
+  skip?: readonly string[];
   ask: (prompt: string) => Promise<string | null>;
   onStep: (checks: AnglePassCheck[]) => void;
 }): Promise<{ checks: AnglePassCheck[]; passed: boolean }> {
   const checks = angleAdmissionChecks();
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
-  const batched = await batchedAngleAnswers({ ...input, open: ANGLE_GENERATE_PASS_IDS });
+  const batched = await batchedAngleAnswers({ ...input, open: ANGLE_GENERATE_PASS_IDS.filter((id) => !input.skip?.includes(id)) });
   for (const id of ANGLE_GENERATE_PASS_IDS) {
     const index = checks.findIndex((check) => check.id === id);
+    if (input.skip?.includes(id)) {
+      checks[index] = { id, state: "pass" };
+      publish();
+      continue;
+    }
     checks[index] = { id, state: "running" };
     publish();
     const prompt = buildAnglePassPrompt({

@@ -245,15 +245,22 @@ export async function runTerritoryAdmissionChecks(input: {
   statement: string;
   parentStatement: string;
   audience?: string;
+  /** Checks switched OFF for this organization: treated as passed, never asked. */
+  skip?: readonly string[];
   ask: (prompt: string) => Promise<string | null>;
   onStep: (checks: TerritoryPassCheck[]) => void;
 }): Promise<{ checks: TerritoryPassCheck[]; passed: boolean }> {
   const checks = territoryAdmissionChecks();
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
-  const batched = await batchedTerritoryAnswers({ ...input, open: TERRITORY_GENERATE_PASS_IDS });
+  const batched = await batchedTerritoryAnswers({ ...input, open: TERRITORY_GENERATE_PASS_IDS.filter((id) => !input.skip?.includes(id)) });
   for (const id of TERRITORY_GENERATE_PASS_IDS) {
     const index = checks.findIndex((check) => check.id === id);
+    if (input.skip?.includes(id)) {
+      checks[index] = { id, state: "pass" };
+      publish();
+      continue;
+    }
     checks[index] = { id, state: "running" };
     publish();
     const prompt = buildTerritoryPassPrompt({

@@ -76,6 +76,11 @@ export function levelChecksOff(settings: CheckSettings | null | undefined, level
   return CHECK_REGISTRY[level].every((entry) => !checkEnabled(settings, level, entry.id));
 }
 
+/** The checks of one level that are switched OFF: skipped, and recorded on the saved item. */
+export function skippedChecks(settings: CheckSettings | null | undefined, level: CheckLevel): string[] {
+  return CHECK_REGISTRY[level].filter((entry) => !checkEnabled(settings, level, entry.id)).map((entry) => entry.id);
+}
+
 export function enabledChecks(settings: CheckSettings | null | undefined, level: CheckLevel): string[] {
   return CHECK_REGISTRY[level].filter((entry) => checkEnabled(settings, level, entry.id)).map((entry) => entry.id);
 }

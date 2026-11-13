@@ -19,17 +19,13 @@ import { individualAdmission } from "../../../../src/thinking-lab/big-thought/po
 import { bigThoughtListed } from "../../../../src/thinking-lab/big-thought/checklist";
 import { ACTIVE_SET_CAP } from "../../../../src/thinking-lab/shared/limits";
 import type { AuditItem, BigThoughtFacts } from "../../../../src/thinking-lab/big-thought/types";
-import {
-  CHECK_REGISTRY,
-  checkEnabled,
-  parseCheckSettings,
-  type CheckLevel,
-  type CheckSettings,
-} from "../../../../src/thinking-lab/shared/checkSettings";
+import { parseCheckSettings, skippedChecks, type CheckSettings } from "../../../../src/thinking-lab/shared/checkSettings";
 import { askJudge, type JudgeConfig } from "./thinkingLab";
 
 export type Session = { userId: string; organizationId: string };
 type Ask = (prompt: string) => Promise<string | null>;
+export { skippedChecks };
+
 /** checks overrides the organization's pass-check switches (tests). */
 export type Deps = { ask?: Ask; fetchImpl?: typeof fetch; checks?: CheckSettings };
 
@@ -39,11 +35,6 @@ export async function loadCheckSettings(admin: SupabaseClient, ctx: Session, dep
   const { data, error } = await admin.rpc("mcp_thinking_check_settings", sessionArgs(ctx));
   if (error) rpcError(error);
   return parseCheckSettings(data);
-}
-
-/** The checks of one level that are switched OFF: skipped, and recorded on the saved item. */
-export function skippedChecks(settings: CheckSettings, level: CheckLevel): string[] {
-  return CHECK_REGISTRY[level].filter((entry) => !checkEnabled(settings, level, entry.id)).map((entry) => entry.id);
 }
 
 export type ThinkingWriteResult =
