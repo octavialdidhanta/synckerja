@@ -1,4 +1,4 @@
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
+import { parseModelJson } from "./parseModelJson";
 
 /**
  * Several pass checks of one item in one model call. Each check keeps its own rule text and is

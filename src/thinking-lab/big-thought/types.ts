@@ -1,4 +1,4 @@
-import type { Resolution, TriState } from "@/thinking-lab/shared/verdict";
+import type { Resolution, TriState } from "../shared/verdict";
 
 export type ParentRelation =
   | "DISTINCT_MATERIAL_SUPPORT"

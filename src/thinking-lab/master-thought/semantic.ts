@@ -1,16 +1,16 @@
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
+import { parseModelJson } from "../shared/parseModelJson";
 import {
   fingerprintsMatch,
   masterThoughtFingerprint,
-} from "@/thinking-lab/shared/fingerprint";
-import type { Resolution } from "@/thinking-lab/shared/verdict";
+} from "../shared/fingerprint";
+import type { Resolution } from "../shared/verdict";
 import type {
   BeliefOption,
   ConfirmationSource,
   MasterAdmission,
   MasterThoughtFacts,
   UnderstandOutcome,
-} from "@/thinking-lab/master-thought/types";
+} from "./types";
 
 const LANGUAGE_RULE =
   "Write every natural-language field in the same language as the Master Thought text.";

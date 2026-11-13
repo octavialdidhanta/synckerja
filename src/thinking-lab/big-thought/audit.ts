@@ -1,6 +1,6 @@
-import type { AuditVerdict, IndividualAdmission } from "@/thinking-lab/shared/verdict";
-import { fingerprintsMatch } from "@/thinking-lab/shared/fingerprint";
-import { PASS_GATE_IDS } from "@/thinking-lab/big-thought/checklist";
+import type { AuditVerdict, IndividualAdmission } from "../shared/verdict";
+import { fingerprintsMatch } from "../shared/fingerprint";
+import { PASS_GATE_IDS } from "./checklist";
 import type {
   AuditItem,
   GateFailure,
@@ -11,7 +11,7 @@ import type {
   SemanticExclusion,
   SemanticExclusionHistory,
   SiblingSetFacts,
-} from "@/thinking-lab/big-thought/types";
+} from "./types";
 
 function pairIncludes(pairs: Array<{ a: string; b: string }>, code: string): boolean {
   const target = code.toUpperCase();

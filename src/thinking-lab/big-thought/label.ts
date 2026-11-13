@@ -1,5 +1,5 @@
-import { asBecauseClause } from "@/thinking-lab/big-thought/because";
-import { productReasonLines, type ProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
+import { asBecauseClause } from "./because";
+import { productReasonLines, type ProductReasonPool } from "../master-thought/productReasonPool";
 
 function labelWords(raw: string): string[] {
   return raw

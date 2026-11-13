@@ -1,5 +1,5 @@
-import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
-import type { BigThoughtFacts } from "@/thinking-lab/big-thought/types";
+import type { IndividualAdmission } from "../shared/verdict";
+import type { BigThoughtFacts } from "./types";
 
 const REJECT_RELATIONS = new Set<BigThoughtFacts["relationToParent"]>([
   "RESTATEMENT",

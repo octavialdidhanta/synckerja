@@ -1,11 +1,11 @@
-import { bigThoughtRepeats } from "@/thinking-lab/big-thought/label";
-import type { PassChecklist, PassGateCheck, PassGateId } from "@/thinking-lab/big-thought/checklist";
-import { PASS_GATE_IDS } from "@/thinking-lab/big-thought/checklist";
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
-import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "@/thinking-lab/shared/batchGates";
-import { fixScopeLines, openMistakeLines, type FixScope } from "@/thinking-lab/shared/fixScope";
-import { parseGeneratedBigThoughts, shownBigThoughtFacts } from "@/thinking-lab/big-thought/generate";
-import type { BigThoughtFacts, GeneratePassGate } from "@/thinking-lab/big-thought/types";
+import { bigThoughtRepeats } from "./label";
+import type { PassChecklist, PassGateCheck, PassGateId } from "./checklist";
+import { PASS_GATE_IDS } from "./checklist";
+import { parseModelJson } from "../shared/parseModelJson";
+import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "../shared/batchGates";
+import { fixScopeLines, openMistakeLines, type FixScope } from "../shared/fixScope";
+import { parseGeneratedBigThoughts, shownBigThoughtFacts } from "./generate";
+import type { BigThoughtFacts, GeneratePassGate } from "./types";
 
 /** Generate admits a sentence only after these three. Audit repeats the duplicate check by meaning, and keeps the other two while the sentence stays the same. */
 export const GENERATE_ADMISSION_GATES = ["duplicate", "resolved", "relation"] as const satisfies readonly PassGateId[];

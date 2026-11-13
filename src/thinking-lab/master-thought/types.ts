@@ -1,5 +1,5 @@
-import type { ProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
-import type { Resolution } from "@/thinking-lab/shared/verdict";
+import type { ProductReasonPool } from "./productReasonPool";
+import type { Resolution } from "../shared/verdict";
 
 export type ConfirmationSource = "original" | "recommendation" | "edited";
 

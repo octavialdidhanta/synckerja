@@ -1,4 +1,4 @@
-import { beliefsMatch } from "@/thinking-lab/master-thought/semantic";
+import { beliefsMatch } from "./semantic";
 
 export type ProductBeliefSourceRow = {
   category: string;
