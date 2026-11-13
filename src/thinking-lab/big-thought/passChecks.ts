@@ -108,8 +108,9 @@ function bigThoughtGateRules(id: (typeof INDIVIDUAL_GATE_IDS)[number]): string[]
             ]
           : id === "explains"
             ? [
-                "pass is true only when the Master Thought is true because this sentence, and the sentence shows what that cause produces.",
-                "pass is false when the because-form is circular or the result is missing.",
+                "pass is true only when the Master Thought is true because this sentence, and removing this sentence would leave the Master Thought with one reason fewer to be believed.",
+                "pass is false when the because-form is circular, or when removing the sentence changes nothing because it adds no reason the Master Thought needs.",
+                "Do not fail only because there is no sehingga or so that result. A cause that already explains the Master Thought is enough.",
               ]
             : id === "premise"
               ? [

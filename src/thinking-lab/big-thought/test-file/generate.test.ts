@@ -168,8 +168,8 @@ describe("generate planner", () => {
     expect(prompt).toContain("The candidate must not restate the Master Thought or an incumbent Big Thought.");
     expect(prompt).toContain("Inserting the word because between the Master Thought and the candidate must already make one sentence.");
     expect(prompt).toContain("It does not open a new claim.");
-    expect(prompt).toContain("Join it with sehingga when the Master Thought is Indonesian");
-    expect(prompt).toContain("When the cause already shows that result, stop.");
+    expect(prompt).toContain("A Big Thought does not need sehingga or so that.");
+    expect(prompt).toContain("A cause that already explains the Master Thought stops there.");
     expect(prompt).toContain("semantic name of that statement's meaning");
     expect(prompt).toContain("Do not shorten or rewrite the statement so that it matches the label.");
     expect(prompt).toContain("same words as an incumbent label, in any order");

@@ -29,9 +29,9 @@ export function asBecauseClause(statement: string, parentStatement = ""): string
 }
 
 export const BECAUSE_RESULT_LINES = [
-  "When the cause alone does not yet show the result that makes the Master Thought feel true, continue that same clause with one result of the cause. Join it with sehingga when the Master Thought is Indonesian, and with so that when it is English.",
+  "A Big Thought does not need sehingga or so that. A cause that already explains the Master Thought stops there.",
+  "Add one result of the cause, joined with sehingga (Indonesian) or so that (English), only when the cause alone would not connect to the Master Thought.",
   "That result is what the cause produces. It must not repeat the Master Thought, and it must not open a second reason.",
-  "When the cause already shows that result, stop. Do not add sehingga or so that.",
 ] as const;
 
 export function becauseSentence(parentStatement: string, clause: string): string {
