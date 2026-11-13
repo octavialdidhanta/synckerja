@@ -290,12 +290,15 @@ export async function runTerritoryIndividualChecks(input: {
   ensureQuestion?: () => Promise<string>;
   /** Both Generate passes for this exact name. Audit does not ask these again. */
   carried?: readonly TerritoryGeneratePass[];
+  /** Checks switched OFF for this organization: treated as passed, never asked. */
+  skip?: readonly string[];
   ask: (prompt: string) => Promise<string | null>;
   onStep: (checks: TerritoryPassCheck[]) => void;
 }): Promise<{ checks: TerritoryPassCheck[]; passed: boolean; question: string }> {
   const carried = new Set(readTerritoryGeneratePasses(input.carried));
+  const skip = new Set<string>(input.skip ?? []);
   const checks = emptyPassChecklist().map((check) =>
-    carried.has(check.id as TerritoryGeneratePass) ? { id: check.id, state: "pass" as const } : check,
+    carried.has(check.id as TerritoryGeneratePass) || skip.has(check.id) ? { id: check.id, state: "pass" as const } : check,
   );
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
@@ -356,13 +359,15 @@ export async function runTerritoryOpenChecks(input: {
   audience?: string;
   question?: string;
   ensureQuestion?: () => Promise<string>;
+  /** Checks switched OFF for this organization: treated as passed, never asked. */
+  skip?: readonly string[];
   prior: readonly TerritoryPassCheck[];
   ask: (prompt: string) => Promise<string | null>;
   onStep: (checks: TerritoryPassCheck[]) => void;
 }): Promise<{ checks: TerritoryPassCheck[]; passed: boolean; question: string }> {
   const checks: TerritoryPassCheck[] = emptyPassChecklist().map((check) => {
     const previous = input.prior.find((item) => item.id === check.id);
-    return previous?.state === "pass" ? { id: check.id, state: "pass" as const } : { id: check.id, state: "pending" as const };
+    return previous?.state === "pass" || input.skip?.includes(check.id) ? { id: check.id, state: "pass" as const } : { id: check.id, state: "pending" as const };
   });
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();

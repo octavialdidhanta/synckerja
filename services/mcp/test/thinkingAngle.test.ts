@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import { addThinkingAngle, lockThinkingAngles } from "../src/db/thinkingAngle";
 import { confirmedFingerprint } from "../../../src/thinking-lab/master-thought/semantic";
 import { angleFingerprint, bigThoughtFingerprint, territoryFingerprint } from "../../../src/thinking-lab/shared/fingerprint";
+import { CHECK_REGISTRY } from "../../../src/thinking-lab/shared/checkSettings";
+
+const ALL_ON = Object.fromEntries(
+  Object.entries(CHECK_REGISTRY).flatMap(([level, entries]) => entries.map((entry) => [`${level}.${entry.id}`, true])),
+);
 
 const config = { supabaseUrl: "https://x", supabaseServiceRoleKey: "k", scheduledPostsInternalSecret: "s" };
 const ctx = { userId: "u", organizationId: "o" };
@@ -49,7 +54,7 @@ const angle = {
 describe("thinking.angle.add", () => {
   it("saves a passing Angle as the next AN code with an audit item", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
-    const result = await addThinkingAngle(fakeAdmin(context(), calls), config, ctx, { territoryId: trId, ...angle }, { ask: answer(() => true) });
+    const result = await addThinkingAngle(fakeAdmin(context(), calls), config, ctx, { territoryId: trId, ...angle }, { checks: ALL_ON, ask: answer(() => true) });
     expect(result).toEqual({ saved: true, id: "66666666-6666-4666-8666-666666666666", code: "AN02" });
     const save = calls.find((call) => call.fn === "mcp_add_thinking_angle")!;
     expect(save.args.p_parent_fingerprint).toBe(trFp);
@@ -59,13 +64,13 @@ describe("thinking.angle.add", () => {
 
   it("refuses an unlocked Territory", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
-    const result = await addThinkingAngle(fakeAdmin(context("candidate"), calls), config, ctx, { territoryId: trId, ...angle }, { ask: answer(() => true) });
+    const result = await addThinkingAngle(fakeAdmin(context("candidate"), calls), config, ctx, { territoryId: trId, ...angle }, { checks: ALL_ON, ask: answer(() => true) });
     expect(result.saved).toBe(false);
   });
 
   it("does not save when a check fails", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
-    const result = await addThinkingAngle(fakeAdmin(context(), calls), config, ctx, { territoryId: trId, ...angle }, { ask: answer((id) => id !== "observationJob") });
+    const result = await addThinkingAngle(fakeAdmin(context(), calls), config, ctx, { territoryId: trId, ...angle }, { checks: ALL_ON, ask: answer((id) => id !== "observationJob") });
     expect(result.saved).toBe(false);
     if (!result.saved) expect(result.failed[0].check).toBe("observationJob");
   });
@@ -81,5 +86,22 @@ describe("thinking.angle.lock", () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
     const result = await lockThinkingAngles(fakeAdmin(context("locked", rows, set), calls), ctx, { territoryId: trId });
     expect(result).toEqual({ saved: true, id: trId });
+  });
+  it("with every Angle check OFF, saves without asking and marks the item unchecked", async () => {
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    let asked = 0;
+    const result = await addThinkingAngle(fakeAdmin(context(), calls), config, ctx, { territoryId: trId, ...angle }, {
+      checks: {},
+      ask: async () => {
+        asked += 1;
+        return null;
+      },
+    });
+    expect(result).toMatchObject({ saved: true, code: "AN02" });
+    expect(asked).toBe(0);
+    const save = calls.find((call) => call.fn === "mcp_add_thinking_angle")!;
+    const set = save.args.p_angle_set as { audit: { items: Array<{ verdict: string; skipped?: string[] }> } };
+    expect(set.audit.items[0].verdict).toBe("AUDIT_PASS");
+    expect(set.audit.items[0].skipped?.length).toBe(8);
   });
 });

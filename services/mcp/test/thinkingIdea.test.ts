@@ -6,6 +6,11 @@ import {
   bigThoughtFingerprint,
   territoryFingerprint,
 } from "../../../src/thinking-lab/shared/fingerprint";
+import { CHECK_REGISTRY } from "../../../src/thinking-lab/shared/checkSettings";
+
+const ALL_ON = Object.fromEntries(
+  Object.entries(CHECK_REGISTRY).flatMap(([level, entries]) => entries.map((entry) => [`${level}.${entry.id}`, true])),
+);
 
 const config = { supabaseUrl: "https://x", supabaseServiceRoleKey: "k", scheduledPostsInternalSecret: "s" };
 const ctx = { userId: "u", organizationId: "o" };
@@ -44,14 +49,14 @@ const keys = [{ otherExplanation: "Ukuran potongan berbeda.", close: "Kedua poto
 describe("thinking.idea.add", () => {
   it("refuses an Angle that is not locked", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
-    const result = await addThinkingIdea(fakeAdmin(context("candidate"), calls), config, ctx, { angleId, statement, subject: "", keys }, { ask: async () => null });
+    const result = await addThinkingIdea(fakeAdmin(context("candidate"), calls), config, ctx, { angleId, statement, subject: "", keys }, { checks: ALL_ON, ask: async () => null });
     expect(result).toEqual({ saved: false, failed: [{ check: "angle", reason: "Lock the Angles first (thinking.angle.lock)." }] });
   });
 
   it("refuses an Idea that repeats one saved under the same Master Thought", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
     const other = { id: "i1", code: "ID01", statement, angle_id: "another-angle", admission: "GENERATE_VALID", status: "candidate", sort_order: 1, validation: null };
-    const result = await addThinkingIdea(fakeAdmin(context("locked", [other]), calls), config, ctx, { angleId, statement, subject: "", keys }, { ask: async () => null });
+    const result = await addThinkingIdea(fakeAdmin(context("locked", [other]), calls), config, ctx, { angleId, statement, subject: "", keys }, { checks: ALL_ON, ask: async () => null });
     expect(result.saved).toBe(false);
     if (!result.saved) expect(result.failed[0].check).toBe("duplicate");
   });
@@ -59,9 +64,23 @@ describe("thinking.idea.add", () => {
   it("does not save when K1-K7 do not pass", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
     const result = await addThinkingIdea(fakeAdmin(context(), calls), config, ctx, { angleId, statement, subject: "", keys }, {
+      checks: ALL_ON,
       ask: async () => JSON.stringify({ pass: false, reason: "Nilainya tidak jelas untuk audiens." }),
     });
     expect(result.saved).toBe(false);
     expect(calls.some((call) => call.fn === "mcp_add_thinking_idea")).toBe(false);
+  });
+  it("with every Idea check OFF, saves without asking", async () => {
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    let asked = 0;
+    const result = await addThinkingIdea(fakeAdmin(context(), calls), config, ctx, { angleId, statement, subject: "", keys }, {
+      checks: {},
+      ask: async () => {
+        asked += 1;
+        return null;
+      },
+    });
+    expect(result).toMatchObject({ saved: true });
+    expect(asked).toBe(0);
   });
 });

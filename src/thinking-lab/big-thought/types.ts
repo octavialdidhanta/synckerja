@@ -78,6 +78,8 @@ export type AuditItem = {
   /** Set after this audit walked every pass gate and confirmed them. */
   gatesChecked?: true;
   gateFailure?: GateFailure;
+  /** Pass checks switched OFF when this item was saved: shown as "Tanpa cek". */
+  skipped?: string[];
 };
 
 export type ChallengerStatus = "COMPLETE" | "MISSING_MATERIAL_SUPPORT" | "UNRESOLVED";

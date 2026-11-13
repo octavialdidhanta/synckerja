@@ -305,12 +305,15 @@ export async function runAngleIndividualChecks(input: {
   example?: string;
   /** Both Generate passes for this exact sentence. Audit does not ask these again. */
   carried?: readonly AngleGeneratePass[];
+  /** Checks switched OFF for this organization: treated as passed, never asked. */
+  skip?: readonly string[];
   ask: (prompt: string) => Promise<string | null>;
   onStep: (checks: AnglePassCheck[]) => void;
 }): Promise<{ checks: AnglePassCheck[]; passed: boolean }> {
   const carried = new Set(readAngleGeneratePasses(input.carried));
+  const skip = new Set<string>(input.skip ?? []);
   const checks = emptyAnglePassChecklist().map((check) =>
-    carried.has(check.id as AngleGeneratePass) ? { id: check.id, state: "pass" as const } : check,
+    carried.has(check.id as AngleGeneratePass) || skip.has(check.id) ? { id: check.id, state: "pass" as const } : check,
   );
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
@@ -371,13 +374,15 @@ export async function runAngleOpenChecks(input: {
   ancestors?: AncestorStake[];
   subject?: string;
   example?: string;
+  /** Checks switched OFF for this organization: treated as passed, never asked. */
+  skip?: readonly string[];
   prior: readonly AnglePassCheck[];
   ask: (prompt: string) => Promise<string | null>;
   onStep: (checks: AnglePassCheck[]) => void;
 }): Promise<{ checks: AnglePassCheck[]; passed: boolean }> {
   const checks: AnglePassCheck[] = emptyAnglePassChecklist().map((check) => {
     const previous = input.prior.find((item) => item.id === check.id);
-    return previous?.state === "pass" ? { id: check.id, state: "pass" as const } : { id: check.id, state: "pending" as const };
+    return previous?.state === "pass" || input.skip?.includes(check.id) ? { id: check.id, state: "pass" as const } : { id: check.id, state: "pending" as const };
   });
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();

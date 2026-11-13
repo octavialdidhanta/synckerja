@@ -28,7 +28,7 @@ import {
 import { ACTIVE_SET_CAP, TARGET_GENERATE_VALID } from "../../../../src/thinking-lab/shared/limits";
 import type { TerritorySemanticFacts } from "../../../../src/thinking-lab/territory/types";
 import type { JudgeConfig } from "./thinkingLab";
-import { makeAsk, rpcError, sessionArgs, type Deps, type Session, type ThinkingWriteResult } from "./thinkingWrite";
+import { loadCheckSettings, makeAsk, rpcError, sessionArgs, skippedChecks, type Deps, type Session, type ThinkingWriteResult } from "./thinkingWrite";
 
 type TerritoryRow = {
   id: string;
@@ -132,6 +132,7 @@ export async function addThinkingTerritory(
   }
 
   const ask = makeAsk(config, ctx, deps);
+  const skip = skippedChecks(await loadCheckSettings(admin, ctx, deps), "territory");
   const audience = context.master.audience.trim();
   const semantic = context.big_thought.canonical_semantic;
   let question =
@@ -172,6 +173,7 @@ export async function addThinkingTerritory(
       gloss = await writeGloss();
       return gloss.question;
     },
+    skip,
     ask,
     onStep: () => undefined,
   });
@@ -186,7 +188,7 @@ export async function addThinkingTerritory(
   const code = nextTerritoryCode(context.master_codes);
   const siblingRows = [...passed.map((row) => ({ code: row.code, statement: row.statement })), { code, statement }];
   let siblingSet = record.siblingSet;
-  if (siblingRows.length >= 2) {
+  if (!skip.includes("siblingsDistinct") && siblingRows.length >= 2) {
     const fingerprint = territorySetFingerprint({
       bigThoughtFingerprint: bigThoughtFp,
       territoryFingerprints: siblingRows.map((row) =>
@@ -218,7 +220,7 @@ export async function addThinkingTerritory(
   const statementFingerprint = territoryFingerprint({ statement, bigThoughtFingerprint: bigThoughtFp });
   const nextItems: TerritoryAuditItem[] = [
     ...items.filter((item) => item.code.toUpperCase() !== code.toUpperCase()),
-    { code, verdict: "AUDIT_PASS", statementFingerprint },
+    { code, verdict: "AUDIT_PASS", statementFingerprint, ...(skip.length ? { skipped: skip } : {}) },
   ];
   const setFingerprint = territorySetFingerprint({
     bigThoughtFingerprint: bigThoughtFp,

@@ -38,6 +38,8 @@ export type IdeaAuditItem = {
   verdict: AuditVerdict;
   statementFingerprint?: string;
   gateFailure?: IdeaGateFailure;
+  /** Pass checks switched OFF when this item was saved: shown as "Tanpa cek". */
+  skipped?: string[];
 };
 
 export type IdeaAuditLesson = {
@@ -397,7 +399,7 @@ function readIdeaAuditItems(value: unknown): IdeaAuditItem[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry) => {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
-    const row = entry as { code?: unknown; verdict?: unknown; statementFingerprint?: unknown; gateFailure?: unknown };
+    const row = entry as { code?: unknown; verdict?: unknown; statementFingerprint?: unknown; gateFailure?: unknown; skipped?: unknown };
     const code = asText(row.code);
     const verdict =
       typeof row.verdict === "string" && AUDIT_VERDICTS.has(row.verdict as AuditVerdict)
@@ -406,12 +408,14 @@ function readIdeaAuditItems(value: unknown): IdeaAuditItem[] {
     if (!code || !verdict) return [];
     const statementFingerprint = asText(row.statementFingerprint);
     const gateFailure = readIdeaGateFailure(row.gateFailure);
+    const skipped = Array.isArray(row.skipped) ? row.skipped.filter((id): id is string => typeof id === "string") : [];
     return [
       {
         code,
         verdict,
         ...(statementFingerprint ? { statementFingerprint } : {}),
         ...(gateFailure ? { gateFailure } : {}),
+        ...(skipped.length ? { skipped } : {}),
       },
     ];
   });

@@ -26,7 +26,7 @@ import { sameIdeaConcept } from "../../../../src/thinking-lab/idea/conceptIdenti
 import { ideaFingerprint, ideaSetFingerprint } from "../../../../src/thinking-lab/shared/fingerprint";
 import type { IdeaMechanismKey } from "../../../../src/thinking-lab/idea/types";
 import type { JudgeConfig } from "./thinkingLab";
-import { makeAsk, rpcError, sessionArgs, type Deps, type Session, type ThinkingWriteResult } from "./thinkingWrite";
+import { loadCheckSettings, makeAsk, rpcError, sessionArgs, skippedChecks, type Deps, type Session, type ThinkingWriteResult } from "./thinkingWrite";
 
 type IdeaRow = {
   id: string;
@@ -129,9 +129,11 @@ export async function addThinkingIdea(
   }
 
   const ask = makeAsk(config, ctx, deps);
+  const skip = skippedChecks(await loadCheckSettings(admin, ctx, deps), "idea");
   const peers = crossPeersFromIdeas(ideas);
   const checked = await runIdeaPassChecks({
     batch: true,
+    skip,
     statement,
     angle: context.angle.statement,
     territory: context.territory.statement,
@@ -146,17 +148,20 @@ export async function addThinkingIdea(
     ask,
   });
   const code = nextIdeaCode(sameAngle.map((row) => row.code));
-  let validation: IdeaValidation;
-  try {
-    const [settled] = await judgeCrossIdeas({
-      candidates: [{ code, statement, concept: checked.concept, mechanism: checked.mechanism, value: checked.value, validation: checked }],
-      peers,
-      historyAvailable: true,
-      ask,
-    });
-    validation = settled?.validation ?? applyCrossStatus(checked, "BELUM_TERVERIFIKASI");
-  } catch {
-    validation = applyCrossStatus(checked, "BELUM_TERVERIFIKASI");
+  let validation: IdeaValidation = checked;
+  // The cross-branch comparison is K5; with K5 OFF it is not asked.
+  if (!skip.includes("K5")) {
+    try {
+      const [settled] = await judgeCrossIdeas({
+        candidates: [{ code, statement, concept: checked.concept, mechanism: checked.mechanism, value: checked.value, validation: checked }],
+        peers,
+        historyAvailable: true,
+        ask,
+      });
+      validation = settled?.validation ?? applyCrossStatus(checked, "BELUM_TERVERIFIKASI");
+    } catch {
+      validation = applyCrossStatus(checked, "BELUM_TERVERIFIKASI");
+    }
   }
   if (validation.decision !== "LOLOS") {
     // The checks stop at the first one that does not pass; the ones after it were not asked.
@@ -185,6 +190,7 @@ export async function addThinkingIdea(
     ancestors,
     masterSubject: context.master.subject,
     mechanismKeys: input.keys,
+    skip,
     ask,
     onStep: () => undefined,
   });
@@ -206,7 +212,7 @@ export async function addThinkingIdea(
   const sealed = sameAngle.filter((row) => row.status === "locked").map((row) => ({ code: row.code, statement: row.statement }));
   const siblingRows = [...passed.map((row) => ({ code: row.code, statement: row.statement })), { code, statement }];
   let siblingSet = record.siblingSet;
-  if (siblingRows.length + sealed.length >= 2) {
+  if (!skip.includes("siblingsDistinct") && siblingRows.length + sealed.length >= 2) {
     const fingerprint = ideaSetFingerprint({
       angleFingerprint: angleFp,
       ideaFingerprints: [...siblingRows, ...sealed].map((row) => ideaFingerprint({ statement: row.statement, angleFingerprint: angleFp })),
@@ -231,7 +237,7 @@ export async function addThinkingIdea(
   const statementFingerprint = ideaFingerprint({ statement, angleFingerprint: angleFp });
   const nextItems: IdeaAuditItem[] = [
     ...items.filter((item) => item.code.toUpperCase() !== code.toUpperCase()),
-    { code, verdict: "AUDIT_PASS", statementFingerprint },
+    { code, verdict: "AUDIT_PASS", statementFingerprint, ...(skip.length ? { skipped: skip } : {}) },
   ];
   const openStatements = [...sameAngle.filter((row) => row.status !== "locked").map((row) => row.statement), statement];
   const nextRecord = {

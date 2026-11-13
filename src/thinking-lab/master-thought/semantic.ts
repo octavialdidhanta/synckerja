@@ -652,10 +652,13 @@ export function parseWrittenBeliefCheck(raw: unknown, ids: readonly string[]): W
 
 /** Two tries. An answer that cannot be read counts as not passed, so a typed belief never skips the check. */
 export async function checkWrittenBelief(
-  input: { belief: string; priorBelief?: string },
+  input: { belief: string; priorBelief?: string; skip?: readonly string[] },
   ask: (prompt: string) => Promise<string | null>,
 ): Promise<WrittenBeliefCheck> {
-  const ids = ["oneClaim", "oneSentence", "notPromo", ...(input.priorBelief?.trim() ? ["shift"] : [])];
+  const ids = ["oneClaim", "oneSentence", "notPromo", ...(input.priorBelief?.trim() ? ["shift"] : [])].filter(
+    (id) => !input.skip?.includes(id),
+  );
+  if (ids.length === 0) return { pass: true, reasons: [] };
   const prompt = buildWrittenBeliefCheckPrompt(input);
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const parsed = parseWrittenBeliefCheck(parseModelJson(await ask(prompt)), ids);
