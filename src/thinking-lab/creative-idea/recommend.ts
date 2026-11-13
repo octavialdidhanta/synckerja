@@ -413,8 +413,20 @@ export async function reviewContentPillars(input: {
   );
   const proposed = parsePillarReviews(raw ? parseModelJson(raw) : null, reviewed);
   const confirmed: PillarReview[] = [];
+  // A check that cannot be asked (daily limit, rate limit, timeout) ends the review with what already passed.
+  // With nothing passed yet, the error is raised as before.
+  let stopped = false;
+  const askCheck = async (prompt: string): Promise<string | null> => {
+    try {
+      return await input.ask(prompt);
+    } catch (error) {
+      if (confirmed.length === 0) throw error;
+      stopped = true;
+      return null;
+    }
+  };
   for (const item of proposed) {
-    if (confirmed.length >= keep) break;
+    if (stopped || confirmed.length >= keep) break;
     const pillar = reviewed.find((candidate) => candidate.id === item.contentPillarId);
     if (!pillar) continue;
     const offer = purpose === "lead_magnet" ? leadMagnetOffer(item.offer) : "";
@@ -436,7 +448,7 @@ export async function reviewContentPillars(input: {
         const index = checks.findIndex((check) => check.id === id);
         checks[index] = { id, state: "running" };
         publish({ pillarName: pillar.name, drafting: false, checks: checks.map((check) => ({ ...check })) });
-        const checkRaw = await input.ask(
+        const checkRaw = await askCheck(
           buildLeadMagnetPassPrompt({
             id,
             context: input.context,
@@ -448,6 +460,7 @@ export async function reviewContentPillars(input: {
             trigger,
           }),
         );
+        if (stopped) break;
         const check = parsePillarRecommendationCheck(checkRaw ? parseModelJson(checkRaw) : null);
         if (!check?.pass) {
           checks[index] = { id, state: "fail", ...(check?.reason ? { reason: check.reason } : {}) };
@@ -459,13 +472,14 @@ export async function reviewContentPillars(input: {
         if (id === "fit") fitReason = check.reason;
         publish({ pillarName: pillar.name, drafting: false, checks: checks.map((check) => ({ ...check })) });
       }
+      if (stopped) break;
       if (failed || !fitReason) continue;
       const passed: PillarReview = { ...item, development, reason: fitReason, offer, comment, trigger };
       confirmed.push(passed);
       input.onPass?.(passed);
       continue;
     }
-    const checkRaw = await input.ask(
+    const checkRaw = await askCheck(
       buildPillarRecommendationCheckPrompt({
         context: input.context,
         pillar,
@@ -477,12 +491,14 @@ export async function reviewContentPillars(input: {
         trigger,
       }),
     );
+    if (stopped) break;
     const check = parsePillarRecommendationCheck(checkRaw ? parseModelJson(checkRaw) : null);
     if (!check?.pass) continue;
     confirmed.push({
       ...item,
       development,
-      reason: check.reason,
+      // The proposal's own reason is written in the idea's language; the check only confirms it.
+      reason: item.reason || check.reason,
       ...(offer ? { offer } : {}),
       ...(comment ? { comment } : {}),
       ...(trigger ? { trigger } : {}),

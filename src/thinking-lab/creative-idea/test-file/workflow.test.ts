@@ -311,8 +311,43 @@ describe("pillar review", () => {
       },
     });
     expect(result.map((item) => item.pillarName)).toEqual(["Cerita tim"]);
-    expect(result[0]?.reason).toBe("Adegan cerita membawa jejak kerja yang sama tanpa skor.");
+    // The proposal's own reason (written in the idea's language) is kept; the check only confirms it.
+    expect(result[0]?.reason).toBe("Klaim awal.");
     expect(result[0]?.development).toContain("adegan yang diceritakan");
+  });
+
+  it("returns the recommendations already confirmed when a later check cannot be asked", async () => {
+    const pillars = Array.from({ length: 3 }, (_, index) => ({ id: `p${index}`, name: `Pillar ${index}` }));
+    let checks = 0;
+    const result = await reviewContentPillars({
+      pillars,
+      context: "Bagaimana jika jejak kerja tampil tanpa skor.",
+      ask: async (prompt) => {
+        if (prompt.startsWith("Check this pillar recommendation")) {
+          checks += 1;
+          if (checks > 1) throw new Error("rate_limited");
+          return JSON.stringify({ pass: true, reason: "ok" });
+        }
+        return JSON.stringify({
+          reviews: [0, 1, 2].map((index) => ({ pillar: `Pillar ${index}`, development: `Bentuk ${index} dari ide yang sama.`, reason: "Klaim awal." })),
+        });
+      },
+    });
+    expect(result.map((item) => item.pillarName)).toEqual(["Pillar 0"]);
+  });
+
+  it("raises the error when no recommendation passed yet", async () => {
+    const pillars = [{ id: "p0", name: "Pillar 0" }];
+    await expect(
+      reviewContentPillars({
+        pillars,
+        context: "Bagaimana jika jejak kerja tampil tanpa skor.",
+        ask: async (prompt) => {
+          if (prompt.startsWith("Check this pillar recommendation")) throw new Error("rate_limited");
+          return JSON.stringify({ reviews: [{ pillar: "Pillar 0", development: "Bentuk lain dari ide yang sama.", reason: "Klaim awal." }] });
+        },
+      }),
+    ).rejects.toThrow("rate_limited");
   });
 
   it("asks for three recommendations and leaves locked pillars out", async () => {
