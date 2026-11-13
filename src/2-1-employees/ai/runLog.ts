@@ -1,13 +1,13 @@
 /** Run log of one AI employee: where each content plan came from and how each run ended. */
 
-export type ChainLink = { code: string; statement: string };
+export type ChainLink = { id: string; code: string; statement: string };
 
 export type IdeaChain = {
-  idea: (ChainLink & { id: string }) | null;
+  idea: ChainLink | null;
   angle: ChainLink | null;
   territory: ChainLink | null;
   bigThought: ChainLink | null;
-  master: { statement: string } | null;
+  master: ChainLink | null;
 };
 
 export type RunLogCanva = {
@@ -74,21 +74,18 @@ function link(value: unknown): ChainLink | null {
   if (!row) return null;
   const statement = text(row.statement).trim();
   const code = text(row.code).trim();
-  return statement || code ? { code, statement } : null;
+  return statement || code ? { id: text(row.id), code, statement } : null;
 }
 
 function chainOf(value: unknown): IdeaChain | null {
   const row = record(value);
   if (!row) return null;
-  const idea = record(row.idea);
-  const ideaLink = link(idea);
-  const master = record(row.master);
   return {
-    idea: idea && ideaLink ? { ...ideaLink, id: text(idea.id) } : null,
+    idea: link(row.idea),
     angle: link(row.angle),
     territory: link(row.territory),
     bigThought: link(row.big_thought),
-    master: master && text(master.statement).trim() ? { statement: text(master.statement).trim() } : null,
+    master: link(row.master),
   };
 }
 
@@ -243,4 +240,91 @@ export function shiftMonth(month: string, step: number): string {
 export function jakartaMonth(now: Date = new Date()): string {
   const local = new Date(now.getTime() + 7 * 60 * 60 * 1000);
   return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Levels of the Thinking Lab chain, parent first. */
+export const CHAIN_LEVELS = ["master", "bigThought", "territory", "angle", "idea"] as const;
+export type ChainLevel = (typeof CHAIN_LEVELS)[number];
+export type ChainFilter = Partial<Record<ChainLevel, string>>;
+export type ChainOption = { id: string; label: string; runs: number };
+
+/** Chains of a run: its plans, or the idea it tried when no plan came. */
+export function rowChains(row: RunLogRow): IdeaChain[] {
+  const chains = row.plans.map((plan) => plan.chain).filter((chain): chain is IdeaChain => Boolean(chain));
+  if (chains.length > 0) return chains;
+  return row.attempt?.chain ? [row.attempt.chain] : [];
+}
+
+function levelId(chain: IdeaChain, level: ChainLevel): string {
+  return chain[level]?.id || "";
+}
+
+function chainFits(chain: IdeaChain, filter: ChainFilter, upTo: number = CHAIN_LEVELS.length): boolean {
+  return CHAIN_LEVELS.slice(0, upTo).every((level) => !filter[level] || levelId(chain, level) === filter[level]);
+}
+
+export function chainFilterActive(filter: ChainFilter): boolean {
+  return CHAIN_LEVELS.some((level) => Boolean(filter[level]));
+}
+
+/** A run fits when one of its chains has every chosen level. */
+export function rowFitsChain(row: RunLogRow, filter: ChainFilter): boolean {
+  if (!chainFilterActive(filter)) return true;
+  return rowChains(row).some((chain) => chainFits(chain, filter));
+}
+
+function optionLabel(item: ChainLink, level: ChainLevel): string {
+  const statement = item.statement.length > 70 ? `${item.statement.slice(0, 69).trimEnd()}…` : item.statement;
+  if (level === "master" || !item.code) return statement || item.code;
+  return statement ? `${item.code} · ${statement}` : item.code;
+}
+
+/** Choices for one level, limited by the levels above it, with how many runs each has. */
+export function chainOptions(rows: RunLogRow[], filter: ChainFilter, level: ChainLevel): ChainOption[] {
+  const depth = CHAIN_LEVELS.indexOf(level);
+  const found = new Map<string, ChainOption>();
+  for (const row of rows) {
+    const seen = new Set<string>();
+    for (const chain of rowChains(row)) {
+      if (!chainFits(chain, filter, depth)) continue;
+      const item = chain[level];
+      if (!item?.id || seen.has(item.id)) continue;
+      seen.add(item.id);
+      const option = found.get(item.id) ?? { id: item.id, label: optionLabel(item, level), runs: 0 };
+      option.runs += 1;
+      found.set(item.id, option);
+    }
+  }
+  return [...found.values()].sort((left, right) => left.label.localeCompare(right.label));
+}
+
+/** A new filter with one level set; the levels below it are cleared. */
+export function setChainLevel(filter: ChainFilter, level: ChainLevel, id: string): ChainFilter {
+  const depth = CHAIN_LEVELS.indexOf(level);
+  const next: ChainFilter = {};
+  CHAIN_LEVELS.slice(0, depth).forEach((parent) => {
+    if (filter[parent]) next[parent] = filter[parent];
+  });
+  if (id) next[level] = id;
+  return next;
+}
+
+/** Summary of the runs shown, so the numbers follow the filters. */
+export function summarizeRows(rows: RunLogRow[]): RunLogSummary {
+  const ideas = new Set<string>();
+  let plans = 0;
+  const summary: RunLogSummary = { runs: rows.length, succeeded: 0, failed: 0, deferred: 0, running: 0, plans: 0, uniqueIdeas: 0 };
+  for (const row of rows) {
+    if (row.status === "succeeded") summary.succeeded += 1;
+    else if (row.status === "failed" || row.status === "returned") summary.failed += 1;
+    else if (row.status === "running") summary.running += 1;
+    else summary.deferred += 1;
+    plans += row.plans.length;
+    row.plans.forEach((plan) => {
+      if (plan.chain?.idea?.id) ideas.add(plan.chain.idea.id);
+    });
+  }
+  summary.plans = plans;
+  summary.uniqueIdeas = ideas.size;
+  return summary;
 }

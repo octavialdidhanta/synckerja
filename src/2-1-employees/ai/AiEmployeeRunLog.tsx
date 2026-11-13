@@ -8,11 +8,19 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { cn } from "@/shared/lib/utils";
 import {
+  CHAIN_LEVELS,
+  chainFilterActive,
+  chainOptions,
   ideaCode,
   jakartaMonth,
   parseRunLog,
+  rowFitsChain,
   runReason,
+  setChainLevel,
   shiftMonth,
+  summarizeRows,
+  type ChainFilter,
+  type ChainLevel,
   type IdeaChain,
   type RunLogPlan,
   type RunLogRow,
@@ -105,6 +113,7 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [openRow, setOpenRow] = useState<string | null>(null);
+  const [chainFilter, setChainFilter] = useState<ChainFilter>({});
   const query = useRunLog(employeeId, month);
   const log = query.data;
   const thisMonth = jakartaMonth();
@@ -112,8 +121,26 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
   const rows = useMemo(() => (log?.rows ?? []).filter((row) => {
     if (statusFilter !== "all" && statusGroup(row.status) !== statusFilter) return false;
     if (sourceFilter !== "all" && row.source !== sourceFilter) return false;
-    return true;
-  }), [log, statusFilter, sourceFilter]);
+    return rowFitsChain(row, chainFilter);
+  }), [log, statusFilter, sourceFilter, chainFilter]);
+  const filtered = statusFilter !== "all" || sourceFilter !== "all" || chainFilterActive(chainFilter);
+  const levelLabels: Record<ChainLevel, string> = {
+    master: t("aiEmployee.log.master", "Master Thought"),
+    bigThought: t("aiEmployee.log.bigThought", "Big Thought"),
+    territory: t("aiEmployee.log.territory", "Territory"),
+    angle: t("aiEmployee.log.angle", "Angle"),
+    idea: t("aiEmployee.log.idea", "Idea"),
+  };
+  // Choices of each level come from the runs of this month under the levels chosen above it.
+  const levelOptions = useMemo(
+    () => Object.fromEntries(CHAIN_LEVELS.map((level) => [level, chainOptions(log?.rows ?? [], chainFilter, level)])) as Record<ChainLevel, ReturnType<typeof chainOptions>>,
+    [log, chainFilter],
+  );
+  const changeMonth = (step: number) => {
+    setMonth((value) => shiftMonth(value, step));
+    setChainFilter({});
+    setOpenRow(null);
+  };
 
   const monthLabel = useMemo(() => {
     const [year, value] = month.split("-").map(Number);
@@ -150,7 +177,8 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
     return "—";
   };
 
-  const summary = log?.summary;
+  // The numbers follow the filters, so a Master Thought or Angle can be judged on its own.
+  const summary = log ? (filtered ? summarizeRows(rows) : log.summary) : undefined;
   const chips: Array<[string, number, string]> = summary
     ? [
       [t("aiEmployee.log.summary.runs", "Run"), summary.runs, ""],
@@ -168,11 +196,11 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
         <h2 className="text-sm font-semibold">{t("aiEmployee.log.title", "Log")}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1">
-            <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => setMonth((value) => shiftMonth(value, -1))} aria-label={t("aiEmployee.log.prevMonth", "Bulan sebelumnya")}>
+            <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => changeMonth(-1)} aria-label={t("aiEmployee.log.prevMonth", "Bulan sebelumnya")}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="min-w-[8.5rem] text-center text-sm">{monthLabel}</span>
-            <Button type="button" variant="outline" size="icon" className="h-8 w-8" disabled={month >= thisMonth} onClick={() => setMonth((value) => shiftMonth(value, 1))} aria-label={t("aiEmployee.log.nextMonth", "Bulan berikutnya")}>
+            <Button type="button" variant="outline" size="icon" className="h-8 w-8" disabled={month >= thisMonth} onClick={() => changeMonth(1)} aria-label={t("aiEmployee.log.nextMonth", "Bulan berikutnya")}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
@@ -196,6 +224,47 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
           </Select>
         </div>
       </div>
+
+      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        {CHAIN_LEVELS.map((level, index) => {
+          const parent = index > 0 ? CHAIN_LEVELS[index - 1] : null;
+          const options = levelOptions[level];
+          const value = chainFilter[level] ?? "all";
+          return (
+            <div key={level} className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs text-muted-foreground">{levelLabels[level]}</span>
+              <Select
+                value={value}
+                disabled={options.length === 0 && value === "all"}
+                onValueChange={(next) => setChainFilter((current) => setChainLevel(current, level, next === "all" ? "" : next))}
+              >
+                <SelectTrigger className="h-8 min-w-0 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-w-[28rem]">
+                  <SelectItem value="all">
+                    {parent && chainFilter[parent]
+                      ? t("aiEmployee.log.filter.allUnder", "Semua di bawahnya")
+                      : t("aiEmployee.log.filter.all", "Semua")}
+                  </SelectItem>
+                  {options.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      <span className="block max-w-[24rem] truncate">{option.label} ({option.runs})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          );
+        })}
+      </div>
+      {chainFilterActive(chainFilter) ? (
+        <div className="-mt-1 mb-3">
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setChainFilter({})}>
+            {t("aiEmployee.log.filter.clearChain", "Hapus filter Master Thought sampai Idea")}
+          </Button>
+        </div>
+      ) : null}
 
       {chips.length > 0 ? (
         <div className="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
@@ -221,7 +290,11 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
           </Button>
         </div>
       ) : rows.length === 0 ? (
-        <p className="py-4 text-sm text-muted-foreground">{t("aiEmployee.log.empty", "Belum ada run di bulan ini.")}</p>
+        <p className="py-4 text-sm text-muted-foreground">
+          {filtered
+            ? t("aiEmployee.log.emptyFiltered", "Tidak ada run yang cocok dengan filter ini.")
+            : t("aiEmployee.log.empty", "Belum ada run di bulan ini.")}
+        </p>
       ) : (
         <div className="overflow-x-auto">
           <Table>
