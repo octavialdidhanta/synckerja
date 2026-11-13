@@ -85,7 +85,14 @@ export function buildTerritoryLivedPrompt(input: {
     "Write one sentence that explains this Territory as a situation people are already in.",
     `Write it in ${language}.`,
     `Start the sentence with "${opening}"`,
-    people ? `Use words this audience would use: ${people}.` : "Use words the audience would use for this area.",
+    "Use the everyday words the audience would use for this area.",
+    ...(people
+      ? [
+          `Who the audience is, for word choice only: ${people}`,
+          "Do not copy that description into the sentence. Do not name their age, district, income, or what they think of the product. Say what happens in this area.",
+        ]
+      : []),
+    `Every word of the sentence and the question is in ${language}.`,
     "After that opening, say what is happening in this area so the Big Thought's reason can be discussed there.",
     "A different Territory must not be able to reuse the same sentence.",
     ...(question

@@ -73,3 +73,11 @@ describe("because clause", () => {
     expect(stored.relationToParent).toBe("DISTINCT_MATERIAL_SUPPORT");
   });
 });
+
+describe("becauseConnector language", () => {
+  it("reads an Indonesian reason without the first joining words as Indonesian", async () => {
+    const { becauseConnector } = await import("@/thinking-lab/big-thought/because");
+    expect(becauseConnector("lemak kambing muda masih terselip di dalam serat dagingnya, bukan menumpuk di luar seperti pada kambing tua")).toBe("karena");
+    expect(becauseConnector("the fat sits inside the fibers of young goat meat")).toBe("because");
+  });
+});
