@@ -1126,6 +1126,7 @@ export function buildIdeaCriterionPrompt(input: {
     howIfInstruction(input.angle),
     CRITERION_RULE[input.id],
     "When pass is false, reason is one sentence in the Angle's language.",
+    "When pass is true, reason is one sentence in your own words: name the part of the idea that meets this check and why. Do not copy the idea sentence as the reason.",
     "When you cannot decide, do not return pass true. Reason is one sentence that says why.",
     "A long explanation is not a better answer.",
     input.id === "K6"
