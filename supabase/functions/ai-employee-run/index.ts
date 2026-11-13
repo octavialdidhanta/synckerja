@@ -719,8 +719,25 @@ Deno.serve(async (req: Request) => {
       };
       let lastReject = "";
       let preparedCarouselPath = false;
+      // The last idea and pillar this run worked on, for the run log on the employee page.
+      let attemptedIdeaId = "";
+      let attemptedPillarId = "";
+      const attempt = (ideaId: unknown, pillarId: unknown) => {
+        const idea = String(ideaId ?? "");
+        const pillar = String(pillarId ?? "");
+        if (isUuid(idea)) attemptedIdeaId = idea;
+        if (isUuid(pillar)) attemptedPillarId = pillar;
+      };
       const closeSop1 = async (status: "succeeded" | "failed" | "deferred" | "late", label: string, openCount: number) => {
         if (label === "quota" && timeBudgetHit) label = "time_budget";
+        if (runId && (attemptedIdeaId || attemptedPillarId)) {
+          const saved = await admin
+            .from("ai_employee_runs")
+            .update({ attempted_idea_id: attemptedIdeaId || null, attempted_pillar_id: attemptedPillarId || null })
+            .eq("id", runId)
+            .eq("employee_id", employeeId);
+          if (saved.error) console.error("ai-employee-run attempt:", saved.error.message.slice(0, 120));
+        }
         const note = `sop1 ${label} steps=${steps.length} open=${openCount} plans=${planIds.length} calls=${modelCalls}${preparedCarouselPath ? " path=1" : ""}${lastReject ? ` reject=${lastReject}` : ""}`;
         await finish(status, note);
         await refreshKrs();
@@ -1043,6 +1060,7 @@ Deno.serve(async (req: Request) => {
             const candidate = candidates.find((row) => row.id === turn.ideaId);
             const pillar = rotated.find((row) => row.id === turn.pillarId);
             if (!candidate || !pillar) return { kind: "blocked" };
+            attempt(candidate.id, pillar.id);
             if (mode === "open") {
               return {
                 kind: "ready",
@@ -1299,6 +1317,7 @@ Deno.serve(async (req: Request) => {
           stop = "pillar_cap";
           break;
         }
+        attempt(idea.idea_id ?? idea.id, choice.id);
         const voicedBrief = focused
           ? { ...brief, voice: String(path?.prompt_voice ?? brief?.voice ?? "") }
           : brief;

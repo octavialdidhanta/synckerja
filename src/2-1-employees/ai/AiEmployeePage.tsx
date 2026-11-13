@@ -26,6 +26,8 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import { AiEmployeePageSkeleton } from "./AiEmployeePageSkeleton";
 import { ReferenceField } from "./ReferenceField";
+import { AiEmployeeRunLog, RUN_LOG_KEY } from "./AiEmployeeRunLog";
+import { useQueryClient } from "@tanstack/react-query";
 import { CatalogColorField, CatalogLogoField } from "./CatalogAssetsFields";
 import {
   briefChanges,
@@ -1070,9 +1072,11 @@ export default function AiEmployeePage() {
   const { t, dateLocale } = useAppTranslation();
   const { toast } = useToast();
   const model = useAiEmployeePage(employeeId);
+  const queryClient = useQueryClient();
   // Spinner next to "Berikutnya" while a Content Plan run is going; refresh when it ends.
   const sopRunning = useSopRunning(employeeId, "SOP1", () => {
     void model.reload();
+    void queryClient.invalidateQueries({ queryKey: [RUN_LOG_KEY] });
   });
   const showContent = useDebouncedReady(!model.showFullPageSkeleton, 200);
   const [brief, setBrief] = useState<BriefDraft | null>(null);
@@ -1314,6 +1318,10 @@ export default function AiEmployeePage() {
           ? t("aiEmployee.schedule.catalogLimit", "Pilih satu katalog di brief.")
           : raw.includes("brief_missing")
           ? t("aiEmployee.schedule.briefMissing", "Isi katalog pada brief terlebih dahulu.")
+          : raw.includes("path_unconfirmed")
+          ? t("aiEmployee.schedule.pathUnconfirmed", "Ide di Fokus angle belum cocok dengan pilar yang dipilih. Tambah pilar atau ide.")
+          : raw.includes("ideas_blocked")
+          ? t("aiEmployee.schedule.ideasBlocked", "Belum ada ide siap pakai di Fokus angle.")
           : raw.includes("checks_failed")
           ? t("aiEmployee.schedule.checksFailed", "Semua draf gagal dicek. Coba lagi.")
           : raw.includes("time_budget")
@@ -1325,6 +1333,7 @@ export default function AiEmployeePage() {
             : t("aiEmployee.schedule.generateFailed", "Plan tidak dibuat.");
       toast({ title: t("aiEmployee.schedule.generateFailed", "Plan tidak dibuat."), description, variant: "destructive" });
     } finally {
+      void queryClient.invalidateQueries({ queryKey: [RUN_LOG_KEY] });
       generatingRef.current = false;
       setGenerating(false);
       setPlanMenuOpen(false);
@@ -2159,6 +2168,8 @@ export default function AiEmployeePage() {
                           </DialogContent>
                         </Dialog>
                       </section>
+
+                      {employeeId ? <AiEmployeeRunLog employeeId={employeeId} /> : null}
 
                       <section className="rounded-md border border-border bg-card p-3">
                         <h2 className="mb-2 text-sm font-semibold">{t("aiEmployee.jobs.title", "Antrean")}</h2>
