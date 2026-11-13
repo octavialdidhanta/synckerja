@@ -1,4 +1,5 @@
 import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "@/thinking-lab/shared/batchGates";
 import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import { angleExampleProblem } from "@/thinking-lab/angle/example";
 import { angleSubjectProblem } from "@/thinking-lab/angle/subject";
@@ -108,6 +109,97 @@ export function individualAnglePassChecksCleared(checks: readonly AnglePassCheck
   return INDIVIDUAL_PASS_CHECK_IDS.every((id) => checks.some((check) => check.id === id && check.state === "pass"));
 }
 
+/** The rule text of one Angle check, shared by the one-check and the batched prompts. */
+function angleGateRules(id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number], subject?: string, example?: string): string[] {
+  return (
+    id === "stakeHolds"
+      ? [
+          "pass is true only when this Angle would stop being coherent if the distinctive stake of this Territory, or of the Big Thought or Master Thought above it, is removed.",
+          "pass is false when the sentence would still stand as an Angle after that stake is removed.",
+        ]
+      : id === "observationShape"
+        ? [
+            "pass is true only when this is an observation, a contradiction, or a tension inside this Territory, narrower than the Territory and broader than an Idea.",
+            "pass is false when it is a topic, domain, label, or category; a belief; a concrete creative concept; or a format, scene, channel, or production form.",
+          ]
+        : id === "severalIdeas"
+          ? [
+              "pass is true when this Angle can generate several semantically distinct Ideas.",
+              "Distinct means different creative concepts. They may differ by mechanism, narrative concept, experiment, comparison, metaphor, proof structure, scenario, or character dynamic.",
+              "pass is false when the only differences are wording, titles, format swaps, or cosmetic changes.",
+              "A short sentence can pass. A long sentence can fail. Do not count words.",
+            ]
+          : id === "clearBoundary"
+            ? [
+                "pass is true when the observation keeps a useful boundary.",
+                "pass is false when it is too vague or too broad to bound one point of view.",
+              ]
+          : id === "observationJob"
+            ? [
+                "pass is true only when the job is an observation: something rarely noticed, a contradiction, or a tension.",
+                "pass is false when the sentence fits smoothly as a because-clause that supports a belief, or when it only restates the Territory.",
+              ]
+            : id === "livedExample"
+              ? [
+                  "pass is true only when the example is one concrete situation a person could point at, and that situation shows this same observation.",
+                  "pass is false when the example only restates the explanation, names a brand or a belief system, or is already a finished Idea.",
+                  `Example: ${example?.trim() || "(none)"}`,
+                ]
+              : [
+                  "pass is true when the short subject, read alone, still carries the distinctive fact of this observation.",
+                  "A noun phrase is the right shape. It does not have to repeat the sentence, mention the Territory, or be exclusive to this Territory.",
+                  "The same words may be sayable in another place. That does not make pass false.",
+                  "pass is false only when the subject names the place instead of the fact: the Territory's name, a piece of the Territory, a chopped opening, or a heading under which a different observation would still fit.",
+                  `Subject: ${subject?.trim() || "(none)"}`,
+                ]
+  );
+}
+
+function angleDecisionHint(id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number]): string {
+  return id === "ownSubject"
+      ? "When the words still carry the distinctive fact, return pass true even if they are a noun phrase and could be said in another place. When the words only name the place, do not return pass true."
+      : "When you cannot decide, do not return pass true.";
+}
+
+/** Every open Angle check of one sentence in one prompt. */
+export function buildAngleBatchPrompt(input: {
+  ids: ReadonlyArray<(typeof INDIVIDUAL_PASS_CHECK_IDS)[number]>;
+  statement: string;
+  parentStatement: string;
+  ancestors?: AncestorStake[];
+  subject?: string;
+  example?: string;
+}): string {
+  return buildBatchGatePrompt({
+    item: "Angle",
+    language: "Territory",
+    gates: input.ids.map((id) => ({
+      id,
+      rules: angleGateRules(id, input.subject, input.example),
+      extra: [angleDecisionHint(id)],
+    })),
+    context: [`Angle: ${input.statement.trim()}`, "Direct Territory:", input.parentStatement.trim(), ...ancestorStakeBlock(input.ancestors)],
+  });
+}
+
+/** One model call for the open checks that need a model; checks decided without one stay out. */
+async function batchedAngleAnswers(input: {
+  batch?: boolean;
+  open: ReadonlyArray<(typeof INDIVIDUAL_PASS_CHECK_IDS)[number]>;
+  statement: string;
+  parentStatement: string;
+  ancestors?: AncestorStake[];
+  subject?: string;
+  example?: string;
+  ask: (prompt: string) => Promise<string | null>;
+}): Promise<Map<string, GateAnswer>> {
+  if (!input.batch) return new Map();
+  const ids = input.open.filter((id) => (id !== "ownSubject" || !angleSubjectProblem(input.subject ?? "", input.parentStatement)) && (id !== "livedExample" || !angleExampleProblem(input.example ?? "", input.statement)));
+  if (ids.length < 2) return new Map();
+  const answers = await askBatchGates({ prompt: buildAngleBatchPrompt({ ...input, ids }), ids, ask: input.ask });
+  return answers ?? new Map();
+}
+
 export function buildAnglePassPrompt(input: {
   id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number];
   statement: string;
@@ -116,54 +208,12 @@ export function buildAnglePassPrompt(input: {
   subject?: string;
   example?: string;
 }): string {
-  const rule =
-    input.id === "stakeHolds"
-      ? [
-          "pass is true only when this Angle would stop being coherent if the distinctive stake of this Territory, or of the Big Thought or Master Thought above it, is removed.",
-          "pass is false when the sentence would still stand as an Angle after that stake is removed.",
-        ]
-      : input.id === "observationShape"
-        ? [
-            "pass is true only when this is an observation, a contradiction, or a tension inside this Territory, narrower than the Territory and broader than an Idea.",
-            "pass is false when it is a topic, domain, label, or category; a belief; a concrete creative concept; or a format, scene, channel, or production form.",
-          ]
-        : input.id === "severalIdeas"
-          ? [
-              "pass is true when this Angle can generate several semantically distinct Ideas.",
-              "Distinct means different creative concepts. They may differ by mechanism, narrative concept, experiment, comparison, metaphor, proof structure, scenario, or character dynamic.",
-              "pass is false when the only differences are wording, titles, format swaps, or cosmetic changes.",
-              "A short sentence can pass. A long sentence can fail. Do not count words.",
-            ]
-          : input.id === "clearBoundary"
-            ? [
-                "pass is true when the observation keeps a useful boundary.",
-                "pass is false when it is too vague or too broad to bound one point of view.",
-              ]
-          : input.id === "observationJob"
-            ? [
-                "pass is true only when the job is an observation: something rarely noticed, a contradiction, or a tension.",
-                "pass is false when the sentence fits smoothly as a because-clause that supports a belief, or when it only restates the Territory.",
-              ]
-            : input.id === "livedExample"
-              ? [
-                  "pass is true only when the example is one concrete situation a person could point at, and that situation shows this same observation.",
-                  "pass is false when the example only restates the explanation, names a brand or a belief system, or is already a finished Idea.",
-                  `Example: ${input.example?.trim() || "(none)"}`,
-                ]
-              : [
-                  "pass is true when the short subject, read alone, still carries the distinctive fact of this observation.",
-                  "A noun phrase is the right shape. It does not have to repeat the sentence, mention the Territory, or be exclusive to this Territory.",
-                  "The same words may be sayable in another place. That does not make pass false.",
-                  "pass is false only when the subject names the place instead of the fact: the Territory's name, a piece of the Territory, a chopped opening, or a heading under which a different observation would still fit.",
-                  `Subject: ${input.subject?.trim() || "(none)"}`,
-                ];
+  const rule = angleGateRules(input.id, input.subject, input.example);
   return [
     "Decide one Angle pass check. Do not rewrite the sentence.",
     ...rule,
     "When pass is false, reason says why in the same language as the Territory.",
-    input.id === "ownSubject"
-      ? "When the words still carry the distinctive fact, return pass true even if they are a noun phrase and could be said in another place. When the words only name the place, do not return pass true."
-      : "When you cannot decide, do not return pass true.",
+    angleDecisionHint(input.id),
     'Return JSON only: {"pass":true,"reason":""} or {"pass":false,"reason":"..."}',
     "",
     `Angle: ${input.statement.trim()}`,
@@ -204,6 +254,8 @@ export function finishAngleSiblingCheck(
 }
 
 export async function runAngleAdmissionChecks(input: {
+  /** Ask every open check in one model call (falls back to one call per check). */
+  batch?: boolean;
   statement: string;
   parentStatement: string;
   ancestors?: AncestorStake[];
@@ -213,6 +265,7 @@ export async function runAngleAdmissionChecks(input: {
   const checks = angleAdmissionChecks();
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
+  const batched = await batchedAngleAnswers({ ...input, open: ANGLE_GENERATE_PASS_IDS });
   for (const id of ANGLE_GENERATE_PASS_IDS) {
     const index = checks.findIndex((check) => check.id === id);
     checks[index] = { id, state: "running" };
@@ -223,8 +276,9 @@ export async function runAngleAdmissionChecks(input: {
       parentStatement: input.parentStatement,
       ancestors: input.ancestors,
     });
-    let script = await input.ask(prompt);
-    let parsed = parseAnglePassCheck(script);
+    const answer = batched.get(id);
+    let script = answer && !isUndecided(answer) ? null : await input.ask(prompt);
+    let parsed = answer && !isUndecided(answer) ? answer : parseAnglePassCheck(script);
     if (!parsed.pass && parsed.reason === UNDECIDED) {
       script = await input.ask(prompt);
       parsed = parseAnglePassCheck(script);
@@ -241,6 +295,8 @@ export async function runAngleAdmissionChecks(input: {
 }
 
 export async function runAngleIndividualChecks(input: {
+  /** Ask every open check in one model call (falls back to one call per check). */
+  batch?: boolean;
   statement: string;
   parentStatement: string;
   ancestors?: AncestorStake[];
@@ -257,6 +313,10 @@ export async function runAngleIndividualChecks(input: {
   );
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
+  const batched = await batchedAngleAnswers({
+    ...input,
+    open: INDIVIDUAL_PASS_CHECK_IDS.filter((id) => checks.find((check) => check.id === id)?.state !== "pass"),
+  });
   for (const id of INDIVIDUAL_PASS_CHECK_IDS) {
     const index = checks.findIndex((check) => check.id === id);
     if (checks[index]?.state === "pass") continue;
@@ -278,7 +338,8 @@ export async function runAngleIndividualChecks(input: {
         return { checks: checks.map((check) => ({ ...check })), passed: false };
       }
     }
-    const script = await input.ask(
+    const answer = batched.get(id);
+    const script = answer && !isUndecided(answer) ? null : await input.ask(
       buildAnglePassPrompt({
         id,
         statement: input.statement,
@@ -288,7 +349,7 @@ export async function runAngleIndividualChecks(input: {
         example: input.example,
       }),
     );
-    const parsed = parseAnglePassCheck(script);
+    const parsed = answer && !isUndecided(answer) ? answer : parseAnglePassCheck(script);
     if (!parsed.pass) {
       checks[index] = { id, state: "fail", reason: parsed.reason };
       publish();
@@ -302,6 +363,8 @@ export async function runAngleIndividualChecks(input: {
 
 /** Re-ask the checks that failed or have not run. Checks that already passed stay passed. */
 export async function runAngleOpenChecks(input: {
+  /** Ask every open check in one model call (falls back to one call per check). */
+  batch?: boolean;
   statement: string;
   parentStatement: string;
   ancestors?: AncestorStake[];
@@ -317,6 +380,10 @@ export async function runAngleOpenChecks(input: {
   });
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
+  const batched = await batchedAngleAnswers({
+    ...input,
+    open: INDIVIDUAL_PASS_CHECK_IDS.filter((id) => checks.find((check) => check.id === id)?.state !== "pass"),
+  });
   for (const id of INDIVIDUAL_PASS_CHECK_IDS) {
     const index = checks.findIndex((check) => check.id === id);
     if (checks[index]?.state === "pass") continue;
@@ -338,7 +405,8 @@ export async function runAngleOpenChecks(input: {
         return { checks: checks.map((check) => ({ ...check })), passed: false };
       }
     }
-    const script = await input.ask(
+    const answer = batched.get(id);
+    const script = answer && !isUndecided(answer) ? null : await input.ask(
       buildAnglePassPrompt({
         id,
         statement: input.statement,
@@ -348,7 +416,7 @@ export async function runAngleOpenChecks(input: {
         example: input.example,
       }),
     );
-    const parsed = parseAnglePassCheck(script);
+    const parsed = answer && !isUndecided(answer) ? answer : parseAnglePassCheck(script);
     if (!parsed.pass) {
       checks[index] = { id, state: "fail", reason: parsed.reason };
       publish();

@@ -4,6 +4,7 @@ import type { IdeaGeneratePass } from "@/thinking-lab/idea/types";
 import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
 import type { IdeaMechanismKey } from "@/thinking-lab/idea/types";
 import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "@/thinking-lab/shared/batchGates";
 import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 
 export const IDEA_PASS_CHECK_IDS = [
@@ -118,42 +119,36 @@ function keyLines(keys: IdeaMechanismKey[] | undefined): string[] {
   return ["Mechanism keys:", ...rows.map((key) => `- ${key.otherExplanation.trim()} / ${key.close.trim()}`)];
 }
 
-export function buildIdeaPassPrompt(input: {
-  id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number];
-  statement: string;
-  parentStatement: string;
-  ancestors?: AncestorStake[];
-  masterSubject?: string;
-  mechanismKeys?: IdeaMechanismKey[];
-}): string {
-  const subject = input.masterSubject?.trim() ?? "";
-  const rule =
-    input.id === "sentenceForm"
+/** The rule text of one Idea check, shared by the one-check and the batched prompts. */
+function ideaGateRules(id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number], masterSubject?: string): string[] {
+  const subject = masterSubject?.trim() ?? "";
+  return (
+    id === "sentenceForm"
       ? [
           "pass is true only when the sentence names what is made, invited, shown, or created, and then what that makes true.",
           "pass is false when it does not say both the act and what becomes true.",
         ]
-      : input.id === "stakeHolds"
+      : id === "stakeHolds"
         ? [
             "pass is true only when this Idea would stop being coherent if the distinctive stake of this Angle, or of the Territory, Big Thought, or Master Thought above it, is removed.",
             "pass is false when the sentence would still stand as an Idea after that stake is removed.",
           ]
-        : input.id === "mechanismShape"
+        : id === "mechanismShape"
           ? [
               "pass is true only when this is a mechanism that makes the Angle happen, become visible, or be proved.",
               "pass is false when it is still an observation, a territory or life-area name, a because-reason, a finished story, a lesson, a chart, a shot list, dialogue, or another finished production form.",
             ]
-          : input.id === "vehicle"
+          : id === "vehicle"
             ? [
                 "pass is true only when the vehicle is a comparison, a contrast, an experiment, a demonstration, or a situation.",
                 "pass is false when it is a narrative, a metaphor, or any other vehicle.",
               ]
-            : input.id === "recognizable"
+            : id === "recognizable"
               ? [
                   "pass is true when another person can tell which mechanism is set up, and the concept has a recognizable boundary.",
                   "pass is false when the mechanism is missing or the concept is too vague to bound.",
                 ]
-              : input.id === "situationFelt"
+              : id === "situationFelt"
                 ? [
                     "pass is true when a comparison, a contrast, an experiment, a demonstration, or a situation names the mechanism and what the mechanism makes true, so the reason happens there.",
                     "pass is false when the sentence explains the Big Thought in words instead of naming what the mechanism makes true.",
@@ -163,12 +158,67 @@ export function buildIdeaPassPrompt(input: {
                     "pass is true only when the separate keys name each other explanation a viewer might reach and how this Idea closes it, so the named Master Thought subject is the only plausible cause.",
                     "pass is false when a key is missing, another explanation remains open, or a key only says this shows, proves, or highlights a conclusion.",
                     subject ? `Master Thought subject: ${subject}` : "No Master Thought subject was named, so pass is false.",
-                  ];
+                  ]
+  );
+}
+
+function ideaDecisionHint(id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number]): string {
+  return "When you cannot decide, do not return pass true.";
+}
+
+/** Every open Idea check of one sentence in one prompt. */
+export function buildIdeaBatchPrompt(input: {
+  ids: ReadonlyArray<(typeof INDIVIDUAL_PASS_CHECK_IDS)[number]>;
+  statement: string;
+  parentStatement: string;
+  ancestors?: AncestorStake[];
+  masterSubject?: string;
+  mechanismKeys?: IdeaMechanismKey[];
+}): string {
+  return buildBatchGatePrompt({
+    item: "Idea",
+    language: "Angle",
+    gates: input.ids.map((id) => ({
+      id,
+      rules: ideaGateRules(id, input.masterSubject),
+      extra: [ideaDecisionHint(id)],
+    })),
+    context: [`Idea: ${input.statement.trim()}`, "Direct Angle:", input.parentStatement.trim(), ...ancestorStakeBlock(input.ancestors), ...(input.ids.includes("causeLock") ? ["", ...keyLines(input.mechanismKeys)] : [])],
+  });
+}
+
+/** One model call for the open checks that need a model; checks decided without one stay out. */
+async function batchedIdeaAnswers(input: {
+  batch?: boolean;
+  open: ReadonlyArray<(typeof INDIVIDUAL_PASS_CHECK_IDS)[number]>;
+  statement: string;
+  parentStatement: string;
+  ancestors?: AncestorStake[];
+  masterSubject?: string;
+  mechanismKeys?: IdeaMechanismKey[];
+  ask: (prompt: string) => Promise<string | null>;
+}): Promise<Map<string, GateAnswer>> {
+  if (!input.batch) return new Map();
+  const ids = input.open.filter((id) => (id !== "situationFelt" || !announcedSituationFailure(input.statement)) && (id !== "causeLock" || (Boolean(input.masterSubject?.trim()) && (input.mechanismKeys ?? []).some((key) => key.otherExplanation.trim() && key.close.trim()))));
+  if (ids.length < 2) return new Map();
+  const answers = await askBatchGates({ prompt: buildIdeaBatchPrompt({ ...input, ids }), ids, ask: input.ask });
+  return answers ?? new Map();
+}
+
+export function buildIdeaPassPrompt(input: {
+  id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number];
+  statement: string;
+  parentStatement: string;
+  ancestors?: AncestorStake[];
+  masterSubject?: string;
+  mechanismKeys?: IdeaMechanismKey[];
+}): string {
+  const rule = ideaGateRules(input.id, input.masterSubject);
   return [
     "Decide one Idea pass check. Do not rewrite the sentence.",
     ...rule,
     "When pass is false, reason says why in the same language as the Angle.",
-    "When you cannot decide, do not return pass true.",
+    ideaDecisionHint(input.id),
     'Return JSON only: {"pass":true,"reason":""} or {"pass":false,"reason":"..."}',
     "",
     `Idea: ${input.statement.trim()}`,
@@ -215,6 +265,8 @@ export function finishIdeaSiblingCheck(
 }
 
 export async function runIdeaAdmissionChecks(input: {
+  /** Ask every open check in one model call (falls back to one call per check). */
+  batch?: boolean;
   statement: string;
   parentStatement: string;
   ancestors?: AncestorStake[];
@@ -224,6 +276,7 @@ export async function runIdeaAdmissionChecks(input: {
   const checks = ideaAdmissionChecks();
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
+  const batched = await batchedIdeaAnswers({ ...input, open: IDEA_GENERATE_PASS_IDS });
   for (const id of IDEA_GENERATE_PASS_IDS) {
     const index = checks.findIndex((check) => check.id === id);
     checks[index] = { id, state: "running" };
@@ -234,8 +287,9 @@ export async function runIdeaAdmissionChecks(input: {
       parentStatement: input.parentStatement,
       ancestors: input.ancestors,
     });
-    let script = await input.ask(prompt);
-    let parsed = parseIdeaPassCheck(script);
+    const answer = batched.get(id);
+    let script = answer && !isUndecided(answer) ? null : await input.ask(prompt);
+    let parsed = answer && !isUndecided(answer) ? answer : parseIdeaPassCheck(script);
     if (!parsed.pass && parsed.reason === UNDECIDED) {
       script = await input.ask(prompt);
       parsed = parseIdeaPassCheck(script);
@@ -252,6 +306,8 @@ export async function runIdeaAdmissionChecks(input: {
 }
 
 export async function runIdeaIndividualChecks(input: {
+  /** Ask every open check in one model call (falls back to one call per check). */
+  batch?: boolean;
   statement: string;
   parentStatement: string;
   ancestors?: AncestorStake[];
@@ -268,6 +324,10 @@ export async function runIdeaIndividualChecks(input: {
   );
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
+  const batched = await batchedIdeaAnswers({
+    ...input,
+    open: INDIVIDUAL_PASS_CHECK_IDS.filter((id) => checks.find((check) => check.id === id)?.state !== "pass"),
+  });
   for (const id of INDIVIDUAL_PASS_CHECK_IDS) {
     const index = checks.findIndex((check) => check.id === id);
     if (checks[index]?.state === "pass") continue;
@@ -292,7 +352,8 @@ export async function runIdeaIndividualChecks(input: {
       publish();
       return { checks: checks.map((check) => ({ ...check })), passed: false };
     }
-    const script = await input.ask(
+    const answer = batched.get(id);
+    const script = answer && !isUndecided(answer) ? null : await input.ask(
       buildIdeaPassPrompt({
         id,
         statement: input.statement,
@@ -302,7 +363,7 @@ export async function runIdeaIndividualChecks(input: {
         mechanismKeys: input.mechanismKeys,
       }),
     );
-    const parsed = parseIdeaPassCheck(script);
+    const parsed = answer && !isUndecided(answer) ? answer : parseIdeaPassCheck(script);
     if (!parsed.pass) {
       checks[index] = { id, state: "fail", reason: parsed.reason };
       publish();
@@ -316,6 +377,8 @@ export async function runIdeaIndividualChecks(input: {
 
 /** Re-ask the checks that failed or have not run. A passed check stays passed, except an announced conclusion, which fails situationFelt. */
 export async function runIdeaOpenChecks(input: {
+  /** Ask every open check in one model call (falls back to one call per check). */
+  batch?: boolean;
   statement: string;
   parentStatement: string;
   ancestors?: AncestorStake[];
@@ -331,6 +394,10 @@ export async function runIdeaOpenChecks(input: {
   });
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
+  const batched = await batchedIdeaAnswers({
+    ...input,
+    open: INDIVIDUAL_PASS_CHECK_IDS.filter((id) => checks.find((check) => check.id === id)?.state !== "pass"),
+  });
   for (const id of INDIVIDUAL_PASS_CHECK_IDS) {
     const index = checks.findIndex((check) => check.id === id);
     const announced = id === "situationFelt" ? announcedSituationFailure(input.statement) : null;
@@ -355,7 +422,8 @@ export async function runIdeaOpenChecks(input: {
       publish();
       return { checks: checks.map((check) => ({ ...check })), passed: false };
     }
-    const script = await input.ask(
+    const answer = batched.get(id);
+    const script = answer && !isUndecided(answer) ? null : await input.ask(
       buildIdeaPassPrompt({
         id,
         statement: input.statement,
@@ -365,7 +433,7 @@ export async function runIdeaOpenChecks(input: {
         mechanismKeys: input.mechanismKeys,
       }),
     );
-    const parsed = parseIdeaPassCheck(script);
+    const parsed = answer && !isUndecided(answer) ? answer : parseIdeaPassCheck(script);
     if (!parsed.pass) {
       checks[index] = { id, state: "fail", reason: parsed.reason };
       publish();
