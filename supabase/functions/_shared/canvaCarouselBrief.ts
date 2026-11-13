@@ -251,6 +251,9 @@ export function buildCanvaCarouselBrief(input: {
   styleLock?: string;
   palette?: CatalogPalette | null;
   logo?: "required" | "none";
+  /** Menus the plan shows; Canva draws these dishes itself. */
+  menus?: string[];
+  /** A real photo placed on the last page. Not sent by canva-carousel-run any more. */
   productPhotos?: string[];
   requiredNote?: string;
   forbiddenNote?: string;
@@ -301,8 +304,8 @@ export function buildCanvaCarouselBrief(input: {
     paletteLine(input.palette),
     logoLine(input.logo),
     showsPerson ? PERSON_PHOTO_RULE : "",
-    showsFood || (input.productPhotos ?? []).length > 0 ? FOOD_PHOTO_RULE : "",
-    menuLine(input.productPhotos),
+    showsFood || (input.menus ?? []).length > 0 || (input.productPhotos ?? []).length > 0 ? FOOD_PHOTO_RULE : "",
+    menuLine([...(input.menus ?? []), ...(input.productPhotos ?? [])]),
     productPhotoLine(input.productPhotos),
     `Title: ${title}.${captionLine}`,
     pages,

@@ -1517,7 +1517,8 @@ test("Canva memasang foto dan logo lewat tool edit yang tersedia", () => {
   assert.match(canva, /"read-design", \{\s*design_id: designId,\s*open_transaction: true/);
   assert.match(canva, /finalize: "keep_open"/);
   assert.match(canva, /payload\.media_id/);
-  assert.match(canva, /event: "canva_product_photos_failed"/);
+  assert.doesNotMatch(canva, /placeProductPhotos/);
+  assert.match(canva, /menus: productPhotos\.map\(\(photo\) => photo\.name\)/);
   const mcp = readFileSync(new URL("../../supabase/functions/_shared/canvaMcp.ts", import.meta.url), "utf8");
   assert.match(mcp, /"read-design",\n  "edit-design",/);
   assert.match(mcp, /export function canvaEditingMode/);
