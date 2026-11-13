@@ -70,13 +70,30 @@ export async function addThinkingIdea(
 ): Promise<ThinkingWriteResult> {
   const statement = input.statement.replace(/\s+/g, " ").trim();
   if (!statement) throw new Error("invalid_input");
-  const { data, error } = await admin.rpc("mcp_thinking_idea_context", { ...sessionArgs(ctx), p_angle_id: input.angleId });
+  const context = await loadIdeaContext(admin, ctx, input.angleId);
+  const masterStatement = context.master.statement.trim();
+  const gate = ideaParentGate(context);
+  if (gate.ok === false) {
+    const reason =
+      gate.reason === "PARENT_UNLOCKED"
+        ? "Lock the Angles first (thinking.angle.lock)."
+        : "The Angle or a level above it changed after it was locked. Check it again on the page first.";
+    return { saved: false, failed: [{ check: "angle", reason }] };
+  }
+  const angleFp = gate.angleFingerprint;
+  return addIdeaUnder(admin, config, ctx, context, angleFp, statement, input, deps);
+}
+
+async function loadIdeaContext(admin: SupabaseClient, ctx: Session, angleId: string): Promise<IdeaContext> {
+  const { data, error } = await admin.rpc("mcp_thinking_idea_context", { ...sessionArgs(ctx), p_angle_id: angleId });
   if (error) rpcError(error);
   if (!data || typeof data !== "object") throw new Error("not_found");
-  const context = data as IdeaContext;
+  return data as IdeaContext;
+}
 
+function ideaParentGate(context: IdeaContext) {
   const masterStatement = context.master.statement.trim();
-  const gate = evaluateIdeaParent({
+  return evaluateIdeaParent({
     angle: {
       id: context.angle.id,
       status: context.angle.status,
@@ -100,14 +117,19 @@ export async function addThinkingIdea(
     masterThoughtFingerprint: confirmedFingerprint(masterStatement, context.master.root_belief || masterStatement),
     expectedAngleId: context.angle.id,
   });
-  if (gate.ok === false) {
-    const reason =
-      gate.reason === "PARENT_UNLOCKED"
-        ? "Lock the Angles first (thinking.angle.lock)."
-        : "The Angle or a level above it changed after it was locked. Check it again on the page first.";
-    return { saved: false, failed: [{ check: "angle", reason }] };
-  }
-  const angleFp = gate.angleFingerprint;
+}
+
+async function addIdeaUnder(
+  admin: SupabaseClient,
+  config: JudgeConfig,
+  ctx: Session,
+  context: IdeaContext,
+  angleFp: string,
+  statement: string,
+  input: { angleId: string; statement: string; subject: string; keys: IdeaMechanismKey[] },
+  deps: Deps,
+): Promise<ThinkingWriteResult> {
+  const masterStatement = context.master.statement.trim();
 
   const ideas = context.ideas.map((row) => ({
     id: row.id,
@@ -266,4 +288,56 @@ export async function addThinkingIdea(
   if (saved.error) rpcError(saved.error);
   if (typeof saved.data !== "string") throw new Error("request_failed");
   return { saved: true, id: saved.data, code };
+}
+
+/** The stored decision, read the same way the database reads it (validation->>'decision'). */
+function storedDecision(validation: unknown): string {
+  if (!validation || typeof validation !== "object") return "";
+  const decision = (validation as { decision?: unknown }).decision;
+  return typeof decision === "string" ? decision : "";
+}
+
+/**
+ * Lock the passing Ideas of one locked Angle, like Lock on the page: at least one, each
+ * AUDIT_PASS for its current sentence and decided LOLOS. Pillars need a locked Idea.
+ */
+export async function lockThinkingIdeas(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: { angleId: string },
+): Promise<ThinkingWriteResult> {
+  const context = await loadIdeaContext(admin, ctx, input.angleId);
+  const gate = ideaParentGate(context);
+  if (gate.ok === false) {
+    return { saved: false, failed: [{ check: "angle", reason: "The Angle is not locked or changed after it was locked." }] };
+  }
+  const angleFp = gate.angleFingerprint;
+  const record = readIdeaSetRecord(context.angle.idea_set);
+  const items = record.audit?.items ?? [];
+  const open = context.ideas
+    .filter((row) => row.angle_id === context.angle.id && row.status !== "locked" && row.admission !== "GENERATE_REJECT")
+    .filter((row) => storedDecision(row.validation) !== "DITOLAK");
+  if (open.length === 0) {
+    const anyLocked = context.ideas.some((row) => row.angle_id === context.angle.id && row.status === "locked");
+    if (anyLocked) return { saved: true, id: input.angleId };
+    return { saved: false, failed: [{ check: "lock", reason: "Add at least one Idea that passes first." }] };
+  }
+  const notReady = open.filter((row) => {
+    const item = items.find((entry) => entry.code.toUpperCase() === row.code.toUpperCase());
+    const current = item?.statementFingerprint === ideaFingerprint({ statement: row.statement, angleFingerprint: angleFp });
+    return !(item?.verdict === "AUDIT_PASS" && current && storedDecision(row.validation) === "LOLOS");
+  });
+  if (notReady.length > 0) {
+    return {
+      saved: false,
+      failed: notReady.map((row) => ({ check: row.code, reason: "This Idea has not passed its checks for its current sentence. Fix or delete it first." })),
+    };
+  }
+  const { error } = await admin.rpc("mcp_lock_thinking_ideas", {
+    ...sessionArgs(ctx),
+    p_angle_id: input.angleId,
+    p_rows: open.map((row) => ({ id: row.id, fingerprint: ideaFingerprint({ statement: row.statement, angleFingerprint: angleFp }) })),
+  });
+  if (error) rpcError(error);
+  return { saved: true, id: input.angleId };
 }
