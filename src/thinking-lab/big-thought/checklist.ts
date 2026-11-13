@@ -1,4 +1,4 @@
-import type { BigThoughtFacts, GateFailure, GeneratePassGate, ParentRelation, PassGateId } from "@/thinking-lab/big-thought/types";
+import type { BigThoughtFacts, GateFailure, GeneratePassGate, ParentRelation, PassGateId } from "./types";
 
 export type { GateFailure, PassGateId };
 

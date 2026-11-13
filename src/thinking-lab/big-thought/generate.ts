@@ -1,5 +1,5 @@
-import { scoreAuditRow } from "@/thinking-lab/big-thought/audit";
-import { asBecauseClause, BECAUSE_RESULT_LINES } from "@/thinking-lab/big-thought/because";
+import { scoreAuditRow } from "./audit";
+import { asBecauseClause, BECAUSE_RESULT_LINES } from "./because";
 import {
   attachLesson,
   checklistFrame,
@@ -11,14 +11,14 @@ import {
   uncheckedDuplicateChecklist,
   type GateLesson,
   type PassChecklist,
-} from "@/thinking-lab/big-thought/checklist";
-import { bigThoughtRepeats, normalizeBigThoughtLabel } from "@/thinking-lab/big-thought/label";
-import { productReasonLines, statementUsesReason, type ProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
-import { MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "@/thinking-lab/shared/limits";
-import { individualAdmission } from "@/thinking-lab/big-thought/policy";
-import { judgeBigThought } from "@/thinking-lab/big-thought/semantic";
-import type { BigThoughtFacts, GenerateMode, MissingWhy, SemanticExclusion, SiblingSetFacts } from "@/thinking-lab/big-thought/types";
-import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
+} from "./checklist";
+import { bigThoughtRepeats, normalizeBigThoughtLabel } from "./label";
+import { productReasonLines, statementUsesReason, type ProductReasonPool } from "../master-thought/productReasonPool";
+import { MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "../shared/limits";
+import { individualAdmission } from "./policy";
+import { judgeBigThought } from "./semantic";
+import type { BigThoughtFacts, GenerateMode, MissingWhy, SemanticExclusion, SiblingSetFacts } from "./types";
+import type { IndividualAdmission } from "../shared/verdict";
 
 export type { GateLesson, PassChecklist };
 

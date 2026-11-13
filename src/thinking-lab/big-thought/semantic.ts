@@ -1,7 +1,7 @@
-import { BECAUSE_RESULT_LINES } from "@/thinking-lab/big-thought/because";
-import { individualChecklistPassed, readGateFailure, readGeneratePasses } from "@/thinking-lab/big-thought/checklist";
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
-import type { Resolution, TriState } from "@/thinking-lab/shared/verdict";
+import { BECAUSE_RESULT_LINES } from "./because";
+import { individualChecklistPassed, readGateFailure, readGeneratePasses } from "./checklist";
+import { parseModelJson } from "../shared/parseModelJson";
+import type { Resolution, TriState } from "../shared/verdict";
 import type {
   BigThoughtFacts,
   ChallengerFacts,
@@ -10,7 +10,7 @@ import type {
   ParentRelation,
   SiblingSetFacts,
   SupportRole,
-} from "@/thinking-lab/big-thought/types";
+} from "./types";
 
 const RELATIONS = new Set<ParentRelation>([
   "DISTINCT_MATERIAL_SUPPORT",

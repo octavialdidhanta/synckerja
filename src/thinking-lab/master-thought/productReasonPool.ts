@@ -1,4 +1,4 @@
-import type { ProductBeliefSourceRow } from "@/thinking-lab/master-thought/productBrief";
+import type { ProductBeliefSourceRow } from "./productBrief";
 
 export type ProductReasonKind = "advantage" | "solution" | "feature";
 
