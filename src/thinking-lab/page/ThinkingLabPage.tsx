@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
 import { Accordion } from "@/shared/components/ui/accordion";
+import { CheckSettingsDialog } from "@/thinking-lab/section/CheckSettingsDialog";
 import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,
@@ -8284,8 +8285,10 @@ export function ThinkingLabPage() {
         <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pb-2">
           <div className="relative mb-1 flex-shrink-0">
             <HeaderAndTab activeMainTab="thinking-lab" handleTabChange={handleTabChange} />
+            <div className="absolute right-1 top-3 z-20 flex items-center gap-2">
+              <CheckSettingsDialog organizationId={masters.organizationId} />
             {hasMasters ? (
-              <div className="absolute right-1 top-3 z-20">
+              <div>
                 {!composerOpen ? (
                   <Button type="button" size="sm" variant="outline" onClick={() => setComposerOpen(true)}>
                     {t("thinkingLab.action.newMaster", "New Master Thought")}
@@ -8297,6 +8300,7 @@ export function ThinkingLabPage() {
                 )}
               </div>
             ) : null}
+            </div>
           </div>
           <div className="mt-0 flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
                 <ModuleShellContentGate pagePath="/thinking-lab" className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col">
