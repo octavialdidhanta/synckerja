@@ -70,6 +70,45 @@ export function territoryLockResult(
   return lock(ctx, { bigThoughtId: parsed.data.big_thought_id });
 }
 
+export const angleAddInput = z.object({
+  territory_id: z.string().uuid(),
+  statement: sentence(500),
+  subject: sentence(120),
+  example: sentence(300),
+}).strict();
+
+export const angleLockInput = z.object({
+  territory_id: z.string().uuid(),
+}).strict();
+
+export type AngleAddWrite = { territoryId: string; statement: string; subject: string; example: string };
+export type AngleLockWrite = { territoryId: string };
+
+export function angleAddResult(
+  ctx: McpAuthContext,
+  args: Record<string, unknown>,
+  add: (ctx: McpAuthContext, input: AngleAddWrite) => Promise<ThinkingWriteResult>,
+): Promise<ThinkingWriteResult> {
+  const parsed = angleAddInput.safeParse(args);
+  if (!parsed.success) throw new Error("invalid_input");
+  return add(ctx, {
+    territoryId: parsed.data.territory_id,
+    statement: parsed.data.statement,
+    subject: parsed.data.subject,
+    example: parsed.data.example,
+  });
+}
+
+export function angleLockResult(
+  ctx: McpAuthContext,
+  args: Record<string, unknown>,
+  lock: (ctx: McpAuthContext, input: AngleLockWrite) => Promise<ThinkingWriteResult>,
+): Promise<ThinkingWriteResult> {
+  const parsed = angleLockInput.safeParse(args);
+  if (!parsed.success) throw new Error("invalid_input");
+  return lock(ctx, { territoryId: parsed.data.territory_id });
+}
+
 export type MasterCreateWrite = { belief: string; priorBelief: string; audience: string; catalog?: string };
 export type MasterCatalogWrite = { masterThoughtId: string; catalog: string };
 export type BigThoughtAddWrite = { masterThoughtId: string; statement: string; label: string };

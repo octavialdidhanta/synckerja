@@ -1,9 +1,9 @@
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
-import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "@/thinking-lab/shared/batchGates";
-import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
-import { angleExampleProblem } from "@/thinking-lab/angle/example";
-import { angleSubjectProblem } from "@/thinking-lab/angle/subject";
-import type { AngleGeneratePass } from "@/thinking-lab/angle/types";
+import { parseModelJson } from "../shared/parseModelJson";
+import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "../shared/batchGates";
+import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
+import { angleExampleProblem } from "./example";
+import { angleSubjectProblem } from "./subject";
+import type { AngleGeneratePass } from "./types";
 
 export const ANGLE_PASS_CHECK_IDS = [
   "stakeHolds",

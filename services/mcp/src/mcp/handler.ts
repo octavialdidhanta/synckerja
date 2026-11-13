@@ -24,6 +24,8 @@ import type {
   MasterCreateWrite,
   TerritoryAddWrite,
   TerritoryLockWrite,
+  AngleAddWrite,
+  AngleLockWrite,
 } from "../tools/thinking/treeWrite";
 import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
@@ -270,6 +272,10 @@ import {
   territoryAddResult,
   territoryLockInput,
   territoryLockResult,
+  angleAddInput,
+  angleAddResult,
+  angleLockInput,
+  angleLockResult,
   chainReadInput,
   chainReadResult,
   executionCheckInput,
@@ -428,6 +434,8 @@ export type McpReadDeps = {
   lockThinkingBigThoughts: (ctx: McpAuthContext, input: BigThoughtLockWrite) => Promise<ThinkingWriteResult>;
   addThinkingTerritory: (ctx: McpAuthContext, input: TerritoryAddWrite) => Promise<ThinkingWriteResult>;
   lockThinkingTerritories: (ctx: McpAuthContext, input: TerritoryLockWrite) => Promise<ThinkingWriteResult>;
+  addThinkingAngle: (ctx: McpAuthContext, input: AngleAddWrite) => Promise<ThinkingWriteResult>;
+  lockThinkingAngles: (ctx: McpAuthContext, input: AngleLockWrite) => Promise<ThinkingWriteResult>;
   listThinkingIdeas: (ctx: McpAuthContext) => Promise<ThinkingIdeaRow[]>;
   readThinkingChain: (ctx: McpAuthContext, ideaId: string) => Promise<ThinkingChain>;
   checkThinkingExecution: (
@@ -794,6 +802,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "thinking.bigthought.lock": bigThoughtLockInput,
   "thinking.territory.add": territoryAddInput,
   "thinking.territory.lock": territoryLockInput,
+  "thinking.angle.add": angleAddInput,
+  "thinking.angle.lock": angleLockInput,
   "thinking.ideas.list": ideasListInput,
   "thinking.chain.read": chainReadInput,
   "thinking.execution.check": executionCheckInput,
@@ -1422,6 +1432,10 @@ async function runTool(
       return territoryAddResult(ctx, args, deps.addThinkingTerritory);
     case "thinking.territory.lock":
       return territoryLockResult(ctx, args, deps.lockThinkingTerritories);
+    case "thinking.angle.add":
+      return angleAddResult(ctx, args, deps.addThinkingAngle);
+    case "thinking.angle.lock":
+      return angleLockResult(ctx, args, deps.lockThinkingAngles);
     case "thinking.ideas.list":
       return ideasListResult(ctx, deps.listThinkingIdeas);
     case "thinking.chain.read":

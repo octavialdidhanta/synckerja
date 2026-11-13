@@ -1,5 +1,5 @@
-import type { AngleChallengerResult } from "@/thinking-lab/angle/types";
-import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
+import type { AngleChallengerResult } from "./types";
+import type { AuditVerdict } from "../shared/verdict";
 
 export type AngleStageAction = "fix" | "generate" | "audit" | "challenger" | "lock";
 

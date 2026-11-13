@@ -1,8 +1,8 @@
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
-import { fixScopeLines, openMistakeLines, type FixScope } from "@/thinking-lab/shared/fixScope";
-import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
-import { scoreAngleAudit } from "@/thinking-lab/angle/setAudit";
-import type { AngleSetFacts } from "@/thinking-lab/angle/types";
+import { parseModelJson } from "../shared/parseModelJson";
+import { fixScopeLines, openMistakeLines, type FixScope } from "../shared/fixScope";
+import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
+import { scoreAngleAudit } from "./setAudit";
+import type { AngleSetFacts } from "./types";
 
 export type AngleFixReplacement = {
   code: string;

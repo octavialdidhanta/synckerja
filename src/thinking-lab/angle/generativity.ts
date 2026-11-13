@@ -1,6 +1,6 @@
-import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
-import { deriveAngleRelation } from "@/thinking-lab/angle/semantic";
-import type { AngleIdeaGenerativity, AngleResolution, AngleSemanticFacts } from "@/thinking-lab/angle/types";
+import { parseModelJson } from "../shared/parseModelJson";
+import { deriveAngleRelation } from "./semantic";
+import type { AngleIdeaGenerativity, AngleResolution, AngleSemanticFacts } from "./types";
 
 const IDEA_GENERATIVITY = ["SUFFICIENT", "INSUFFICIENT", "UNRESOLVED"] as const satisfies readonly AngleIdeaGenerativity[];
 

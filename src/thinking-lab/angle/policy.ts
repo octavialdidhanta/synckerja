@@ -1,5 +1,5 @@
-import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
-import type { AngleSemanticFacts } from "@/thinking-lab/angle/types";
+import type { IndividualAdmission } from "../shared/verdict";
+import type { AngleSemanticFacts } from "./types";
 
 const REJECT_RELATIONS = new Set<AngleSemanticFacts["relationToParent"]>([
   "OUT_OF_PARENT_SCOPE",

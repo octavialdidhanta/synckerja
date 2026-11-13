@@ -117,6 +117,8 @@ export type McpToolName =
   | "thinking.bigthought.lock"
   | "thinking.territory.add"
   | "thinking.territory.lock"
+  | "thinking.angle.add"
+  | "thinking.angle.lock"
   | "thinking.ideas.list"
   | "thinking.chain.read"
   | "thinking.execution.check"
@@ -705,6 +707,22 @@ const TOOL_DEFINITIONS: McpTool[] = [
     name: "thinking.territory.lock",
     description:
       "Lock the Territories of one Big Thought in Thinking Lab for the organization locked in this session, like Lock on the page. Requires big_thought_id. Needs at least 3 admitted Territories, all passed for their current names; otherwise nothing is locked and it returns what is missing. Angles can only be added under a locked Territory.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.angle.add",
+    description:
+      "Add one Angle under a locked Territory in Thinking Lab for the organization locked in this session. Requires territory_id (from thinking.tree.read), statement, subject, and example. statement is one rarely noticed observation inside the Territory, written as what is rarely noticed about it, in the Master Thought's language: not a reason (it must not slip into karena / because), not a summary of the Territory, and true enough that part of the Big Thought's reason feels true. subject is a short noun phrase that carries that rarely noticed fact, without the place or the Territory name. example is one concrete situation a person could point at. The page's seven Angle checks run first, then the check against the Angles that passed. On a pass it is saved with the next AN code under this Master Thought and shows as checked. On a fail nothing is saved and it returns the failed check and reason; rewrite and call again. A Territory holds at most 6 Angles.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.angle.lock",
+    description:
+      "Lock the Angles of one Territory in Thinking Lab for the organization locked in this session, like Lock on the page. Requires territory_id. Every admitted Angle must have passed for its current sentence; otherwise nothing is locked and it returns each open Angle. Ideas are added under a locked Angle.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: THINKING_LAB_PAGE_PATH,

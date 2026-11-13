@@ -23,6 +23,8 @@ import type {
   MasterCreateWrite,
   TerritoryAddWrite,
   TerritoryLockWrite,
+  AngleAddWrite,
+  AngleLockWrite,
 } from "../tools/thinking/treeWrite";
 import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
 import type { ThinkingScriptDraft } from "../tools/thinking/scriptInput";
@@ -219,6 +221,8 @@ export type AppDeps = {
   lockThinkingBigThoughts: (ctx: McpAuthContext, input: BigThoughtLockWrite) => Promise<ThinkingWriteResult>;
   addThinkingTerritory: (ctx: McpAuthContext, input: TerritoryAddWrite) => Promise<ThinkingWriteResult>;
   lockThinkingTerritories: (ctx: McpAuthContext, input: TerritoryLockWrite) => Promise<ThinkingWriteResult>;
+  addThinkingAngle: (ctx: McpAuthContext, input: AngleAddWrite) => Promise<ThinkingWriteResult>;
+  lockThinkingAngles: (ctx: McpAuthContext, input: AngleLockWrite) => Promise<ThinkingWriteResult>;
   listThinkingIdeas: (ctx: McpAuthContext) => Promise<ThinkingIdeaRow[]>;
   readThinkingChain: (ctx: McpAuthContext, ideaId: string) => Promise<ThinkingChain>;
   checkThinkingExecution: (
