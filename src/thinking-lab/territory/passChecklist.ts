@@ -1,4 +1,5 @@
 import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "@/thinking-lab/shared/batchGates";
 import type { TerritoryGeneratePass } from "@/thinking-lab/territory/types";
 
 export const TERRITORY_PASS_CHECK_IDS = [
@@ -95,17 +96,16 @@ export function individualPassChecksCleared(checks: readonly TerritoryPassCheck[
   return INDIVIDUAL_PASS_CHECK_IDS.every((id) => checks.some((check) => check.id === id && check.state === "pass"));
 }
 
-export function buildTerritoryPassPrompt(input: {
-  id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number];
-  statement: string;
-  parentStatement: string;
-  audience?: string;
-  question?: string;
-}): string {
-  const audience = input.audience?.trim();
-  const question = input.question?.trim() ?? "";
-  const rule =
-    input.id === "partOfBigThought"
+/** The rule text of one Territory check, shared by the one-check and the batched prompts. */
+function territoryGateRules(
+  id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number],
+  audience?: string,
+  question?: string,
+): string[] {
+  const audienceText = audience?.trim();
+  const questionText = question?.trim() ?? "";
+  return (
+    id === "partOfBigThought"
       ? [
           "pass is true when the name is an area in the audience's world where this Big Thought can be discussed, and the name is not a keyword copied from the Big Thought.",
           "pass is false when the name is not an area in the audience's world, or when the name is only a keyword copied from the Big Thought: its title, its reason, or a short restatement of its words.",
@@ -113,19 +113,19 @@ export function buildTerritoryPassPrompt(input: {
           "Being able to discuss other subjects in that area does not make pass false.",
           "Kurir paket passes under a Big Thought about delivery cost. Biaya kirim fails because it copies the Big Thought.",
         ]
-      : input.id === "audienceLanguage"
+      : id === "audienceLanguage"
         ? [
             "pass is true when these words are how the audience would name this area.",
             "pass is false when the words are an internal strategy term or jargon the audience would not use.",
-            audience ? `Audience: ${audience}` : "Use the audience named with the Big Thought.",
+            audienceText ? `Audience: ${audienceText}` : "Use the audience named with the Big Thought.",
           ]
-        : input.id === "questionArises"
+        : id === "questionArises"
           ? [
               "pass is true only when the question the Big Thought answers actually comes up in this area.",
               "pass is false when a different question comes up there, or the question only restates the Big Thought.",
               "Other questions coming up in that area do not make pass false.",
               "Judge the supplied question only. Do not replace it with a question taken from the Territory name or from another subject.",
-              question ? `Question the Big Thought answers: ${question}` : "No question was supplied, so pass is false.",
+              questionText ? `Question the Big Thought answers: ${questionText}` : "No question was supplied, so pass is false.",
             ]
             : [
               "An Angle is one observation inside a Territory. This check asks whether the name is still a place or has already become one Angle.",
@@ -135,16 +135,72 @@ export function buildTerritoryPassPrompt(input: {
               "A narrow place still passes. Do not fail a recognizable place because the Big Thought is specific, or because the other Angles have not been written yet.",
               "Kurir paket passes under a Big Thought that one courier type is cheaper. Route, weight, and speed remain other observations. Kurir motor lebih murah fails because the name is already that one claim.",
               "When pass is false, the reason names the observation already stated by the Territory name. Do not quote the Big Thought's answer as that observation.",
-            ];
+            ]
+  );
+}
+
+function territoryDecisionHint(id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number]): string {
+  return id === "partOfBigThought"
+      ? "When the name is a recognizable area and the only doubt is a shared word or whether the area is exclusive to the Big Thought, return pass true. When you cannot decide whether it names an area at all, do not return pass true."
+      : id === "wideEnough"
+        ? "When the name is a recognizable place and the only observation you can cite comes from the Big Thought, return pass true. When the name itself is already one observation or one claim, do not return pass true."
+        : "When you cannot decide, do not return pass true.";
+}
+
+/** Every open Territory check of one name in one prompt. */
+export function buildTerritoryBatchPrompt(input: {
+  ids: ReadonlyArray<(typeof INDIVIDUAL_PASS_CHECK_IDS)[number]>;
+  statement: string;
+  parentStatement: string;
+  audience?: string;
+  question?: string;
+}): string {
+  return buildBatchGatePrompt({
+    item: "Territory",
+    language: "Big Thought",
+    gates: input.ids.map((id) => ({
+      id,
+      rules: territoryGateRules(id, input.audience, input.question),
+      extra: [territoryDecisionHint(id)],
+    })),
+    context: [`Territory: ${input.statement.trim()}`, "Big Thought:", input.parentStatement.trim()],
+  });
+}
+
+/** One model call for the open checks; questionArises joins only when its question is known. */
+async function batchedTerritoryAnswers(input: {
+  batch?: boolean;
+  open: ReadonlyArray<(typeof INDIVIDUAL_PASS_CHECK_IDS)[number]>;
+  statement: string;
+  parentStatement: string;
+  audience?: string;
+  question?: string;
+  ask: (prompt: string) => Promise<string | null>;
+}): Promise<Map<string, GateAnswer>> {
+  if (!input.batch) return new Map();
+  const ids = input.open.filter((id) => id !== "questionArises" || Boolean(input.question?.trim()));
+  if (ids.length < 2) return new Map();
+  const answers = await askBatchGates({
+    prompt: buildTerritoryBatchPrompt({ ...input, ids }),
+    ids,
+    ask: input.ask,
+  });
+  return answers ?? new Map();
+}
+
+export function buildTerritoryPassPrompt(input: {
+  id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number];
+  statement: string;
+  parentStatement: string;
+  audience?: string;
+  question?: string;
+}): string {
+  const rule = territoryGateRules(input.id, input.audience, input.question);
   return [
     "Decide one Territory pass check. Do not rewrite the name.",
     ...rule,
     "When pass is false, reason says why in the same language as the Big Thought.",
-    input.id === "partOfBigThought"
-      ? "When the name is a recognizable area and the only doubt is a shared word or whether the area is exclusive to the Big Thought, return pass true. When you cannot decide whether it names an area at all, do not return pass true."
-      : input.id === "wideEnough"
-        ? "When the name is a recognizable place and the only observation you can cite comes from the Big Thought, return pass true. When the name itself is already one observation or one claim, do not return pass true."
-        : "When you cannot decide, do not return pass true.",
+    territoryDecisionHint(input.id),
     'Return JSON only: {"pass":true,"reason":""} or {"pass":false,"reason":"..."}',
     "",
     `Territory: ${input.statement.trim()}`,
@@ -184,6 +240,8 @@ export function finishSiblingCheck(
 }
 
 export async function runTerritoryAdmissionChecks(input: {
+  /** Ask every open check in one model call (falls back to one call per check). */
+  batch?: boolean;
   statement: string;
   parentStatement: string;
   audience?: string;
@@ -193,6 +251,7 @@ export async function runTerritoryAdmissionChecks(input: {
   const checks = territoryAdmissionChecks();
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
+  const batched = await batchedTerritoryAnswers({ ...input, open: TERRITORY_GENERATE_PASS_IDS });
   for (const id of TERRITORY_GENERATE_PASS_IDS) {
     const index = checks.findIndex((check) => check.id === id);
     checks[index] = { id, state: "running" };
@@ -203,8 +262,9 @@ export async function runTerritoryAdmissionChecks(input: {
       parentStatement: input.parentStatement,
       audience: input.audience,
     });
-    let script = await input.ask(prompt);
-    let parsed = parseTerritoryPassCheck(script);
+    const answer = batched.get(id);
+    let script = answer && !isUndecided(answer) ? null : await input.ask(prompt);
+    let parsed = answer && !isUndecided(answer) ? answer : parseTerritoryPassCheck(script);
     if (!parsed.pass && parsed.reason === UNDECIDED) {
       script = await input.ask(prompt);
       parsed = parseTerritoryPassCheck(script);
@@ -221,6 +281,8 @@ export async function runTerritoryAdmissionChecks(input: {
 }
 
 export async function runTerritoryIndividualChecks(input: {
+  /** Ask every open check in one model call (falls back to one call per check). */
+  batch?: boolean;
   statement: string;
   parentStatement: string;
   audience?: string;
@@ -238,6 +300,11 @@ export async function runTerritoryIndividualChecks(input: {
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
   let question = input.question?.trim() ?? "";
+  const batched = await batchedTerritoryAnswers({
+    ...input,
+    question,
+    open: INDIVIDUAL_PASS_CHECK_IDS.filter((id) => checks.find((check) => check.id === id)?.state !== "pass"),
+  });
   for (const id of INDIVIDUAL_PASS_CHECK_IDS) {
     const index = checks.findIndex((check) => check.id === id);
     if (checks[index]?.state === "pass") continue;
@@ -262,8 +329,9 @@ export async function runTerritoryIndividualChecks(input: {
       audience: input.audience,
       question,
     });
-    let script = await input.ask(prompt);
-    let parsed = parseTerritoryPassCheck(script);
+    const answer = batched.get(id);
+    let script = answer && !isUndecided(answer) ? null : await input.ask(prompt);
+    let parsed = answer && !isUndecided(answer) ? answer : parseTerritoryPassCheck(script);
     if (!parsed.pass && parsed.reason === UNDECIDED) {
       script = await input.ask(prompt);
       parsed = parseTerritoryPassCheck(script);
@@ -281,6 +349,8 @@ export async function runTerritoryIndividualChecks(input: {
 
 /** Re-ask the checks that failed or have not run. Checks that already passed stay passed. */
 export async function runTerritoryOpenChecks(input: {
+  /** Ask every open check in one model call (falls back to one call per check). */
+  batch?: boolean;
   statement: string;
   parentStatement: string;
   audience?: string;
@@ -297,6 +367,11 @@ export async function runTerritoryOpenChecks(input: {
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
   let question = input.question?.trim() ?? "";
+  const batched = await batchedTerritoryAnswers({
+    ...input,
+    question,
+    open: INDIVIDUAL_PASS_CHECK_IDS.filter((id) => checks.find((check) => check.id === id)?.state !== "pass"),
+  });
   for (const id of INDIVIDUAL_PASS_CHECK_IDS) {
     const index = checks.findIndex((check) => check.id === id);
     if (checks[index]?.state === "pass") continue;
@@ -321,8 +396,9 @@ export async function runTerritoryOpenChecks(input: {
       audience: input.audience,
       question,
     });
-    let script = await input.ask(prompt);
-    let parsed = parseTerritoryPassCheck(script);
+    const answer = batched.get(id);
+    let script = answer && !isUndecided(answer) ? null : await input.ask(prompt);
+    let parsed = answer && !isUndecided(answer) ? answer : parseTerritoryPassCheck(script);
     if (!parsed.pass && parsed.reason === UNDECIDED) {
       script = await input.ask(prompt);
       parsed = parseTerritoryPassCheck(script);

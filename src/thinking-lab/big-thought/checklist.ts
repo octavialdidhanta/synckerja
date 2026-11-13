@@ -119,9 +119,13 @@ export function checklistFrames(final: PassChecklist): PassChecklist[] {
 }
 
 /** How long the live report stays on screen, in milliseconds. */
+/**
+ * A short beat so each check visibly ticks. It used to be 0.7 s + 0.9 s per check, about 10 s of
+ * waiting per Big Thought on top of the model calls.
+ */
 export function checklistReportPause(phase: GateReport["phase"] | undefined): number {
-  if (phase === "checking") return 700;
-  if (phase === "checked") return 900;
+  if (phase === "checking") return 0;
+  if (phase === "checked") return 150;
   return 0;
 }
 
