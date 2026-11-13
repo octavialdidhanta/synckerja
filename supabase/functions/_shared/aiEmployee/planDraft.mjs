@@ -714,6 +714,62 @@ export function parseExecutionVerdict(text) {
   return value ? executionVerdict(value) : null;
 }
 
+/**
+ * The Idea is the core of the carousel: the drafts drifted back to the Product Knowledge
+ * claim (e.g. young vs old goat) whatever the idea said. Topics already used often are named.
+ */
+function ideaFirstLines(idea, usedTopics) {
+  const statement = clip(idea?.idea_statement ?? idea?.statement, 300);
+  const topics = (Array.isArray(usedTopics) ? usedTopics : [])
+    .filter((row) => row && typeof row.phrase === "string" && row.phrase.trim())
+    .slice(0, 5)
+    .map((row) => `${clip(row.phrase, 60)} (${Number(row.count) || 0}x)`);
+  return [
+    statement
+      ? `Inti carousel ini adalah Idea berikut, bukan klaim Product Knowledge: "${statement}". title, Hook headline slide 1, dan alur slide wajib membawa mekanisme Idea itu. Product Knowledge hanya bukti pendukung di slide tengah atau penutup.`
+      : "",
+    topics.length > 0
+      ? `Sudut yang sudah sering dipakai rencana terakhir: ${topics.join("; ")}. Jangan jadikan sudut itu topik utama atau judul lagi. Bawa sudut dari Idea.`
+      : "",
+  ].filter(Boolean);
+}
+
+const TOPIC_STOP = new Set("di ke dari yang dan atau ini itu akan dengan untuk pada ya nih kami kita kamu anda adalah karena supaya agar vs versus atau apa mana kok sih lho dong deh aja banget bisa ada lebih jadi biar tapi juga sama buat cara kenapa gimana bagaimana".split(" "));
+
+/**
+ * Two- and three-word phrases that come back in at least minCount recent titles or hooks.
+ * Words of the catalog, menus and brand (ignore) never make a phrase on their own:
+ * "daging kambing" is the business, not an overused angle.
+ */
+export function usedTopicPhrases(texts, ignore = [], { minCount = 3, limit = 4 } = {}) {
+  const words = (value) => String(value ?? "").toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu, " ").split(/\s+/).filter((word) => word.length > 1 && !TOPIC_STOP.has(word));
+  const ignored = new Set((Array.isArray(ignore) ? ignore : []).flatMap(words));
+  const counts = new Map();
+  for (const text of (Array.isArray(texts) ? texts : []).slice(0, 12)) {
+    const tokens = words(text);
+    const seen = new Set();
+    for (const size of [3, 2]) {
+      for (let index = 0; index + size <= tokens.length; index += 1) {
+        const gram = tokens.slice(index, index + size);
+        if (gram.every((word) => ignored.has(word))) continue;
+        seen.add(gram.join(" "));
+      }
+    }
+    for (const phrase of seen) counts.set(phrase, (counts.get(phrase) ?? 0) + 1);
+  }
+  const ranked = [...counts.entries()]
+    .filter(([, count]) => count >= minCount)
+    .sort((left, right) => right[1] - left[1] || right[0].split(" ").length - left[0].split(" ").length);
+  const picked = [];
+  for (const [phrase, count] of ranked) {
+    // "kambing muda tua" already covers "muda tua" at the same count.
+    if (picked.some((row) => row.phrase.includes(phrase) && row.count >= count)) continue;
+    picked.push({ phrase, count });
+    if (picked.length >= limit) break;
+  }
+  return picked;
+}
+
 const COPY_STOP = new Set("di ke dari yang dan atau ini itu akan dengan untuk pada ya nih kami kita anda adalah karena supaya agar".split(" "));
 
 export function copyTokens(text) {
@@ -923,6 +979,7 @@ export function buildExecutionCheckPrompt({ day, pillar, idea, draft, path = nul
     "messageStays gagal bila headline atau kalimat slide 1 mengulang rencana terakhir.",
     "hookHolds menilai hook slide 1. Lulus bila hook ada, paling banyak 8 kata, nyambung dengan ide, dan membuat orang ingin geser ke slide berikutnya. Gagal hanya bila hook kosong, lebih dari 8 kata, tidak nyambung dengan ide, atau hanya nama menu tanpa alasan untuk berhenti scroll. Jangan gagalkan hookHolds hanya karena hook bisa dibuat lebih bagus.",
     "usesSlang lulus bila vo dan hook memakai bahasa lisan santai ke teman (kamu, nggak, aja, banget, sih). Gagal bila memakai Anda atau kalimat formal brosur.",
+    "mechanismVisible gagal bila judul, hook, dan alur slide tidak membawa mekanisme idea_statement di Rantai. Draf yang membahas topik lain dari Product Knowledge tanpa menyentuh Idea itu gagal di sini, walaupun naskahnya bagus.",
     "Cek lain gagal bila draf kosong, tanggalnya salah, atau tidak membahas ide tersebut.",
     "formatHolds lulus untuk carousel rasio 4:5, meskipun ide asalnya format lain.",
     `Tanggal wajib ${day}. Pillar wajib ${pillar?.id ?? ""}. Nama pilar: ${clip(pillar?.name, 80)}.`,
@@ -1198,7 +1255,7 @@ export function usedOpenings(priors, limit = 6) {
   };
 }
 
-export function buildSop1Prompt({ day, pillar, steps, catalog, thinking, feedback, plans, brief, performance, service, idea, product, path = null, avoid = "", menus = [], openingStyle = /** @type {{ id: string, rule: string } | null} */ (null) }) {
+export function buildSop1Prompt({ day, pillar, steps, catalog, thinking, feedback, plans, brief, performance, service, idea, product, path = null, avoid = "", menus = [], openingStyle = /** @type {{ id: string, rule: string } | null} */ (null), usedTopics = /** @type {{ phrase: string, count: number }[]} */ ([]) }) {
   const lockedPath = pathLines(path);
   const focusedFacts = Boolean(path) || briefHasAngles(brief);
   const referenceRule = referenceInstruction(brief);
@@ -1227,6 +1284,7 @@ export function buildSop1Prompt({ day, pillar, steps, catalog, thinking, feedbac
     "Gambar dan copy di setiap slide harus menyatu supaya penonton berhenti, mengerti, lalu ingin lanjut. Jangan membuat slide yang hanya adegan tanpa teks.",
     "Jangan memakai judul, headline, atau kalimat slide 1 yang tercantum pada rencana terakhir.",
     "Bentuk slide mengikuti Development pilar. Substansi ide tetap. Fakta produk tidak menggantikan bentuk pilar.",
+    ...ideaFirstLines(idea, usedTopics),
     ...openingLines,
     ...(rewrite ? [`Tulis ulang. ${rewrite}`] : []),
     ...(referenceRule ? [referenceRule] : []),

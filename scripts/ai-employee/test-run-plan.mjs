@@ -6,6 +6,7 @@ import {
   authorizeCaller,
   buildChatPrompt,
   buildSop1Prompt,
+  usedTopicPhrases,
   buildSop2Prompt,
   catalogChoice,
   catalogPalette,
@@ -1415,7 +1416,7 @@ test("run fokus membangun path baru saat semua path antrean ditolak", () => {
   assert.match(source, /rejectedIdeaIds\.has\(candidates\[index\]\.id\)/);
   assert.match(source, /new Set\(\[\.\.\.takenPairs, \.\.\.extraBlocked\]\)/);
   assert.match(source, /while \(attempts < maxAttempts\)/);
-  assert.match(source, /refillCarouselPath = \(blocked\) => prepareCarouselPath\("path", blocked, MAX_REFILL_PATH_ATTEMPTS\)/);
+  assert.match(source, /refillCarouselPath = \(blocked\) => prepareCarouselPath\("path", new Set\(\[\.\.\.cooledPairs, \.\.\.blocked\]\), MAX_REFILL_PATH_ATTEMPTS\)/);
   assert.match(source, /pathRefills < MAX_PATH_REFILLS/);
   assert.match(source, /!rejectedPairs\.has\(pathPair\(row\)\)/);
 });
@@ -1631,4 +1632,36 @@ test("gaya pembuka bergilir dan pembuka lama dilarang sejak percobaan pertama", 
   assert.match(prompt, /Gaya pembuka slide 1 wajib: Fakta mengejutkan/);
   assert.match(prompt, /Jangan memulai Hook headline atau vo slide 1 dengan kata-kata ini: \["pernah nggak sih"\]/);
   assert.match(prompt, /Pernah nggak sih kamu makan sate kambing tapi dagingnya alot\?/);
+});
+
+test("SOP1 menaruh Idea sebagai inti dan menyebut sudut yang sudah sering", () => {
+  const titles = [
+    "Daging Kambing Empuk vs. Alot, Kok Bisa Beda?",
+    "Daging Kambing Empuk Anti Prengus, Ada Kok!",
+    "Perbedaan Daging Kambing Muda dan Tua: Pilih Mana?",
+    "Beda Daging Kambing Muda vs Tua, Mana yang Lebih Empuk?",
+    "Garansi Daging Empuk Sate Sultan PIK",
+    "Rahasia Daging Kambing Empuk: Muda vs. Tua",
+  ];
+  const topics = usedTopicPhrases(titles, ["Sate Sultan PIK", "Sate Kambing Full Daging"]);
+  assert.ok(topics.some((row) => row.phrase === "muda tua" && row.count === 3));
+  assert.ok(!topics.some((row) => row.phrase === "daging kambing"), "catalog words alone are not an angle");
+  assert.deepEqual(usedTopicPhrases(["Charger cepat panas?", "Kabel rusak"], ["Charger 20W"]), []);
+  const prompt = buildSop1Prompt({
+    day: "2026-11-13",
+    pillar: { id: "alfa", name: "Alfa" },
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+    idea: { idea_id: "i1", idea_statement: "Ulasan yang membedakan ramai karena kualitas dan ramai karena kapasitas" },
+    usedTopics: topics,
+  });
+  assert.match(prompt, /Inti carousel ini adalah Idea berikut, bukan klaim Product Knowledge: "Ulasan yang membedakan/);
+  assert.match(prompt, /Sudut yang sudah sering dipakai rencana terakhir: .*muda tua \(3x\)/);
+  const bare = buildSop1Prompt({ day: "2026-11-13", pillar: { id: "alfa" }, steps: [], catalog: [], thinking: [], feedback: [], plans: [] });
+  assert.doesNotMatch(bare, /Sudut yang sudah sering/);
+  const check = buildExecutionCheckPrompt({ day: "2026-11-13", pillar: { id: "alfa" }, idea: { idea_statement: "x" }, draft: { title: "t", slides: [] } });
+  assert.match(check, /mechanismVisible gagal bila judul, hook, dan alur slide tidak membawa mekanisme idea_statement/);
 });

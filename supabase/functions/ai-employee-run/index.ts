@@ -49,6 +49,7 @@ import {
   headlineFromElement,
   headlineRepeats,
   openingStyleFor,
+  usedTopicPhrases,
   orderCopyFallbackPaths,
   selectCopyPriors,
   pickUnusedIdea,
@@ -151,6 +152,9 @@ function baseRewriteNote(checkId: string): string {
   }
   if (checkId === "checks_incomplete") {
     return "Pemeriksaan belum lengkap. Pastikan slide 1 punya Hook headline dan Visual hook, setiap slide punya vo santai, dan isi mengikuti Development pilar.";
+  }
+  if (checkId === "mechanismVisible") {
+    return "Pemeriksaan mechanismVisible gagal. Bangun ulang title, Hook headline, dan alur slide dari Idea yang dipakai, bukan dari klaim Product Knowledge.";
   }
   if (checkId === "pillarFits") {
     return "Pemeriksaan pillarFits gagal. Bentuk slide harus mengikuti Development pilar, bukan iklan produk yang sama.";
@@ -841,6 +845,31 @@ Deno.serve(async (req: Request) => {
       }
       let openTurn: Record<string, unknown> | null = null;
       let openPillar: { id: string; name: string } | null = null;
+      // Idea/pillar pairs that ended at least two runs of the last day without a plan.
+      const cooledPairs = new Set<string>();
+      {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const recentFails = await admin
+          .from("ai_employee_runs")
+          .select("attempted_idea_id, attempted_pillar_id")
+          .eq("employee_id", employeeId)
+          .eq("organization_id", employee.organization_id)
+          .eq("sop_code", "SOP1")
+          .neq("status", "running")
+          .eq("plan_count", 0)
+          .neq("id", runId)
+          .gte("started_at", since)
+          .not("attempted_idea_id", "is", null)
+          .order("started_at", { ascending: false })
+          .limit(6);
+        const failCount = new Map<string, number>();
+        for (const row of (recentFails.data ?? []) as Array<{ attempted_idea_id?: string; attempted_pillar_id?: string }>) {
+          const pair = `${String(row.attempted_idea_id ?? "")}:${String(row.attempted_pillar_id ?? "")}`;
+          failCount.set(pair, (failCount.get(pair) ?? 0) + 1);
+        }
+        for (const [pair, count] of failCount) if (count >= 2) cooledPairs.add(pair);
+        if (cooledPairs.size > 0) console.log(JSON.stringify({ event: "sop1_cooldown", run_id: runId, pairs: [...cooledPairs].slice(0, 5) }));
+      }
       // Set inside the block below: builds a new carousel path when every queued path was rejected.
       let refillCarouselPath:
         | ((blocked: Set<string>) => Promise<{ kind: string; ideaId?: string; pillarId?: string }>)
@@ -1146,12 +1175,21 @@ Deno.serve(async (req: Request) => {
           return { kind: "unconfirmed" };
         };
         if (focused) {
-          refillCarouselPath = (blocked) => prepareCarouselPath("path", blocked, MAX_REFILL_PATH_ATTEMPTS);
+          refillCarouselPath = (blocked) => prepareCarouselPath("path", new Set([...cooledPairs, ...blocked]), MAX_REFILL_PATH_ATTEMPTS);
         }
-        const prepared = await prepareCarouselPath(focused ? "path" : "open");
+        // An idea and pillar that just failed twice rest for a while; without them the next
+        // click picked the same pair and failed the same way.
+        let prepared = await prepareCarouselPath(focused ? "path" : "open", cooledPairs);
+        if (prepared.kind === "blocked" && cooledPairs.size > 0) {
+          console.log(JSON.stringify({ event: "sop1_cooldown_lifted", run_id: runId, pairs: [...cooledPairs].slice(0, 5) }));
+          cooledPairs.clear();
+          prepared = await prepareCarouselPath(focused ? "path" : "open");
+        }
         if (prepared.kind === "quota") {
-          await closeSop1("deferred", "quota", open.length);
-          return json({ ok: false, status: "deferred", error: "quota_exceeded", mode: "sop1", run_id: runId, model_calls: modelCalls, plan_count: 0, plan_ids: [] });
+          // Out of time with nothing saved is a failed run; a real model quota waits for later.
+          const ranOut = timeBudgetHit;
+          await closeSop1(ranOut ? "failed" : "deferred", ranOut ? "time_budget" : "quota", open.length);
+          return json({ ok: false, status: ranOut ? "failed" : "deferred", error: ranOut ? "time_budget" : "quota_exceeded", mode: "sop1", run_id: runId, model_calls: modelCalls, plan_count: 0, plan_ids: [] });
         }
         if (prepared.kind === "failed") {
           const label = prepared.detail.message === "no_pillars" ? "no_pillars" : "model_failed";
@@ -1185,7 +1223,8 @@ Deno.serve(async (req: Request) => {
           }
         } else if (!dryRun) {
           const loaded = await loadScope("carousel_paths", {});
-          carouselPaths = orderCopyFallbackPaths(loaded, prepared.ideaId, prepared.pillarId);
+          const rested = loaded.filter((row: Record<string, unknown>) => !cooledPairs.has(`${String(row.idea_id ?? "")}:${String(row.content_pillar_id ?? "")}`));
+          carouselPaths = orderCopyFallbackPaths(rested.length > 0 ? rested : loaded, prepared.ideaId, prepared.pillarId);
           adoptPathPillars(carouselPaths);
         } else {
           adoptPathPillars(carouselPaths);
@@ -1262,7 +1301,7 @@ Deno.serve(async (req: Request) => {
       let ideaTries = 0;
       let ideaCap = focused ? Math.max(carouselPaths.length, 1) : 1;
       let pathRefills = 0;
-      const rejectedPairs = new Set<string>();
+      const rejectedPairs = new Set<string>(cooledPairs);
       const pathPair = (row: Record<string, unknown>) => `${String(row.idea_id ?? "")}:${String(row.content_pillar_id ?? "")}`;
       const nextPath = () => carouselPaths.find((row) => row.used !== true && row.skip !== true) ?? null;
       while (dayIndex < open.length && stop === "done") {
@@ -1332,6 +1371,11 @@ Deno.serve(async (req: Request) => {
           break;
         }
         const compared = selectCopyPriors(copyMemory, service.id, 8);
+        // Angles the latest plans keep coming back to, without the catalog, menu and brand words.
+        const usedTopics = usedTopicPhrases(
+          compared.flatMap((row) => [row.title, row.hook]).filter(Boolean),
+          [String(service.name ?? ""), ...menus.map((row) => row.name), String(brief?.brand_name ?? "")],
+        );
         const promptPlans = compared.slice(0, 6);
         let avoid = "";
         let plan: ReturnType<typeof parseCarouselDraft> & { service_id: string } | null = null;
@@ -1359,6 +1403,7 @@ Deno.serve(async (req: Request) => {
               menus,
               // A rejected draft also moves to the next opening style.
               openingStyle: openingStyleFor(openingSeed + dayIndex + attempt - 1),
+              usedTopics,
             }), avoid ? RETRY_TEMPERATURE : 0);
             if (result.kind !== "ok") return result;
             const parsed = parseCarouselDraft(result.script, draftNotes);
@@ -1560,13 +1605,15 @@ Deno.serve(async (req: Request) => {
       }
       const savedCount = dryRun ? drafts.length : planIds.length;
       // Nothing saved because every draft failed the checks is a failure, not a success.
+      // Out of time with nothing saved is a failed run too; only a real model quota waits.
+      const ranOut = stop === "quota" && timeBudgetHit && savedCount === 0;
       const status = stop === "quota"
-        ? "deferred"
+        ? (ranOut ? "failed" : "deferred")
         : stop === "ideas_exhausted" && savedCount === 0
           ? "failed"
           : "succeeded";
       const label = stop === "quota"
-        ? "quota"
+        ? (timeBudgetHit ? "time_budget" : "quota")
         : stop === "pillar_cap"
           ? "pillar_cap"
           : stop === "ideas_exhausted"

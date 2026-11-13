@@ -216,6 +216,7 @@ function checkName(reject: string, t: Label): string {
     usesSlang: ["aiEmployee.log.check.usesSlang", "bahasa terlalu formal"],
     pillarFits: ["aiEmployee.log.check.pillarFits", "tidak sesuai pilar"],
     messageStays: ["aiEmployee.log.check.messageStays", "mengulang plan terakhir"],
+    mechanismVisible: ["aiEmployee.log.check.mechanismVisible", "draf tidak membawa ide"],
     checks_incomplete: ["aiEmployee.log.check.incomplete", "pemeriksaan tidak lengkap"],
   };
   const known = names[reject];
