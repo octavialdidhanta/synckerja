@@ -1,21 +1,21 @@
-import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
-import { territoryLinkInstruction } from "@/thinking-lab/territory/link";
-import { ACTIVE_SET_CAP, MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "@/thinking-lab/shared/limits";
-import { parseModelJson } from "@/thinking-lab/shared/ai";
-import { sameWording } from "@/thinking-lab/shared/distinct";
-import type { TerritoryParentDenial } from "@/thinking-lab/territory/eligibility";
-import { reviewTerritoryGenerativity, sealTerritoryFacts } from "@/thinking-lab/territory/generativity";
+import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
+import { territoryLinkInstruction } from "./link";
+import { ACTIVE_SET_CAP, MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "../shared/limits";
+import { parseModelJson } from "../shared/parseModelJson";
+import { sameWording } from "../shared/distinct";
+import type { TerritoryParentDenial } from "./eligibility";
+import { reviewTerritoryGenerativity, sealTerritoryFacts } from "./generativity";
 import {
   buildTerritoryLivedFitPrompt,
   buildTerritoryPlacePrompt,
   parseTerritoryLivedFit,
   parseTerritoryPlace,
   territoryScreenRejection,
-} from "@/thinking-lab/territory/checks";
-import { admitTerritory } from "@/thinking-lab/territory/policy";
-import { judgeTerritory, TERRITORY_STAKE_LINES, territoryPassLines } from "@/thinking-lab/territory/semantic";
-import type { TerritoryRelation, TerritorySemanticFacts } from "@/thinking-lab/territory/types";
-import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
+} from "./checks";
+import { admitTerritory } from "./policy";
+import { judgeTerritory, TERRITORY_STAKE_LINES, territoryPassLines } from "./semantic";
+import type { TerritoryRelation, TerritorySemanticFacts } from "./types";
+import type { IndividualAdmission } from "../shared/verdict";
 
 export type TerritoryGenerateStop = null | "ENOUGH" | "CAP" | "ROUNDS";
 

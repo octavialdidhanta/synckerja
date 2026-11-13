@@ -1,10 +1,10 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
-import { fixScopeLines, openMistakeLines, type FixScope } from "@/thinking-lab/shared/fixScope";
-import { territoryLinkInstruction } from "@/thinking-lab/territory/link";
-import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
-import { TERRITORY_STAKE_LINES, territoryPassLines } from "@/thinking-lab/territory/semantic";
-import { scoreTerritoryAudit } from "@/thinking-lab/territory/setAudit";
-import type { TerritorySetFacts } from "@/thinking-lab/territory/types";
+import { parseModelJson } from "../shared/parseModelJson";
+import { fixScopeLines, openMistakeLines, type FixScope } from "../shared/fixScope";
+import { territoryLinkInstruction } from "./link";
+import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
+import { TERRITORY_STAKE_LINES, territoryPassLines } from "./semantic";
+import { scoreTerritoryAudit } from "./setAudit";
+import type { TerritorySetFacts } from "./types";
 
 export type TerritoryFixReplacement = {
   code: string;

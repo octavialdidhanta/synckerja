@@ -1,4 +1,4 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import type { AngleChallengerResult, AngleChallengerStatus, AngleCoverage } from "@/thinking-lab/angle/types";
 
 const STATUSES = new Set<AngleChallengerStatus>(["COMPLETE", "MATERIAL_GAP", "UNRESOLVED"]);

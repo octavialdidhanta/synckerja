@@ -1,4 +1,4 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import { fingerprintsMatch } from "@/thinking-lab/shared/fingerprint";
 import { ANGLE_PASS_CHECK_IDS, type AnglePassCheckId } from "@/thinking-lab/angle/passChecklist";
 import type { AuditVerdict } from "@/thinking-lab/shared/verdict";

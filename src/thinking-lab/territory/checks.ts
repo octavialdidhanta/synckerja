@@ -1,6 +1,6 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
-import { admitTerritory } from "@/thinking-lab/territory/policy";
-import type { TerritorySemanticFacts, TerritoryTriState } from "@/thinking-lab/territory/types";
+import { parseModelJson } from "../shared/parseModelJson";
+import { admitTerritory } from "./policy";
+import type { TerritorySemanticFacts, TerritoryTriState } from "./types";
 
 function readScope(script: string | null, key: string): TerritoryTriState {
   if (!script?.trim()) return "unresolved";

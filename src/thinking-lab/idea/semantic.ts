@@ -1,4 +1,4 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import { readIdeaGeneratePasses } from "@/thinking-lab/idea/generatePasses";
 import { ideaNodeSummary } from "@/thinking-lab/idea/subject";

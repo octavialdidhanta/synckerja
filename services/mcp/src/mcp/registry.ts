@@ -115,6 +115,8 @@ export type McpToolName =
   | "thinking.bigthought.add"
   | "thinking.master.catalog.set"
   | "thinking.bigthought.lock"
+  | "thinking.territory.add"
+  | "thinking.territory.lock"
   | "thinking.ideas.list"
   | "thinking.chain.read"
   | "thinking.execution.check"
@@ -687,6 +689,22 @@ const TOOL_DEFINITIONS: McpTool[] = [
     name: "thinking.bigthought.lock",
     description:
       "Lock the Big Thought set of one Thinking Lab Master Thought for the organization locked in this session, like Lock on the page. Requires master_thought_id. Every Big Thought shown on the page must have passed its checks for its current sentence; otherwise nothing is locked and it returns saved false with each open Big Thought code and reason. On a pass it locks those Big Thoughts and the Master Thought and returns saved true. Territories can only be added under a locked Big Thought. After the lock, new Big Thoughts need Unlock on the page.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.territory.add",
+    description:
+      "Add one Territory under a locked Big Thought in Thinking Lab for the organization locked in this session. Requires big_thought_id (from thinking.tree.read) and statement: a short noun phrase of at most 3 words in the audience's own words, naming an area of their world where this Big Thought's reason is met, with no claim, not an activity, and not a keyword copied from the Big Thought. The page's checks run first: part of the Big Thought, audience language, the question the Big Thought answers comes up there, wide enough for several Angles, then not overlapping the Territories that passed. On a pass it is saved with the next TR code under this Master Thought and shows as checked on the page. On a fail nothing is saved and it returns the failed check and reason; rewrite and call again. A Big Thought holds at most 6 Territories.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.territory.lock",
+    description:
+      "Lock the Territories of one Big Thought in Thinking Lab for the organization locked in this session, like Lock on the page. Requires big_thought_id. Needs at least 3 admitted Territories, all passed for their current names; otherwise nothing is locked and it returns what is missing. Angles can only be added under a locked Territory.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: THINKING_LAB_PAGE_PATH,

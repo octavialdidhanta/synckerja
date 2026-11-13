@@ -1,6 +1,6 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
-import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
-import { readTerritoryGeneratePasses } from "@/thinking-lab/territory/passChecklist";
+import { parseModelJson } from "../shared/parseModelJson";
+import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
+import { readTerritoryGeneratePasses } from "./passChecklist";
 import type {
   TerritoryAudienceLanguage,
   TerritoryBoundedness,
@@ -11,7 +11,7 @@ import type {
   TerritoryResolution,
   TerritorySemanticFacts,
   TerritoryTriState,
-} from "@/thinking-lab/territory/types";
+} from "./types";
 
 const CONCEPTUAL_FORMS = [
   "TERRITORY_SPACE",

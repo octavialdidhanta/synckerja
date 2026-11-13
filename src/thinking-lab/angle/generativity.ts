@@ -1,4 +1,4 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import { deriveAngleRelation } from "@/thinking-lab/angle/semantic";
 import type { AngleIdeaGenerativity, AngleResolution, AngleSemanticFacts } from "@/thinking-lab/angle/types";
 

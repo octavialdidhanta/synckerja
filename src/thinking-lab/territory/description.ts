@@ -1,6 +1,6 @@
-import { repeatsMasterConclusion } from "@/thinking-lab/big-thought/answeredQuestion";
-import { becauseConnector } from "@/thinking-lab/big-thought/because";
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { repeatsMasterConclusion } from "../big-thought/answeredQuestion";
+import { becauseConnector } from "../big-thought/because";
+import { parseModelJson } from "../shared/parseModelJson";
 
 export type TerritoryDescriptions = {
   areaLead: string;

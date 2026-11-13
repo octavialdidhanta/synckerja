@@ -1,4 +1,4 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import { territoryLinkInstruction } from "@/thinking-lab/territory/link";
 import type { TerritoryChallengerResult, TerritoryChallengerStatus, TerritoryCoverage } from "@/thinking-lab/territory/types";
 
