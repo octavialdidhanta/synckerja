@@ -26,7 +26,18 @@ import { sameIdeaConcept } from "../../../../src/thinking-lab/idea/conceptIdenti
 import { ideaFingerprint, ideaSetFingerprint } from "../../../../src/thinking-lab/shared/fingerprint";
 import type { IdeaMechanismKey } from "../../../../src/thinking-lab/idea/types";
 import type { JudgeConfig } from "./thinkingLab";
-import { loadCheckSettings, makeAsk, rpcError, sessionArgs, skippedChecks, type Deps, type Session, type ThinkingWriteResult } from "./thinkingWrite";
+import {
+  loadCheckSettings,
+  makeAsk,
+  rpcError,
+  sessionArgs,
+  skippedChecks,
+  type Deps,
+  type LevelWrite,
+  type Replace,
+  type Session,
+  type ThinkingWriteResult,
+} from "./thinkingWrite";
 
 type IdeaRow = {
   id: string;
@@ -67,10 +78,12 @@ export async function addThinkingIdea(
   ctx: Session,
   input: { angleId: string; statement: string; subject: string; keys: IdeaMechanismKey[] },
   deps: Deps = {},
+  replace?: { row: Replace; persist: (write: LevelWrite) => Promise<ThinkingWriteResult> },
 ): Promise<ThinkingWriteResult> {
   const statement = input.statement.replace(/\s+/g, " ").trim();
   if (!statement) throw new Error("invalid_input");
-  const context = await loadIdeaContext(admin, ctx, input.angleId);
+  const loaded = await loadIdeaContext(admin, ctx, input.angleId);
+  const context = replace ? { ...loaded, ideas: loaded.ideas.filter((row) => row.id !== replace.row.id) } : loaded;
   const masterStatement = context.master.statement.trim();
   const gate = ideaParentGate(context);
   if (gate.ok === false) {
@@ -81,7 +94,7 @@ export async function addThinkingIdea(
     return { saved: false, failed: [{ check: "angle", reason }] };
   }
   const angleFp = gate.angleFingerprint;
-  return addIdeaUnder(admin, config, ctx, context, angleFp, statement, input, deps);
+  return addIdeaUnder(admin, config, ctx, context, angleFp, statement, input, deps, replace);
 }
 
 async function loadIdeaContext(admin: SupabaseClient, ctx: Session, angleId: string): Promise<IdeaContext> {
@@ -128,6 +141,7 @@ async function addIdeaUnder(
   statement: string,
   input: { angleId: string; statement: string; subject: string; keys: IdeaMechanismKey[] },
   deps: Deps,
+  replace?: { row: Replace; persist: (write: LevelWrite) => Promise<ThinkingWriteResult> },
 ): Promise<ThinkingWriteResult> {
   const masterStatement = context.master.statement.trim();
 
@@ -169,7 +183,7 @@ async function addIdeaUnder(
     historyAvailable: true,
     ask,
   });
-  const code = nextIdeaCode(sameAngle.map((row) => row.code));
+  const code = replace?.row.code ?? nextIdeaCode(sameAngle.map((row) => row.code));
   let validation: IdeaValidation = checked;
   // The cross-branch comparison is K5; with K5 OFF it is not asked.
   if (!skip.includes("K5")) {
@@ -273,6 +287,9 @@ async function addIdeaUnder(
       items: nextItems,
     },
   };
+  if (replace) {
+    return replace.persist({ code, statement, facts, setRecord: nextRecord, fingerprint: statementFingerprint, validation });
+  }
   const sortOrder = sameAngle.reduce((max, row) => Math.max(max, row.sortOrder ?? 0), 0) + 1;
   const saved = await admin.rpc("mcp_add_thinking_idea", {
     ...sessionArgs(ctx),

@@ -15,7 +15,18 @@ import { angleFingerprint, angleSetFingerprint } from "../../../../src/thinking-
 import { ACTIVE_SET_CAP } from "../../../../src/thinking-lab/shared/limits";
 import type { AngleSemanticFacts } from "../../../../src/thinking-lab/angle/types";
 import type { JudgeConfig } from "./thinkingLab";
-import { loadCheckSettings, makeAsk, rpcError, sessionArgs, skippedChecks, type Deps, type Session, type ThinkingWriteResult } from "./thinkingWrite";
+import {
+  loadCheckSettings,
+  makeAsk,
+  rpcError,
+  sessionArgs,
+  skippedChecks,
+  type Deps,
+  type LevelWrite,
+  type Replace,
+  type Session,
+  type ThinkingWriteResult,
+} from "./thinkingWrite";
 
 type AngleRow = {
   id: string;
@@ -99,12 +110,14 @@ export async function addThinkingAngle(
   ctx: Session,
   input: { territoryId: string; statement: string; subject: string; example: string },
   deps: Deps = {},
+  replace?: { row: Replace; persist: (write: LevelWrite) => Promise<ThinkingWriteResult> },
 ): Promise<ThinkingWriteResult> {
   const statement = input.statement.replace(/\s+/g, " ").trim();
   const subject = input.subject.replace(/\s+/g, " ").trim();
   const example = input.example.replace(/\s+/g, " ").trim();
   if (!statement) throw new Error("invalid_input");
-  const context = await loadContext(admin, ctx, input.territoryId);
+  const loaded = await loadContext(admin, ctx, input.territoryId);
+  const context = replace ? { ...loaded, angles: loaded.angles.filter((row) => row.id !== replace.row.id) } : loaded;
   const gate = parentGate(context);
   if (gate.ok === false) {
     const reason =
@@ -150,7 +163,7 @@ export async function addThinkingAngle(
   const record = readAngleSetRecord(context.territory.angle_set);
   const items = record.audit?.items ?? [];
   const passed = passedRows(context, territoryFp, items);
-  const code = nextAngleCode(context.master_codes);
+  const code = replace?.row.code ?? nextAngleCode(context.master_codes);
   const siblingRows = [...passed.map((row) => ({ code: row.code, statement: row.statement })), { code, statement }];
   let siblingSet = record.siblingSet;
   if (!skip.includes("siblingsDistinct") && siblingRows.length >= 2) {
@@ -197,6 +210,9 @@ export async function addThinkingAngle(
     },
     challenger: null,
   };
+  if (replace) {
+    return replace.persist({ code, statement, facts, setRecord: nextRecord, fingerprint: statementFingerprint });
+  }
   const sortOrder = context.angles.reduce((max, row) => Math.max(max, row.sort_order ?? 0), 0) + 1;
   const saved = await admin.rpc("mcp_add_thinking_angle", {
     ...sessionArgs(ctx),

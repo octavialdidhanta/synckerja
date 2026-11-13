@@ -37,6 +37,22 @@ export async function loadCheckSettings(admin: SupabaseClient, ctx: Session, dep
   return parseCheckSettings(data);
 }
 
+/** Rewrite an existing row instead of adding one: its code is kept and it is left out of its own siblings. */
+export type Replace = { id: string; code: string };
+
+/** What an add or a rewrite stores; a rewrite hands it to the update module instead of the add RPC. */
+export type LevelWrite = {
+  code: string;
+  statement: string;
+  facts: unknown;
+  /** The parent's set record with this item's AUDIT_PASS. */
+  setRecord: unknown;
+  /** The new fingerprint of this item under its current parent. */
+  fingerprint: string;
+  label?: string;
+  validation?: unknown;
+};
+
 export type ThinkingWriteResult =
   | { saved: true; id: string; code?: string; catalog?: string | null }
   | { saved: false; failed: Array<{ check: string; reason: string }>; catalogs?: string[] };
@@ -270,14 +286,16 @@ export async function addThinkingBigThought(
   ctx: Session,
   input: { masterThoughtId: string; statement: string; label: string },
   deps: Deps = {},
+  replace?: { row: Replace; persist: (write: LevelWrite) => Promise<ThinkingWriteResult> },
 ): Promise<ThinkingWriteResult> {
   const statement = input.statement.replace(/\s+/g, " ").trim();
   if (!statement) throw new Error("invalid_input");
-  const context = await loadBigThoughtContext(admin, ctx, input.masterThoughtId);
+  const loaded = await loadBigThoughtContext(admin, ctx, input.masterThoughtId);
+  const context = replace ? { ...loaded, big_thoughts: loaded.big_thoughts.filter((row) => row.id !== replace.row.id) } : loaded;
   if (!context.confirmed) {
     return { saved: false, failed: [{ check: "masterThought", reason: "Confirm the Master Thought first." }] };
   }
-  if (context.locked) {
+  if (context.locked && !replace) {
     return { saved: false, failed: [{ check: "masterThought", reason: "This Master Thought is locked." }] };
   }
   const active = context.big_thoughts.filter((row) => row.status !== "rejected");
@@ -294,7 +312,7 @@ export async function addThinkingBigThought(
   const masterStatement = context.statement.trim();
   const becauseParent = (context.subject || masterStatement).trim();
   const parentFp = confirmedFingerprint(masterStatement, context.root_belief || masterStatement);
-  const code = nextBigThoughtCode(context.big_thoughts.map((row) => row.code));
+  const code = replace?.row.code ?? nextBigThoughtCode(context.big_thoughts.map((row) => row.code));
   const ask = makeAsk(config, ctx, deps);
   const skip = skippedChecks(await loadCheckSettings(admin, ctx, deps), "bigThought");
 
@@ -350,6 +368,16 @@ export async function addThinkingBigThought(
     audit: { setFingerprint: record.audit?.setFingerprint ?? "", items },
     challenger: record.challenger,
   });
+  if (replace) {
+    return replace.persist({
+      code,
+      statement,
+      facts,
+      setRecord: nextRecord,
+      fingerprint: statementFingerprint,
+      label: input.label.trim(),
+    });
+  }
   const sortOrder = context.big_thoughts.reduce((max, row) => Math.max(max, row.sort_order ?? 0), 0) + 1;
   const saved = await admin.rpc("mcp_add_thinking_big_thought", {
     ...sessionArgs(ctx),

@@ -80,6 +80,8 @@ export type AuditItem = {
   gateFailure?: GateFailure;
   /** Pass checks switched OFF when this item was saved: shown as "Tanpa cek". */
   skipped?: string[];
+  /** An ancestor was rewritten after this item passed: shown as "Induk berubah". */
+  parentChanged?: true;
 };
 
 export type ChallengerStatus = "COMPLETE" | "MISSING_MATERIAL_SUPPORT" | "UNRESOLVED";

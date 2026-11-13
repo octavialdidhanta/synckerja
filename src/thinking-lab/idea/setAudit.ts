@@ -40,6 +40,8 @@ export type IdeaAuditItem = {
   gateFailure?: IdeaGateFailure;
   /** Pass checks switched OFF when this item was saved: shown as "Tanpa cek". */
   skipped?: string[];
+  /** An ancestor was rewritten after this item passed: shown as "Induk berubah". */
+  parentChanged?: true;
 };
 
 export type IdeaAuditLesson = {
@@ -399,7 +401,7 @@ function readIdeaAuditItems(value: unknown): IdeaAuditItem[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry) => {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
-    const row = entry as { code?: unknown; verdict?: unknown; statementFingerprint?: unknown; gateFailure?: unknown; skipped?: unknown };
+    const row = entry as { code?: unknown; verdict?: unknown; statementFingerprint?: unknown; gateFailure?: unknown; skipped?: unknown; parentChanged?: unknown };
     const code = asText(row.code);
     const verdict =
       typeof row.verdict === "string" && AUDIT_VERDICTS.has(row.verdict as AuditVerdict)
@@ -416,6 +418,7 @@ function readIdeaAuditItems(value: unknown): IdeaAuditItem[] {
         ...(statementFingerprint ? { statementFingerprint } : {}),
         ...(gateFailure ? { gateFailure } : {}),
         ...(skipped.length ? { skipped } : {}),
+        ...(row.parentChanged === true ? { parentChanged: true as const } : {}),
       },
     ];
   });

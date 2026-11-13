@@ -550,6 +550,15 @@ function savedUnchecked(
   return Boolean(item?.skipped?.length);
 }
 
+/** True when an ancestor of this item was rewritten (from chat) after it passed. */
+function savedParentChanged(
+  items: ReadonlyArray<{ code: string; parentChanged?: true }> | null | undefined,
+  code: string | null | undefined,
+): boolean {
+  if (!code) return false;
+  return items?.find((entry) => entry.code.toUpperCase() === code.toUpperCase())?.parentChanged === true;
+}
+
 type StoredLabView = { organizationId: string; selectedId: string | null; focus: LabFocus | null; composerOpen: boolean };
 
 function readStoredLabView(): StoredLabView | null {
@@ -8811,6 +8820,20 @@ export function ThinkingLabPage() {
                           ) : selected && locked ? (
                             focus?.masterId === selected.id ? (
                               <LabNodeInspector
+                                parentChanged={
+                                  focus.kind === "idea"
+                                    ? savedParentChanged(ideaSet.data?.audit?.items, focusedIdea?.code)
+                                    : focus.kind === "angle"
+                                      ? savedParentChanged(angleSet.data?.audit?.items, focusedAngle?.code)
+                                      : focus.kind === "territory"
+                                        ? savedParentChanged(territorySet.data?.audit?.items, focusedTerritory?.code)
+                                        : focus.kind === "bigThought"
+                                          ? savedParentChanged(
+                                              setRecord?.audit?.items,
+                                              lockedChildren.get(selected.id)?.find((child) => child.id === focus.thoughtId)?.code,
+                                            )
+                                          : false
+                                }
                                 unchecked={
                                   focus.kind === "idea"
                                     ? savedUnchecked(ideaSet.data?.audit?.items, focusedIdea?.code)
@@ -9027,6 +9050,7 @@ export function ThinkingLabPage() {
                                           canRevise: canReviseIdea(row, angleIdeaRows, validation.decision),
                                           checklistNote: ideaChecklists[row.code.toUpperCase()]?.note,
                                           unchecked: savedUnchecked(ideaSet.data?.audit?.items, row.code),
+                                          parentChanged: savedParentChanged(ideaSet.data?.audit?.items, row.code),
                                         };
                                       })
                                     : undefined

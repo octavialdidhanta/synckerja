@@ -20,6 +20,13 @@ import { addThinkingAngle, lockThinkingAngles } from "./db/thinkingAngle";
 import { addThinkingIdea, lockThinkingIdeas } from "./db/thinkingIdea";
 import { recommendThinkingPillars, removeThinkingPillar, setThinkingPillar } from "./db/thinkingPillar";
 import {
+  updateThinkingAngle,
+  updateThinkingBigThought,
+  updateThinkingIdea,
+  updateThinkingMaster,
+  updateThinkingTerritory,
+} from "./db/thinkingUpdate";
+import {
   addThinkingBigThought,
   createThinkingMaster,
   lockThinkingBigThoughts,
@@ -169,6 +176,11 @@ const app = createApp({
   lockThinkingAngles: (ctx, input) => lockThinkingAngles(admin, ctx, input),
   addThinkingIdea: (ctx, input) => addThinkingIdea(admin, config, ctx, input),
   lockThinkingIdeas: (ctx, input) => lockThinkingIdeas(admin, ctx, input),
+  updateThinkingMaster: (ctx, input) => updateThinkingMaster(admin, config, ctx, input),
+  updateThinkingBigThought: (ctx, input) => updateThinkingBigThought(admin, config, ctx, input),
+  updateThinkingTerritory: (ctx, input) => updateThinkingTerritory(admin, config, ctx, input),
+  updateThinkingAngle: (ctx, input) => updateThinkingAngle(admin, config, ctx, input),
+  updateThinkingIdea: (ctx, input) => updateThinkingIdea(admin, config, ctx, input),
   recommendThinkingPillars: (ctx, input) => recommendThinkingPillars(admin, config, ctx, input),
   setThinkingPillar: (ctx, input) => setThinkingPillar(admin, ctx, input),
   removeThinkingPillar: (ctx, input) => removeThinkingPillar(admin, ctx, input),
