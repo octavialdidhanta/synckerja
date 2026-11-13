@@ -117,6 +117,8 @@ export const enTranslations: TranslationDictionary = {
   "thinkingLab.confirm.deleteIdeaBody": "This deletes the Idea and the Executions under it. This cannot be undone.",
   "thinkingLab.confirm.deleteAngleTitle": "Delete this Angle?",
   "thinkingLab.confirm.deleteAngleBody": "This deletes the Angle and the Ideas under it. This cannot be undone.",
+  "thinkingLab.mt.writtenFailed": "This Master Thought cannot be kept as written: {{reasons}} Pick one of the beliefs below, or edit it.",
+  "thinkingLab.mt.writtenUndecided": "The check could not be decided.",
   "thinkingLab.bt.empty": "No Big Thoughts yet.",
   "thinkingLab.bt.generating": "Generating Big Thoughts…",
   "thinkingLab.bt.generateNoneAdmitted": "No new Big Thought passed the generate checks.",

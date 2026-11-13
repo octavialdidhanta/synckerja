@@ -57,6 +57,7 @@ import {
   beliefsMatch,
   buildMasterChoicePrompt,
   collectBeliefOptions,
+  checkWrittenBelief,
   confirmedFingerprint,
   confirmedParentReady,
   factsMatchStoredFingerprint,
@@ -9312,6 +9313,38 @@ export function ThinkingLabPage() {
                                     const planted = originalDraft.trim();
                                     if (!planted || !selected) return;
                                     void run(async () => {
+                                      const prior = priorDraft.trim();
+                                      const ask = (prompt: string) => askThinkingLab(prompt, 0);
+                                      // A belief typed by hand meets the same bar as a chosen option.
+                                      const check = await checkWrittenBelief({ belief: planted, priorBelief: prior }, ask);
+                                      if (!check.pass) {
+                                        toast.error(
+                                          t(
+                                            "thinkingLab.mt.writtenFailed",
+                                            "This Master Thought cannot be kept as written: {{reasons}} Pick one of the beliefs below, or edit it.",
+                                          ).replace(
+                                            "{{reasons}}",
+                                            check.reasons
+                                              .map((reason) =>
+                                                reason === "UNDECIDED"
+                                                  ? t("thinkingLab.mt.writtenUndecided", "The check could not be decided.")
+                                                  : reason,
+                                              )
+                                              .join(" "),
+                                          ),
+                                          { duration: 12000 },
+                                        );
+                                        const options = await collectBeliefOptions(
+                                          { planted, priorBelief: prior, audience: audienceDraft.trim() },
+                                          (prompt) => askThinkingLab(prompt, 0.2),
+                                        );
+                                        await masters.saveJudge.mutateAsync({
+                                          id: selected.id,
+                                          facts: options,
+                                          fingerprint: understandFingerprint(planted, null),
+                                        });
+                                        return;
+                                      }
                                       await masters.saveJudge.mutateAsync({
                                         id: selected.id,
                                         facts: acceptChosenBelief(planted),
