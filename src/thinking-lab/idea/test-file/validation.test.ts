@@ -1637,3 +1637,17 @@ describe("Idea language", () => {
     expect(howIfInstruction("Qualité de la coupe")).toContain("same language as the Angle");
   });
 });
+
+describe("K evidence that quotes the idea", () => {
+  it("K1 passes when the explanation says why in its own words, and stays unverified when it only repeats the idea", async () => {
+    const { parseIdeaCriterion } = await import("@/thinking-lab/idea/validation");
+    const statement = "Kita belah sate kambing muda dan wagyu berdampingan sehingga terlihat cairan keluar dari lemak di dalam serat.";
+    const quoted = parseIdeaCriterion(
+      JSON.stringify({ status: "PASS", evidence: statement, explanation: "Ini satu usulan spesifik berbentuk Kita … sehingga …", weakness: "Tidak ada." }),
+      { statement, id: "K1" },
+    );
+    expect(quoted.status).toBe("PASS");
+    const bare = parseIdeaCriterion(JSON.stringify({ status: "PASS", evidence: statement, explanation: statement }), { statement, id: "K1" });
+    expect(bare.status).toBe("BELUM_TERVERIFIKASI");
+  });
+});

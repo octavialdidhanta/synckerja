@@ -158,13 +158,17 @@ export async function addThinkingIdea(
     validation = applyCrossStatus(checked, "BELUM_TERVERIFIKASI");
   }
   if (validation.decision !== "LOLOS") {
-    const open = validation.criteria.filter((criterion) => criterion.status !== "PASS");
+    // The checks stop at the first one that does not pass; the ones after it were not asked.
+    const first =
+      validation.criteria.find((criterion) => criterion.status === "FAIL") ??
+      validation.criteria.find((criterion) => criterion.status !== "PASS");
+    const reason = (first?.explanation || first?.reason || validation.decisionReason || "Not verified yet.").trim();
     return {
       saved: false,
-      failed: (open.length > 0 ? open : [{ id: "decision", explanation: validation.decisionReason, reason: "" }]).map((criterion) => ({
-        check: criterion.id,
-        reason: (criterion.explanation || criterion.reason || validation.decisionReason || "Not verified yet.").trim(),
-      })),
+      failed: [{
+        check: first?.id ?? "decision",
+        reason: first?.status === "FAIL" ? reason : `Not verified: ${reason}`,
+      }],
     };
   }
 
