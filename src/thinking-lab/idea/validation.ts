@@ -1166,6 +1166,75 @@ export function buildIdeaCriterionPrompt(input: {
   ].join("\n");
 }
 
+/** Every open K check in one call. Each answer has the same shape as the one-check answer. */
+export function buildIdeaCriteriaBatchPrompt(input: Omit<Parameters<typeof buildIdeaCriterionPrompt>[0], "id"> & { ids: readonly IdeaCriterionId[] }): string {
+  const shape = (id: IdeaCriterionId) =>
+    id === "K6"
+      ? `"K6":{"pass":true,"reason":"one sentence","masterThoughtLink":"...","bigThoughtLink":"...","territoryLink":"..."}`
+      : `"${id}":{"pass":true,"reason":"one sentence"}`;
+  const hasK5 = input.ids.includes("K5");
+  const hasK7 = input.ids.includes("K7");
+  return [
+    `Decide each check separately: ${input.ids.join(", ")}. Do not rewrite the idea.`,
+    "Judge every check on its own rule only. A reason for one check is not a reason for another.",
+    AUDITOR_STANCE,
+    howIfInstruction(input.angle),
+    ...input.ids.map((id) => `${id}: ${CRITERION_RULE[id]}`),
+    "When pass is false, reason is one sentence in the Angle's language.",
+    "When pass is true, reason is one sentence in your own words: name the part of the idea that meets that check and why. Do not copy the idea sentence as the reason.",
+    "When you cannot decide a check, give it {\"status\":\"BELUM_TERVERIFIKASI\",\"reason\":\"one sentence\"} instead of pass true.",
+    input.ids.includes("K6")
+      ? "For K6, quote the stored Master Thought, Big Thought, and Territory in masterThoughtLink, bigThoughtLink, and territoryLink and say how each supports the idea."
+      : "",
+    `Return JSON only: {${input.ids.map(shape).join(",")}}`,
+    input.historyAvailable === false ? "The comparison history was not loaded. Do not claim the K5 comparison is complete." : "",
+    "",
+    `Angle: ${input.angle.trim() || "(missing)"}`,
+    `Territory: ${input.territory.trim() || "(missing)"}`,
+    `Big Thought: ${input.bigThought.trim() || "(missing)"}`,
+    `Master Thought: ${input.masterThought.trim() || "(missing)"}`,
+    ...(hasK7
+      ? [
+          `Audience: ${input.audience?.trim() || "(not stored)"}`,
+          `Prior belief: ${input.priorBelief?.trim() || "(not stored)"}`,
+          `Root belief: ${input.rootBelief?.trim() || "(not stored)"}`,
+          "For K7, use only these stored Master Thought texts to identify the audience.",
+        ]
+      : []),
+    `Title: ${input.title.trim() || "(none)"}`,
+    `Statement: ${input.statement.trim()}`,
+    `Concept: ${input.concept.trim() || "(none)"}`,
+    `Mechanism: ${input.mechanism.trim() || "(none)"}`,
+    `Value: ${input.value.trim() || "(none)"}`,
+    "",
+    formatFailureMemory(input.failures),
+    ...(hasK5
+      ? [
+          "",
+          "For K5:",
+          formatRelevantIdeas(ideasOnThisAngle(input.peers ?? [])),
+          "An empty list means the stored history loaded and no comparable idea was found.",
+          "Stored failures from other checks are not K5. Do not repeat a reason about ordinary life, a new product, or the audience.",
+          "Fail K5 only when you name another idea and the working principle and what the audience does are the same.",
+        ]
+      : []),
+  ].join("\n");
+}
+
+/** Splits a batched answer into one raw JSON answer per check; a check missing or malformed is left out. */
+export function splitIdeaCriteriaBatch(script: string | null, ids: readonly IdeaCriterionId[]): Map<IdeaCriterionId, string> {
+  const answers = new Map<IdeaCriterionId, string>();
+  if (!script?.trim()) return answers;
+  const parsed = parseModelJson(script);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return answers;
+  const row = parsed as Record<string, unknown>;
+  for (const id of ids) {
+    const answer = row[id];
+    if (answer && typeof answer === "object" && !Array.isArray(answer)) answers.set(id, JSON.stringify(answer));
+  }
+  return answers;
+}
+
 function sameText(left: string, right: string): boolean {
   return left.trim().toLowerCase().replace(/\s+/g, " ") === right.trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -1264,7 +1333,7 @@ export function parseIdeaCriterion(
     );
     if (k1 && quotesStatement && (!sentence || sameText(sentence, input.statement ?? ""))) {
       const quoted = "The sentence is one specific proposal in the Idea form.";
-      return pack("PASS", { evidence: evidence || input.statement, explanation: quoted, weakness: weakness || quoted });
+      return pack("PASS", { evidence: evidence || input.statement || "", explanation: quoted, weakness: weakness || quoted });
     }
     if (evidence && explanation && weakness) {
       return pack("PASS", { evidence, explanation: shownExplanation(explanation), weakness });
@@ -1311,6 +1380,8 @@ export async function runIdeaPassChecks(input: {
   ask: (prompt: string) => Promise<string | null>;
   onStep?: (checks: IdeaPassStep[]) => void;
   validatedAt?: string;
+  /** Ask every open check in one call; a check the batch leaves undecided is asked alone. */
+  batch?: boolean;
 }): Promise<IdeaValidation> {
   const validatedAt = input.validatedAt ?? new Date().toISOString();
   const checks = emptyIdeaPassSteps();
@@ -1355,6 +1426,41 @@ export async function runIdeaPassChecks(input: {
         },
         validatedAt,
       );
+    }
+  }
+  const batched = new Map<IdeaCriterionId, string>();
+  if (input.batch) {
+    const hasPassedPeer = ideasOnThisAngle(input.peers ?? []).some((peer) => peer.decision === "LOLOS");
+    const contextReady = Boolean(input.territory.trim() && input.bigThought.trim() && input.masterThought.trim());
+    const ids = IDEA_CRITERIA.filter((id) => {
+      if (id === "K2") return false;
+      const kept = input.keptPasses?.find((criterion) => criterion.id === id && criterion.status === "PASS");
+      if (kept && (kept.explanation.trim() || kept.reason.trim())) return false;
+      if (id === "K1" && !hasHowIfOpening(input.statement, input.angle)) return false;
+      if (id === "K5" && (input.historyAvailable === false || !hasPassedPeer)) return false;
+      if (id === "K6" && !contextReady) return false;
+      return true;
+    });
+    if (ids.length > 1) {
+      const prompt = buildIdeaCriteriaBatchPrompt({
+        ids,
+        statement: input.statement,
+        title: input.title ?? "",
+        concept: input.concept ?? "",
+        mechanism: input.mechanism ?? "",
+        value: input.value ?? "",
+        angle: input.angle,
+        territory: input.territory,
+        bigThought: input.bigThought,
+        masterThought: input.masterThought,
+        audience: input.audience,
+        priorBelief: input.priorBelief,
+        rootBelief: input.rootBelief,
+        failures: input.failures,
+        peers: input.peers,
+        historyAvailable: input.historyAvailable,
+      });
+      for (const [id, answer] of splitIdeaCriteriaBatch(await input.ask(prompt), ids)) batched.set(id, answer);
     }
   }
   for (const id of IDEA_CRITERIA) {
@@ -1456,7 +1562,12 @@ export async function runIdeaPassChecks(input: {
       historyAvailable: input.historyAvailable,
     });
     const askCriterion = () => parseIdeaCriterion(null, { statement: input.statement, requireContextLinks: id === "K6" });
-    let parsed = parseIdeaCriterion(await input.ask(prompt), { statement: input.statement, requireContextLinks: id === "K6", id });
+    const fromBatch = batched.get(id);
+    let parsed = parseIdeaCriterion(fromBatch ?? (await input.ask(prompt)), { statement: input.statement, requireContextLinks: id === "K6", id });
+    // Only a batched pass is kept as is; anything else is decided again by the one-check prompt.
+    if (fromBatch !== undefined && (parsed.undecided || parsed.status !== "PASS")) {
+      parsed = parseIdeaCriterion(await input.ask(prompt), { statement: input.statement, requireContextLinks: id === "K6", id });
+    }
     if (parsed.undecided) {
       parsed = parseIdeaCriterion(await input.ask(prompt), { statement: input.statement, requireContextLinks: id === "K6", id });
     }

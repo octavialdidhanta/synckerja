@@ -2736,6 +2736,7 @@ export function ThinkingLabPage() {
         judge: async (_parent, code, statement, mechanismKeys) => {
           const draft = draftByStatement.get(statement.trim().toLowerCase());
           let validation = await runIdeaPassChecks({
+            batch: true,
             statement,
             title: draft?.subject ?? "",
             concept: draft?.concept ?? "",
@@ -3779,6 +3780,7 @@ export function ThinkingLabPage() {
       const failures = failureItemsFromIdeas(loaded.ideas, focusedAngle.id);
       const peers = crossPeersFromIdeas(loaded.ideas);
       const checked = await runIdeaPassChecks({
+        batch: true,
         statement,
         angle: focusedAngle.statement,
         territory: focusedTerritory.statement,
@@ -3835,6 +3837,7 @@ export function ThinkingLabPage() {
       const failures = failureItemsFromIdeas(loaded.ideas, idea.angleId);
       const peers = crossPeersFromIdeas(loaded.ideas.filter((row) => row.id !== idea.id));
       const checked = await runIdeaPassChecks({
+        batch: true,
         statement,
         angle: angle.statement,
         territory: focusedTerritory?.statement ?? "",
@@ -3928,6 +3931,7 @@ export function ThinkingLabPage() {
           return;
         }
         const checked = await runIdeaPassChecks({
+          batch: true,
           statement: draft.statement,
           title: draft.subject || current.title,
           concept: draft.concept || current.concept,
