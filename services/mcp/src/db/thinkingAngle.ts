@@ -15,7 +15,7 @@ import { angleFingerprint, angleSetFingerprint } from "../../../../src/thinking-
 import { ACTIVE_SET_CAP } from "../../../../src/thinking-lab/shared/limits";
 import type { AngleSemanticFacts } from "../../../../src/thinking-lab/angle/types";
 import type { JudgeConfig } from "./thinkingLab";
-import { makeAsk, rpcError, sessionArgs, type Deps, type Session, type ThinkingWriteResult } from "./thinkingWrite";
+import { loadCheckSettings, makeAsk, rpcError, sessionArgs, skippedChecks, type Deps, type Session, type ThinkingWriteResult } from "./thinkingWrite";
 
 type AngleRow = {
   id: string;
@@ -123,6 +123,7 @@ export async function addThinkingAngle(
   }
 
   const ask = makeAsk(config, ctx, deps);
+  const skip = skippedChecks(await loadCheckSettings(admin, ctx, deps), "angle");
   const ancestors = [
     { label: "Big Thought", statement: context.big_thought.statement.trim() },
     { label: "Master Thought", statement: context.master.statement.trim() },
@@ -134,6 +135,7 @@ export async function addThinkingAngle(
     ancestors,
     subject,
     example,
+    skip,
     ask,
     onStep: () => undefined,
   });
@@ -151,7 +153,7 @@ export async function addThinkingAngle(
   const code = nextAngleCode(context.master_codes);
   const siblingRows = [...passed.map((row) => ({ code: row.code, statement: row.statement })), { code, statement }];
   let siblingSet = record.siblingSet;
-  if (siblingRows.length >= 2) {
+  if (!skip.includes("siblingsDistinct") && siblingRows.length >= 2) {
     const fingerprint = angleSetFingerprint({
       territoryFingerprint: territoryFp,
       angleFingerprints: siblingRows.map((row) => angleFingerprint({ statement: row.statement, territoryFingerprint: territoryFp })),
@@ -179,7 +181,7 @@ export async function addThinkingAngle(
   const statementFingerprint = angleFingerprint({ statement, territoryFingerprint: territoryFp });
   const nextItems: AngleAuditItem[] = [
     ...items.filter((item) => item.code.toUpperCase() !== code.toUpperCase()),
-    { code, verdict: "AUDIT_PASS", statementFingerprint },
+    { code, verdict: "AUDIT_PASS", statementFingerprint, ...(skip.length ? { skipped: skip } : {}) },
   ];
   const nextRecord = {
     ...record,

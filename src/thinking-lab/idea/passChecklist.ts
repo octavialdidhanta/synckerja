@@ -315,12 +315,15 @@ export async function runIdeaIndividualChecks(input: {
   mechanismKeys?: IdeaMechanismKey[];
   /** Both Generate passes for this exact sentence. Audit does not ask these again. */
   carried?: readonly IdeaGeneratePass[];
+  /** Checks switched OFF for this organization: treated as passed, never asked. */
+  skip?: readonly string[];
   ask: (prompt: string) => Promise<string | null>;
   onStep: (checks: IdeaPassCheck[]) => void;
 }): Promise<{ checks: IdeaPassCheck[]; passed: boolean }> {
   const carried = new Set(readIdeaGeneratePasses(input.carried));
+  const skip = new Set<string>(input.skip ?? []);
   const checks = emptyIdeaPassChecklist().map((check) =>
-    carried.has(check.id as IdeaGeneratePass) ? { id: check.id, state: "pass" as const } : check,
+    carried.has(check.id as IdeaGeneratePass) || skip.has(check.id) ? { id: check.id, state: "pass" as const } : check,
   );
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
@@ -384,13 +387,15 @@ export async function runIdeaOpenChecks(input: {
   ancestors?: AncestorStake[];
   masterSubject?: string;
   mechanismKeys?: IdeaMechanismKey[];
+  /** Checks switched OFF for this organization: treated as passed, never asked. */
+  skip?: readonly string[];
   prior: readonly IdeaPassCheck[];
   ask: (prompt: string) => Promise<string | null>;
   onStep: (checks: IdeaPassCheck[]) => void;
 }): Promise<{ checks: IdeaPassCheck[]; passed: boolean }> {
   const checks: IdeaPassCheck[] = emptyIdeaPassChecklist().map((check) => {
     const previous = input.prior.find((item) => item.id === check.id);
-    return previous?.state === "pass" ? { id: check.id, state: "pass" as const } : { id: check.id, state: "pending" as const };
+    return previous?.state === "pass" || input.skip?.includes(check.id) ? { id: check.id, state: "pass" as const } : { id: check.id, state: "pending" as const };
   });
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();

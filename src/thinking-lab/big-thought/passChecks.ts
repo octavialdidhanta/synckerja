@@ -482,12 +482,15 @@ export async function runBigThoughtIndividualChecks(input: {
   carried?: readonly GeneratePassGate[];
   /** Prior fix/audit failures for this card. Gate prompts keep only matching gate ids. */
   lessons?: Array<{ statement: string; reason: string }>;
+  /** Checks switched OFF for this organization: treated as passed, never asked. */
+  skip?: readonly string[];
   ask: (prompt: string) => Promise<string | null>;
   onStep?: (checklist: PassChecklist) => void | Promise<void>;
 }): Promise<PassChecklist> {
   const carried = new Set<GeneratePassGate>(input.carried ?? []);
+  const skip = new Set<string>(input.skip ?? []);
   const items = emptyBigThoughtChecks().map((item) =>
-    carried.has(item.id as GeneratePassGate) && (item.id === "resolved" || item.id === "relation")
+    (carried.has(item.id as GeneratePassGate) && (item.id === "resolved" || item.id === "relation")) || skip.has(item.id)
       ? { id: item.id, state: "pass" as const, reason: "" }
       : item,
   );
@@ -526,12 +529,14 @@ export async function runBigThoughtOpenChecks(input: {
   others: Array<{ code: string; statement: string; label?: string }>;
   prior: readonly PassGateCheck[];
   lessons?: Array<{ statement: string; reason: string }>;
+  /** Checks switched OFF for this organization: treated as passed, never asked. */
+  skip?: readonly string[];
   ask: (prompt: string) => Promise<string | null>;
   onStep?: (checklist: PassChecklist) => void | Promise<void>;
 }): Promise<PassChecklist> {
   const items: PassGateCheck[] = emptyBigThoughtChecks().map((item) => {
     const previous = input.prior.find((check) => check.id === item.id);
-    return previous?.state === "pass" ? { id: item.id, state: "pass" as const, reason: "" } : { id: item.id, state: "pending" as const, reason: "" };
+    return previous?.state === "pass" || input.skip?.includes(item.id) ? { id: item.id, state: "pass" as const, reason: "" } : { id: item.id, state: "pending" as const, reason: "" };
   });
   const publish = async (id: PassGateId, phase: "checking" | "checked", outcome: "pass" | "fail") => {
     await input.onStep?.(checklistFrom(items, { gate: id, phase, outcome }));

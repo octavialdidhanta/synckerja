@@ -19,11 +19,32 @@ import { individualAdmission } from "../../../../src/thinking-lab/big-thought/po
 import { bigThoughtListed } from "../../../../src/thinking-lab/big-thought/checklist";
 import { ACTIVE_SET_CAP } from "../../../../src/thinking-lab/shared/limits";
 import type { AuditItem, BigThoughtFacts } from "../../../../src/thinking-lab/big-thought/types";
+import {
+  CHECK_REGISTRY,
+  checkEnabled,
+  parseCheckSettings,
+  type CheckLevel,
+  type CheckSettings,
+} from "../../../../src/thinking-lab/shared/checkSettings";
 import { askJudge, type JudgeConfig } from "./thinkingLab";
 
 export type Session = { userId: string; organizationId: string };
 type Ask = (prompt: string) => Promise<string | null>;
-export type Deps = { ask?: Ask; fetchImpl?: typeof fetch };
+/** checks overrides the organization's pass-check switches (tests). */
+export type Deps = { ask?: Ask; fetchImpl?: typeof fetch; checks?: CheckSettings };
+
+/** The organization's pass-check switches. A missing switch is OFF. */
+export async function loadCheckSettings(admin: SupabaseClient, ctx: Session, deps: Deps): Promise<CheckSettings> {
+  if (deps.checks) return deps.checks;
+  const { data, error } = await admin.rpc("mcp_thinking_check_settings", sessionArgs(ctx));
+  if (error) rpcError(error);
+  return parseCheckSettings(data);
+}
+
+/** The checks of one level that are switched OFF: skipped, and recorded on the saved item. */
+export function skippedChecks(settings: CheckSettings, level: CheckLevel): string[] {
+  return CHECK_REGISTRY[level].filter((entry) => !checkEnabled(settings, level, entry.id)).map((entry) => entry.id);
+}
 
 export type ThinkingWriteResult =
   | { saved: true; id: string; code?: string; catalog?: string | null }
@@ -116,10 +137,11 @@ export async function createThinkingMaster(
   const catalogQuery = input.catalog?.trim() ?? "";
   const catalog = catalogQuery ? await resolveCatalog(admin, ctx, catalogQuery) : null;
   if (catalog && !catalog.ok) return catalog.result;
-  if (beliefsMatch(belief, priorBelief)) {
+  const skip = skippedChecks(await loadCheckSettings(admin, ctx, deps), "master");
+  if (!skip.includes("shift") && beliefsMatch(belief, priorBelief)) {
     return { saved: false, failed: [{ check: "shift", reason: "The new belief repeats the old belief." }] };
   }
-  const check = await checkWrittenBelief({ belief, priorBelief }, makeAsk(config, ctx, deps));
+  const check = await checkWrittenBelief({ belief, priorBelief, skip }, makeAsk(config, ctx, deps));
   if (!check.pass) {
     return {
       saved: false,
@@ -283,12 +305,14 @@ export async function addThinkingBigThought(
   const parentFp = confirmedFingerprint(masterStatement, context.root_belief || masterStatement);
   const code = nextBigThoughtCode(context.big_thoughts.map((row) => row.code));
   const ask = makeAsk(config, ctx, deps);
+  const skip = skippedChecks(await loadCheckSettings(admin, ctx, deps), "bigThought");
 
   const checked = await runBigThoughtIndividualChecks({
     batch: true,
     statement,
     parentStatement: becauseParent,
     others: keepers,
+    skip,
     ask,
   });
   if (!checked.passed) {
@@ -307,11 +331,12 @@ export async function addThinkingBigThought(
     ),
   });
   // One row needs no model call; the page stores this set too, so Lock sees a current sibling check.
-  const sibling = await judgeSiblingSet(
-    { parentStatement: masterStatement, rows: siblingRows, fingerprint: siblingFingerprint },
-    ask,
-  );
-  if (siblingRows.length >= 2) {
+  // With the sibling check OFF, the stored set stays as it was.
+  const siblingOff = skip.includes("sibling") && siblingRows.length >= 2;
+  const sibling = siblingOff
+    ? record.siblingSet
+    : await judgeSiblingSet({ parentStatement: masterStatement, rows: siblingRows, fingerprint: siblingFingerprint }, ask);
+  if (!siblingOff && siblingRows.length >= 2) {
     const gate = auditSiblingGate({
       code,
       siblingSet: sibling,
@@ -325,7 +350,7 @@ export async function addThinkingBigThought(
   const statementFingerprint = bigThoughtFingerprint({ statement, masterThoughtFingerprint: parentFp });
   const items: AuditItem[] = [
     ...(record.audit?.items ?? []).filter((item) => item.code.toUpperCase() !== code.toUpperCase()),
-    { code, verdict: "AUDIT_PASS", statementFingerprint, gatesChecked: true },
+    { code, verdict: "AUDIT_PASS", statementFingerprint, gatesChecked: true, ...(skip.length ? { skipped: skip } : {}) },
   ];
   const nextRecord = nextAuthoritativeSetRecord({
     record,

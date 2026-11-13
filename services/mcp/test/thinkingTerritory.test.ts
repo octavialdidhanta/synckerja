@@ -3,6 +3,11 @@ import { addThinkingTerritory, lockThinkingTerritories } from "../src/db/thinkin
 import { confirmedFingerprint } from "../../../src/thinking-lab/master-thought/semantic";
 import { ANSWERED_QUESTION_VERSION } from "../../../src/thinking-lab/big-thought/answeredQuestion";
 import { bigThoughtFingerprint, territoryFingerprint } from "../../../src/thinking-lab/shared/fingerprint";
+import { CHECK_REGISTRY } from "../../../src/thinking-lab/shared/checkSettings";
+
+const ALL_ON = Object.fromEntries(
+  Object.entries(CHECK_REGISTRY).flatMap(([level, entries]) => entries.map((entry) => [`${level}.${entry.id}`, true])),
+);
 
 const config = { supabaseUrl: "https://x", supabaseServiceRoleKey: "k", scheduledPostsInternalSecret: "s" };
 const ctx = { userId: "u", organizationId: "o" };
@@ -46,7 +51,7 @@ function answer(pass: (id: string) => boolean) {
 describe("thinking.territory.add", () => {
   it("saves a passing Territory with the next code under the Master Thought", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
-    const result = await addThinkingTerritory(fakeAdmin(context(), calls), config, ctx, { bigThoughtId: btId, statement: "Bau prengus kambing" }, { ask: answer(() => true) });
+    const result = await addThinkingTerritory(fakeAdmin(context(), calls), config, ctx, { bigThoughtId: btId, statement: "Bau prengus kambing" }, { checks: ALL_ON, ask: answer(() => true) });
     expect(result).toEqual({ saved: true, id: "44444444-4444-4444-8444-444444444444", code: "TR03" });
     const save = calls.find((call) => call.fn === "mcp_add_thinking_territory")!;
     const set = save.args.p_territory_set as { audit: { items: Array<{ code: string; verdict: string; statementFingerprint: string }> } };
@@ -59,14 +64,14 @@ describe("thinking.territory.add", () => {
 
   it("refuses when the Big Thought is not locked", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
-    const result = await addThinkingTerritory(fakeAdmin(context({ status: "candidate" }), calls), config, ctx, { bigThoughtId: btId, statement: "Bau prengus kambing" }, { ask: answer(() => true) });
+    const result = await addThinkingTerritory(fakeAdmin(context({ status: "candidate" }), calls), config, ctx, { bigThoughtId: btId, statement: "Bau prengus kambing" }, { checks: ALL_ON, ask: answer(() => true) });
     expect(result.saved).toBe(false);
     if (!result.saved) expect(result.failed[0].check).toBe("bigThought");
   });
 
   it("does not save a name that fails a check", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
-    const result = await addThinkingTerritory(fakeAdmin(context(), calls), config, ctx, { bigThoughtId: btId, statement: "Lemak kambing" }, { ask: answer((id) => id !== "partOfBigThought") });
+    const result = await addThinkingTerritory(fakeAdmin(context(), calls), config, ctx, { bigThoughtId: btId, statement: "Lemak kambing" }, { checks: ALL_ON, ask: answer((id) => id !== "partOfBigThought") });
     expect(result.saved).toBe(false);
     if (!result.saved) expect(result.failed[0].check).toBe("partOfBigThought");
     expect(calls.some((call) => call.fn === "mcp_add_thinking_territory")).toBe(false);

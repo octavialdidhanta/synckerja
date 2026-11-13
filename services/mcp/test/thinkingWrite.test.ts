@@ -5,6 +5,11 @@ import {
   lockThinkingBigThoughts,
   setThinkingMasterCatalog,
 } from "../src/db/thinkingWrite";
+import { CHECK_REGISTRY } from "../../../src/thinking-lab/shared/checkSettings";
+
+const ALL_ON = Object.fromEntries(
+  Object.entries(CHECK_REGISTRY).flatMap(([level, entries]) => entries.map((entry) => [`${level}.${entry.id}`, true])),
+);
 
 const config = { supabaseUrl: "https://x", supabaseServiceRoleKey: "k", scheduledPostsInternalSecret: "s" };
 const ctx = { userId: "u", organizationId: "o" };
@@ -34,6 +39,7 @@ describe("thinking.master.create", () => {
       priorBelief: "Daging paling juicy itu steak wagyu impor.",
       audience: "Pecinta steak di PIK",
     }, {
+      checks: ALL_ON,
       ask: async () => JSON.stringify({ checks: ["oneClaim", "oneSentence", "notPromo", "shift"].map((id) => ({ id, pass: true })) }),
     });
     expect(result).toEqual({ saved: true, id: "22222222-2222-4222-8222-222222222222" });
@@ -48,6 +54,7 @@ describe("thinking.master.create", () => {
       priorBelief: "Sate kambing alot.",
       audience: "",
     }, {
+      checks: ALL_ON,
       ask: async () => JSON.stringify({ checks: [
         { id: "oneClaim", pass: true }, { id: "oneSentence", pass: false, reason: "Tiga kalimat." },
         { id: "notPromo", pass: false, reason: "Kami garansi rasa adalah promo." }, { id: "shift", pass: true },
@@ -77,7 +84,7 @@ describe("thinking.bigthought.add", () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
     const result = await addThinkingBigThought(fakeAdmin(context, calls), config, ctx, {
       masterThoughtId: masterId, statement, label: "Lemak di dalam serat",
-    }, { ask: async (prompt) => batchAnswer(prompt, () => true) });
+    }, { checks: ALL_ON, ask: async (prompt) => batchAnswer(prompt, () => true) });
     expect(result).toEqual({ saved: true, id: "22222222-2222-4222-8222-222222222222", code: "BT01" });
     const save = calls.find((call) => call.fn === "mcp_add_thinking_big_thought");
     expect(save?.args.p_code).toBe("BT01");
@@ -89,7 +96,7 @@ describe("thinking.bigthought.add", () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
     const result = await addThinkingBigThought(fakeAdmin(context, calls), config, ctx, {
       masterThoughtId: masterId, statement: "bumbu marinasi kami diracik khusus", label: "",
-    }, { ask: async (prompt) => batchAnswer(prompt, (id) => id !== "relation") });
+    }, { checks: ALL_ON, ask: async (prompt) => batchAnswer(prompt, (id) => id !== "relation") });
     expect(result.saved).toBe(false);
     if (!result.saved) expect(result.failed[0].check).toBe("relation");
     expect(calls.some((call) => call.fn === "mcp_add_thinking_big_thought")).toBe(false);
@@ -99,7 +106,7 @@ describe("thinking.bigthought.add", () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
     const result = await addThinkingBigThought(fakeAdmin({ ...context, confirmed: false }, calls), config, ctx, {
       masterThoughtId: masterId, statement, label: "",
-    }, { ask: async () => null });
+    }, { checks: ALL_ON, ask: async () => null });
     expect(result).toEqual({ saved: false, failed: [{ check: "masterThought", reason: "Confirm the Master Thought first." }] });
   });
 });
@@ -154,6 +161,7 @@ describe("thinking.bigthought.lock", () => {
       confirmed: true, locked: false, last_audit: null, big_thoughts: [],
     };
     await addThinkingBigThought(fakeAdmin(base, calls), config, ctx, { masterThoughtId: masterId, statement, label: "" }, {
+      checks: ALL_ON,
       ask: async (prompt) => batchAnswer(prompt, () => true),
     });
     const save = calls.find((call) => call.fn === "mcp_add_thinking_big_thought")!;

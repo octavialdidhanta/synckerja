@@ -1382,7 +1382,10 @@ export async function runIdeaPassChecks(input: {
   validatedAt?: string;
   /** Ask every open check in one call; a check the batch leaves undecided is asked alone. */
   batch?: boolean;
+  /** K checks switched OFF for this organization: passed without a model call. */
+  skip?: readonly string[];
 }): Promise<IdeaValidation> {
+  const skipped = new Set<string>(input.skip ?? []);
   const validatedAt = input.validatedAt ?? new Date().toISOString();
   const checks = emptyIdeaPassSteps();
   const criteria = blankCriteria();
@@ -1397,7 +1400,7 @@ export async function runIdeaPassChecks(input: {
   const storedFail = prior?.failed[0];
   const storedOpen = storedFail ? undefined : prior?.unverified?.[0];
   const stored = storedFail ?? storedOpen;
-  if (stored && stored.id !== "K2" && !(stored.id === "K1" && !k1FailIsHowIf(stored.reason))) {
+  if (stored && stored.id !== "K2" && !skipped.has(stored.id) && !(stored.id === "K1" && !k1FailIsHowIf(stored.reason))) {
     const slot = criteria.find((criterion) => criterion.id === stored.id);
     if (slot) {
       const status: IdeaCriterionStatus = storedFail ? "FAIL" : "BELUM_TERVERIFIKASI";
@@ -1433,7 +1436,7 @@ export async function runIdeaPassChecks(input: {
     const hasPassedPeer = ideasOnThisAngle(input.peers ?? []).some((peer) => peer.decision === "LOLOS");
     const contextReady = Boolean(input.territory.trim() && input.bigThought.trim() && input.masterThought.trim());
     const ids = IDEA_CRITERIA.filter((id) => {
-      if (id === "K2") return false;
+      if (id === "K2" || skipped.has(id)) return false;
       const kept = input.keptPasses?.find((criterion) => criterion.id === id && criterion.status === "PASS");
       if (kept && (kept.explanation.trim() || kept.reason.trim())) return false;
       if (id === "K1" && !hasHowIfOpening(input.statement, input.angle)) return false;
@@ -1475,6 +1478,15 @@ export async function runIdeaPassChecks(input: {
       slot.explanation = kept.explanation;
       slot.weakness = kept.weakness;
       show(id, "PASS", lessonSentence(slot));
+      continue;
+    }
+    if (skipped.has(id) && id !== "K2") {
+      slot.status = "PASS";
+      slot.evidence = "Switched off for this organization.";
+      slot.explanation = "This check is switched off.";
+      slot.weakness = "Not checked.";
+      slot.reason = formatAuditReason(slot);
+      show(id, "PASS", slot.explanation);
       continue;
     }
     if (id === "K2") {

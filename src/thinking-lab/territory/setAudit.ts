@@ -22,6 +22,8 @@ export type TerritoryAuditItem = {
   verdict: AuditVerdict;
   statementFingerprint?: string;
   gateFailure?: TerritoryGateFailure;
+  /** Pass checks switched OFF when this item was saved: shown as "Tanpa cek". */
+  skipped?: string[];
 };
 
 /** Locked Territories and rows that already passed stay passed when a later sibling is audited. */
@@ -350,7 +352,7 @@ function readTerritoryAuditItems(value: unknown): TerritoryAuditItem[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry) => {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
-    const row = entry as { code?: unknown; verdict?: unknown; statementFingerprint?: unknown; gateFailure?: unknown };
+    const row = entry as { code?: unknown; verdict?: unknown; statementFingerprint?: unknown; gateFailure?: unknown; skipped?: unknown };
     const code = asText(row.code);
     const verdict = typeof row.verdict === "string" && AUDIT_VERDICTS.has(row.verdict as AuditVerdict)
       ? (row.verdict as AuditVerdict)
@@ -358,12 +360,14 @@ function readTerritoryAuditItems(value: unknown): TerritoryAuditItem[] {
     if (!code || !verdict) return [];
     const statementFingerprint = asText(row.statementFingerprint);
     const gateFailure = readTerritoryGateFailure(row.gateFailure);
+    const skipped = Array.isArray(row.skipped) ? row.skipped.filter((id): id is string => typeof id === "string") : [];
     return [
       {
         code,
         verdict,
         ...(statementFingerprint ? { statementFingerprint } : {}),
         ...(gateFailure ? { gateFailure } : {}),
+        ...(skipped.length ? { skipped } : {}),
       },
     ];
   });
