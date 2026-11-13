@@ -26,6 +26,23 @@ export type ThinkingIdeaRow = {
   angle_statement: string;
 };
 
+export type ThinkingMasterRow = {
+  id: string;
+  statement: string;
+  prior_belief: string;
+  audience: string;
+  status: string;
+  big_thoughts: number;
+  ideas: number;
+  updated_at: string;
+};
+
+/** Master Thought down to Idea, with status, admission, audit verdict, and the first failure reason per item. */
+export type ThinkingTree = {
+  master: { id: string; statement: string; prior_belief: string; audience: string; subject: string; status: string };
+  big_thoughts: unknown[];
+};
+
 export type ThinkingChain = {
   idea_id: string;
   idea_statement: string;
@@ -376,6 +393,24 @@ async function createPlan(
     p_concept: parts.concept,
     p_caption: parts.caption,
   });
+}
+
+export function listThinkingMasters(admin: SupabaseClient, ctx: Session): Promise<ThinkingMasterRow[]> {
+  return callRpc<ThinkingMasterRow>(admin, "mcp_list_thinking_masters", sessionArgs(ctx));
+}
+
+export async function readThinkingTree(
+  admin: SupabaseClient,
+  ctx: Session,
+  masterThoughtId: string,
+): Promise<ThinkingTree> {
+  const { data, error } = await admin.rpc("mcp_get_thinking_tree", {
+    ...sessionArgs(ctx),
+    p_master_thought_id: masterThoughtId,
+  });
+  if (error) throwRpc(error);
+  if (!data || typeof data !== "object") throw new Error("not_found");
+  return data as ThinkingTree;
 }
 
 export function listThinkingIdeas(admin: SupabaseClient, ctx: Session): Promise<ThinkingIdeaRow[]> {

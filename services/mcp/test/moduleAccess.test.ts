@@ -700,6 +700,8 @@ describe("lead magnet delivery visibility", () => {
 
 describe("thinking lab connector visibility", () => {
   const thinkingTools = [
+    "thinking.masters.list",
+    "thinking.tree.read",
     "thinking.ideas.list",
     "thinking.chain.read",
     "thinking.execution.check",
@@ -724,6 +726,8 @@ describe("thinking lab connector visibility", () => {
       configurations: [{ page_path: "/thinking-lab", roles_allowed: ["employee"] }],
     });
     const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("thinking.masters.list");
+    expect(names).toContain("thinking.tree.read");
     expect(names).toContain("thinking.ideas.list");
     expect(names).toContain("thinking.chain.read");
     expect(names).not.toContain("thinking.execution.check");

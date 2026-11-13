@@ -109,6 +109,8 @@ export type McpToolName =
   | "tasks.steps.image.add"
   | "habits.list"
   | "habits.check"
+  | "thinking.masters.list"
+  | "thinking.tree.read"
   | "thinking.ideas.list"
   | "thinking.chain.read"
   | "thinking.execution.check"
@@ -636,6 +638,22 @@ const TOOL_DEFINITIONS: McpTool[] = [
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: LEAD_MAGNET_PAGE_PATH,
+  },
+  {
+    name: "thinking.masters.list",
+    description:
+      "List up to 30 Master Thoughts in Thinking Lab for the organization locked in this session, newest first. Returns the id, Master Thought sentence, old belief, audience, status, and how many Big Thoughts and Ideas each has. Does not create or change anything.",
+    scopes: ["content:read"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.tree.read",
+    description:
+      "Read one Master Thought's whole Thinking Lab tree for the organization locked in this session: Big Thoughts, Territories, Angles, and Ideas, with each item's code, sentence, status, admission, audit verdict, and the first failure reason. Requires master_thought_id from thinking.masters.list. Read only. Use it to see what passed, what failed and why, and which branch still needs work.",
+    scopes: ["content:read"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
   },
   {
     name: "thinking.ideas.list",

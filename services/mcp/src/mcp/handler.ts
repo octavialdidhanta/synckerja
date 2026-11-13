@@ -6,7 +6,14 @@ import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
 import type { ContentBriefDetail, ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
 import type { LeadMagnetDeliveryResult, LeadMagnetDraft } from "../db/leadMagnet";
-import type { ThinkingChain, ThinkingCheckResult, ThinkingIdeaRow, ThinkingPlanResult } from "../db/thinkingLab";
+import type {
+  ThinkingChain,
+  ThinkingCheckResult,
+  ThinkingIdeaRow,
+  ThinkingMasterRow,
+  ThinkingPlanResult,
+  ThinkingTree,
+} from "../db/thinkingLab";
 import type { ThinkingScriptDraft } from "../tools/thinking/scriptInput";
 import type { ThinkingPlanDirectInput } from "../tools/thinking/planDirect";
 import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
@@ -238,6 +245,10 @@ import {
   deliveryAttachResult,
   ideasListInput,
   ideasListResult,
+  mastersListInput,
+  mastersListResult,
+  treeReadInput,
+  treeReadResult,
   chainReadInput,
   chainReadResult,
   executionCheckInput,
@@ -388,6 +399,8 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     input: { campaignId: string; fileUrl: string },
   ) => Promise<LeadMagnetDeliveryResult>;
+  listThinkingMasters: (ctx: McpAuthContext) => Promise<ThinkingMasterRow[]>;
+  readThinkingTree: (ctx: McpAuthContext, masterThoughtId: string) => Promise<ThinkingTree>;
   listThinkingIdeas: (ctx: McpAuthContext) => Promise<ThinkingIdeaRow[]>;
   readThinkingChain: (ctx: McpAuthContext, ideaId: string) => Promise<ThinkingChain>;
   checkThinkingExecution: (
@@ -746,6 +759,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "tasks.steps.image.add": addStepImageInput,
   "habits.list": habitsListInput,
   "habits.check": habitCheckInput,
+  "thinking.masters.list": mastersListInput,
+  "thinking.tree.read": treeReadInput,
   "thinking.ideas.list": ideasListInput,
   "thinking.chain.read": chainReadInput,
   "thinking.execution.check": executionCheckInput,
@@ -1358,6 +1373,10 @@ async function runTool(
       );
     case "habits.list":
       return habitsListResult(ctx, optionalString(args.date), deps.listHabits);
+    case "thinking.masters.list":
+      return mastersListResult(ctx, deps.listThinkingMasters);
+    case "thinking.tree.read":
+      return treeReadResult(ctx, requiredString(args.master_thought_id), deps.readThinkingTree);
     case "thinking.ideas.list":
       return ideasListResult(ctx, deps.listThinkingIdeas);
     case "thinking.chain.read":
