@@ -1171,7 +1171,7 @@ function sameText(left: string, right: string): boolean {
 
 export function parseIdeaCriterion(
   script: string | null,
-  input: { statement?: string; requireContextLinks?: boolean } = {},
+  input: { statement?: string; requireContextLinks?: boolean; id?: IdeaCriterionId } = {},
 ): IdeaCriterion & { masterThoughtLink: string; bigThoughtLink: string; territoryLink: string; undecided: boolean } {
   const undecided = {
     ...blankCriterion("K1", "BELUM_TERVERIFIKASI"),
@@ -1228,8 +1228,12 @@ export function parseIdeaCriterion(
   }
   if (status === "PASS") {
     const sentence = explanation;
+    // K1 judges the sentence itself, so quoting it is its evidence when the explanation says why in other words.
+    // For every other check, the idea sentence alone is not evidence.
+    const explainedApart = input.id === "K1" && Boolean(sentence && input.statement && !sameText(sentence, input.statement));
     const copiedStatement = Boolean(
       input.statement &&
+        !explainedApart &&
         ((evidence && sameText(evidence, input.statement)) || (!evidence && sentence && sameText(sentence, input.statement))),
     );
     const missingContextLink = input.requireContextLinks && (!masterThoughtLink || !bigThoughtLink || !territoryLink);
@@ -1443,9 +1447,9 @@ export async function runIdeaPassChecks(input: {
       historyAvailable: input.historyAvailable,
     });
     const askCriterion = () => parseIdeaCriterion(null, { statement: input.statement, requireContextLinks: id === "K6" });
-    let parsed = parseIdeaCriterion(await input.ask(prompt), { statement: input.statement, requireContextLinks: id === "K6" });
+    let parsed = parseIdeaCriterion(await input.ask(prompt), { statement: input.statement, requireContextLinks: id === "K6", id });
     if (parsed.undecided) {
-      parsed = parseIdeaCriterion(await input.ask(prompt), { statement: input.statement, requireContextLinks: id === "K6" });
+      parsed = parseIdeaCriterion(await input.ask(prompt), { statement: input.statement, requireContextLinks: id === "K6", id });
     }
     if (parsed.undecided) {
       parsed = {
