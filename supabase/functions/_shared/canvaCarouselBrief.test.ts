@@ -205,3 +205,17 @@ Deno.test("buildCanvaCarouselBrief shortens scenes so the last page always fits"
   assertEquals(brief.split(FOOD_PHOTO_RULE).length - 1, 1);
   assertEquals(brief.split(PERSON_PHOTO_RULE).length - 1, 1);
 });
+
+Deno.test("buildCanvaCarouselBrief names the menus without reserving a photo slot", () => {
+  const brief = buildCanvaCarouselBrief({
+    title: "Menu",
+    caption: "",
+    slides: carouselSlidesFromBrief(storyboard),
+    menus: ["Sate Kambing Full Daging", "Sate Kambing Campur Lemak"],
+  });
+  assertEquals(brief.includes("Real menu shown: Sate Kambing Full Daging; Sate Kambing Campur Lemak."), true);
+  assertEquals(brief.includes(FOOD_PHOTO_RULE), true);
+  assertEquals(brief.includes("Keep the center empty"), false);
+  assertEquals(brief.includes("goes in the center of the last page"), false);
+  assertEquals(brief.includes("Setting only, no food drawn"), false);
+});

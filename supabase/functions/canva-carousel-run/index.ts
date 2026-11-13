@@ -14,7 +14,6 @@ const CAROUSEL_BUCKET = "social-media-carousel";
 const REFERENCE_BUCKET = "ai-employee-references";
 const USER_INTENT = "carousel 4:5 yang mengikuti naskah, layout referensi, dan warna katalog";
 const LOGO_BUCKET = "digital-asset-company-logos";
-const PRODUCT_BUCKET = "catalog-product-photos";
 const MAX_PRODUCT_PHOTOS = 8;
 const PORTRAIT_FORMAT = "Instagram Post (Portrait)";
 
@@ -556,98 +555,6 @@ async function libraryPhotos(
   });
 }
 
-async function pollProductUpload(
-  admin: SupabaseClient,
-  organizationId: string,
-  token: string,
-  jobId: string,
-): Promise<string> {
-  const deadline = Date.now() + 40_000;
-  let current = token;
-  while (Date.now() < deadline) {
-    await sleep(2000);
-    const response = await fetch(`https://api.canva.com/rest/v1/url-asset-uploads/${encodeURIComponent(jobId)}`, {
-      headers: { Authorization: `Bearer ${current}` },
-    });
-    if (response.status === 401) {
-      current = await accessToken(admin, organizationId, true);
-      continue;
-    }
-    if (!response.ok) throw new Error("product_photo_place_failed");
-    const body = asRecord(await response.json()) ?? {};
-    const id = logoAssetId(body);
-    if (id) return id;
-    const status = String(nestedRecord(body, "job")?.status ?? body.status ?? "").toLowerCase();
-    if (status === "failed" || status === "failure" || status === "error") throw new Error("product_photo_place_failed");
-  }
-  throw new Error("product_photo_place_failed");
-}
-
-async function placeProductPhotos(
-  admin: SupabaseClient,
-  organizationId: string,
-  token: string,
-  designId: string,
-  photos: ProductPhoto[],
-): Promise<void> {
-  const assets: Array<{ name: string; assetId: string }> = [];
-  for (const [index, photo] of photos.slice(0, 1).entries()) {
-    const signed = await admin.storage.from(PRODUCT_BUCKET).createSignedUrl(photo.path, 300);
-    const url = signed.data?.signedUrl ?? "";
-    if (!url.startsWith("https://")) continue;
-    const uploaded = await callRaw(admin, organizationId, token, "upload-asset-from-url", {
-      url,
-      name: `product-photo-${index + 1}.jpg`,
-      user_intent: "mengunggah foto produk dari library untuk ditaruh di tengah slide",
-    });
-    token = uploaded.token;
-    let assetId = logoAssetId(uploaded.payload);
-    const job = asRecord(uploaded.payload.job);
-    const jobId = String(job?.id ?? uploaded.payload.job_id ?? "").trim();
-    const uploadStatus = String(job?.status ?? uploaded.payload.status ?? "").toLowerCase();
-    if (!assetId && uploadStatus !== "failed" && jobId) {
-      assetId = await pollProductUpload(admin, organizationId, token, jobId);
-    }
-    if (assetId) assets.push({ name: photo.name, assetId });
-  }
-  if (assets.length === 0) throw new Error("product_photo_upload_failed");
-
-  const opened = await openEditing(admin, organizationId, token, designId, "membuka desain untuk menempelkan foto produk");
-  token = opened.token;
-  const session = opened.session;
-  const photoPages = session.pages.filter((page) => !page.responsive);
-  if (!session.transactionId || photoPages.length === 0) throw new Error("product_photo_place_failed");
-  let inserted = 0;
-  // One real photo, on the last page (the closing slide). Other pages keep Canva's own food shots.
-  const lastPage = photoPages.reduce((last, page) => (page.pageNumber > last.pageNumber ? page : last), photoPages[0]);
-  const asset = assets[0];
-  try {
-    for (const page of [lastPage]) {
-      const width = Math.round(page.width * 0.62);
-      const height = Math.round(page.height * 0.46);
-      const edited = await editPage(admin, organizationId, token, session, page.pageNumber, [{
-        type: "insert_fill",
-        page_id: page.id,
-        asset_type: "image",
-        asset_id: asset.assetId,
-        alt_text: asset.name || "Foto produk",
-        top: Math.round(page.height * 0.22),
-        left: Math.round((page.width - width) / 2),
-        width,
-        height,
-      }], "menempelkan foto produk di tengah slide");
-      token = edited.token;
-      if (edited.ok) inserted += 1;
-    }
-    if (inserted === 0) throw new Error("product_photo_place_failed");
-    const committed = await finishEditing(admin, organizationId, token, session, "commit", "menyimpan foto produk di slide");
-    if (!committed.ok) throw new Error("product_photo_place_failed");
-  } catch (error) {
-    await finishEditing(admin, organizationId, token, session, "cancel", "membatalkan foto produk yang gagal dipasang").catch(() => undefined);
-    throw error;
-  }
-}
-
 async function selectedLogo(
   admin: SupabaseClient,
   planId: string,
@@ -753,20 +660,8 @@ async function exportCarouselImages(
     let inserted = false;
     try {
       let token = await accessToken(admin, organizationId);
-      try {
-        const photos = await briefProductPhotos(admin, planId);
-        if (photos.length > 0) {
-          await placeProductPhotos(admin, organizationId, token, String(locked.design_id), photos);
-          console.log(JSON.stringify({ event: "canva_product_photos_placed", plan_id: planId, photos: photos.map((photo) => photo.name) }));
-        }
-      } catch (error) {
-        console.log(JSON.stringify({
-          event: "canva_product_photos_failed",
-          plan_id: planId,
-          error: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300),
-        }));
-        if (publicError(error) === "canva_unauthorized") throw error;
-      }
+      // Real menu photos are no longer pasted into the design: they did not fit the layout.
+      // Canva draws the food itself from the menu names and the food photo rule.
       const logoChoice = await selectedLogo(admin, planId);
       const logo = logoChoice ? await activeLogoBytes(admin, planId) : null;
       let placedInDesign = false;
@@ -1275,7 +1170,7 @@ Deno.serve(async (req: Request) => {
       styleLock,
       palette: carouselPalette(String(plan.brief ?? "")),
       logo: logo ? "required" : "none",
-      productPhotos: productPhotos.map((photo) => photo.name),
+      menus: productPhotos.map((photo) => photo.name),
       requiredNote: String(employeeBrief?.required_notes ?? ""),
       forbiddenNote: String(employeeBrief?.forbidden_notes ?? ""),
     });
