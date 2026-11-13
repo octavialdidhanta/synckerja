@@ -499,6 +499,33 @@ async function markProductionDone(admin: SupabaseClient, planId: string): Promis
     .or("production_status.is.null,production_status.eq.Need Review");
 }
 
+type CanvaBrief = {
+  required_notes: string | null;
+  forbidden_notes: string | null;
+  company_logo_id: string | null;
+  service_ids: string[] | null;
+  sub_service_ids: string[] | null;
+  sub_service_id: string | null;
+};
+
+/**
+ * The employee's brief fields Canva needs. ai_employee_briefs itself is closed to the
+ * server role, so this goes through ai_employee_canva_brief.
+ */
+async function canvaBrief(admin: SupabaseClient, employeeId: string, organizationId: string): Promise<CanvaBrief | null> {
+  if (!employeeId || !organizationId) return null;
+  const { data, error } = await admin.rpc("ai_employee_canva_brief", {
+    p_employee_id: employeeId,
+    p_organization_id: organizationId,
+  });
+  if (error) {
+    console.log(JSON.stringify({ event: "canva_brief_read_failed", employee_id: employeeId, error: error.message.slice(0, 200) }));
+    return null;
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  return row ? row as CanvaBrief : null;
+}
+
 type ProductPhoto = { name: string; path: string };
 
 async function briefProductPhotos(
@@ -518,11 +545,7 @@ async function briefProductPhotos(
     .slice(0, 3);
   if (picked.length > 0) return libraryPhotos(admin, String(plan.organization_id), picked);
   if (!plan.pic_id) return [];
-  const { data: brief } = await admin
-    .from("ai_employee_briefs")
-    .select("sub_service_ids, sub_service_id")
-    .eq("employee_id", plan.pic_id)
-    .maybeSingle();
+  const brief = await canvaBrief(admin, String(plan.pic_id), String(plan.organization_id));
   const stored = Array.isArray(brief?.sub_service_ids)
     ? brief.sub_service_ids.map((id: unknown) => String(id))
     : [];
@@ -565,11 +588,7 @@ async function selectedLogo(
     .eq("id", planId)
     .maybeSingle();
   if (!plan?.pic_id) return null;
-  const { data: brief } = await admin
-    .from("ai_employee_briefs")
-    .select("company_logo_id, service_ids, organization_id")
-    .eq("employee_id", plan.pic_id)
-    .maybeSingle();
+  const brief = await canvaBrief(admin, String(plan.pic_id), String(plan.organization_id ?? ""));
   if (!brief?.company_logo_id) return null;
   const services = Array.isArray(brief.service_ids) ? brief.service_ids.map((id) => String(id)) : [];
   if (services.length !== 1) throw new Error("logo_missing");
@@ -1171,18 +1190,10 @@ Deno.serve(async (req: Request) => {
       .eq("social_media_plan_id", planId)
       .limit(1);
     const organizationId = String(plan.organization_id);
-    const { data: employeeBrief } = await admin
-      .from("ai_employee_briefs")
-      .select("required_notes, forbidden_notes")
-      .eq("employee_id", plan.pic_id)
-      .eq("organization_id", organizationId)
-      .maybeSingle();
-    const styleLock = await referenceStyleLock(
-      admin,
-      organizationId,
-      String(plan.pic_id ?? ""),
-      carouselReferencePosition(slides),
-    ).catch(() => "");
+    const employeeBrief = await canvaBrief(admin, String(plan.pic_id ?? ""), organizationId);
+    // Canva designs the layout itself: describing the reference image made every page the
+    // same flat poster. The references stay in the brief but are not sent to Canva.
+    const styleLock = "";
     const logo = await selectedLogo(admin, planId);
     const productPhotos = await briefProductPhotos(admin, planId).catch(() => []);
     const briefInput = {
