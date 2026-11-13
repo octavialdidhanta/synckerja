@@ -320,11 +320,10 @@ describe("idea persistence helpers", () => {
     expect(prompt).toContain(locked.statement);
     expect(prompt).toContain("Do not reuse its meaning.");
     expect(prompt).toContain("Do not write a finished story.");
-    expect(prompt).toContain("K1. The statement is one specific how-if proposal.");
+    expect(prompt).toContain("K1. The statement is one specific proposal in the form above.");
     expect(prompt).toContain("K3. The proposed mechanism can produce the stated value.");
-    expect(prompt).toContain("K2. PASS only when the mechanism is a specific action people already do in ordinary life.");
-    expect(prompt).toContain("A reason that only restates the proposed product is not evidence.");
-    expect(prompt).toContain("K7. PASS only when the mechanism fits the stored audience's needs, conditions, ability, time, and behavior");
+    expect(prompt).not.toContain("K2. ");
+    expect(prompt).toContain("K7. PASS when this audience can watch it or join it during time they already spend");
     expect(prompt).toContain("what this audience already does and what is still missing");
     expect(prompt).toContain("A claim that there is no new habit, or that the idea fits an existing routine, is not evidence.");
     expect(prompt).toContain("A short action inside time this audience already spends is a realistic way to adopt it.");

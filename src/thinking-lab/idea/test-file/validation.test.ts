@@ -276,7 +276,7 @@ describe("idea K1–K7", () => {
         },
       ],
     });
-    expect(prompt).toContain('Begin the statement with "Bagaimana jika".');
+    expect(prompt).toContain('Write the statement as "Kita [bikin/ajak/tunjukkan/ciptakan] … sehingga …"');
     expect(prompt).toContain("Penugasan proyek berdasarkan skor individu");
     expect(prompt).toContain("K1 FAIL: This is not a how-if proposal.");
     expect(prompt).toContain("Similar words alone are not a repeat.");
@@ -1058,10 +1058,7 @@ describe("idea K1–K7", () => {
       masterThought: MASTER,
       failures: [],
     });
-    expect(mechanism).toContain("specific action people already do in ordinary life");
-    expect(mechanism).toContain("automatic analysis");
-    expect(mechanism).toContain("Do not fail that action because the how-if names a tool.");
-    expect(mechanism).toContain("only restates the proposed product is not evidence");
+    expect(mechanism).toContain("Retired in framework v1.1");
     expect(validation.criteria.find((criterion) => criterion.id === "K7")?.status).toBe("PASS");
   });
 
@@ -1614,5 +1611,15 @@ describe("idea K1–K7", () => {
       failures: items,
     });
     expect(prompt).toContain("K5 FAIL: Konsepnya sama dengan ide yang sudah lolos.");
+  });
+});
+
+describe("framework v1.1 Idea form", () => {
+  it("accepts Kita … sehingga and still accepts Bagaimana jika", async () => {
+    const { hasHowIfOpening } = await import("@/thinking-lab/idea/validation");
+    const angle = "Yang jarang disadari tentang makan malam keluarga adalah orang tua jarang mencicipi dulu dan tidak membandingkan.";
+    expect(hasHowIfOpening("Kita ajak tiga keluarga mencicipi dua sate tanpa label sehingga mereka memilih dari rasa.", angle)).toBe(true);
+    expect(hasHowIfOpening("Bagaimana jika keluarga mencicipi dua sate tanpa label?", angle)).toBe(true);
+    expect(hasHowIfOpening("Sate kambing muda lebih juicy.", angle)).toBe(false);
   });
 });
