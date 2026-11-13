@@ -750,8 +750,38 @@ function openingTooClose(left, right) {
 }
 
 export function hookFromElement(element) {
-  const match = /hook headline\s*:\s*([\s\S]*?)(?=visual hook\s*:|$)/i.exec(String(element ?? ""));
+  const match = /hook headline\s*:\s*([\s\S]*?)(?=visual hook\s*:|arah gambar\s*:|referensi\s+[1-5]\b|$)/i.exec(String(element ?? ""));
   return match ? match[1].replace(/\s+/g, " ").trim() : "";
+}
+
+/** The big title of a slide: 'Hook headline:' on slide 1, 'Headline:' on the others. */
+export function headlineFromElement(element) {
+  const text = String(element ?? "");
+  const hook = hookFromElement(text);
+  if (hook) return hook;
+  const match = /(?:^|[.\s])headline\s*:\s*([\s\S]*?)(?=\b(?:point|ajakan|tips|pesan utama|pesan|teks|visual hook|arah gambar|ilustrasi|gambar|dialog bubble)\s*:|referensi\s+[1-5]\b|$)/i.exec(text);
+  return match ? match[1].replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "") : "";
+}
+
+/**
+ * Slide titles that repeat an earlier plan's titles. Only reported for now:
+ * the run logs it and keeps the draft.
+ */
+export function headlineRepeats(headlines, priors) {
+  const found = [];
+  const current = (Array.isArray(headlines) ? headlines : [])
+    .map((text) => ({ text: String(text ?? ""), tokens: copyTokens(text) }))
+    .filter((row) => row.tokens.length >= 3);
+  for (const prior of Array.isArray(priors) ? priors : []) {
+    const priorHeadlines = (Array.isArray(prior?.headlines) ? prior.headlines : [])
+      .map((text) => ({ text: String(text ?? ""), tokens: copyTokens(text) }))
+      .filter((row) => row.tokens.length >= 3);
+    for (const row of current) {
+      const twin = priorHeadlines.find((other) => tokenJaccard(row.tokens, other.tokens) >= 0.8);
+      if (twin) found.push({ headline: row.text, prior_headline: twin.text, prior_title: String(prior?.title ?? "") });
+    }
+  }
+  return found;
 }
 
 export function copyFingerprint(draft) {
@@ -1131,11 +1161,11 @@ export function buildSop1Prompt({ day, pillar, steps, catalog, thinking, feedbac
     "slides wajib 2 sampai 10. Naya yang memilih jumlahnya. timing persis Slide 1, Slide 2, berurutan.",
     "Setiap slide wajib mengisi visual, vo, dan element. Jangan mengosongkannya.",
     "visual adalah Scene Visual: adegan yang terlihat, bukan file gambar dan bukan path. Bila adegan memuat orang, minta foto manusia sungguhan: kulit alami, kamera nyata, bukan ilustrasi, kartun, 3D, atau wajah sintetis.",
-    "vo adalah copywriting yang dibaca di slide itu, satu atau dua kalimat bahasa Indonesia. Copy menyambung dengan adegan. Jangan mengulang caption.",
+    "vo adalah copywriting kecil di slide itu: satu kalimat bahasa Indonesia, paling banyak 12 kata. Copy menyambung dengan adegan. Jangan mengulang caption.",
     "Bahasa vo dan Hook headline: bahasa lisan sehari-hari yang diucapkan audiens ke teman dekat. Pakai bentuk pendek seperti nggak, aja, banget, sih, deh, kok, atau dong bila pas. Sapa penonton dengan kamu, bukan Anda. Jangan memakai kata formal seperti tidak, sangat, namun, merupakan, atau oleh karena itu. Tetap jelas dan jangan menumpuk singkatan.",
     "title dan Hook headline berangkat dari Idea dan Development pilar, bukan dari klaim Product Knowledge. Klaim produk boleh muncul di slide tengah atau penutup.",
-    "element adalah Element Lainnya: komponen yang tampil bersama copy, misalnya bukti, angka, kontras, panah, atau ajakan. Tulis konkret.",
-    "Slide 1 adalah halaman pembuka. element slide 1 wajib diawali dua label ini: 'Hook headline: ...' lalu 'Visual hook: ...'. Hook headline adalah kalimat pendek yang menghentikan scroll. Visual hook adalah hal yang mata tangkap lebih dulu. Komponen lain menyusul setelah kedua label itu.",
+    "element adalah Element Lainnya. Mulai slide 2 dan seterusnya, element wajib diawali 'Headline: ...': judul slide itu, paling banyak 8 kata, teks terbesar di slide. Label kecil lain boleh menyusul, misalnya 'Point: ...' untuk bukti, angka, atau kontras, dan 'Ajakan: ...' untuk ajakan. Instruksi gambar seperti panah, ikon, infografis, atau ilustrasi ditulis setelah label 'Arah gambar: ...', bukan sebagai teks slide.",
+    "Slide 1 adalah halaman pembuka. element slide 1 wajib diawali dua label ini: 'Hook headline: ...' lalu 'Visual hook: ...'. Hook headline adalah kalimat pendek yang menghentikan scroll, paling banyak 8 kata. Visual hook adalah hal yang mata tangkap lebih dulu. Komponen lain, termasuk 'Arah gambar: ...', menyusul setelah kedua label itu.",
     "tagging boleh kosong. Isi hanya label singkat yang benar-benar tampil di slide.",
     "Gambar dan copy di setiap slide harus menyatu supaya penonton berhenti, mengerti, lalu ingin lanjut. Jangan membuat slide yang hanya adegan tanpa teks.",
     "Jangan memakai judul, headline, atau kalimat slide 1 yang tercantum pada rencana terakhir.",

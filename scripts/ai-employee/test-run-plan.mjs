@@ -68,6 +68,9 @@ import {
   validatePlanDraft,
   rotateReference,
   briefWithReference,
+  hookFromElement,
+  headlineFromElement,
+  headlineRepeats,
 } from "../../supabase/functions/_shared/aiEmployee/planDraft.mjs";
 
 const pillarId = "11111111-1111-4111-8111-111111111111";
@@ -1575,4 +1578,27 @@ test("brief dibatasi ke satu slot referensi", () => {
   assert.deepEqual(briefWithReference(brief, 3).references, [{ position: 3 }]);
   assert.equal(briefWithReference(brief, null), brief);
   assert.equal(briefWithReference(brief, 2), brief);
+});
+
+test("judul slide dibaca dari Hook headline atau Headline, berhenti di Arah gambar", () => {
+  assert.equal(hookFromElement("Hook headline: Alot? Bye-bye! Visual hook: Sate. Arah gambar: panah"), "Alot? Bye-bye!");
+  assert.equal(hookFromElement("Hook headline: Alot? Arah gambar: panah ke daging. Visual hook: Sate"), "Alot?");
+  assert.equal(headlineFromElement("Headline: Garansi Daging Empuk. Point: Kambing muda. Referensi 2"), "Garansi Daging Empuk");
+  assert.equal(headlineFromElement("Headline: Serat Halus. Arah gambar: panah ke serat"), "Serat Halus");
+  assert.equal(headlineFromElement("Warna: merah muda"), "");
+});
+
+test("judul slide yang berulang hanya dilaporkan", () => {
+  const priors = [{ title: "Plan lama", headlines: ["Garansi Rasa Daging Empuk Banget"] }];
+  const found = headlineRepeats(["Garansi Rasa Daging Empuk Banget", "Serat Halus Kambing Muda"], priors);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].prior_title, "Plan lama");
+  assert.equal(headlineRepeats(["Judul baru sama sekali beda"], priors).length, 0);
+});
+
+test("prompt SOP1 meminta Headline, Arah gambar, dan vo paling banyak 12 kata", () => {
+  const prompt = buildSop1Prompt({ day: "2026-11-14", pillar: { id: "p", name: "P" }, steps: [], catalog: [], thinking: [], feedback: [], plans: [], brief: null, performance: [], service: null, idea: null, product: [] });
+  assert.match(prompt, /paling banyak 12 kata/);
+  assert.match(prompt, /'Headline: \.\.\.'/);
+  assert.match(prompt, /'Arah gambar: \.\.\.'/);
 });
