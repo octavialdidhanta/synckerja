@@ -308,7 +308,7 @@ describe("idea K1–K7", () => {
         return auditPass(id);
       },
     });
-    expect(seen).toEqual(["K1", "K2", "K3", "K4", "K6", "K7"]);
+    expect(seen).toEqual(["K1", "K3", "K4", "K6", "K7"]);
     expect(frames[0]).toBe("K1:pending K2:pending K3:pending K4:pending K5:pending K6:pending K7:pending");
     expect(frames.some((frame) => frame.startsWith("K1:running") && frame.includes("K2:pending"))).toBe(true);
     expect(frames[frames.length - 1]).toBe("K1:pass K2:pass K3:pass K4:pass K5:pass K6:pass K7:pass");
@@ -380,7 +380,7 @@ describe("idea K1–K7", () => {
         return JSON.stringify({ pass: true, reason: "Mekanisme tim menutup syarat ini." });
       },
     });
-    expect(asked).toHaveLength(3);
+    expect(asked).toHaveLength(2);
     expect(validation.criteria.find((criterion) => criterion.id === "K3")).toMatchObject({
       status: "BELUM_TERVERIFIKASI",
       explanation: "Asumsi data tim belum jelas.",
@@ -460,7 +460,7 @@ describe("idea K1–K7", () => {
     });
     expect(validation.criteria.find((criterion) => criterion.id === "K1")?.status).toBe("PASS");
     expect(validation.criteria.find((criterion) => criterion.id === "K1")?.explanation).toContain("bagaimana-jika");
-    expect(asked).toContain("K2");
+    expect(asked).not.toContain("K2");
   });
 
   it("fails K1 when the statement is only a fact", async () => {
@@ -528,9 +528,9 @@ describe("idea K1–K7", () => {
         return passSentence;
       },
     });
-    expect(asked).toEqual(["K1", "K2", "K3"]);
+    expect(asked).toEqual(["K1", "K3"]);
     expect(validation.criteria.find((criterion) => criterion.id === "K2")?.status).toBe("PASS");
-    expect(validation.criteria.find((criterion) => criterion.id === "K2")?.explanation).toBe("Mekanisme tim menutup syarat ini.");
+    expect(validation.criteria.find((criterion) => criterion.id === "K2")?.explanation).toBe("K2 is no longer a requirement.");
   });
 
   it("does not reject a policy idea that does not claim a legally binding commitment", async () => {
@@ -552,7 +552,7 @@ describe("idea K1–K7", () => {
         return JSON.stringify({ status: "BELUM_TERVERIFIKASI", reason: "Mekanismenya masih umum." });
       },
     });
-    expect(asked).toEqual(["K1", "K2"]);
+    expect(asked).toEqual(["K1", "K3"]);
     expect(validation.decision).toBe("BELUM_TERVERIFIKASI");
     expect(validation.criteria.find((criterion) => criterion.id === "K1")?.status).toBe("PASS");
   });
@@ -576,7 +576,7 @@ describe("idea K1–K7", () => {
         return passSentence;
       },
     });
-    expect(asked).toEqual(["K1", "K2", "K3", "K4"]);
+    expect(asked).toEqual(["K1", "K3", "K4"]);
     expect(validation.criteria.find((criterion) => criterion.id === "K3")?.status).toBe("PASS");
     expect(validation.criteria.find((criterion) => criterion.id === "K3")?.explanation).toBe("Mekanisme tim menutup syarat ini.");
   });
