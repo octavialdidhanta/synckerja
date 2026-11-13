@@ -120,6 +120,7 @@ export const idTranslations: TranslationDictionary = {
   "thinkingLab.bt.empty": "Belum ada Big Thought.",
   "thinkingLab.bt.generating": "Sedang membuat Big Thought…",
   "thinkingLab.bt.generateNoneAdmitted": "Tidak ada Big Thought baru yang lolos pemeriksaan Generate.",
+  "thinkingLab.bt.fixStuck": "Fix dihentikan: cek {{gate}} gagal lagi ({{reason}}). Ubah Big Thought ini secara manual, atau ubah Master Thought, sebelum mencoba lagi.",
   "thinkingLab.bt.fixStillOpen": "Big Thought ini masih gagal. Fix tetap di kartu ini, dan kegagalannya menjadi pelajaran untuk putaran berikutnya.",
   "thinkingLab.bt.pass.list": "Syarat lolos",
   "thinkingLab.bt.pass.resolved": "Penilaian selesai.",

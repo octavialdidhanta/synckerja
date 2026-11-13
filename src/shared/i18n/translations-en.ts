@@ -120,6 +120,7 @@ export const enTranslations: TranslationDictionary = {
   "thinkingLab.bt.empty": "No Big Thoughts yet.",
   "thinkingLab.bt.generating": "Generating Big Thoughts…",
   "thinkingLab.bt.generateNoneAdmitted": "No new Big Thought passed the generate checks.",
+  "thinkingLab.bt.fixStuck": "Fix stopped: the {{gate}} check failed again ({{reason}}). Edit this Big Thought by hand, or change the Master Thought, before trying again.",
   "thinkingLab.bt.fixStillOpen": "This Big Thought is still failing. Fix stays on this card, and the failures stay as lessons for the next round.",
   "thinkingLab.bt.pass.list": "Pass checklist",
   "thinkingLab.bt.pass.resolved": "The judgment is finished.",
