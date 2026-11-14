@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildIdeaGeneratePrompt } from "@/thinking-lab/idea/generate";
-import { buildIdeaJudgePrompt } from "@/thinking-lab/idea/semantic";
+import { buildIdeaCheckPrompt } from "@/thinking-lab/idea/check/run";
 import { buildTerritoryGeneratePrompt } from "@/thinking-lab/territory/generate";
 import { buildTerritoryJudgePrompt } from "@/thinking-lab/territory/semantic";
 
@@ -32,22 +32,27 @@ describe("ancestor stake prompts", () => {
   });
 
   it("asks an Idea to keep the Angle and the ancestors above it", () => {
-    const prompt = buildIdeaJudgePrompt({
-      parentStatement: "Sincere giving has a pure motive.",
-      ancestors,
-      candidate: { code: "ID01", statement: "An anonymous gift to a stranger." },
+    const prompt = buildIdeaCheckPrompt("stakeHolds", {
+      statement: "Kita ajak orang memberi tanpa nama sehingga rasa percaya terlihat.",
+      angle: "Sincere giving has a pure motive.",
+      territory: "What still counts as trusted giving.",
+      bigThought: "Trust is the stake.",
+      masterThought: "The giver may redirect when trust fails.",
+      failures: [],
+      peers: [],
+      historyAvailable: true,
+      ask: async () => null,
     });
-    expect(prompt).toContain("Direct Angle:");
-    expect(prompt).toContain("Sincere giving has a pure motive.");
+    expect(prompt).toContain("Angle: Sincere giving has a pure motive.");
     expect(prompt).toContain("Territory: What still counts as trusted giving.");
     expect(prompt).toContain("Big Thought: Trust is the stake.");
     expect(prompt).toContain("Master Thought: The giver may redirect when trust fails.");
-    expect(prompt).toContain("after the distinctive stake of this Angle or an ancestor is removed");
+    expect(prompt).toContain("taruhan khas Angle");
     expect(buildIdeaGeneratePrompt({
       parentStatement: "Sincere giving has a pure motive.",
       ancestors,
       incumbents: [],
-      needed: 1,
+      failures: [],
     })).toContain("Master Thought: The giver may redirect when trust fails.");
   });
 });

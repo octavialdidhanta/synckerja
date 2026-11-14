@@ -3,7 +3,6 @@ import type { AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import { angleFingerprint } from "@/thinking-lab/shared/fingerprint";
 import { LAB_WORKSPACE } from "@/thinking-lab/shared/verdict";
 import { emptyAngleSetRecord, readAngleSetRecord, type AngleSetRecord } from "@/thinking-lab/angle/setAudit";
-import { readIdeaSetRecord, type IdeaSetRecord } from "@/thinking-lab/idea/setAudit";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 import { evaluateAngleParent, type AngleParentDenial } from "@/thinking-lab/angle/eligibility";
 import { normalizeAngleFacts } from "@/thinking-lab/angle/semantic";
@@ -21,7 +20,6 @@ export type LabAngle = {
   admission: IndividualAdmission;
   status: "candidate" | "locked";
   semanticFingerprint: string | null;
-  ideaSet: IdeaSetRecord;
 };
 
 export type AngleParentGate =
@@ -43,7 +41,6 @@ type AngleRow = {
   admission: string;
   status?: string;
   semantic_fingerprint?: string | null;
-  idea_set?: unknown;
 };
 
 type BigThoughtJoin = {
@@ -85,7 +82,6 @@ function mapAngle(row: AngleRow): LabAngle {
     admission: asAdmission(row.admission),
     status: row.status === "locked" ? "locked" : "candidate",
     semanticFingerprint: row.semantic_fingerprint ?? null,
-    ideaSet: readIdeaSetRecord(row.idea_set),
   };
 }
 

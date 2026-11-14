@@ -62,7 +62,7 @@ describe("thinking.idea.add", () => {
     if (!result.saved) expect(result.failed[0].check).toBe("duplicate");
   });
 
-  it("does not save when K1-K7 do not pass", async () => {
+  it("does not save when an Idea check does not pass", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
     const result = await addThinkingIdea(fakeAdmin(context(), calls), config, ctx, { angleId, statement, subject: "", keys }, {
       checks: ALL_ON,
@@ -98,7 +98,7 @@ describe("thinking.idea.lock", () => {
     validation,
   });
   const fp = ideaFingerprint({ statement, angleFingerprint: anFp });
-  const set = { schema: "thinking-lab/idea-set/v1", repairCount: 0, siblingSet: null, audit: { fingerprint: "", items: [{ code: "ID01", verdict: "AUDIT_PASS", statementFingerprint: fp }] } };
+  const set = { schema: "thinking-lab/idea-set/v1", audit: { fingerprint: "", items: [{ code: "ID01", verdict: "AUDIT_PASS", statementFingerprint: fp }] } };
 
   it("refuses an Idea without a current pass", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];

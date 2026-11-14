@@ -1,30 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { confirmedFingerprint } from "../../../../src/thinking-lab/master-thought/semantic";
-import {
-  applyCrossStatus,
-  crossPeersFromIdeas,
-  failureItemsFromIdeas,
-  judgeCrossIdeas,
-  readIdeaValidation,
-  relevantFromPeer,
-  runIdeaPassChecks,
-  type IdeaValidation,
-} from "../../../../src/thinking-lab/idea/validation";
-import { IDEA_ACTIVE_CAP, ideaFactsForValidation, nextIdeaCode } from "../../../../src/thinking-lab/idea/generate";
-import { IDEA_GENERATE_PASS_IDS } from "../../../../src/thinking-lab/idea/generatePasses";
-import { runIdeaIndividualChecks } from "../../../../src/thinking-lab/idea/passChecklist";
-import {
-  buildIdeaSiblingPrompt,
-  ideaFailureLessons,
-  parseIdeaSet,
-  readIdeaSetRecord,
-  type IdeaAuditItem,
-} from "../../../../src/thinking-lab/idea/setAudit";
-import { ideaReplacementPasses } from "../../../../src/thinking-lab/idea/fix";
+import { readIdeaValidation } from "../../../../src/thinking-lab/idea/check/record";
+import { failureItemsFromIdeas, peersFromIdeas } from "../../../../src/thinking-lab/idea/check/memory";
+import { runIdeaChecks } from "../../../../src/thinking-lab/idea/check/run";
+import { IDEA_ACTIVE_CAP, nextIdeaCode } from "../../../../src/thinking-lab/idea/generate";
+import { ideaFacts, type IdeaMechanismKey } from "../../../../src/thinking-lab/idea/facts";
+import { readIdeaSetRecord, type IdeaAuditItem } from "../../../../src/thinking-lab/idea/ideaSet";
 import { evaluateIdeaParent } from "../../../../src/thinking-lab/idea/eligibility";
 import { sameIdeaConcept } from "../../../../src/thinking-lab/idea/conceptIdentity";
 import { ideaFingerprint, ideaSetFingerprint } from "../../../../src/thinking-lab/shared/fingerprint";
-import type { IdeaMechanismKey } from "../../../../src/thinking-lab/idea/types";
 import type { JudgeConfig } from "./thinkingLab";
 import {
   loadCheckSettings,
@@ -67,10 +51,9 @@ type IdeaContext = {
 };
 
 /**
- * One Idea written in chat, under a locked Angle. Runs K1-K7 (with the comparison against every Idea
- * under this Master Thought, so an Idea that repeats another branch fails K5), then the page's Idea
- * checks (batched) and the sibling check. Only a passing Idea is saved, with its validation and an
- * AUDIT_PASS item in the Angle's idea set.
+ * One Idea written in chat, under a locked Angle. Runs the switched-on Idea checks, compared with every
+ * Idea under this Master Thought, so an Idea that repeats another branch fails the distinct check.
+ * Only a passing Idea is saved, with its validation and an AUDIT_PASS item in the Angle's idea set.
  */
 export async function addThinkingIdea(
   admin: SupabaseClient,
@@ -84,7 +67,6 @@ export async function addThinkingIdea(
   if (!statement) throw new Error("invalid_input");
   const loaded = await loadIdeaContext(admin, ctx, input.angleId);
   const context = replace ? { ...loaded, ideas: loaded.ideas.filter((row) => row.id !== replace.row.id) } : loaded;
-  const masterStatement = context.master.statement.trim();
   const gate = ideaParentGate(context);
   if (gate.ok === false) {
     const reason =
@@ -164,112 +146,38 @@ async function addIdeaUnder(
     return { saved: false, failed: [{ check: "duplicate", reason: "This repeats an Idea already saved under this Master Thought." }] };
   }
 
-  const ask = makeAsk(config, ctx, deps);
   const skip = skippedChecks(await loadCheckSettings(admin, ctx, deps), "idea");
-  const peers = crossPeersFromIdeas(ideas);
-  const checked = await runIdeaPassChecks({
-    batch: true,
-    skip,
+  const validation = await runIdeaChecks({
     statement,
+    mechanismKeys: input.keys,
     angle: context.angle.statement,
     territory: context.territory.statement,
     bigThought: context.big_thought.statement,
     masterThought: masterStatement,
+    masterSubject: context.master.subject,
     audience: context.master.audience,
     priorBelief: context.master.prior_belief,
     rootBelief: context.master.root_belief,
     failures: failureItemsFromIdeas(ideas, context.angle.id),
-    peers: peers.map((peer) => relevantFromPeer(peer, context.angle.id)),
+    peers: peersFromIdeas(ideas),
     historyAvailable: true,
-    ask,
+    skip,
+    ask: makeAsk(config, ctx, deps),
   });
-  const code = replace?.row.code ?? nextIdeaCode(sameAngle.map((row) => row.code));
-  let validation: IdeaValidation = checked;
-  // The cross-branch comparison is K5; with K5 OFF it is not asked.
-  if (!skip.includes("K5")) {
-    try {
-      const [settled] = await judgeCrossIdeas({
-        candidates: [{ code, statement, concept: checked.concept, mechanism: checked.mechanism, value: checked.value, validation: checked }],
-        peers,
-        historyAvailable: true,
-        ask,
-      });
-      validation = settled?.validation ?? applyCrossStatus(checked, "BELUM_TERVERIFIKASI");
-    } catch {
-      validation = applyCrossStatus(checked, "BELUM_TERVERIFIKASI");
-    }
-  }
   if (validation.decision !== "LOLOS") {
     // The checks stop at the first one that does not pass; the ones after it were not asked.
-    const first =
-      validation.criteria.find((criterion) => criterion.status === "FAIL") ??
-      validation.criteria.find((criterion) => criterion.status !== "PASS");
-    const reason = (first?.explanation || first?.reason || validation.decisionReason || "Not verified yet.").trim();
+    const first = validation.criteria.find((criterion) => criterion.status !== "PASS");
+    const reason = first?.reason || validation.decisionReason || "Not verified yet.";
     return {
       saved: false,
-      failed: [{
-        check: first?.id ?? "decision",
-        reason: first?.status === "FAIL" ? reason : `Not verified: ${reason}`,
-      }],
+      failed: [{ check: first?.id ?? "decision", reason: first?.status === "FAIL" ? reason : `Not verified: ${reason}` }],
     };
   }
 
-  const ancestors = [
-    { label: "Territory", statement: context.territory.statement.trim() },
-    { label: "Big Thought", statement: context.big_thought.statement.trim() },
-    { label: "Master Thought", statement: masterStatement },
-  ];
-  const run = await runIdeaIndividualChecks({
-    batch: true,
-    statement,
-    parentStatement: context.angle.statement,
-    ancestors,
-    masterSubject: context.master.subject,
-    mechanismKeys: input.keys,
-    skip,
-    ask,
-    onStep: () => undefined,
-  });
-  if (!run.passed) {
-    const failed = run.checks.find((check) => check.state === "fail");
-    return {
-      saved: false,
-      failed: [{ check: failed?.id ?? "undecided", reason: failed?.reason?.trim() || "This check could not be decided." }],
-    };
-  }
-
+  const code = replace?.row.code ?? nextIdeaCode(sameAngle.map((row) => row.code));
   const record = readIdeaSetRecord(context.angle.idea_set);
   const items = record.audit?.items ?? [];
-  const passed = sameAngle.filter((row) => {
-    if (row.status === "locked") return false;
-    const item = items.find((entry) => entry.code.toUpperCase() === row.code.toUpperCase());
-    return item?.verdict === "AUDIT_PASS" && item.statementFingerprint === ideaFingerprint({ statement: row.statement, angleFingerprint: angleFp });
-  });
-  const sealed = sameAngle.filter((row) => row.status === "locked").map((row) => ({ code: row.code, statement: row.statement }));
-  const siblingRows = [...passed.map((row) => ({ code: row.code, statement: row.statement })), { code, statement }];
-  let siblingSet = record.siblingSet;
-  if (!skip.includes("siblingsDistinct") && siblingRows.length + sealed.length >= 2) {
-    const fingerprint = ideaSetFingerprint({
-      angleFingerprint: angleFp,
-      ideaFingerprints: [...siblingRows, ...sealed].map((row) => ideaFingerprint({ statement: row.statement, angleFingerprint: angleFp })),
-    });
-    const judged = parseIdeaSet(
-      await ask(buildIdeaSiblingPrompt({ parentStatement: context.angle.statement, rows: siblingRows, sealed })),
-      fingerprint,
-    );
-    if (!judged || !ideaReplacementPasses(judged, code)) {
-      const reason =
-        ideaFailureLessons({ rows: [{ code, statement }], items: [{ code, verdict: "AUDIT_FAIL" }], siblingSet: judged })[0]?.reason ??
-        "This Idea overlaps another.";
-      return { saved: false, failed: [{ check: "siblingsDistinct", reason }] };
-    }
-    siblingSet = judged;
-  }
-
-  const facts = {
-    ...ideaFactsForValidation(code, statement, "LOLOS", input.keys, input.subject.trim()),
-    generatePasses: [...IDEA_GENERATE_PASS_IDS],
-  };
+  const facts = ideaFacts({ code, statement, subject: input.subject, mechanismKeys: input.keys });
   const statementFingerprint = ideaFingerprint({ statement, angleFingerprint: angleFp });
   const nextItems: IdeaAuditItem[] = [
     ...items.filter((item) => item.code.toUpperCase() !== code.toUpperCase()),
@@ -278,7 +186,6 @@ async function addIdeaUnder(
   const openStatements = [...sameAngle.filter((row) => row.status !== "locked").map((row) => row.statement), statement];
   const nextRecord = {
     ...record,
-    siblingSet,
     audit: {
       fingerprint: ideaSetFingerprint({
         angleFingerprint: angleFp,

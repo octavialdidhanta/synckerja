@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { buildIdeaFixOptionsPrompt } from "@/thinking-lab/idea/fix";
 import { buildIdeaGeneratePrompt } from "@/thinking-lab/idea/generate";
 import {
   buildIdeaDiscoveryPrompt,
@@ -61,34 +60,25 @@ describe("idea discovery", () => {
     expect(ideaDiscoveryMatches(null, "angle-fp")).toBe(false);
   });
 
-  it("locks the chosen world in generate and fix without repeating one mechanism", () => {
+  it("locks the chosen world in generate without repeating one mechanism", () => {
     const decisions = [{ category: "World", question: "Di mana mekanisme ini terjadi?", answer: "Serah terima sif perawat" }];
     const generate = buildIdeaGeneratePrompt({
       parentStatement: "Catatan pribadi tetap masuk akal.",
       incumbents: [],
-      decisions,
-      needed: 1,
-    });
-    const fix = buildIdeaFixOptionsPrompt({
-      parentStatement: "Catatan pribadi tetap masuk akal.",
-      failed: { code: "ID01", statement: "Sebuah mesin mencatat komponen." },
-      keepers: [],
-      conflicts: [],
+      failures: [],
       decisions,
     });
-    for (const prompt of [generate, fix]) {
-      expect(prompt).toContain('The mechanisms live in this world: "Serah terima sif perawat".');
-      expect(prompt).toContain("Each Idea is still a different mechanism.");
-      expect(prompt).not.toContain(INDUSTRY_BAN);
-    }
-    expect(generate).toContain("A new wording of the same mechanism is still a repeat.");
+    expect(generate).toContain('The mechanisms live in this world: "Serah terima sif perawat".');
+    expect(generate).toContain("Each Idea is still a different mechanism.");
+    expect(generate).not.toContain(INDUSTRY_BAN);
+    expect(generate).toContain("A new wording of the same mechanism, or the same audience action, is still a repeat.");
   });
 
   it("keeps an unanswered chain inside the situation it already states", () => {
     const prompt = buildIdeaGeneratePrompt({
       parentStatement: "Catatan pribadi tetap masuk akal.",
       incumbents: [],
-      needed: 1,
+      failures: [],
     });
     expect(prompt).toContain("Stay inside the situation the chain already states.");
     expect(prompt).toContain("Do not invent a setting the chain does not contain.");

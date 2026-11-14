@@ -14,8 +14,10 @@ describe("thinking.definitions.read", () => {
     const result = await readThinkingDefinitions(admin, ctx, { language: "id" });
     expect(result.levels.map((level) => level.level)).toEqual(["master", "bigThought", "territory", "angle", "idea", "pillar", "execution"]);
     const idea = result.levels.find((level) => level.level === "idea")!;
-    expect(idea.checks.find((check) => check.id === "K3")?.on).toBe(true);
-    expect(idea.checks.find((check) => check.id === "K4")?.on).toBe(false);
+    expect(idea.checks.map((check) => check.id)).toEqual(["proposal", "mechanism", "result", "stakeHolds", "causeLock", "watchable", "distinct"]);
+    // A switch saved before the seven Idea checks turns on the check that replaced it.
+    expect(idea.checks.find((check) => check.id === "result")?.on).toBe(true);
+    expect(idea.checks.find((check) => check.id === "distinct")?.on).toBe(false);
     for (const level of result.levels.slice(0, 5)) {
       expect(level.definition.length).toBeGreaterThan(20);
       for (const check of level.checks) expect(check.rule.length).toBeGreaterThan(10);

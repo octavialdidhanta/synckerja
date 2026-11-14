@@ -3,9 +3,9 @@ import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { labIdeaKey } from "@/thinking-lab/shared/queryKeys";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 import { deleteLabIdea, insertLabIdea, listLabIdeas, loadIdeaSet, lockLabIdeas, replaceLabIdea, saveIdeaSet } from "@/thinking-lab/idea/repository";
-import type { IdeaSetRecord } from "@/thinking-lab/idea/setAudit";
-import type { IdeaSemanticFacts } from "@/thinking-lab/idea/types";
-import type { IdeaValidation } from "@/thinking-lab/idea/validation";
+import type { IdeaSetRecord } from "@/thinking-lab/idea/ideaSet";
+import type { IdeaFacts } from "@/thinking-lab/idea/facts";
+import type { IdeaValidation } from "@/thinking-lab/idea/check/record";
 
 export function useLabIdeas(angleIds: string[]) {
   const { organizationId } = useCurrentOrg();
@@ -26,7 +26,7 @@ export function useLabIdeas(angleIds: string[]) {
       code: string;
       statement: string;
       sortOrder: number;
-      facts: IdeaSemanticFacts;
+      facts: IdeaFacts;
       admission: IndividualAdmission;
       validation?: IdeaValidation | null;
       parentIdeaId?: string | null;
@@ -52,7 +52,7 @@ export function useLabIdeas(angleIds: string[]) {
       angleId: string;
       id: string;
       statement: string;
-      facts: IdeaSemanticFacts;
+      facts: IdeaFacts;
       admission: IndividualAdmission;
       validation?: IdeaValidation | null;
     }) => replaceLabIdea({ organizationId: organizationId as string, ...input }),

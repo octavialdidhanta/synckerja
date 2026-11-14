@@ -1,6 +1,7 @@
 // Per-organization switches for every Thinking Lab pass check.
 // Stored as {"<level>.<checkId>": true}; a missing key is OFF, so every check starts OFF.
 // Relative imports only: the MCP server loads this file.
+import { LEGACY_IDEA_SWITCHES } from "../idea/check/ids";
 
 export type CheckLevel = "master" | "bigThought" | "territory" | "angle" | "idea";
 
@@ -43,21 +44,13 @@ export const CHECK_REGISTRY: Readonly<Record<CheckLevel, readonly CheckEntry[]>>
     { id: "siblingsDistinct", id_label: "Beda dari Angle lain", en_label: "Distinct from other Angles" },
   ],
   idea: [
-    { id: "sentenceForm", id_label: "Bentuk kalimat Idea", en_label: "Idea sentence form" },
+    { id: "proposal", id_label: "Satu usulan, bentuk kalimat Idea", en_label: "One proposal in the Idea form" },
+    { id: "mechanism", id_label: "Mekanisme jelas", en_label: "Clear mechanism" },
+    { id: "result", id_label: "Hasilnya terjadi di situasi", en_label: "The result happens in the situation" },
     { id: "stakeHolds", id_label: "Taruhannya kena", en_label: "The stake holds" },
-    { id: "mechanismShape", id_label: "Bentuk mekanisme", en_label: "Mechanism shape" },
-    { id: "vehicle", id_label: "Kendaraan yang jelas", en_label: "Clear vehicle" },
-    { id: "recognizable", id_label: "Mudah dikenali", en_label: "Recognizable" },
-    { id: "situationFelt", id_label: "Situasinya terasa", en_label: "Situation is felt" },
     { id: "causeLock", id_label: "Penyebab terkunci", en_label: "Cause is locked" },
-    { id: "siblingsDistinct", id_label: "Beda dari Idea lain", en_label: "Distinct from other Ideas" },
-    { id: "K1", id_label: "K1 · Satu usulan spesifik", en_label: "K1 · One specific proposal" },
-    { id: "K2", id_label: "K2 · (dipensiunkan)", en_label: "K2 · (retired)" },
-    { id: "K3", id_label: "K3 · Mekanisme menghasilkan nilai", en_label: "K3 · Mechanism produces the value" },
-    { id: "K4", id_label: "K4 · Nilai yang konkret", en_label: "K4 · Concrete value" },
-    { id: "K5", id_label: "K5 · Beda dari Idea lain", en_label: "K5 · Different from other Ideas" },
-    { id: "K6", id_label: "K6 · Terhubung ke MT, BT, Territory", en_label: "K6 · Linked to MT, BT, Territory" },
-    { id: "K7", id_label: "K7 · Bisa ditonton atau diikuti", en_label: "K7 · Audience can watch or join" },
+    { id: "watchable", id_label: "Bisa ditonton atau diikuti", en_label: "Audience can watch or join" },
+    { id: "distinct", id_label: "Beda dari Idea lain", en_label: "Distinct from other Ideas" },
   ],
 };
 
@@ -77,11 +70,21 @@ export function skippedChecks(settings: CheckSettings | null | undefined, level:
   return CHECK_REGISTRY[level].filter((entry) => !checkEnabled(settings, level, entry.id)).map((entry) => entry.id);
 }
 
+/** Only switches that exist. An Idea switch saved before the seven Idea checks turns on the check that replaced it. */
 export function parseCheckSettings(value: unknown): Record<string, boolean> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const on = new Set(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, enabled]) => enabled === true)
+      .map(([key]) => key),
+  );
   const out: Record<string, boolean> = {};
-  for (const [key, on] of Object.entries(value as Record<string, unknown>)) {
-    if (on === true && /^(master|bigThought|territory|angle|idea)\.[A-Za-z0-9]{1,40}$/.test(key)) out[key] = true;
+  for (const level of CHECK_LEVELS) {
+    for (const entry of CHECK_REGISTRY[level]) {
+      const key = checkKey(level, entry.id);
+      const replaced = level === "idea" ? (LEGACY_IDEA_SWITCHES[entry.id as keyof typeof LEGACY_IDEA_SWITCHES] ?? []) : [];
+      if (on.has(key) || replaced.some((id) => on.has(checkKey("idea", id)))) out[key] = true;
+    }
   }
   return out;
 }

@@ -3,12 +3,11 @@ import type { AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import { LAB_WORKSPACE } from "@/thinking-lab/shared/verdict";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 import { evaluateIdeaParent, type IdeaParentDenial } from "@/thinking-lab/idea/eligibility";
-import { emptyIdeaSetRecord, readIdeaSetRecord, type IdeaSetRecord } from "@/thinking-lab/idea/setAudit";
-import { normalizeIdeaFacts } from "@/thinking-lab/idea/semantic";
-import type { IdeaSemanticFacts } from "@/thinking-lab/idea/types";
+import { readIdeaSetRecord, type IdeaSetRecord } from "@/thinking-lab/idea/ideaSet";
+import { readIdeaFacts, type IdeaFacts } from "@/thinking-lab/idea/facts";
 import { readDevelopmentPaths } from "@/thinking-lab/creative-idea/paths";
 import type { DevelopmentPath } from "@/thinking-lab/creative-idea/types";
-import { readIdeaValidation, withAuditHistory, type IdeaValidation } from "@/thinking-lab/idea/validation";
+import { readIdeaValidation, withAuditHistory, type IdeaValidation } from "@/thinking-lab/idea/check/record";
 import { ideaFingerprint } from "@/thinking-lab/shared/fingerprint";
 
 export type LabIdea = {
@@ -20,7 +19,7 @@ export type LabIdea = {
   sortOrder: number;
   parentAngleFingerprint: string;
   parentIdeaId: string | null;
-  canonicalSemantic: IdeaSemanticFacts;
+  canonicalSemantic: IdeaFacts;
   validation: IdeaValidation | null;
   admission: IndividualAdmission;
   status: "candidate" | "locked";
@@ -96,7 +95,7 @@ function mapIdea(row: IdeaRow): LabIdea {
     sortOrder: row.sort_order ?? 0,
     parentAngleFingerprint: row.parent_angle_fingerprint,
     parentIdeaId: row.parent_idea_id ?? null,
-    canonicalSemantic: normalizeIdeaFacts(row.canonical_semantic, row.code),
+    canonicalSemantic: readIdeaFacts(row.canonical_semantic, row.code),
     validation: readIdeaValidation(row.validation),
     admission: asAdmission(row.admission),
     status: row.status === "locked" ? "locked" : "candidate",
@@ -204,7 +203,7 @@ export async function listLabIdeas(organizationId: string, angleIds: string[]): 
   return ((data ?? []) as IdeaRow[]).map(mapIdea);
 }
 
-export async function listIdeaFailureMemory(organizationId: string, angleId: string): Promise<LabIdea[]> {
+async function listIdeaFailureMemory(organizationId: string, angleId: string): Promise<LabIdea[]> {
   const { data: angle, error } = await supabase
     .from("thinking_lab_angles")
     .select("territory_id")
@@ -292,7 +291,7 @@ export async function insertLabIdea(input: {
   code: string;
   statement: string;
   sortOrder: number;
-  facts: IdeaSemanticFacts;
+  facts: IdeaFacts;
   admission: IndividualAdmission;
   validation?: IdeaValidation | null;
   parentIdeaId?: string | null;
@@ -335,7 +334,7 @@ export async function replaceLabIdea(input: {
   angleId: string;
   id: string;
   statement: string;
-  facts: IdeaSemanticFacts;
+  facts: IdeaFacts;
   admission: IndividualAdmission;
   validation?: IdeaValidation | null;
 }): Promise<void> {
@@ -429,4 +428,3 @@ export async function lockLabIdeas(input: {
   }
 }
 
-export { emptyIdeaSetRecord };

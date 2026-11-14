@@ -1,4 +1,4 @@
-import { hasHowIfOpening } from "@/thinking-lab/idea/validation";
+import { hasHowIfOpening } from "@/thinking-lab/idea/check/guards";
 import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import type {
   CreativeCriterion,
