@@ -342,7 +342,6 @@ import {
 } from "@/thinking-lab/territory/fix";
 import {
   admittedTerritorySetChanged,
-  judgeAndSealTerritory,
   nextTerritoryCode,
   proposeTerritoryStatements,
   runTerritoryGenerate,
@@ -353,12 +352,9 @@ import {
   territoryNameTooLong,
   territoryRejectionReason,
 } from "@/thinking-lab/territory/generate";
-import { admitTerritory } from "@/thinking-lab/territory/policy";
 import { loadTerritoryParentGate, loadTerritorySet, saveTerritorySet } from "@/thinking-lab/territory/repository";
-import { buildTerritoryChallengerPrompt, coverageFromChallenger, parseTerritoryChallenger, territoryChallengerCanRun } from "@/thinking-lab/territory/challenger";
 import { evaluateTerritoryLock, selectTerritoryStage } from "@/thinking-lab/territory/lock";
 import {
-  applyChallengerCoverage,
   buildTerritorySiblingPrompt,
   emptyTerritorySetRecord,
   parseTerritorySet,
@@ -998,29 +994,11 @@ export function ThinkingLabPage() {
     }
     return rescoredTerritoryAudit?.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict ?? null;
   });
-  const territoryChallengerCurrent = fingerprintsMatch(
-    territorySet.data?.challenger?.fingerprint,
-    territoryFingerprintNow,
-  );
-  const territoryChallenger = territoryChallengerCurrent ? (territorySet.data?.challenger?.result ?? null) : null;
-  const territoryLock = evaluateTerritoryLock({
-    verdicts: territoryVerdicts,
-    challenger: territoryChallenger,
-    challengerCurrent: territoryChallengerCurrent && territoryChallenger?.status === "COMPLETE",
-  });
-  const territoryMaterialGap = Boolean(
-    territoryChallenger?.status === "MATERIAL_GAP" && territoryChallenger.materialGapDescription?.trim(),
-  );
+  const territoryLock = evaluateTerritoryLock({ verdicts: territoryVerdicts });
   const territoryStoredCount = admittedTerritories.length;
   const territoryStage = selectTerritoryStage({
     admittedCount: admittedTerritories.length,
     verdicts: territoryVerdicts,
-    challengerComplete: Boolean(
-      territoryChallenger &&
-        territoryChallenger.status === "COMPLETE" &&
-        territoryChallenger.unresolvedReasons.length === 0,
-    ),
-    materialGap: territoryMaterialGap,
     canAdd: territoryStoredCount < ACTIVE_SET_CAP,
     repairsUsed: (territorySet.data?.repairCount ?? 0) > 0,
     lockOk: territoryLock.ok,
@@ -1041,9 +1019,6 @@ export function ThinkingLabPage() {
             explanation: pair.explanation,
           })),
         ]
-      : []),
-    ...(territoryChallenger?.status === "MATERIAL_GAP" && territoryChallenger.materialGapDescription
-      ? [{ kind: "notice" as const, text: territoryChallenger.materialGapDescription }]
       : []),
     ...(territoryVerdicts.some((verdict) => verdict === "AUDIT_FAIL") &&
     (territorySet.data?.repairCount ?? 0) > 0 &&
@@ -1070,8 +1045,7 @@ export function ThinkingLabPage() {
     admittedTerritories.length === 0 &&
     !admittedSetLocked &&
     territoryStage !== "fix" &&
-    territoryStage !== "generate" &&
-    !territoryMaterialGap
+    territoryStage !== "generate"
       ? focusedThought.id
       : null;
   const admittedAngles = (labAngles.data ?? []).filter(
@@ -1424,7 +1398,7 @@ export function ThinkingLabPage() {
     if (!action) return null;
     if (action === "save-master" || action === "suggest-belief") return "Master Thought";
     if (action === "generate" || action === "manual-big-thought" || action === "audit" || action === "challenger" || action === "fix") return "Big Thought";
-    if (action.includes("angle") || action === "accept-gap" || action === "skip-gap") return "Angle";
+    if (action.includes("angle")) return "Angle";
     if (action.includes("idea")) return "Idea";
     if (action.includes("territory")) return "Territory";
     if (action.startsWith("execution")) return "Execution";
@@ -2755,33 +2729,33 @@ export function ThinkingLabPage() {
       if (!focusedThought || !parentFp) return null;
       const row = (labTerritories.data ?? []).find((item) => item.id === id && item.bigThoughtId === focusedThought.id);
       if (!row || row.status !== "candidate") return null;
-      const facts = await judgeAndSealTerritory({
-            parentStatement: focusedThought.statement,
-        ancestors: territoryAncestors,
-        audience: selected?.audience,
-        answeredQuestion,
-        code: row.code,
+      if (territoryNameTooLong(statement)) return TERRITORY_NAME_LENGTH_REASON;
+      if (territoryNameIsActivity(statement)) return TERRITORY_ACTIVITY_REASON;
+      // Same checks as Generate. The other checks run at Audit.
+      const checked = await runTerritoryAdmissionChecks({
+        skip: skipFor("territory"),
+        batch: true,
         statement,
+        parentStatement: focusedThought.statement,
+        audience: selected?.audience,
         ask: (prompt) => askThinkingLab(prompt, 0),
+        onStep: () => undefined,
       });
-      const admission = admitTerritory(facts);
-      const rejection = manualRejection({
-        admission,
-        relation: facts.relationToParent,
-        reasons: facts.unresolvedReasons,
-      });
-      if (rejection) return rejection;
+      if (!checked.passed) {
+        return checked.checks.find((check) => check.state === "fail")?.reason?.trim() || "This check could not be decided.";
+      }
       await labTerritories.replace.mutateAsync({
         bigThoughtId: focusedThought.id,
         id,
         statement,
-        facts,
-        admission,
+        facts: { ...shownTerritoryFacts(row.code, statement), generatePasses: ["partOfBigThought", "audienceLanguage"] },
+        admission: "GENERATE_VALID",
       });
       await territorySet.save.mutateAsync({
         ...emptyTerritorySetRecord(),
         auditLessons: territorySet.data?.auditLessons ?? [],
       });
+      publishTerritoryChecklist(row.code, checked.checks);
       return null;
     });
 
@@ -5944,54 +5918,6 @@ export function ThinkingLabPage() {
       });
     }, "lock");
 
-  const onAcceptGap = () =>
-    run(async () => {
-      if (!focusedThought || !masters.organizationId || !parentFp || !territoryChallenger?.materialGapDescription) return;
-      const known = (labTerritories.data ?? []).filter((row) => row.bigThoughtId === focusedThought.id);
-      if (admittedTerritories.length >= ACTIVE_SET_CAP) return;
-      const statement = territoryChallenger.materialGapDescription.trim();
-      const code = nextTerritoryCode((labTerritories.data ?? []).map((row) => row.code));
-      const facts = await judgeAndSealTerritory({
-        parentStatement: focusedThought.statement,
-        ancestors: territoryAncestors,
-        audience: selected?.audience,
-        answeredQuestion,
-        code,
-        statement,
-        ask: (prompt) => askThinkingLab(prompt, 0),
-      });
-      const sort = known.reduce((max, row) => Math.max(max, row.sortOrder), 0) + 1;
-      await labTerritories.insert.mutateAsync({
-        bigThoughtId: focusedThought.id,
-        masterThoughtFingerprint: parentFp,
-        code,
-        statement,
-        sortOrder: sort,
-        facts,
-        admission: "GENERATE_VALID",
-      });
-      await territorySet.save.mutateAsync({
-        ...emptyTerritorySetRecord(),
-        auditLessons: territorySet.data?.auditLessons ?? [],
-      });
-    }, "accept-gap");
-
-  const onSkipGap = () =>
-    run(async () => {
-      if (!focusedThought) return;
-      await territorySet.save.mutateAsync({
-        schema: "thinking-lab/territory-set/v1",
-        repairCount: territorySet.data?.repairCount ?? 0,
-        siblingSet: storedTerritorySet ? applyChallengerCoverage(storedTerritorySet, "SUFFICIENT") : null,
-        audit: territorySet.data?.audit ?? null,
-        challenger: {
-          fingerprint: territoryFingerprintNow,
-          result: { status: "COMPLETE", unresolvedReasons: [] },
-        },
-        auditLessons: territorySet.data?.auditLessons ?? [],
-      });
-    }, "skip-gap");
-
   const ensureAnsweredQuestion = async (thought: NonNullable<typeof focusedThought>) => {
     // Stored on the Big Thought row; not part of this view model's type.
     const semantic = (thought as {
@@ -6497,30 +6423,6 @@ export function ThinkingLabPage() {
         });
         return;
 
-      }
-      if (territoryStage === "challenger") {
-        if (!territoryChallengerCanRun(territoryVerdicts.flatMap((verdict) => (verdict ? [verdict] : [])))) return;
-        const script = await askThinkingLab(
-          buildTerritoryChallengerPrompt({
-            parentStatement: focusedThought.statement,
-            answeredQuestion,
-            rows: admittedTerritories.map((row) => ({ code: row.code, statement: row.statement })),
-          }),
-          0,
-        );
-        const result = parseTerritoryChallenger(script);
-        const siblingSet = storedTerritorySet
-          ? applyChallengerCoverage(storedTerritorySet, coverageFromChallenger(result))
-          : null;
-        await territorySet.save.mutateAsync({
-          schema: "thinking-lab/territory-set/v1",
-          repairCount: territorySet.data?.repairCount ?? 0,
-          siblingSet,
-          audit: territorySet.data?.audit ?? null,
-          challenger: { fingerprint: territoryFingerprintNow, result },
-          auditLessons: territorySet.data?.auditLessons ?? [],
-        });
-        return;
       }
       if (territoryStage === "lock" && territoryLock.ok) {
         await territorySet.lock.mutateAsync({
@@ -8208,19 +8110,6 @@ export function ThinkingLabPage() {
                                   focus.kind === "bigThought" && territoryGenerateRun?.thoughtId === focus.thoughtId
                                     ? { checks: territoryGenerateRun.checks, report: territoryGenerateRun.report }
                                     : null
-                                }
-                                onAcceptGap={
-                                  focus.kind === "bigThought" &&
-                                  territoryMaterialGap &&
-                                  !territoriesPanelClosed &&
-                                  territoryStoredCount < ACTIVE_SET_CAP
-                                    ? () => void onAcceptGap()
-                                    : undefined
-                                }
-                                onSkipGap={
-                                  focus.kind === "bigThought" && territoryMaterialGap && !territoriesPanelClosed
-                                    ? () => void onSkipGap()
-                                    : undefined
                                 }
                                 onRemoveCoveringTerritory={
                                   focus.kind === "bigThought" &&

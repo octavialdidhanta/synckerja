@@ -296,10 +296,6 @@ export function territorySetIsCurrent(stored: TerritorySetFacts | null, fingerpr
   return fingerprintsMatch(stored.fingerprint, fingerprint);
 }
 
-export function applyChallengerCoverage(set: TerritorySetFacts, coverage: TerritoryCoverage): TerritorySetFacts {
-  return { ...set, coverage };
-}
-
 export function buildTerritorySiblingPrompt(input: {
   parentStatement: string;
   rows: Array<{ code: string; statement: string }>;

@@ -124,7 +124,7 @@ type LabNodeInspectorProps = {
   angleFixOffers?: Array<{ failedCode: string; statement: string }>;
   onPickAngleFixOffer?: (failedCode: string, statement: string) => void;
   territories?: InspectorTerritory[];
-  territoryStage?: "fix" | "generate" | "audit" | "challenger" | "lock" | null;
+  territoryStage?: "fix" | "generate" | "audit" | "lock" | null;
   onTerritoryStage?: () => void;
   onFixTerritory?: (code: string) => void;
   onDeleteTerritory?: (id: string) => void;
@@ -135,8 +135,6 @@ type LabNodeInspectorProps = {
     checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
     report: { gate: string; phase: "checking" | "checked"; outcome: "pass" | "fail" } | null;
   } | null;
-  onAcceptGap?: () => void;
-  onSkipGap?: () => void;
   onRemoveCoveringTerritory?: (code: string) => void;
   pendingAction?: string | null;
   notice?: string | null;
@@ -559,8 +557,6 @@ export function LabNodeInspector({
   onLockTerritories,
   onGenerateTerritory,
   territoryGenerateChecklist = null,
-  onAcceptGap,
-  onSkipGap,
   onRemoveCoveringTerritory,
   pendingAction = null,
   notice,
@@ -632,13 +628,11 @@ export function LabNodeInspector({
   const territoryActionLabel =
     territoryStage === "audit"
       ? t("thinkingLab.action.audit", "Audit")
-      : territoryStage === "challenger"
-        ? t("thinkingLab.action.challenger", "Challenger")
-        : territoryStage === "fix"
-          ? t("thinkingLab.action.fix", "Fix")
-          : territoryStage === "generate"
-            ? t("thinkingLab.territory.generate", "Generate Territory")
-            : t("thinkingLab.action.lock", "Lock");
+      : territoryStage === "fix"
+        ? t("thinkingLab.action.fix", "Fix")
+        : territoryStage === "generate"
+          ? t("thinkingLab.territory.generate", "Generate Territory")
+          : t("thinkingLab.action.lock", "Lock");
   const showAngleStageMenu = Boolean(
     kind === "territory" &&
       angleStage &&
@@ -1660,35 +1654,6 @@ export function LabNodeInspector({
               }
               onRemoveCoveringTerritory={onRemoveCoveringTerritory}
             />
-          ) : null}
-          {onAcceptGap || onSkipGap ? (
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              {onAcceptGap ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={onAcceptGap}
-                  disabled={Boolean(pendingAction)}
-                  aria-busy={pendingAction === "accept-gap"}
-                >
-                  {pendingAction === "accept-gap" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                  {t("thinkingLab.territory.addCandidate", "Add this Territory")}
-                </Button>
-              ) : null}
-              {onSkipGap ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={onSkipGap}
-                  disabled={Boolean(pendingAction)}
-                  aria-busy={pendingAction === "skip-gap"}
-                >
-                  {pendingAction === "skip-gap" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                  {t("thinkingLab.territory.skipCandidate", "Skip")}
-                </Button>
-              ) : null}
-            </div>
           ) : null}
         </div>
       ) : null}
