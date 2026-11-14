@@ -1,9 +1,47 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runBigThoughtOpenChecks, runGenerateAdmissionChecks } from "@/thinking-lab/big-thought/passChecks";
 import { runTerritoryIndividualChecks } from "@/thinking-lab/territory/passChecklist";
 import { runAngleChecks } from "@/thinking-lab/angle/passChecklist";
 import { runIdeaChecks } from "@/thinking-lab/idea/check/run";
-import { askBatchGates, buildBatchGatePrompt, isUndecided, parseBatchGates } from "@/thinking-lab/shared/batchGates";
+import {
+  UNDECIDED_REASON,
+  answerGate,
+  askBatchGates,
+  buildBatchGatePrompt,
+  isUndecided,
+  parseBatchGates,
+  parseGateAnswer,
+} from "@/thinking-lab/shared/batchGates";
+
+describe("one pass check", () => {
+  it("fails a missing, unreadable, or undecided answer as undecided", () => {
+    expect(parseGateAnswer(null)).toEqual({ pass: false, reason: UNDECIDED_REASON });
+    expect(parseGateAnswer("not json")).toEqual({ pass: false, reason: UNDECIDED_REASON });
+    expect(parseGateAnswer('{"pass":"maybe"}')).toEqual({ pass: false, reason: UNDECIDED_REASON });
+    expect(parseGateAnswer('{"pass":false,"reason":" "}')).toEqual({ pass: false, reason: UNDECIDED_REASON });
+    expect(parseGateAnswer('{"pass":true,"reason":"ignored"}')).toEqual({ pass: true, reason: "" });
+    expect(parseGateAnswer('{"pass":false,"reason":"Terlalu luas."}')).toEqual({ pass: false, reason: "Terlalu luas." });
+  });
+
+  it("uses a decided batch answer without asking", async () => {
+    const ask = vi.fn(async () => '{"pass":true,"reason":""}');
+    expect(await answerGate({ batched: { pass: false, reason: "No." }, prompt: () => "p", ask })).toEqual({ pass: false, reason: "No." });
+    expect(ask).not.toHaveBeenCalled();
+  });
+
+  it("asks alone when the batch left it undecided, and once more when still undecided", async () => {
+    const ask = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce('{"pass":true,"reason":""}');
+    const answer = await answerGate({ batched: { pass: false, reason: UNDECIDED_REASON }, prompt: () => "p", ask });
+    expect(answer).toEqual({ pass: true, reason: "" });
+    expect(ask).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops after two single asks", async () => {
+    const ask = vi.fn(async () => null);
+    expect(await answerGate({ prompt: () => "p", ask })).toEqual({ pass: false, reason: UNDECIDED_REASON });
+    expect(ask).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe("batched pass checks", () => {
   it("keeps each check's own rule and lists every id", () => {

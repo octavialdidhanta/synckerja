@@ -9,7 +9,11 @@ export type BatchGate = { id: string; rules: string[]; extra?: string[] };
 
 export type GateAnswer = { pass: boolean; reason: string };
 
-const UNDECIDED = "This check could not be decided.";
+/** The reason of a check the model left undecided. */
+export const UNDECIDED_REASON = "This check could not be decided.";
+/** The reason shown on a check switched OFF for the organization. */
+export const SWITCHED_OFF_REASON = "Dimatikan untuk organisasi ini.";
+const UNDECIDED = UNDECIDED_REASON;
 
 export function buildBatchGatePrompt(input: {
   item: string;
@@ -74,6 +78,33 @@ export async function askBatchGates(input: {
     if (answers) return answers;
   }
   return null;
+}
+
+/** One check's answer. A missing, unreadable, or undecided answer fails the check as undecided. */
+export function parseGateAnswer(script: string | null): GateAnswer {
+  if (!script?.trim()) return { pass: false, reason: UNDECIDED };
+  const parsed = parseModelJson(script);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { pass: false, reason: UNDECIDED };
+  const row = parsed as { pass?: unknown; reason?: unknown };
+  const reason = typeof row.reason === "string" ? row.reason.trim() : "";
+  if (row.pass === true) return { pass: true, reason: "" };
+  if (row.pass === false) return { pass: false, reason: reason || UNDECIDED };
+  return { pass: false, reason: UNDECIDED };
+}
+
+/**
+ * The batched answer when it decided the check; otherwise the check asked alone,
+ * and asked once more when that answer is still undecided.
+ */
+export async function answerGate(input: {
+  batched?: GateAnswer | null;
+  prompt: () => string;
+  ask: (prompt: string) => Promise<string | null>;
+}): Promise<GateAnswer> {
+  let answer = input.batched ?? null;
+  if (!answer || isUndecided(answer)) answer = parseGateAnswer(await input.ask(input.prompt()));
+  if (isUndecided(answer)) answer = parseGateAnswer(await input.ask(input.prompt()));
+  return answer;
 }
 
 /** A single-check answer the model left undecided is asked again alone. */

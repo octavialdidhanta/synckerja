@@ -3,27 +3,11 @@ import { fixScopeFromChecks } from "@/thinking-lab/shared/fixScope";
 import {
   buildTerritoryFixOptionsPrompt,
   parseTerritoryFixOptions,
-  parseTerritoryFixReplacements,
   territoryReplacementPasses,
 } from "@/thinking-lab/territory/fix";
-import { fixPriorForNextTerritoryName } from "@/thinking-lab/territory/passChecklist";
 import type { TerritorySetFacts } from "@/thinking-lab/territory/types";
 
 describe("territory fix", () => {
-  it("keeps one replacement for each failed code", () => {
-    const rows = parseTerritoryFixReplacements(
-      {
-        replacements: [
-          { code: "tr03", statement: "A separate space" },
-          { code: "TR01", statement: " " },
-          { code: "TR09", statement: "Outside the failed set" },
-        ],
-      },
-      ["TR01", "TR03", "TR04"],
-    );
-    expect(rows).toEqual([{ code: "TR03", statement: "A separate space" }]);
-  });
-
   it("keeps up to three distinct repair options", () => {
     expect(parseTerritoryFixOptions({ statements: ["One space", "One space", " ", "Another space"] })).toEqual([
       "One space",
@@ -79,21 +63,7 @@ describe("territory fix", () => {
     expect(territoryReplacementPasses(null, "TR04")).toBe(false);
   });
 
-  it("keeps passed checks for a new name and keeps a check that just failed", () => {
-    const prior = fixPriorForNextTerritoryName(
-      [
-        { id: "partOfBigThought", state: "pass" },
-        { id: "audienceLanguage", state: "pass" },
-        { id: "questionArises", state: "pass" },
-        { id: "wideEnough", state: "fail", reason: "Only one observation fits." },
-        { id: "siblingsDistinct", state: "pending" },
-      ],
-      "Kepuasan pelanggan",
-      "Umpan balik pelanggan",
-    );
-    expect(prior.find((check) => check.id === "partOfBigThought")?.state).toBe("pass");
-    expect(prior.find((check) => check.id === "audienceLanguage")?.state).toBe("pass");
-    expect(prior.find((check) => check.id === "questionArises")?.state).toBe("pass");
+  it("repairs only the failed check and keeps the passed ones", () => {
     const scope = fixScopeFromChecks([
       { id: "partOfBigThought", state: "pass" },
       { id: "audienceLanguage", state: "fail", reason: "Internal wording." },

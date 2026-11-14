@@ -1,8 +1,15 @@
 // Runs the seven Idea checks on one sentence, in order, and stops at the first one that does not pass.
 // A check switched OFF for the organization passes without a model call.
 // Relative imports only: the MCP server loads this file.
-import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "../../shared/batchGates";
-import { parseModelJson } from "../../shared/parseModelJson";
+import {
+  SWITCHED_OFF_REASON,
+  UNDECIDED_REASON,
+  answerGate,
+  askBatchGates,
+  buildBatchGatePrompt,
+  isUndecided,
+  type GateAnswer,
+} from "../../shared/batchGates";
 import type { IdeaMechanismKey } from "../facts";
 import {
   announcedConclusionReason,
@@ -54,8 +61,8 @@ type IdeaCheckInput = {
   onStep?: (steps: IdeaCheckStep[]) => void;
 };
 
-const UNDECIDED = "This check could not be decided.";
-const SWITCHED_OFF = "Dimatikan untuk organisasi ini.";
+const UNDECIDED = UNDECIDED_REASON;
+const SWITCHED_OFF = SWITCHED_OFF_REASON;
 
 function keyLines(keys: readonly IdeaMechanismKey[] | undefined): string[] {
   const rows = (keys ?? []).filter((key) => key.otherExplanation.trim() && key.close.trim());
@@ -116,16 +123,6 @@ function buildIdeaChecksBatchPrompt(ids: readonly IdeaCheckId[], input: IdeaChec
     gates: ids.map((id) => ({ id, rules: [...IDEA_CHECK_RULES[id]], extra: extraFor(id, input) })),
     context: chainLines(input),
   });
-}
-
-function parseIdeaCheckAnswer(script: string | null): GateAnswer {
-  const parsed = script?.trim() ? parseModelJson(script) : null;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { pass: false, reason: UNDECIDED };
-  const row = parsed as { pass?: unknown; reason?: unknown };
-  const reason = typeof row.reason === "string" ? row.reason.trim() : "";
-  if (row.pass === true) return { pass: true, reason: "" };
-  if (row.pass === false) return { pass: false, reason: reason || UNDECIDED };
-  return { pass: false, reason: UNDECIDED };
 }
 
 /** A check decided in code: a criterion, or null when the model has to decide it. */
@@ -230,9 +227,7 @@ export async function runIdeaChecks(input: IdeaCheckInput): Promise<IdeaValidati
       if (coded.status !== "PASS") return seal();
       continue;
     }
-    let answer = batched.get(id);
-    if (!answer || isUndecided(answer)) answer = parseIdeaCheckAnswer(await input.ask(buildIdeaCheckPrompt(id, input)));
-    if (isUndecided(answer)) answer = parseIdeaCheckAnswer(await input.ask(buildIdeaCheckPrompt(id, input)));
+    const answer = await answerGate({ batched: batched.get(id), prompt: () => buildIdeaCheckPrompt(id, input), ask: input.ask });
     if (isUndecided(answer)) {
       settle(blankCriterion(id, "BELUM_TERVERIFIKASI", UNDECIDED));
       return seal();

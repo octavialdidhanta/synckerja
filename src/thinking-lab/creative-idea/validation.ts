@@ -1,3 +1,4 @@
+import { UNDECIDED_REASON } from "@/thinking-lab/shared/batchGates";
 import { hasHowIfOpening } from "@/thinking-lab/idea/check/guards";
 import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import type {
@@ -107,14 +108,14 @@ export function criteriaFromModel(raw: unknown): CreativeCriterion[] | null {
     const status = readStatus(entry.status);
     const reason = clip(asText(entry.reason), 500);
     if (!status || (status !== "BELUM_TERVERIFIKASI" && !reason)) {
-      found.set(id, { id, status: "BELUM_TERVERIFIKASI", reason: reason || "This check could not be decided." });
+      found.set(id, { id, status: "BELUM_TERVERIFIKASI", reason: reason || UNDECIDED_REASON });
       continue;
     }
-    found.set(id, { id, status, reason: reason || "This check could not be decided." });
+    found.set(id, { id, status, reason: reason || UNDECIDED_REASON });
   }
   if (found.size === 0) return null;
   return CREATIVE_CRITERIA.map(
-    (id) => found.get(id) ?? { id, status: "BELUM_TERVERIFIKASI", reason: "This check could not be decided." },
+    (id) => found.get(id) ?? { id, status: "BELUM_TERVERIFIKASI", reason: UNDECIDED_REASON },
   );
 }
 
@@ -310,7 +311,7 @@ export async function judgeCreativeDraft(input: {
   }
   return creativeValidationFromCriteria(
     applyCreativeGates(
-      CREATIVE_CRITERIA.map((id) => ({ id, status: "BELUM_TERVERIFIKASI", reason: "This check could not be decided." })),
+      CREATIVE_CRITERIA.map((id) => ({ id, status: "BELUM_TERVERIFIKASI", reason: UNDECIDED_REASON })),
       gate,
     ),
     input.draft,
