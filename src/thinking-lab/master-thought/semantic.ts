@@ -8,6 +8,7 @@ import type {
   BeliefOption,
   ConfirmationSource,
   MasterAdmission,
+  MasterCatalogContext,
   MasterThoughtFacts,
   UnderstandOutcome,
 } from "./types";
@@ -606,21 +607,76 @@ export function filterBeliefCandidates(candidates: Array<string | BeliefOption>,
   return kept;
 }
 
-/** Framework v1.1: a Master Thought may be a product claim, never a promotion. */
-export const MASTER_PROMO_RULE =
-  "A product claim may be the belief. A promotion is not: an offer, a guarantee, a price, a discount, a challenge to the reader, a call to buy or try, or a tagline.";
+/** The pass checks of a Master Thought, in the order they are judged. */
+export const MASTER_CHECK_IDS = [
+  "oneClaim",
+  "oneSentence",
+  "notPromo",
+  "noBrand",
+  "subjectClear",
+  "audienceLanguage",
+  "shift",
+  "accountable",
+] as const;
+
+export type MasterCheckId = (typeof MASTER_CHECK_IDS)[number];
+
+/** The exact rule of every Master Thought check. The model judges with these words and the page shows them. */
+export const MASTER_CHECK_RULES: Readonly<Record<MasterCheckId, string>> = {
+  oneClaim: "Lolos hanya jika kalimat menyatakan tepat satu klaim. Gagal jika ada dua keyakinan terpisah yang digabung dengan \"dan\".",
+  oneSentence:
+    "Lolos hanya jika berupa satu kalimat yang tetap terbaca utuh saat ditambah koma dan \"karena\" di belakangnya. Gagal jika berisi beberapa kalimat, pertanyaan, atau seruan.",
+  notPromo:
+    "Gagal jika ada unsur promosi: penawaran, garansi, harga, diskon, tantangan ke pembaca, ajakan beli atau coba, atau tagline. Tetap gagal walaupun klaimnya bagus.",
+  noBrand: "Lolos hanya jika kalimat tidak menyebut nama merek, toko, atau penyedia. Gagal jika ada nama merek.",
+  subjectClear:
+    "Lolos hanya jika ada satu subjek jelas yang nanti bisa ditunjukkan sebagai penyebab di Idea. Jika sub-kategori atau fitur dipilih, subjek harus dimiliki salah satunya. Jika hanya kategori yang dipilih, subjek cukup masuk akal dimiliki produk atau layanan di kategori itu. Gagal jika subjeknya kabur, lebih dari satu, atau jelas tidak dimiliki produk atau layanan tersebut.",
+  audienceLanguage:
+    "Lolos jika kata-katanya sesuai cara audiens bicara. Gagal jika memakai istilah strategi internal atau jargon yang tidak dipakai audiens.",
+  shift: "Lolos hanya jika kalimat menggeser keyakinan lama. Gagal jika hanya menyalin atau mengulang keyakinan lama.",
+  accountable:
+    "Lolos jika klaim masuk akal dan bisa didukung alasan atau bukti wajar. Gagal jika klaimnya menyesatkan, mutlak tanpa dasar (misalnya \"100%\" atau \"pasti sembuh\"), atau berbahaya bila dipercaya.",
+};
 
 export type WrittenBeliefCheck = { pass: boolean; reasons: string[] };
 
-/** A belief the user typed and keeps goes through the same bar as a chosen option. */
-export function buildWrittenBeliefCheckPrompt(input: { belief: string; priorBelief?: string }): string {
+export type WrittenBeliefInput = {
+  belief: string;
+  priorBelief?: string;
+  audience?: string;
+  catalog: MasterCatalogContext | null;
+};
+
+/** Checks that apply to this input: shift needs an old belief, audience language needs an audience. */
+export function masterCheckIds(input: { priorBelief?: string; audience?: string }): MasterCheckId[] {
+  return MASTER_CHECK_IDS.filter((id) => {
+    if (id === "shift") return Boolean(input.priorBelief?.trim());
+    if (id === "audienceLanguage") return Boolean(input.audience?.trim());
+    return true;
+  });
+}
+
+function catalogLines(catalog: MasterCatalogContext | null): string[] {
+  if (!catalog) return [];
+  return [
+    "",
+    "Kategori:",
+    catalog.category,
+    ...(catalog.subCategories.length ? ["", "Sub-kategori yang dipilih:", ...catalog.subCategories] : []),
+    ...(catalog.features.length ? ["", "Fitur yang dipilih:", ...catalog.features] : []),
+  ];
+}
+
+/** Every belief the user keeps, typed or chosen, goes through the same rules. */
+export function buildWrittenBeliefCheckPrompt(
+  input: WrittenBeliefInput,
+  ids: readonly MasterCheckId[] = masterCheckIds(input),
+): string {
   const priorBelief = input.priorBelief?.trim() ?? "";
+  const audience = input.audience?.trim() ?? "";
   return [
     "Judge this Master Thought the user wrote. Do not rewrite it.",
-    "oneClaim: pass only when it states exactly one claim. Two independent beliefs joined with dan or and fail.",
-    "oneSentence: pass only when it is one grammatical sentence that still reads as one spoken sentence with a comma and karena or because after it. Several sentences, a question, or an exclamation added to the claim fail.",
-    `notPromo: ${MASTER_PROMO_RULE} Fail when any promotion is present, even next to a good claim.`,
-    ...(priorBelief ? ["shift: pass only when it shifts the old belief. Copying or only repeating the old belief fails."] : []),
+    ...ids.map((id) => `${id}: ${MASTER_CHECK_RULES[id]}`),
     "Write each reason in the same language as the belief, in one short sentence a user can act on. Name the words that fail.",
     'Return JSON only: {"checks":[{"id":"oneClaim","pass":true,"reason":""}]}',
     "Include one entry for each check id named above.",
@@ -628,6 +684,8 @@ export function buildWrittenBeliefCheckPrompt(input: { belief: string; priorBeli
     "Belief:",
     input.belief.trim(),
     ...(priorBelief ? ["", "Old belief:", priorBelief] : []),
+    ...(audience ? ["", "Audience:", audience] : []),
+    ...catalogLines(input.catalog),
   ].join("\n");
 }
 
@@ -650,16 +708,18 @@ export function parseWrittenBeliefCheck(raw: unknown, ids: readonly string[]): W
   return { pass: reasons.length === 0, reasons };
 }
 
-/** Two tries. An answer that cannot be read counts as not passed, so a typed belief never skips the check. */
+/**
+ * A category must be linked before a belief is kept. Two tries; an answer that cannot be read counts as not
+ * passed, so a typed belief never skips the check.
+ */
 export async function checkWrittenBelief(
-  input: { belief: string; priorBelief?: string; skip?: readonly string[] },
+  input: WrittenBeliefInput & { skip?: readonly string[] },
   ask: (prompt: string) => Promise<string | null>,
 ): Promise<WrittenBeliefCheck> {
-  const ids = ["oneClaim", "oneSentence", "notPromo", ...(input.priorBelief?.trim() ? ["shift"] : [])].filter(
-    (id) => !input.skip?.includes(id),
-  );
+  if (!input.catalog?.category.trim()) return { pass: false, reasons: ["CATALOG_REQUIRED"] };
+  const ids = masterCheckIds(input).filter((id) => !input.skip?.includes(id));
   if (ids.length === 0) return { pass: true, reasons: [] };
-  const prompt = buildWrittenBeliefCheckPrompt(input);
+  const prompt = buildWrittenBeliefCheckPrompt(input, ids);
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const parsed = parseWrittenBeliefCheck(parseModelJson(await ask(prompt)), ids);
     if (parsed) return parsed;
@@ -667,17 +727,25 @@ export async function checkWrittenBelief(
   return { pass: false, reasons: ["UNDECIDED"] };
 }
 
+/** Rules every generated belief must already meet, whatever the organization switched on. */
+const OPTION_RULE_IDS: readonly MasterCheckId[] = ["notPromo", "noBrand", "subjectClear", "accountable"];
+
+function optionRuleLines(): string[] {
+  return OPTION_RULE_IDS.map((id) => MASTER_CHECK_RULES[id]);
+}
+
 export function buildBeliefOptionsPrompt(input: {
   planted: string;
   priorBelief?: string;
   audience?: string;
+  catalog: MasterCatalogContext | null;
 }): string {
   const priorBelief = input.priorBelief?.trim() ?? "";
   const audience = input.audience?.trim() ?? "";
   return [
     "Write three beliefs the user can plant as a Master Thought.",
     "Each belief states exactly one claim. A sentence that joins two independent beliefs with dan or and is not one claim.",
-    MASTER_PROMO_RULE,
+    ...optionRuleLines(),
     "Keep only the belief when the new belief also carries a promotion. Do not carry the promotion into any belief.",
     "Length may be short or detailed. Do not prefer a shorter sentence.",
     "Each belief is one grammatical clause. Read the belief, then a comma, then karena or because. It must sound like one spoken sentence.",
@@ -700,6 +768,7 @@ export function buildBeliefOptionsPrompt(input: {
     ...(audience
       ? ["", "The audience is only who is addressed. Do not replace the claim with the audience.", "Audience:", audience]
       : []),
+    ...catalogLines(input.catalog),
   ].join("\n");
 }
 
@@ -716,14 +785,14 @@ export function buildBeliefOptionCheckPrompt(input: {
   beliefs: string[];
   planted: string;
   priorBelief?: string;
+  catalog: MasterCatalogContext | null;
 }): string {
   const priorBelief = input.priorBelief?.trim() ?? "";
   return [
     "Judge each belief on its own.",
     "Pass only when it states exactly one claim and reads as one spoken sentence before karena or because.",
     "A sentence that joins two independent beliefs with dan or and fails.",
-    MASTER_PROMO_RULE,
-    "A belief that carries a promotion fails.",
+    ...optionRuleLines(),
     "A title, a fragment, or a line that starts with karena or because fails.",
     "Fail a belief that leaves the shift between the old belief and the new belief.",
     "Fail a belief that adds a topic, benefit, feeling, or situation that neither the old belief nor the new belief carries.",
@@ -734,6 +803,7 @@ export function buildBeliefOptionCheckPrompt(input: {
     "New belief:",
     input.planted.trim(),
     ...(priorBelief ? ["", "Old belief:", priorBelief] : []),
+    ...catalogLines(input.catalog),
     "",
     "Beliefs:",
     ...input.beliefs.map((belief, index) => `${index}: ${belief}`),
@@ -784,14 +854,14 @@ export function beliefChoiceFacts(options: BeliefOption[]): MasterThoughtFacts {
 
 /** Ask for three beliefs, then keep only the ones the model passes as one claim before karena. */
 export async function collectBeliefOptions(
-  input: { planted: string; priorBelief?: string; audience?: string },
+  input: { planted: string; priorBelief?: string; audience?: string; catalog: MasterCatalogContext | null },
   ask: (prompt: string) => Promise<string | null>,
 ): Promise<MasterThoughtFacts> {
   const planted = input.planted.trim();
   const prior = input.priorBelief?.trim() ?? "";
   if (!planted) return unresolvedMasterThought("EMPTY_INPUT");
   if (prior && beliefsMatch(beliefClaim(planted), beliefClaim(prior))) return unresolvedMasterThought("SAME_BELIEF");
-  const drafted = parseBeliefDrafts(parseModelJson(await ask(buildBeliefOptionsPrompt({ planted, priorBelief: prior, audience: input.audience }))));
+  const drafted = parseBeliefDrafts(parseModelJson(await ask(buildBeliefOptionsPrompt({ planted, priorBelief: prior, audience: input.audience, catalog: input.catalog }))));
   const candidates = filterBeliefCandidates(drafted, prior).filter((option) => !sameClaim(option.belief, planted));
   if (candidates.length === 0) return unresolvedMasterThought("NO_BELIEF_OPTIONS");
   const passes = parseBeliefOptionChecks(
@@ -801,6 +871,7 @@ export async function collectBeliefOptions(
           beliefs: candidates.map((option) => option.belief),
           planted,
           priorBelief: prior,
+          catalog: input.catalog,
         }),
       ),
     ),

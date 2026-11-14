@@ -561,8 +561,6 @@ export const enTranslations: TranslationDictionary = {
   "geminiPrepaid.body": "This Google AI Studio project's prepayment credits are depleted. Add credits in AI Studio, then try again.",
   "thinkingLab.tree.masterThought": "Master Thought",
   "thinkingLab.tree.bigThought": "Big Thought",
-  "thinkingLab.mtDefinition.body": "A Master Thought states the belief we want people to hold: we want people to believe that this is true. It is not a tagline and not a product claim.",
-  "thinkingLab.mtDefinition.level": "Its subject must be clear enough to later be tested as the cause inside an Idea. The target audience does not fully believe it yet.",
   "thinkingLab.btDefinition.body": "A Big Thought supplies a reason the Master Thought deserves to be believed. Each Big Thought carries a different foundational reason.",
   "thinkingLab.btDefinition.level": "It fits the form Master Thought, because this reason. If it were removed, the Master Thought would lose one reason to be believed.",
   "sidebar.humanResources.title": "Human Resources",

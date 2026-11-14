@@ -58,6 +58,9 @@ describe("thinking.master.update", () => {
       rpc: async (fn: string, args: Record<string, unknown>) => {
         calls.push({ fn, args });
         if (fn === "mcp_thinking_subtree") return { data: tree(), error: null };
+        if (fn === "mcp_thinking_master_catalog") {
+          return { data: { category: "Warung Contoh", sub_categories: [], features: [] }, error: null };
+        }
         return { data: null, error: null };
       },
     } as never;
@@ -76,5 +79,20 @@ describe("thinking.master.update", () => {
     expect(changes.master.statement).toBe("Sate kambing muda Sate Sultan sama juicy-nya dengan wagyu MB7.");
     expect(changes.big_thoughts.find((change) => change.id === "bt")?.semantic_fingerprint).toBeDefined();
     expect(changes.ideas.some((change) => change.id === "id")).toBe(true);
+  });
+
+  it("refuses a new belief while no catalog category is linked", async () => {
+    const admin = {
+      rpc: async (fn: string) => {
+        if (fn === "mcp_thinking_subtree") return { data: tree(), error: null };
+        if (fn === "mcp_thinking_master_catalog") return { data: { category: null, sub_categories: [], features: [] }, error: null };
+        return { data: null, error: null };
+      },
+    } as never;
+    const result = await updateThinkingMaster(admin, config, ctx, { masterThoughtId: "mt", belief: "Kambing muda bisa seempuk daging sapi premium." }, {
+      checks: {},
+      ask: async () => null,
+    });
+    expect(result).toEqual({ saved: false, failed: [{ check: "masterThought", reason: "Link a catalog category first." }] });
   });
 });

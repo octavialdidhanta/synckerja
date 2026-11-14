@@ -2,6 +2,7 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import { readProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
 import { LAB_WORKSPACE } from "@/thinking-lab/shared/verdict";
 import { beliefsMatch, normalizeMasterThoughtFacts, understandPersistMode } from "@/thinking-lab/master-thought/semantic";
+import type { MasterCatalogLink } from "@/thinking-lab/master-thought/catalog";
 import type {
   ConfirmationSource,
   LabMasterThought,
@@ -26,6 +27,8 @@ type MasterRow = {
   last_audit: unknown;
   product_reason_pool?: unknown;
   service_id?: string | null;
+  sub_service_ids?: string[] | null;
+  feature_ids?: string[] | null;
   updated_at: string;
 };
 
@@ -55,7 +58,11 @@ function mapMaster(row: MasterRow): LabMasterThought {
     semanticFingerprint: row.semantic_fingerprint,
     lastAudit: row.last_audit ?? null,
     productReasonPool: readProductReasonPool(row.product_reason_pool),
-    serviceId: typeof row.service_id === "string" && row.service_id.length > 0 ? row.service_id : null,
+    catalog: {
+      serviceId: typeof row.service_id === "string" && row.service_id.length > 0 ? row.service_id : null,
+      subServiceIds: Array.isArray(row.sub_service_ids) ? row.sub_service_ids : [],
+      featureIds: Array.isArray(row.feature_ids) ? row.feature_ids : [],
+    },
     updatedAt: row.updated_at,
   };
 }
@@ -77,8 +84,9 @@ function beliefText(value: unknown): string {
 
 export async function createLabMaster(
   organizationId: string,
-  input: MasterBeliefInput,
+  input: MasterBeliefInput & { catalog: MasterCatalogLink },
 ): Promise<LabMasterThought> {
+  if (!input.catalog.serviceId) throw new Error("CATALOG_REQUIRED");
   const planted = input.planted.trim();
   const priorBelief = input.priorBelief.trim();
   const audience = input.audience.trim();
@@ -99,6 +107,9 @@ export async function createLabMaster(
       status: "draft",
       workspace: LAB_WORKSPACE,
       product_reason_pool: input.productReasonPool ?? null,
+      service_id: input.catalog.serviceId,
+      sub_service_ids: input.catalog.subServiceIds,
+      feature_ids: input.catalog.featureIds,
       created_by: userData.user?.id ?? null,
     })
     .select("*")
@@ -246,14 +257,16 @@ export async function saveLabSetRecord(
   if (error) throw error;
 }
 
-export async function saveLabMasterService(
+/** A category is required; sub-categories and features are optional and can be several. */
+export async function saveLabMasterCatalog(
   id: string,
   organizationId: string,
-  serviceId: string | null,
+  catalog: MasterCatalogLink,
 ): Promise<void> {
+  if (!catalog.serviceId) throw new Error("CATALOG_REQUIRED");
   const { error } = await supabase
     .from("thinking_master_thoughts")
-    .update({ service_id: serviceId })
+    .update({ service_id: catalog.serviceId, sub_service_ids: catalog.subServiceIds, feature_ids: catalog.featureIds })
     .eq("id", id)
     .eq("organization_id", organizationId)
     .eq("workspace", LAB_WORKSPACE);

@@ -20,10 +20,23 @@ function fakeAdmin(context: unknown, calls: Array<{ fn: string; args: Record<str
     rpc: async (fn: string, args: Record<string, unknown>) => {
       calls.push({ fn, args });
       if (fn === "mcp_thinking_big_thought_context") return { data: context, error: null };
+      if (fn === "mcp_thinking_catalogs") return { data: [{ id: "cat-1", name: "Warung Contoh" }], error: null };
+      if (fn === "mcp_thinking_catalog_options") {
+        return {
+          data: [
+            { kind: "sub_category", id: "sub-1", name: "Iga Bakar Kambing Muda" },
+            { kind: "feature", id: "feat-1", name: "Daging Empuk" },
+          ],
+          error: null,
+        };
+      }
+      if (fn === "mcp_set_thinking_master_catalog") return { data: null, error: null };
       return { data: "22222222-2222-4222-8222-222222222222", error: null };
     },
   } as never;
 }
+
+const ALL_MASTER_CHECKS = ["oneClaim", "oneSentence", "notPromo", "noBrand", "subjectClear", "audienceLanguage", "shift", "accountable"];
 
 /** Answers every batched check id with the given pass value. */
 function batchAnswer(prompt: string, pass: (id: string) => boolean): string {
@@ -32,39 +45,68 @@ function batchAnswer(prompt: string, pass: (id: string) => boolean): string {
 }
 
 describe("thinking.master.create", () => {
-  it("saves a belief that passes and returns its id", async () => {
+  it("saves a belief that passes, links its catalog, and judges it with the catalog names", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    let prompt = "";
     const result = await createThinkingMaster(fakeAdmin(null, calls), config, ctx, {
-      belief: "Sate kambing muda Sate Sultan PIK sama juicy-nya dengan steak wagyu MB7–MB9.",
-      priorBelief: "Daging paling juicy itu steak wagyu impor.",
-      audience: "Pecinta steak di PIK",
+      belief: "Kambing muda bisa seempuk daging sapi premium.",
+      priorBelief: "Daging kambing pasti alot.",
+      audience: "Pecinta steak",
+      catalog: "Warung Contoh",
+      subCategories: ["iga bakar kambing muda"],
+      features: ["Daging Empuk"],
     }, {
       checks: ALL_ON,
-      ask: async () => JSON.stringify({ checks: ["oneClaim", "oneSentence", "notPromo", "shift"].map((id) => ({ id, pass: true })) }),
+      ask: async (text) => {
+        prompt = text;
+        return JSON.stringify({ checks: ALL_MASTER_CHECKS.map((id) => ({ id, pass: true })) });
+      },
     });
-    expect(result).toEqual({ saved: true, id: "22222222-2222-4222-8222-222222222222" });
-    expect(calls[0].fn).toBe("mcp_create_thinking_master");
-    expect(calls[0].args.p_fingerprint).toBeTruthy();
+    expect(result).toEqual({ saved: true, id: "22222222-2222-4222-8222-222222222222", catalog: "Warung Contoh" });
+    expect(prompt).toContain("Iga Bakar Kambing Muda");
+    expect(prompt).toContain("Daging Empuk");
+    const link = calls.find((call) => call.fn === "mcp_set_thinking_master_catalog");
+    expect(link?.args).toMatchObject({ p_service_id: "cat-1", p_sub_service_ids: ["sub-1"], p_feature_ids: ["feat-1"] });
+    expect(calls.find((call) => call.fn === "mcp_create_thinking_master")?.args.p_fingerprint).toBeTruthy();
   });
 
-  it("does not save a promotion and returns the reason", async () => {
+  it("does not save a promotion with a brand name and returns the reasons", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
     const result = await createThinkingMaster(fakeAdmin(null, calls), config, ctx, {
-      belief: "Sate kami juicy. Nggak puas? Kami garansi rasa.",
+      belief: "Sate Warung Contoh juicy. Nggak puas? Kami garansi rasa.",
       priorBelief: "Sate kambing alot.",
       audience: "",
+      catalog: "Warung Contoh",
+      subCategories: [],
+      features: [],
     }, {
       checks: ALL_ON,
-      ask: async () => JSON.stringify({ checks: [
-        { id: "oneClaim", pass: true }, { id: "oneSentence", pass: false, reason: "Tiga kalimat." },
-        { id: "notPromo", pass: false, reason: "Kami garansi rasa adalah promo." }, { id: "shift", pass: true },
-      ] }),
+      ask: async () => JSON.stringify({ checks: ALL_MASTER_CHECKS.map((id) => ({
+        id,
+        pass: !["notPromo", "noBrand"].includes(id),
+        reason: id === "notPromo" ? "Kami garansi rasa adalah promo." : id === "noBrand" ? "Menyebut Warung Contoh." : "",
+      })) }),
     });
     expect(result).toEqual({ saved: false, failed: [
-      { check: "masterThought", reason: "Tiga kalimat." },
       { check: "masterThought", reason: "Kami garansi rasa adalah promo." },
+      { check: "masterThought", reason: "Menyebut Warung Contoh." },
     ] });
-    expect(calls).toHaveLength(0);
+    expect(calls.some((call) => call.fn === "mcp_create_thinking_master")).toBe(false);
+  });
+
+  it("returns the choices when a sub-category is not in the catalog", async () => {
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const result = await createThinkingMaster(fakeAdmin(null, calls), config, ctx, {
+      belief: "Kambing muda bisa seempuk daging sapi premium.",
+      priorBelief: "Daging kambing pasti alot.",
+      audience: "",
+      catalog: "Warung Contoh",
+      subCategories: ["Sop Buntut"],
+      features: [],
+    }, { checks: ALL_ON, ask: async () => null });
+    expect(result.saved).toBe(false);
+    if (!result.saved) expect(result.options).toEqual(["Iga Bakar Kambing Muda"]);
+    expect(calls.some((call) => call.fn === "mcp_create_thinking_master")).toBe(false);
   });
 });
 
@@ -127,26 +169,23 @@ describe("thinking catalog", () => {
   }
   const rows = [{ id: "cat-1", name: "Sate Sultan PIK" }, { id: "cat-2", name: "Sate Sultan Pluit" }];
 
-  it("links one matching catalog", async () => {
+  it("links one matching catalog and clears the optional lists", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
-    const result = await setThinkingMasterCatalog(catalogAdmin(rows, calls), ctx, { masterThoughtId: masterId, catalog: "PIK" });
+    const result = await setThinkingMasterCatalog(catalogAdmin(rows, calls), ctx, {
+      masterThoughtId: masterId, catalog: "PIK", subCategories: [], features: [],
+    });
     expect(result).toEqual({ saved: true, id: masterId, catalog: "Sate Sultan PIK" });
-    expect(calls.at(-1)?.args.p_service_id).toBe("cat-1");
+    expect(calls.at(-1)?.args).toMatchObject({ p_service_id: "cat-1", p_sub_service_ids: [], p_feature_ids: [] });
   });
 
   it("returns the choices when the name matches several", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
-    const result = await setThinkingMasterCatalog(catalogAdmin(rows, calls), ctx, { masterThoughtId: masterId, catalog: "Sultan" });
+    const result = await setThinkingMasterCatalog(catalogAdmin(rows, calls), ctx, {
+      masterThoughtId: masterId, catalog: "Sultan", subCategories: [], features: [],
+    });
     expect(result.saved).toBe(false);
     if (!result.saved) expect(result.catalogs).toEqual(["Sate Sultan PIK", "Sate Sultan Pluit"]);
     expect(calls.some((call) => call.fn === "mcp_set_thinking_master_catalog")).toBe(false);
-  });
-
-  it("clears the link with an empty catalog", async () => {
-    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
-    const result = await setThinkingMasterCatalog(catalogAdmin(rows, calls), ctx, { masterThoughtId: masterId, catalog: "" });
-    expect(result).toEqual({ saved: true, id: masterId, catalog: null });
-    expect(calls[0].args.p_service_id).toBeNull();
   });
 });
 

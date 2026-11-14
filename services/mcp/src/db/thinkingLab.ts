@@ -14,6 +14,7 @@ import {
   type VoiceOverScript,
 } from "../../../../src/thinking-lab/execution/script";
 import type { ExecutionSemanticFacts } from "../../../../src/thinking-lab/execution/types";
+import type { MasterCatalogContext } from "../../../../src/thinking-lab/master-thought/types";
 import { parseAIScriptOutput } from "../../../../src/6-1-script-generator/utils/parseAIScriptOutput";
 import type { ThinkingPlanFields, ThinkingScriptDraft } from "../tools/thinking/scriptInput";
 
@@ -48,6 +49,8 @@ export type ThinkingTree = {
     subject: string;
     status: string;
     catalog: string | null;
+    sub_categories: string[];
+    features: string[];
   };
   big_thoughts: unknown[];
 };
@@ -419,7 +422,30 @@ export async function readThinkingTree(
   });
   if (error) throwRpc(error);
   if (!data || typeof data !== "object") throw new Error("not_found");
-  return data as ThinkingTree;
+  const tree = data as ThinkingTree;
+  const catalog = await loadMasterCatalog(admin, ctx, masterThoughtId);
+  return {
+    ...tree,
+    master: { ...tree.master, sub_categories: catalog?.subCategories ?? [], features: catalog?.features ?? [] },
+  };
+}
+
+/** The catalog a Master Thought is linked to, by name; null when no category is linked. */
+export async function loadMasterCatalog(
+  admin: SupabaseClient,
+  ctx: Session,
+  masterThoughtId: string,
+): Promise<MasterCatalogContext | null> {
+  const { data, error } = await admin.rpc("mcp_thinking_master_catalog", {
+    ...sessionArgs(ctx),
+    p_master_thought_id: masterThoughtId,
+  });
+  if (error) throwRpc(error);
+  const row = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+  const names = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
+  const category = typeof row.category === "string" ? row.category.trim() : "";
+  if (!category) return null;
+  return { category, subCategories: names(row.sub_categories), features: names(row.features) };
 }
 
 export function listThinkingIdeas(admin: SupabaseClient, ctx: Session): Promise<ThinkingIdeaRow[]> {

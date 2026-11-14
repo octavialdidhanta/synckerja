@@ -20,6 +20,8 @@ import { bigThoughtListed } from "../../../../src/thinking-lab/big-thought/check
 import { ACTIVE_SET_CAP } from "../../../../src/thinking-lab/shared/limits";
 import type { AuditItem, BigThoughtFacts } from "../../../../src/thinking-lab/big-thought/types";
 import { parseCheckSettings, skippedChecks, type CheckSettings } from "../../../../src/thinking-lab/shared/checkSettings";
+import type { MasterCatalogContext } from "../../../../src/thinking-lab/master-thought/types";
+import type { CatalogPick } from "../tools/thinking/treeWrite";
 import { askJudge, type JudgeConfig } from "./thinkingLab";
 
 export type Session = { userId: string; organizationId: string };
@@ -55,7 +57,7 @@ export type LevelWrite = {
 
 export type ThinkingWriteResult =
   | { saved: true; id: string; code?: string; catalog?: string | null }
-  | { saved: false; failed: Array<{ check: string; reason: string }>; catalogs?: string[] };
+  | { saved: false; failed: Array<{ check: string; reason: string }>; catalogs?: string[]; options?: string[] };
 
 type CatalogMatch = { ok: true; id: string; name: string } | { ok: false; result: ThinkingWriteResult };
 
@@ -83,28 +85,97 @@ async function resolveCatalog(admin: SupabaseClient, ctx: Session, query: string
   };
 }
 
-/** Link a Master Thought to a catalog, or clear it with an empty catalog. */
+type CatalogOption = { kind: "sub_category" | "feature"; id: string; name: string };
+
+type CatalogPickMatch =
+  | { ok: true; serviceId: string; subServiceIds: string[]; featureIds: string[]; context: MasterCatalogContext }
+  | { ok: false; result: ThinkingWriteResult };
+
+/** Each wanted name or id must match exactly one option of its kind. */
+function pickOptions(
+  options: CatalogOption[],
+  kind: CatalogOption["kind"],
+  wanted: string[],
+): { ok: true; picked: CatalogOption[] } | { ok: false; result: ThinkingWriteResult } {
+  const pool = options.filter((option) => option.kind === kind);
+  const picked: CatalogOption[] = [];
+  for (const query of wanted) {
+    const key = query.trim().toLowerCase();
+    const hits = pool.filter((option) => option.id === key || option.name.trim().toLowerCase() === key);
+    if (hits.length !== 1) {
+      const label = kind === "sub_category" ? "sub-category" : "feature";
+      return {
+        ok: false,
+        result: {
+          saved: false,
+          failed: [{
+            check: "catalog",
+            reason: hits.length > 1 ? `"${query}" matches several ${label} rows. Name one.` : `No ${label} of this catalog matches "${query}".`,
+          }],
+          options: pool.map((option) => option.name),
+        },
+      };
+    }
+    if (!picked.some((option) => option.id === hits[0].id)) picked.push(hits[0]);
+  }
+  return { ok: true, picked };
+}
+
+/** The required category plus the optional sub-categories and features of that category. */
+async function resolveCatalogPick(admin: SupabaseClient, ctx: Session, pick: CatalogPick): Promise<CatalogPickMatch> {
+  const match = await resolveCatalog(admin, ctx, pick.catalog.trim());
+  if (!match.ok) return match;
+  let options: CatalogOption[] = [];
+  if (pick.subCategories.length || pick.features.length) {
+    const { data, error } = await admin.rpc("mcp_thinking_catalog_options", { ...sessionArgs(ctx), p_service_id: match.id });
+    if (error) rpcError(error);
+    options = (Array.isArray(data) ? data : []) as CatalogOption[];
+  }
+  const subs = pickOptions(options, "sub_category", pick.subCategories);
+  if (!subs.ok) return subs;
+  const features = pickOptions(options, "feature", pick.features);
+  if (!features.ok) return features;
+  return {
+    ok: true,
+    serviceId: match.id,
+    subServiceIds: subs.picked.map((option) => option.id),
+    featureIds: features.picked.map((option) => option.id),
+    context: {
+      category: match.name,
+      subCategories: subs.picked.map((option) => option.name),
+      features: features.picked.map((option) => option.name),
+    },
+  };
+}
+
+async function linkCatalog(admin: SupabaseClient, ctx: Session, masterThoughtId: string, pick: Extract<CatalogPickMatch, { ok: true }>) {
+  const { error } = await admin.rpc("mcp_set_thinking_master_catalog", {
+    ...sessionArgs(ctx),
+    p_master_thought_id: masterThoughtId,
+    p_service_id: pick.serviceId,
+    p_sub_service_ids: pick.subServiceIds,
+    p_feature_ids: pick.featureIds,
+  });
+  if (error) rpcError(error);
+}
+
+/** Link a Master Thought to its category, with optional sub-categories and features of that category. */
 export async function setThinkingMasterCatalog(
   admin: SupabaseClient,
   ctx: Session,
-  input: { masterThoughtId: string; catalog: string },
+  input: { masterThoughtId: string } & CatalogPick,
 ): Promise<ThinkingWriteResult> {
-  const query = input.catalog.trim();
-  let serviceId: string | null = null;
-  let name: string | null = null;
-  if (query) {
-    const match = await resolveCatalog(admin, ctx, query);
-    if (!match.ok) return match.result;
-    serviceId = match.id;
-    name = match.name;
-  }
-  const { error } = await admin.rpc("mcp_set_thinking_master_catalog", {
-    ...sessionArgs(ctx),
-    p_master_thought_id: input.masterThoughtId,
-    p_service_id: serviceId,
-  });
-  if (error) rpcError(error);
-  return { saved: true, id: input.masterThoughtId, catalog: name };
+  const pick = await resolveCatalogPick(admin, ctx, input);
+  if (!pick.ok) return pick.result;
+  await linkCatalog(admin, ctx, input.masterThoughtId, pick);
+  return { saved: true, id: input.masterThoughtId, catalog: pick.context.category };
+}
+
+/** The reason shown for a failed Master Thought check. */
+export function masterCheckReason(reason: string): string {
+  if (reason === "UNDECIDED") return "The check could not be decided. Try again.";
+  if (reason === "CATALOG_REQUIRED") return "Link a catalog category first.";
+  return reason;
 }
 
 /** All checks of one call share one time budget, like thinking.execution.check. */
@@ -130,55 +201,41 @@ export function sessionArgs(ctx: Session): Record<string, unknown> {
   return { p_user_id: ctx.userId, p_organization_id: ctx.organizationId };
 }
 
-/** Same bar as Keep as written on the page: one claim, one sentence, no promotion, a real shift. */
+/** Same bar as Keep as written on the page. A catalog category is required. */
 export async function createThinkingMaster(
   admin: SupabaseClient,
   config: JudgeConfig,
   ctx: Session,
-  input: { belief: string; priorBelief: string; audience: string; catalog?: string },
+  input: { belief: string; priorBelief: string; audience: string } & CatalogPick,
   deps: Deps = {},
 ): Promise<ThinkingWriteResult> {
   const belief = input.belief.replace(/\s+/g, " ").trim();
   const priorBelief = input.priorBelief.replace(/\s+/g, " ").trim();
+  const audience = input.audience.trim();
   if (!belief || !priorBelief) throw new Error("invalid_input");
-  const catalogQuery = input.catalog?.trim() ?? "";
-  const catalog = catalogQuery ? await resolveCatalog(admin, ctx, catalogQuery) : null;
-  if (catalog && !catalog.ok) return catalog.result;
+  const pick = await resolveCatalogPick(admin, ctx, input);
+  if (!pick.ok) return pick.result;
   const skip = skippedChecks(await loadCheckSettings(admin, ctx, deps), "master");
   if (!skip.includes("shift") && beliefsMatch(belief, priorBelief)) {
     return { saved: false, failed: [{ check: "shift", reason: "The new belief repeats the old belief." }] };
   }
-  const check = await checkWrittenBelief({ belief, priorBelief, skip }, makeAsk(config, ctx, deps));
+  const check = await checkWrittenBelief({ belief, priorBelief, audience, catalog: pick.context, skip }, makeAsk(config, ctx, deps));
   if (!check.pass) {
-    return {
-      saved: false,
-      failed: check.reasons.map((reason) => ({
-        check: "masterThought",
-        reason: reason === "UNDECIDED" ? "The check could not be decided. Try again." : reason,
-      })),
-    };
+    return { saved: false, failed: check.reasons.map((reason) => ({ check: "masterThought", reason: masterCheckReason(reason) })) };
   }
   const facts = acceptChosenBelief(belief);
   const { data, error } = await admin.rpc("mcp_create_thinking_master", {
     ...sessionArgs(ctx),
     p_statement: belief,
     p_prior_belief: priorBelief,
-    p_audience: input.audience.trim(),
+    p_audience: audience,
     p_facts: facts,
     p_fingerprint: confirmedFingerprint(belief, belief),
   });
   if (error) rpcError(error);
   if (typeof data !== "string") throw new Error("request_failed");
-  if (catalog?.ok) {
-    const linked = await admin.rpc("mcp_set_thinking_master_catalog", {
-      ...sessionArgs(ctx),
-      p_master_thought_id: data,
-      p_service_id: catalog.id,
-    });
-    if (linked.error) rpcError(linked.error);
-    return { saved: true, id: data, catalog: catalog.name };
-  }
-  return { saved: true, id: data };
+  await linkCatalog(admin, ctx, data, pick);
+  return { saved: true, id: data, catalog: pick.context.category };
 }
 
 type BigThoughtContext = {

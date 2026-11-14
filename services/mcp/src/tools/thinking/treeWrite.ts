@@ -4,16 +4,22 @@ import type { ThinkingWriteResult } from "../../db/thinkingWrite";
 
 const sentence = (max: number) => z.string().trim().min(1).max(max);
 
+const catalogNames = z.array(z.string().trim().min(1).max(200)).max(20);
+
 export const masterCreateInput = z.object({
   belief: sentence(400),
   prior_belief: sentence(400),
   audience: z.string().trim().max(400).optional(),
-  catalog: z.string().trim().max(200).optional(),
+  catalog: z.string().trim().min(1).max(200),
+  sub_categories: catalogNames.optional(),
+  features: catalogNames.optional(),
 }).strict();
 
 export const masterCatalogSetInput = z.object({
   master_thought_id: z.string().uuid(),
-  catalog: z.string().trim().max(200),
+  catalog: z.string().trim().min(1).max(200),
+  sub_categories: catalogNames.optional(),
+  features: catalogNames.optional(),
 }).strict();
 
 export const bigThoughtAddInput = z.object({
@@ -141,8 +147,9 @@ export function ideaAddResult(
   });
 }
 
-export type MasterCreateWrite = { belief: string; priorBelief: string; audience: string; catalog?: string };
-export type MasterCatalogWrite = { masterThoughtId: string; catalog: string };
+export type CatalogPick = { catalog: string; subCategories: string[]; features: string[] };
+export type MasterCreateWrite = { belief: string; priorBelief: string; audience: string } & CatalogPick;
+export type MasterCatalogWrite = { masterThoughtId: string } & CatalogPick;
 export type BigThoughtAddWrite = { masterThoughtId: string; statement: string; label: string };
 
 export function masterCreateResult(
@@ -157,6 +164,8 @@ export function masterCreateResult(
     priorBelief: parsed.data.prior_belief,
     audience: parsed.data.audience ?? "",
     catalog: parsed.data.catalog,
+    subCategories: parsed.data.sub_categories ?? [],
+    features: parsed.data.features ?? [],
   });
 }
 
@@ -167,7 +176,12 @@ export function masterCatalogSetResult(
 ): Promise<ThinkingWriteResult> {
   const parsed = masterCatalogSetInput.safeParse(args);
   if (!parsed.success) throw new Error("invalid_input");
-  return set(ctx, { masterThoughtId: parsed.data.master_thought_id, catalog: parsed.data.catalog });
+  return set(ctx, {
+    masterThoughtId: parsed.data.master_thought_id,
+    catalog: parsed.data.catalog,
+    subCategories: parsed.data.sub_categories ?? [],
+    features: parsed.data.features ?? [],
+  });
 }
 
 export function bigThoughtAddResult(
