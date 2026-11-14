@@ -3,9 +3,6 @@ import { supabase, SUPABASE_URL } from "@/shared/lib/supabaseClient";
 
 export const THINKING_JSON_PURPOSE = "thinking_json";
 
-export const THINKING_JSON_SYSTEM =
-  "Return JSON only. Do not write advertising scripts, captions, hashtags, Scene, Visual, VO, timing tables, or 15–60 second formats.";
-
 export type ThinkingAiTemperature = 0 | 0.2;
 
 export type ThinkingAuditScope = {
@@ -56,15 +53,6 @@ export function isThinkingIdleTimeout(value: unknown): boolean {
   if (row.code === "IDLE_TIMEOUT") return true;
   const message = typeof row.message === "string" ? row.message : typeof row.error === "string" ? row.error : "";
   return /idle timeout/i.test(message);
-}
-
-export function thinkingPromptContainsScriptFormat(text: string): boolean {
-  return (
-    /\bVO \(Voice Over\)\b/i.test(text) ||
-    /\b15[–-]60\s*second/i.test(text) ||
-    /\bScene\s+\d/i.test(text) ||
-    /\bVisual\s*:/i.test(text)
-  );
 }
 
 export async function generateThinkingJsonWithAI(

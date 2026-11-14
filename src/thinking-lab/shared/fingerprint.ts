@@ -44,11 +44,6 @@ export function ideaSetFingerprint(input: { angleFingerprint: string; ideaFinger
   return [input.angleFingerprint.trim(), ...sorted].join("\n\n");
 }
 
-export function executionFingerprint(input: { statement: string; ideaFingerprint: string; pillar: string }): string {
-  const own = normalizeFingerprintLine(input.statement);
-  return [own, input.pillar.trim(), input.ideaFingerprint.trim()].filter(Boolean).join("\n");
-}
-
 export function angleSetFingerprint(input: {
   territoryFingerprint: string;
   angleFingerprints: string[];

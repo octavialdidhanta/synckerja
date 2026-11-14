@@ -36,7 +36,7 @@ function fakeAdmin(context: unknown, calls: Array<{ fn: string; args: Record<str
   } as never;
 }
 
-const ALL_MASTER_CHECKS = ["oneClaim", "oneSentence", "notPromo", "noBrand", "subjectClear", "audienceLanguage", "shift", "accountable"];
+const ALL_MASTER_CHECKS = ["singleClaim", "noPromoOrBrand", "subjectClear", "shift", "accountable"];
 
 /** Answers every batched check id with the given pass value. */
 function batchAnswer(prompt: string, pass: (id: string) => boolean): string {
@@ -83,13 +83,12 @@ describe("thinking.master.create", () => {
       checks: ALL_ON,
       ask: async () => JSON.stringify({ checks: ALL_MASTER_CHECKS.map((id) => ({
         id,
-        pass: !["notPromo", "noBrand"].includes(id),
-        reason: id === "notPromo" ? "Kami garansi rasa adalah promo." : id === "noBrand" ? "Menyebut Warung Contoh." : "",
+        pass: id !== "noPromoOrBrand",
+        reason: id === "noPromoOrBrand" ? "Kami garansi rasa adalah promo dan menyebut Warung Contoh." : "",
       })) }),
     });
     expect(result).toEqual({ saved: false, failed: [
-      { check: "masterThought", reason: "Kami garansi rasa adalah promo." },
-      { check: "masterThought", reason: "Menyebut Warung Contoh." },
+      { check: "masterThought", reason: "Kami garansi rasa adalah promo dan menyebut Warung Contoh." },
     ] });
     expect(calls.some((call) => call.fn === "mcp_create_thinking_master")).toBe(false);
   });

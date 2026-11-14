@@ -1,16 +1,8 @@
 import type { MasterCatalogLink } from "./catalog";
 import type { ProductReasonPool } from "./productReasonPool";
-import type { Resolution } from "../shared/verdict";
 
+/** How the saved belief was written. "edited" is only read from older rows. */
 export type ConfirmationSource = "original" | "recommendation" | "edited";
-
-export type MasterAdmission = "USABLE" | "UNUSABLE" | "UNRESOLVED" | "STALE";
-
-export type UnderstandOutcome =
-  | "ORIGINAL_READY"
-  | "PROPOSAL_RECOMMENDED"
-  | "CLARIFICATION_REQUIRED"
-  | "UNRESOLVED";
 
 export type BeliefOption = {
   belief: string;
@@ -18,20 +10,10 @@ export type BeliefOption = {
 };
 
 export type MasterThoughtFacts = {
-  outcome: UnderstandOutcome;
-  /** The thing that must later be visible as the cause at Idea. Null when it cannot be named. */
+  /** The thing that must later be visible as the cause at Idea: the saved belief itself. */
   subject: string | null;
-  proposedRootBelief: string | null;
-  formulationNote: string | null;
-  clarificationQuestion: string | null;
-  clarificationOptions: string[] | null;
-  resolution: Resolution;
-  unresolvedReasons: string[];
-  confidence?: number;
-  /** The user picked this sentence. Keep it even when the subject is the whole belief. */
-  accepted?: boolean;
-  /** Beliefs that passed the plant filter and are waiting to be picked. */
-  beliefOptions?: BeliefOption[] | null;
+  /** Beliefs from "Bantu rumuskan" that passed the switched-on checks, waiting to be picked. */
+  beliefOptions: BeliefOption[];
 };
 
 /** Catalog linked to a Master Thought, by name: the category is required, sub-categories and features are optional. */

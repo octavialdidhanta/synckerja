@@ -1,13 +1,18 @@
 import { supabase } from "@/shared/lib/supabaseClient";
 import { readProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
 import { LAB_WORKSPACE } from "@/thinking-lab/shared/verdict";
-import { beliefsMatch, normalizeMasterThoughtFacts, understandPersistMode } from "@/thinking-lab/master-thought/semantic";
+import {
+  beliefsMatch,
+  confirmedBeliefFacts,
+  confirmedFingerprint,
+  normalizeMasterThoughtFacts,
+} from "@/thinking-lab/master-thought/semantic";
 import type { MasterCatalogLink } from "@/thinking-lab/master-thought/catalog";
 import type {
+  BeliefOption,
   ConfirmationSource,
   LabMasterThought,
   MasterBeliefInput,
-  MasterThoughtFacts,
 } from "@/thinking-lab/master-thought/types";
 
 type MasterRow = {
@@ -38,10 +43,7 @@ function mapMaster(row: MasterRow): LabMasterThought {
   const source = CONFIRM_SOURCES.has(row.confirmation_source as ConfirmationSource)
     ? (row.confirmation_source as ConfirmationSource)
     : null;
-  const facts =
-    row.canonical_semantic && typeof row.canonical_semantic === "object"
-      ? normalizeMasterThoughtFacts(row.canonical_semantic, row.original_input ?? row.statement ?? "")
-      : null;
+  const facts = normalizeMasterThoughtFacts(row.canonical_semantic);
   return {
     id: row.id,
     organizationId: row.organization_id,
@@ -169,37 +171,20 @@ export async function saveOriginalInput(
   if (error) throw error;
 }
 
-export async function saveUnderstanding(
-  id: string,
-  organizationId: string,
-  facts: MasterThoughtFacts,
-  fingerprint: string,
-): Promise<void> {
+/** Belief options from "Bantu rumuskan". The saved subject, if any, stays. */
+export async function saveBeliefOptions(id: string, organizationId: string, options: BeliefOption[]): Promise<void> {
   const { data: current, error: readError } = await supabase
     .from("thinking_master_thoughts")
-    .select("confirmation_source, statement, original_input")
+    .select("canonical_semantic")
     .eq("id", id)
     .eq("organization_id", organizationId)
     .eq("workspace", LAB_WORKSPACE)
     .maybeSingle();
   if (readError) throw readError;
-  const mode = understandPersistMode({
-    confirmationSource: current?.confirmation_source ?? null,
-    confirmedStatement: current?.statement ?? "",
-    storedOriginalInput: current?.original_input ?? "",
-    nextOriginalInput: current?.original_input ?? "",
-  });
-  const patch =
-    mode === "display_only"
-      ? { canonical_semantic: facts }
-      : {
-          canonical_semantic: facts,
-          semantic_fingerprint: fingerprint,
-          root_belief: facts.proposedRootBelief ?? "",
-        };
+  const subject = normalizeMasterThoughtFacts(current?.canonical_semantic)?.subject ?? null;
   const { error } = await supabase
     .from("thinking_master_thoughts")
-    .update(patch)
+    .update({ canonical_semantic: { subject, beliefOptions: options } })
     .eq("id", id)
     .eq("organization_id", organizationId)
     .eq("workspace", LAB_WORKSPACE)
@@ -207,17 +192,13 @@ export async function saveUnderstanding(
   if (error) throw error;
 }
 
+/** Saves a belief that passed the switched-on checks: it becomes the parent of the Big Thoughts. */
 export async function confirmMasterThought(
   id: string,
   organizationId: string,
-  input: {
-    statement: string;
-    source: ConfirmationSource;
-    facts: MasterThoughtFacts;
-    fingerprint: string;
-  },
+  input: { statement: string; source: ConfirmationSource },
 ): Promise<void> {
-  const statement = input.statement.trim();
+  const statement = input.statement.replace(/\s+/g, " ").trim();
   if (!statement) throw new Error("EMPTY_INPUT");
   const { error } = await supabase
     .from("thinking_master_thoughts")
@@ -228,8 +209,8 @@ export async function confirmMasterThought(
       confirmed_at: new Date().toISOString(),
       mt_status: "confirmed",
       status: "draft",
-      canonical_semantic: input.facts,
-      semantic_fingerprint: input.fingerprint,
+      canonical_semantic: confirmedBeliefFacts(statement),
+      semantic_fingerprint: confirmedFingerprint(statement, statement),
       last_audit: null,
       last_audit_at: null,
     })

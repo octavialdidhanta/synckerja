@@ -60,22 +60,11 @@ import {
   type FixScope,
 } from "@/thinking-lab/shared/fixScope";
 import {
-  acceptChosenBelief,
-  acceptPlantedBelief,
-  assessMasterThought,
-  beliefClaim,
   beliefsMatch,
-  buildMasterChoicePrompt,
   collectBeliefOptions,
   checkWrittenBelief,
   confirmedFingerprint,
   confirmedParentReady,
-  factsMatchStoredFingerprint,
-  judgeMasterThought,
-  parseMasterChoiceSet,
-  type MasterChoiceSet,
-  resolveConfirmation,
-  understandFingerprint,
 } from "@/thinking-lab/master-thought/semantic";
 import { masterBeliefDescription } from "@/thinking-lab/master-thought/description";
 import { territoryDescriptions, writeTerritoryAreaSentence } from "@/thinking-lab/territory/description";
@@ -93,7 +82,7 @@ import {
   type TerritoryPassCheckId,
 } from "@/thinking-lab/territory/passChecklist";
 import { ANSWERED_QUESTION_VERSION, resolveAnsweredQuestion } from "@/thinking-lab/big-thought/answeredQuestion";
-import type { ConfirmationSource, LabMasterThought } from "@/thinking-lab/master-thought/types";
+import type { BeliefOption, LabMasterThought, MasterCatalogContext } from "@/thinking-lab/master-thought/types";
 import { useMasterThought } from "@/thinking-lab/master-thought/useMasterThought";
 import {
   clearSetConclusions,
@@ -611,7 +600,6 @@ export function ThinkingLabPage() {
   const [originalDraft, setOriginalDraft] = useState("");
   const [priorDraft, setPriorDraft] = useState("");
   const [audienceDraft, setAudienceDraft] = useState("");
-  const [proposalDraft, setProposalDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const labRunRef = useRef(false);
@@ -760,9 +748,8 @@ export function ThinkingLabPage() {
     setOriginalDraft(selected?.originalInput ?? "");
     setPriorDraft(selected?.priorBelief ?? "");
     setAudienceDraft(selected?.audience ?? "");
-    setProposalDraft(selected?.canonicalSemantic?.proposedRootBelief ?? "");
     setShowManualBigThought(false);
-  }, [selected?.id, selected?.originalInput, selected?.priorBelief, selected?.audience, selected?.canonicalSemantic?.proposedRootBelief]);
+  }, [selected?.id, selected?.originalInput, selected?.priorBelief, selected?.audience]);
 
   useEffect(() => {
     setNotice(null);
@@ -1027,12 +1014,6 @@ export function ThinkingLabPage() {
       ? focusedThought.facts.answeredQuestion?.trim() ?? ""
       : ""
   ).trim();
-  const judgmentCurrent = Boolean(
-    selected?.canonicalSemantic &&
-    originalDraft.trim() === selected.originalInput.trim() &&
-    priorDraft.trim() === selected.priorBelief.trim() &&
-    audienceDraft.trim() === selected.audience.trim(),
-  );
   const territoryAncestors: AncestorStake[] = masterStatement
     ? [{ label: "Master Thought", statement: masterStatement }]
     : [];
@@ -1567,21 +1548,9 @@ export function ThinkingLabPage() {
     ready && masterSubject && !locked && stageAction !== "generate",
   );
   const masterMenuStage = stageAction;
-  const admission = selected
-    ? assessMasterThought(
-        selected.canonicalSemantic,
-        factsMatchStoredFingerprint({
-          facts: selected.canonicalSemantic,
-          storedFingerprint: selected.semanticFingerprint,
-          originalInput: selected.originalInput,
-          proposedRootBelief: selected.canonicalSemantic?.proposedRootBelief ?? null,
-        }) || parentIsReady(selected),
-      )
-    : null;
-
   const labTarget = (action?: string | null): string | null => {
     if (!action) return null;
-    if (action === "formulate" || action === "understand") return "Master Thought";
+    if (action === "save-master" || action === "suggest-belief") return "Master Thought";
     if (action === "generate" || action === "manual-big-thought" || action === "audit" || action === "challenger" || action === "fix") return "Big Thought";
     if (action.includes("angle") || action === "accept-gap" || action === "skip-gap") return "Angle";
     if (action.includes("idea")) return "Idea";
@@ -1661,6 +1630,60 @@ export function ThinkingLabPage() {
     }
   };
 
+  /** The reasons a belief could not be saved, in words the user can act on. */
+  const masterCheckMessage = (reasons: string[]): string =>
+    reasons
+      .map((reason) => {
+        if (reason === "CATALOG_REQUIRED") return catalogRequiredMessage();
+        if (reason === "PRIOR_REQUIRED") return t("thinkingLab.master.priorRequired", "Tulis keyakinan lama dulu.");
+        if (reason === "SAME_BELIEF") {
+          return t("thinkingLab.master.sameBelief", "The old belief and the new belief say the same thing. Change the new belief.");
+        }
+        if (reason === "UNDECIDED") return t("thinkingLab.mt.writtenUndecided", "The check could not be decided.");
+        return reason;
+      })
+      .join(" ");
+
+  /**
+   * The only way a Master Thought is saved: the switched-on checks first, then the drafts and the
+   * confirmation. A failed check leaves the stored Master Thought as it was.
+   */
+  const saveMasterBelief = async (input: {
+    id: string;
+    planted: string;
+    priorBelief: string;
+    audience: string;
+    catalog: MasterCatalogContext | null;
+    options: BeliefOption[];
+  }): Promise<boolean> => {
+    const check = await checkWrittenBelief(
+      { belief: input.planted, priorBelief: input.priorBelief, catalog: input.catalog, skip: skipFor("master") },
+      (prompt) => askThinkingLab(prompt, 0),
+    );
+    if (!check.pass) {
+      toast.error(
+        t(
+          "thinkingLab.mt.saveFailed",
+          "Master Thought belum bisa disimpan: {{reasons}} Edit kalimatnya, atau pakai Bantu rumuskan.",
+        ).replace("{{reasons}}", masterCheckMessage(check.reasons)),
+        { duration: 12000 },
+      );
+      return false;
+    }
+    await masters.saveOriginal.mutateAsync({
+      id: input.id,
+      planted: input.planted,
+      priorBelief: input.priorBelief,
+      audience: input.audience,
+    });
+    await masters.confirm.mutateAsync({
+      id: input.id,
+      statement: input.planted,
+      source: input.options.some((option) => beliefsMatch(option.belief, input.planted)) ? "recommendation" : "original",
+    });
+    return true;
+  };
+
   const onCreate = () =>
     run(async () => {
       const planted = newPlanted.trim();
@@ -1675,13 +1698,7 @@ export function ThinkingLabPage() {
         productReasonPool: reasonPool,
         catalog: newCatalog,
       });
-      bindUsage("formulate", created.id);
-      const facts = await collectBeliefOptions({ planted, priorBelief, audience, catalog }, (prompt) => askThinkingLab(prompt, 0.2));
-      await masters.saveJudge.mutateAsync({
-        id: created.id,
-        facts,
-        fingerprint: understandFingerprint(planted, null),
-      });
+      bindUsage("save-master", created.id);
       setNewPrior("");
       setNewPlanted("");
       setNewAudience("");
@@ -1690,7 +1707,8 @@ export function ThinkingLabPage() {
       setComposerOpen(false);
       skipAutoSelect.current = false;
       setSelectedId(created.id);
-    }, "formulate");
+      await saveMasterBelief({ id: created.id, planted, priorBelief, audience, catalog, options: [] });
+    }, "save-master");
 
   const closeComposer = () => {
     setComposerOpen(false);
@@ -1804,146 +1822,43 @@ export function ThinkingLabPage() {
     });
   };
 
-  const onUnderstand = (clarification?: { question: string; answer: string }) =>
+  /** "Bantu rumuskan": three options that already pass the switched-on checks. Nothing else is saved. */
+  const onSuggestBeliefs = () =>
     run(async () => {
       if (!selected) return;
       if (!selectedCatalog) throw new Error(catalogRequiredMessage());
-      const prior = priorDraft.trim();
-      const audience = audienceDraft.trim();
-      const chosen = clarification?.answer.trim() ?? "";
-      if (chosen) {
-        if (beliefsMatch(chosen, prior)) throw new Error("SAME_BELIEF");
-        const planted = originalDraft.trim() || selected.originalInput.trim();
-        const facts = acceptChosenBelief(chosen);
-        await masters.saveJudge.mutateAsync({
-          id: selected.id,
-          facts,
-          fingerprint: understandFingerprint(planted, null),
-        });
-        return;
-      }
-      const text = originalDraft.trim();
-      if (
-        text !== selected.originalInput.trim() ||
-        prior !== selected.priorBelief.trim() ||
-        audience !== selected.audience.trim()
-      ) {
-        await masters.saveOriginal.mutateAsync({
-          id: selected.id,
-          planted: text,
-          priorBelief: prior,
-          audience,
-        });
-      }
-      const facts = await collectBeliefOptions(
-        { planted: text, priorBelief: prior, audience, catalog: selectedCatalog },
+      const options = await collectBeliefOptions(
+        {
+          planted: originalDraft,
+          priorBelief: priorDraft.trim(),
+          audience: audienceDraft,
+          catalog: selectedCatalog,
+          skip: skipFor("master"),
+        },
         (prompt) => askThinkingLab(prompt, 0.2),
+        (prompt) => askThinkingLab(prompt, 0),
       );
-      await masters.saveJudge.mutateAsync({
-        id: selected.id,
-        facts,
-        fingerprint: understandFingerprint(text, null),
-      });
-    }, "understand");
+      await masters.saveOptions.mutateAsync({ id: selected.id, options });
+      if (options.length === 0) {
+        toast.error(
+          t("thinkingLab.master.noOptions", "Tidak ada opsi yang lolos syarat. Edit kalimatnya sendiri, lalu coba lagi."),
+        );
+      }
+    }, "suggest-belief");
 
-  const confirmWith = (source: ConfirmationSource, statement: string, facts: NonNullable<LabMasterThought["canonicalSemantic"]>) =>
+  const onSaveMaster = () =>
     run(async () => {
       if (!selected) return;
-      const decision = resolveConfirmation({
-        source,
-        originalInput: source === "original" ? selected.originalInput : statement,
-        proposedRootBelief: statement,
-        facts,
-        factsCurrent: true,
-      });
-      if (decision.ok === false) {
-        setNotice(decision.admission);
-        return;
-      }
-      await masters.confirm.mutateAsync({
+      const saved = await saveMasterBelief({
         id: selected.id,
-        statement: decision.statement,
-        source,
-        facts,
-        fingerprint: confirmedFingerprint(decision.statement, decision.statement),
+        planted: originalDraft.trim(),
+        priorBelief: priorDraft.trim(),
+        audience: audienceDraft.trim(),
+        catalog: selectedCatalog,
+        options: selected.canonicalSemantic?.beliefOptions ?? [],
       });
-      setEditingMasterId(null);
-    });
-
-  const onConfirmOriginal = () => {
-    if (!selected?.canonicalSemantic) return;
-    const plantedDrift = originalDraft.trim() !== selected.originalInput.trim();
-    const priorDrift = priorDraft.trim() !== selected.priorBelief.trim();
-    const audienceDrift = audienceDraft.trim() !== selected.audience.trim();
-    if (plantedDrift || priorDrift || (!selected.confirmationSource && audienceDrift)) {
-      setNotice("STALE");
-      return;
-    }
-    if (audienceDrift) {
-      void run(async () => {
-        await masters.saveOriginal.mutateAsync({
-          id: selected.id,
-          planted: selected.originalInput,
-          priorBelief: selected.priorBelief,
-          audience: audienceDraft.trim(),
-        });
-        const decision = resolveConfirmation({
-          source: "original",
-          originalInput: selected.originalInput,
-          proposedRootBelief: selected.originalInput,
-          facts: selected.canonicalSemantic,
-          factsCurrent: true,
-        });
-        if (decision.ok === false || !selected.canonicalSemantic) {
-          setNotice(decision.ok === false ? decision.admission : "UNRESOLVED");
-          return;
-        }
-        await masters.confirm.mutateAsync({
-          id: selected.id,
-          statement: decision.statement,
-          source: "original",
-          facts: selected.canonicalSemantic,
-          fingerprint: confirmedFingerprint(decision.statement, decision.statement),
-        });
-        setEditingMasterId(null);
-      });
-      return;
-    }
-    void confirmWith("original", selected.originalInput, selected.canonicalSemantic);
-  };
-
-  const onConfirmProposal = () => {
-    if (!selected?.canonicalSemantic?.proposedRootBelief) return;
-    void confirmWith("recommendation", selected.canonicalSemantic.proposedRootBelief, selected.canonicalSemantic);
-  };
-
-  const onConfirmEdit = () =>
-    run(async () => {
-      if (!selected) return;
-      const facts = await judgeMasterThought(proposalDraft, askThinkingLab, undefined, {
-        priorBelief: selected.priorBelief,
-        audience: selected.audience,
-      });
-      const decision = resolveConfirmation({
-        source: "edited",
-        originalInput: proposalDraft,
-        proposedRootBelief: facts.proposedRootBelief,
-        facts,
-        factsCurrent: true,
-      });
-      if (decision.ok === false) {
-        setNotice(decision.admission);
-        return;
-      }
-      await masters.confirm.mutateAsync({
-        id: selected.id,
-        statement: decision.statement,
-        source: "edited",
-        facts,
-        fingerprint: confirmedFingerprint(decision.statement, decision.statement),
-      });
-      setEditingMasterId(null);
-    });
+      if (saved) setEditingMasterId(null);
+    }, "save-master");
 
   const onGenerate = () =>
     run(async () => {
@@ -8513,10 +8428,10 @@ export function ThinkingLabPage() {
                               !newPlanted.trim() ||
                               beliefsMatch(newPrior, newPlanted)
                             }
-                            aria-busy={busyAction === "formulate" || undefined}
+                            aria-busy={busyAction === "save-master" || undefined}
                           >
-                            {busyAction === "formulate" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                            {t("thinkingLab.action.formulate", "Formulate Master Thought")}
+                            {busyAction === "save-master" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                            {t("thinkingLab.action.saveMaster", "Simpan Master Thought")}
                           </Button>
                           </div>
                           ) : null}
@@ -9351,7 +9266,7 @@ export function ThinkingLabPage() {
                                   focus.kind === "master" && !masterSubject
                                     ? t(
                                         "thinkingLab.master.subjectLocked",
-                                        "This locked Master Thought has no subject yet. Unlock it, then understand it again so the subject is saved.",
+                                        "This locked Master Thought has no subject yet. Unlock it, then save it again so the subject is stored.",
                                       )
                                     : null
                                 }
@@ -9479,154 +9394,18 @@ export function ThinkingLabPage() {
                                 <MasterThoughtSection
                                   locked={locked}
                                   busy={busy}
-                                  understanding={busyAction === "understand" || busyAction === "formulate"}
+                                  suggesting={busyAction === "suggest-belief"}
+                                  saving={busyAction === "save-master"}
                                   priorDraft={priorDraft}
                                   originalDraft={originalDraft}
                                   audienceDraft={audienceDraft}
-                                  proposalDraft={proposalDraft}
-                                  facts={selected.canonicalSemantic}
-                                  admission={admission}
+                                  options={selected.canonicalSemantic?.beliefOptions ?? []}
                                   confirmedStatement={ready ? selected.statement : null}
                                   onPriorChange={setPriorDraft}
                                   onOriginalChange={setOriginalDraft}
                                   onAudienceChange={setAudienceDraft}
-                                  onProposalChange={setProposalDraft}
-                                  onUnderstand={() => void onUnderstand()}
-                                  judgmentCurrent={judgmentCurrent}
-                                  onKeepOriginal={() => {
-                                    const planted = originalDraft.trim();
-                                    if (!planted || !selected) return;
-                                    void run(async () => {
-                                      const prior = priorDraft.trim();
-                                      const ask = (prompt: string) => askThinkingLab(prompt, 0);
-                                      // A belief typed by hand meets the same bar as a chosen option.
-                                      const check = await checkWrittenBelief(
-                                        {
-                                          belief: planted,
-                                          priorBelief: prior,
-                                          audience: audienceDraft.trim(),
-                                          catalog: selectedCatalog,
-                                          skip: skipFor("master"),
-                                        },
-                                        ask,
-                                      );
-                                      if (check.reasons.includes("CATALOG_REQUIRED")) throw new Error(catalogRequiredMessage());
-                                      if (!check.pass) {
-                                        toast.error(
-                                          t(
-                                            "thinkingLab.mt.writtenFailed",
-                                            "This Master Thought cannot be kept as written: {{reasons}} Pick one of the beliefs below, or edit it.",
-                                          ).replace(
-                                            "{{reasons}}",
-                                            check.reasons
-                                              .map((reason) =>
-                                                reason === "UNDECIDED"
-                                                  ? t("thinkingLab.mt.writtenUndecided", "The check could not be decided.")
-                                                  : reason,
-                                              )
-                                              .join(" "),
-                                          ),
-                                          { duration: 12000 },
-                                        );
-                                        const options = await collectBeliefOptions(
-                                          { planted, priorBelief: prior, audience: audienceDraft.trim(), catalog: selectedCatalog },
-                                          (prompt) => askThinkingLab(prompt, 0.2),
-                                        );
-                                        await masters.saveJudge.mutateAsync({
-                                          id: selected.id,
-                                          facts: options,
-                                          fingerprint: understandFingerprint(planted, null),
-                                        });
-                                        return;
-                                      }
-                                      await masters.saveJudge.mutateAsync({
-                                        id: selected.id,
-                                        facts: acceptChosenBelief(planted),
-                                        fingerprint: understandFingerprint(planted, null),
-                                      });
-                                    }, "understand");
-                                  }}
-                                  onUseSubject={(answer) => {
-                                    const planted = originalDraft.trim() || selected.originalInput.trim();
-                                    const subject = answer.trim();
-                                    if (!planted || !subject || !selected) return;
-                                    void run(async () => {
-                                      await masters.saveJudge.mutateAsync({
-                                        id: selected.id,
-                                        facts: acceptChosenBelief(subject),
-                                        fingerprint: understandFingerprint(planted, null),
-                                      });
-                                    }, "understand");
-                                  }}
-                                  onPickBelief={(belief) => {
-                                    const next = belief.trim();
-                                    if (!next || !selected) return;
-                                    void run(async () => {
-                                      const prior = priorDraft.trim();
-                                      const audience = audienceDraft.trim();
-                                      if (beliefsMatch(beliefClaim(next), beliefClaim(prior))) throw new Error("SAME_BELIEF");
-                                      setOriginalDraft(next);
-                                      await masters.saveOriginal.mutateAsync({
-                                        id: selected.id,
-                                        planted: next,
-                                        priorBelief: prior,
-                                        audience,
-                                      });
-                                      const facts = acceptPlantedBelief(next);
-                                      await masters.saveJudge.mutateAsync({
-                                        id: selected.id,
-                                        facts,
-                                        fingerprint: understandFingerprint(next, null),
-                                      });
-                                    }, "understand");
-                                  }}
-                                  onUseBelief={(belief) => {
-                                    const next = belief.trim();
-                                    if (!next || !selected) return;
-                                    void run(async () => {
-                                      const prior = priorDraft.trim();
-                                      const audience = audienceDraft.trim();
-                                      if (beliefsMatch(next, prior)) throw new Error("SAME_BELIEF");
-                                      setOriginalDraft(next);
-                                      await masters.saveOriginal.mutateAsync({
-                                        id: selected.id,
-                                        planted: next,
-                                        priorBelief: prior,
-                                        audience,
-                                      });
-                                      const facts = await judgeMasterThought(next, askThinkingLab, undefined, {
-                                        priorBelief: prior,
-                                        audience,
-                                      });
-                                      await masters.saveJudge.mutateAsync({
-                                        id: selected.id,
-                                        facts,
-                                        fingerprint: understandFingerprint(next, facts.proposedRootBelief),
-                                      });
-                                    }, "understand");
-                                  }}
-                                  onOpenChoices={async (question) => {
-                                    let choices: MasterChoiceSet = { subjects: [], beliefs: [] };
-                                    await run(async () => {
-                                      const raw = await askThinkingLab(
-                                        buildMasterChoicePrompt({
-                                          originalInput: originalDraft,
-                                          priorBelief: priorDraft,
-                                          audience: audienceDraft,
-                                          question,
-                                        }),
-                                        0.2,
-                                      );
-                                      choices = parseMasterChoiceSet(raw ? parseModelJson(raw) : null, {
-                                        priorBelief: priorDraft,
-                                        originalInput: originalDraft,
-                                      });
-                                    });
-                                    return choices;
-                                  }}
-                                  onConfirmOriginal={onConfirmOriginal}
-                                  onConfirmProposal={onConfirmProposal}
-                                  onConfirmEdit={() => void onConfirmEdit()}
+                                  onSuggest={() => void onSuggestBeliefs()}
+                                  onSave={() => void onSaveMaster()}
                                 />
                               ) : null}
                               {showManualBigThought && (ready || locked) && !editingBelief && selected.statement && busyAction !== "generate" ? (
