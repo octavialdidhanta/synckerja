@@ -1,8 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  acceptChosenBelief,
-  beliefsMatch,
   checkWrittenBelief,
+  confirmedBeliefFacts,
   confirmedFingerprint,
 } from "../../../../src/thinking-lab/master-thought/semantic";
 import { runBigThoughtIndividualChecks } from "../../../../src/thinking-lab/big-thought/passChecks";
@@ -175,6 +174,8 @@ export async function setThinkingMasterCatalog(
 export function masterCheckReason(reason: string): string {
   if (reason === "UNDECIDED") return "The check could not be decided. Try again.";
   if (reason === "CATALOG_REQUIRED") return "Link a catalog category first.";
+  if (reason === "PRIOR_REQUIRED") return "Write the old belief first.";
+  if (reason === "SAME_BELIEF") return "The new belief repeats the old belief.";
   return reason;
 }
 
@@ -216,20 +217,16 @@ export async function createThinkingMaster(
   const pick = await resolveCatalogPick(admin, ctx, input);
   if (!pick.ok) return pick.result;
   const skip = skippedChecks(await loadCheckSettings(admin, ctx, deps), "master");
-  if (!skip.includes("shift") && beliefsMatch(belief, priorBelief)) {
-    return { saved: false, failed: [{ check: "shift", reason: "The new belief repeats the old belief." }] };
-  }
-  const check = await checkWrittenBelief({ belief, priorBelief, audience, catalog: pick.context, skip }, makeAsk(config, ctx, deps));
+  const check = await checkWrittenBelief({ belief, priorBelief, catalog: pick.context, skip }, makeAsk(config, ctx, deps));
   if (!check.pass) {
     return { saved: false, failed: check.reasons.map((reason) => ({ check: "masterThought", reason: masterCheckReason(reason) })) };
   }
-  const facts = acceptChosenBelief(belief);
   const { data, error } = await admin.rpc("mcp_create_thinking_master", {
     ...sessionArgs(ctx),
     p_statement: belief,
     p_prior_belief: priorBelief,
     p_audience: audience,
-    p_facts: facts,
+    p_facts: confirmedBeliefFacts(belief),
     p_fingerprint: confirmedFingerprint(belief, belief),
   });
   if (error) rpcError(error);

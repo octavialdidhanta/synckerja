@@ -363,10 +363,10 @@ describe("LabNodeInspector territory entry", () => {
       <LabNodeInspector
         kind="master"
         statement="A locked worldview"
-        subjectNotice="This locked Master Thought has no subject yet. Unlock it, then understand it again so the subject is saved."
+        subjectNotice="This locked Master Thought has no subject yet. Unlock it, then save it again so the subject is stored."
       />,
     );
-    expect(screen.getByText(/Unlock it, then understand it again/i)).toBeTruthy();
+    expect(screen.getByText(/Unlock it, then save it again/i)).toBeTruthy();
   });
 
   it("lists the path upward from the selected node", () => {

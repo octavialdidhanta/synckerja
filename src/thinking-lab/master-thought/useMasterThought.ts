@@ -8,16 +8,16 @@ import {
   lockLabMaster,
   saveLabMasterCatalog,
   saveLabSetRecord,
+  saveBeliefOptions,
   saveOriginalInput,
-  saveUnderstanding,
   unlockLabMaster,
 } from "@/thinking-lab/master-thought/repository";
 import type { MasterCatalogLink } from "@/thinking-lab/master-thought/catalog";
 import type {
+  BeliefOption,
   ConfirmationSource,
   LabMasterThought,
   MasterBeliefInput,
-  MasterThoughtFacts,
 } from "@/thinking-lab/master-thought/types";
 import { labLockedTreeKey } from "@/thinking-lab/shared/queryKeys";
 
@@ -52,20 +52,15 @@ export function useMasterThought() {
     onSuccess: invalidate,
   });
 
-  const saveJudge = useMutation({
-    mutationFn: (input: { id: string; facts: MasterThoughtFacts; fingerprint: string }) =>
-      saveUnderstanding(input.id, organizationId as string, input.facts, input.fingerprint),
+  const saveOptions = useMutation({
+    mutationFn: (input: { id: string; options: BeliefOption[] }) =>
+      saveBeliefOptions(input.id, organizationId as string, input.options),
     onSuccess: invalidate,
   });
 
   const confirm = useMutation({
-    mutationFn: (input: {
-      id: string;
-      statement: string;
-      source: ConfirmationSource;
-      facts: MasterThoughtFacts;
-      fingerprint: string;
-    }) => confirmMasterThought(input.id, organizationId as string, input),
+    mutationFn: (input: { id: string; statement: string; source: ConfirmationSource }) =>
+      confirmMasterThought(input.id, organizationId as string, input),
     onSuccess: invalidate,
   });
 
@@ -123,7 +118,7 @@ export function useMasterThought() {
     hasPendingLoad: orgLoading || dataPending,
     create,
     saveOriginal,
-    saveJudge,
+    saveOptions,
     confirm,
     saveSet,
     saveCatalog,

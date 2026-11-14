@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { acceptChosenBelief, beliefsMatch, checkWrittenBelief, confirmedFingerprint } from "../../../../src/thinking-lab/master-thought/semantic";
+import { checkWrittenBelief, confirmedBeliefFacts, confirmedFingerprint } from "../../../../src/thinking-lab/master-thought/semantic";
 import {
   angleFingerprint,
   bigThoughtFingerprint,
@@ -252,7 +252,6 @@ export async function updateThinkingMaster(
   const belief = (input.belief ?? tree.master.statement).replace(/\s+/g, " ").trim();
   const priorBelief = (input.priorBelief ?? tree.master.prior_belief ?? "").replace(/\s+/g, " ").trim();
   if (!belief) throw new Error("invalid_input");
-  const audience = (input.audience ?? tree.master.audience ?? "").trim();
   const beliefChanged = belief !== tree.master.statement.trim() || priorBelief !== (tree.master.prior_belief ?? "").trim();
   const changes = emptyChanges();
   changes.master = {
@@ -261,11 +260,8 @@ export async function updateThinkingMaster(
   };
   if (beliefChanged) {
     const skip = skippedChecks(await loadCheckSettings(admin, ctx, deps), "master");
-    if (priorBelief && !skip.includes("shift") && beliefsMatch(belief, priorBelief)) {
-      return { saved: false, failed: [{ check: "shift", reason: "The new belief repeats the old belief." }] };
-    }
     const catalog = await loadMasterCatalog(admin, ctx, tree.master.id);
-    const check = await checkWrittenBelief({ belief, priorBelief, audience, catalog, skip }, makeAsk(config, ctx, deps));
+    const check = await checkWrittenBelief({ belief, priorBelief, catalog, skip }, makeAsk(config, ctx, deps));
     if (!check.pass) {
       return { saved: false, failed: check.reasons.map((reason) => ({ check: "masterThought", reason: masterCheckReason(reason) })) };
     }
@@ -275,7 +271,7 @@ export async function updateThinkingMaster(
         ...changes.master,
         statement: belief,
         root_belief: belief,
-        canonical_semantic: acceptChosenBelief(belief),
+        canonical_semantic: confirmedBeliefFacts(belief),
         semantic_fingerprint: confirmedFingerprint(belief, belief),
       };
       resealSubtree(tree, after, changes, tree.master.id);

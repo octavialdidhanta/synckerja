@@ -582,16 +582,7 @@ describe("MasterThoughtMapTree pills", () => {
 
   it("names the Master Thought node with its subject", () => {
     const row = master("m1", "Uang di usia muda lebih berharga ditabung daripada dihabiskan untuk mengejar motor paling kencang.");
-    row.canonicalSemantic = {
-      outcome: "ORIGINAL_READY",
-      subject: "Uang muda",
-      proposedRootBelief: null,
-      formulationNote: null,
-      clarificationQuestion: null,
-      clarificationOptions: null,
-      resolution: "RESOLVED",
-      unresolvedReasons: [],
-    } satisfies MasterThoughtFacts;
+    row.canonicalSemantic = { subject: "Uang muda", beliefOptions: [] } satisfies MasterThoughtFacts;
     render(
       <MasterThoughtMapTree
         masters={[row]}

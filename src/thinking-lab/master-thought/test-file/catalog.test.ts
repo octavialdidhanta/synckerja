@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { catalogContext, sameCatalogLink, withCategory, type LabCatalog } from "./catalog";
+import { catalogContext, sameCatalogLink, withCategory, type LabCatalog } from "@/thinking-lab/master-thought/catalog";
 
 const catalogs: LabCatalog[] = [
   {
