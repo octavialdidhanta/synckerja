@@ -277,15 +277,16 @@ describe("Big Thought generate admission", () => {
 });
 
 describe("method rule", () => {
-  it("names a cooking step with a sehingga result as a method, and a property of the subject as not", async () => {
-    const { buildBigThoughtPassPrompt } = await import("@/thinking-lab/big-thought/passChecks");
+  it("names a making or serving step with a sehingga result as a method, and a property of the subject as not", () => {
     const prompt = buildBigThoughtPassPrompt({
       id: "relation",
       statement: "potongan sate kecil matang cepat di bara, sehingga cairan belum menguap",
       parentStatement: "Sate kambing muda sama juicy-nya dengan wagyu.",
       others: [],
     });
-    expect(prompt).toContain("A cooking, production, preparation, or serving step is a method even when sehingga");
-    expect(prompt).toContain("A property of the subject itself (what it is or has) is not a method.");
+    expect(prompt).toContain(
+      "Langkah mengerjakan, membuat, menyiapkan, atau menyajikan sesuatu adalah metode, walaupun diikuti \"sehingga\" dan hasilnya.",
+    );
+    expect(prompt).toContain("Sifat subjek itu sendiri (apa adanya atau apa yang dimilikinya) bukan metode.");
   });
 });
