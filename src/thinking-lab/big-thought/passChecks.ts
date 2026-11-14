@@ -5,15 +5,8 @@
 import { bigThoughtRepeats } from "./label";
 import type { PassChecklist, PassGateCheck, PassGateId } from "./checklist";
 import { PASS_GATE_IDS } from "./checklist";
-import {
-  SWITCHED_OFF_REASON,
-  UNDECIDED_REASON,
-  answerGate,
-  askBatchGates,
-  buildBatchGatePrompt,
-  parseGateAnswer,
-  type GateAnswer,
-} from "../shared/batchGates";
+import { UNDECIDED_REASON, buildBatchGatePrompt, parseGateAnswer, type GateAnswer } from "../shared/batchGates";
+import { runGateChain, type GateStep } from "../shared/gateChain";
 import { shownBigThoughtFacts } from "./generate";
 import type { BigThoughtFacts } from "./types";
 
@@ -178,6 +171,26 @@ function duplicateInCode(statement: string, others: readonly Peer[]): GateAnswer
   return null;
 }
 
+/** The runner's steps as the Big Thought checklist: a running check shows "checking", checks after a fail "unchecked". */
+function checklistFromSteps(steps: readonly GateStep<PassGateId>[], previous: readonly GateStep<PassGateId>[]): PassChecklist {
+  const failed = steps.some((step) => step.state === "fail");
+  const items: PassGateCheck[] = steps.map((step) => ({
+    id: step.id,
+    state: step.state === "running" ? "checking" : failed && step.state === "pending" ? "unchecked" : step.state,
+    reason: step.state === "fail" ? (step.reason ?? "") : step.state === "pass" ? (step.reason ?? "") : "",
+  }));
+  const changed = steps.find((step, index) => step.state !== previous[index]?.state);
+  const report =
+    changed && changed.state !== "pending"
+      ? {
+          gate: changed.id,
+          phase: changed.state === "running" ? ("checking" as const) : ("checked" as const),
+          outcome: changed.state === "fail" ? ("fail" as const) : ("pass" as const),
+        }
+      : null;
+  return checklistFrom(items, report);
+}
+
 /**
  * Runs the six checks in order and stops at the first one that does not pass.
  * A check switched OFF, or kept from an earlier pass on this card, is not asked.
@@ -196,66 +209,26 @@ export async function runBigThoughtChecks(input: {
   ask: (prompt: string) => Promise<string | null>;
   onStep?: (checklist: PassChecklist) => void | Promise<void>;
 }): Promise<PassChecklist> {
-  const skip = new Set<string>(input.skip ?? []);
-  const keep = new Set<string>(input.keep ?? []);
-  const items = emptyBigThoughtChecks();
-  const set = (index: number, item: PassGateCheck) => {
-    items[index] = item;
-  };
-  await input.onStep?.(checklistFrom(items));
   const others = [...input.others];
   const coded = duplicateInCode(input.statement, others);
-  const open = PASS_GATE_IDS.filter((id) => !skip.has(id) && !keep.has(id));
-  const byModel = open.filter((id) => id !== "duplicate" || !coded);
-  const batched =
-    byModel.length > 1
-      ? ((await askBatchGates({
-          prompt: buildBigThoughtBatchPrompt({
-            ids: byModel,
-            statement: input.statement,
-            parentStatement: input.parentStatement,
-            others,
-            lessons: input.lessons,
-          }),
-          ids: byModel,
-          ask: input.ask,
-        })) ?? new Map<string, GateAnswer>())
-      : new Map<string, GateAnswer>();
-  for (const [index, id] of PASS_GATE_IDS.entries()) {
-    if (skip.has(id) || keep.has(id)) {
-      set(index, { id, state: "pass", reason: skip.has(id) ? SWITCHED_OFF_REASON : "" });
-      await input.onStep?.(checklistFrom(items, { gate: id, phase: "checked", outcome: "pass" }));
-      continue;
-    }
-    set(index, { id, state: "checking", reason: "" });
-    await input.onStep?.(checklistFrom(items, { gate: id, phase: "checking", outcome: "pass" }));
-    const answer =
-      (id === "duplicate" ? coded : null) ??
-      (await answerGate({
-        batched: batched.get(id),
-        prompt: () =>
-          buildBigThoughtPassPrompt({
-            id,
-            statement: input.statement,
-            parentStatement: input.parentStatement,
-            others,
-            lessons: input.lessons,
-          }),
-        ask: input.ask,
-      }));
-    if (!answer.pass) {
-      set(index, { id, state: "fail", reason: answer.reason || UNDECIDED });
-      for (const [later] of PASS_GATE_IDS.entries()) {
-        if (later > index) set(later, { id: PASS_GATE_IDS[later], state: "unchecked", reason: "" });
-      }
-      const checklist = checklistFrom(items, { gate: id, phase: "checked", outcome: "fail" });
-      await input.onStep?.(checklist);
-      return checklist;
-    }
-    set(index, { id, state: "pass", reason: "" });
-    await input.onStep?.(checklistFrom(items, { gate: id, phase: "checked", outcome: "pass" }));
-  }
-  return checklistFrom(items, { gate: "duplicate", phase: "checked", outcome: "pass" });
+  const context = { statement: input.statement, parentStatement: input.parentStatement, others, lessons: input.lessons };
+  let previous: GateStep<PassGateId>[] = [];
+  let last: PassChecklist | null = null;
+  await runGateChain({
+    ids: PASS_GATE_IDS,
+    skip: input.skip,
+    keep: input.keep,
+    decided: (id) => (id === "duplicate" ? coded : null),
+    batchPrompt: (ids) => buildBigThoughtBatchPrompt({ ...context, ids }),
+    prompt: (id) => buildBigThoughtPassPrompt({ ...context, id }),
+    ask: input.ask,
+    onStep: async (steps) => {
+      last = checklistFromSteps(steps, previous);
+      previous = steps;
+      await input.onStep?.(last);
+    },
+  });
+  return last ?? checklistFrom(emptyBigThoughtChecks());
 }
 
 /**
