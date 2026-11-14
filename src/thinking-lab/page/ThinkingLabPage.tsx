@@ -2756,6 +2756,8 @@ export function ThinkingLabPage() {
         auditLessons: territorySet.data?.auditLessons ?? [],
       });
       publishTerritoryChecklist(row.code, checked.checks);
+      // The area description and question belonged to the old name; let them be written again.
+      descriptionFlight.current.delete(row.id);
       return null;
     });
 
