@@ -1,13 +1,12 @@
 import { TARGET_GENERATE_VALID } from "@/thinking-lab/shared/limits";
-import type { ChallengerFacts } from "@/thinking-lab/big-thought/types";
 
-export type StageAction = "generate" | "audit" | "challenger" | "lock";
+export type StageAction = "generate" | "audit" | "lock";
 
 export type LockDecision =
   | { ok: true }
   | {
       ok: false;
-      reason: "NEED_AUDIT_PASS" | "AUDIT_FAIL" | "STALE" | "UNRESOLVED" | "SIBLING" | "CHALLENGER";
+      reason: "NEED_AUDIT_PASS" | "AUDIT_FAIL" | "STALE" | "UNRESOLVED" | "SIBLING";
     };
 
 export function evaluateLock(input: {
@@ -17,8 +16,6 @@ export function evaluateLock(input: {
   anyStale: boolean;
   anyUnresolved: boolean;
   siblingCurrent: boolean;
-  challenger: ChallengerFacts | null;
-  challengerCurrent: boolean;
 }): LockDecision {
   if (input.auditPassCount < 1 || input.auditPassCount !== input.activeCount) {
     return { ok: false, reason: "NEED_AUDIT_PASS" };
@@ -35,12 +32,10 @@ export function selectStageAction(input: {
   awaitingVerdict?: boolean;
   generateValidCount: number;
   activeCount: number;
-  missingWhy: boolean;
   auditPassCount: number;
   anyStale: boolean;
   anyUnresolved: boolean;
   siblingCurrent: boolean;
-  challengerComplete: boolean;
   lockOk: boolean;
 }): StageAction | null {
   if (input.awaitingVerdict || input.anyStale || input.anyUnresolved) return "audit";
@@ -48,7 +43,6 @@ export function selectStageAction(input: {
     input.activeCount > 0 && input.auditPassCount !== input.activeCount && !input.anyFail;
   if (awaitingAudit) return "audit";
   if (input.auditPassCount >= 1 && input.auditPassCount === input.activeCount && !input.siblingCurrent) return "audit";
-  if (input.missingWhy) return "generate";
   if (input.lockOk) return "lock";
   if (input.generateValidCount < TARGET_GENERATE_VALID) return "generate";
   return null;

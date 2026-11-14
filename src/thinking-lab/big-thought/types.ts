@@ -78,23 +78,6 @@ export type AuditItem = {
   parentChanged?: true;
 };
 
-export type ChallengerStatus = "COMPLETE" | "MISSING_MATERIAL_SUPPORT" | "UNRESOLVED";
-
-export type MissingWhy = {
-  description: string;
-  boundary: string;
-};
-
-export type ChallengerFacts = {
-  setFingerprint: string;
-  status: ChallengerStatus;
-  missingWhyDescription: string;
-  missingWhyBoundary: string;
-  resolution: Resolution;
-  unresolvedReasons: string[];
-  confidence?: number;
-};
-
 export type SemanticExclusion = {
   reasonContribution: string;
   explanation: string;
@@ -127,7 +110,6 @@ export type LabSetRecord = {
     setFingerprint: string;
     items: AuditItem[];
   } | null;
-  challenger: ChallengerFacts | null;
   semanticExclusions: SemanticExclusionHistory | null;
   fixLessons?: BigThoughtFixLesson[];
   generateLessons?: BigThoughtGenerateLesson[];
@@ -146,4 +128,4 @@ export type LabBigThought = {
   semanticFingerprint: string | null;
 };
 
-export type GenerateMode = "fill" | "gap";
+export type GenerateMode = "fill";

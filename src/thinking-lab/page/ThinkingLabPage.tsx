@@ -99,12 +99,6 @@ import {
   siblingSetIsCurrent,
 } from "@/thinking-lab/big-thought/audit";
 import {
-  buildChallengerPrompt,
-  challengerCanRun,
-  currentMissingWhy,
-  parseChallenger,
-} from "@/thinking-lab/big-thought/challenger";
-import {
   buildGeneratePrompt,
   countGenerateValid,
   keepGroundedBigThoughts,
@@ -1348,14 +1342,6 @@ export function ThinkingLabPage() {
     listedAllPass ||
     siblingSetIsCurrent(setRecord?.siblingSet ?? null, siblingFingerprint) ||
     siblingSetIsCurrent(setRecord?.siblingSet ?? null, setFingerprint);
-  const missingWhy = currentMissingWhy(setRecord?.challenger ?? null, setFingerprint);
-  const challengerReady = challengerCanRun({
-    auditPassCount,
-    activeCount: shownRowViews.length,
-    anyFail,
-    anyStale,
-    anyUnresolved,
-  });
   const lockDecision = evaluateLock({
     auditPassCount,
     activeCount: shownRowViews.length,
@@ -1363,17 +1349,7 @@ export function ThinkingLabPage() {
     anyStale,
     anyUnresolved,
     siblingCurrent,
-    challenger: setRecord?.challenger ?? null,
-    challengerCurrent: Boolean(setRecord?.challenger && setRecord.challenger.setFingerprint === setFingerprint),
   });
-  const challenger = setRecord?.challenger ?? null;
-  const challengerComplete = Boolean(
-    challenger &&
-      challenger.setFingerprint === setFingerprint &&
-      challenger.status === "COMPLETE" &&
-      challenger.resolution === "RESOLVED" &&
-      challenger.unresolvedReasons.length === 0,
-  );
   const awaitingVerdict = shownRowViews.some(
     (row) => row.audit == null || row.audit === "STALE" || row.audit === "UNRESOLVED",
   );
@@ -1382,12 +1358,10 @@ export function ThinkingLabPage() {
     awaitingVerdict,
     generateValidCount,
     activeCount: shownRowViews.length,
-    missingWhy: Boolean(missingWhy),
     auditPassCount,
     anyStale,
     anyUnresolved,
     siblingCurrent,
-    challengerComplete,
     lockOk: lockDecision.ok,
   });
   const showGenerateBigThought = Boolean(
@@ -1397,7 +1371,7 @@ export function ThinkingLabPage() {
   const labTarget = (action?: string | null): string | null => {
     if (!action) return null;
     if (action === "save-master" || action === "suggest-belief") return "Master Thought";
-    if (action === "generate" || action === "manual-big-thought" || action === "audit" || action === "challenger" || action === "fix") return "Big Thought";
+    if (action === "generate" || action === "manual-big-thought" || action === "audit" || action === "fix") return "Big Thought";
     if (action.includes("angle")) return "Angle";
     if (action.includes("idea")) return "Idea";
     if (action.includes("territory")) return "Territory";
@@ -1775,7 +1749,6 @@ export function ThinkingLabPage() {
           admission: row.admission,
         })),
         activeCount: shownRowViews.length,
-        missingWhy,
         topUp: true,
         propose: async (plan, incumbents) => {
           const script = await askScoped(
@@ -1787,7 +1760,6 @@ export function ThinkingLabPage() {
                 .filter((row) => row.admission === "GENERATE_VALID")
                 .map((row) => ({ code: row.code, statement: row.statement, label: row.label })),
               needed: plan.needed,
-              missingWhy: plan.missingWhy,
               lessons,
               reasonPool: pool,
             }),
@@ -5301,7 +5273,6 @@ export function ThinkingLabPage() {
       repairCount: angleSet.data?.repairCount ?? 0,
       siblingSet: storedAngleSet,
       audit: angleSet.data?.audit ?? null,
-      challenger: angleSet.data?.challenger ?? null,
       auditLessons: [...(angleSet.data?.auditLessons ?? [])],
     };
     for (const row of failed) {
@@ -5690,7 +5661,6 @@ export function ThinkingLabPage() {
         repairCount: setRecord.repairCount + 1,
         siblingSet: null,
         audit: items.length > 0 ? { fingerprint: "", items } : setRecord.audit,
-        challenger: null,
       });
     }
     if (covered < failed.length) {
@@ -5851,7 +5821,6 @@ export function ThinkingLabPage() {
           repairCount: failedByCode.size > 0 ? (angleSet.data?.repairCount ?? 0) : 0,
           siblingSet,
           audit: { fingerprint: angleFingerprintNow, items },
-          challenger: null,
           auditLessons: mergeAngleAuditLessons(angleSet.data?.auditLessons ?? [], lessons),
         });
         return;
@@ -5899,7 +5868,6 @@ export function ThinkingLabPage() {
         repairCount: angleSet.data?.repairCount ?? 0,
         siblingSet: null,
         audit: { fingerprint: "", items },
-        challenger: null,
         auditLessons: angleSet.data?.auditLessons ?? [],
       });
       setAngleFixOffers((current) =>
@@ -5968,7 +5936,6 @@ export function ThinkingLabPage() {
       repairCount: territorySet.data?.repairCount ?? 0,
       siblingSet: storedTerritorySet,
       audit: territorySet.data?.audit ?? null,
-      challenger: territorySet.data?.challenger ?? null,
       auditLessons: [...(territorySet.data?.auditLessons ?? [])],
     };
     for (const row of failed) {
@@ -6182,7 +6149,6 @@ export function ThinkingLabPage() {
         repairCount: setRecord.repairCount + 1,
         siblingSet: null,
         audit: items.length > 0 ? { fingerprint: "", items } : null,
-        challenger: null,
       };
       await territorySet.save.mutateAsync(setRecord);
     }
@@ -6416,7 +6382,6 @@ export function ThinkingLabPage() {
           repairCount: failedByCode.size > 0 ? (territorySet.data?.repairCount ?? 0) : 0,
           siblingSet,
           audit: { fingerprint: territoryFingerprintNow, items },
-          challenger: null,
           auditLessons: mergeTerritoryAuditLessons(territorySet.data?.auditLessons ?? [], lessons),
         });
         setTerritoryGenerateRun((current) => {
@@ -6480,7 +6445,6 @@ export function ThinkingLabPage() {
         repairCount: territorySet.data?.repairCount ?? 0,
         siblingSet: null,
         audit: { fingerprint: "", items },
-        challenger: null,
         auditLessons: territorySet.data?.auditLessons ?? [],
       });
       setTerritoryFixOffers((current) =>
@@ -6706,7 +6670,6 @@ export function ThinkingLabPage() {
         parentFingerprint: parentFp,
         siblingSet: record.siblingSet,
         audit: { setFingerprint: record.audit?.setFingerprint ?? "", items },
-        challenger: record.challenger,
       });
       await masters.saveSet.mutateAsync({
         id: selected.id,
@@ -6921,7 +6884,6 @@ export function ThinkingLabPage() {
           parentFingerprint: parentFp,
           siblingSet: sibling,
           audit: { setFingerprint: nextSetFingerprint, items },
-          challenger: setRecord?.challenger?.setFingerprint === nextSetFingerprint ? setRecord.challenger : null,
         });
         const passedCodes = items.filter((item) => item.verdict === "AUDIT_PASS").map((item) => item.code);
         for (const code of passedCodes) bigThoughtFixLessonsRef.current.delete(code.toUpperCase());
@@ -6933,26 +6895,6 @@ export function ThinkingLabPage() {
         setAuditProgress(null);
       }
     }, "audit", "Big Thought");
-
-
-  const onChallenger = () =>
-    run(async () => {
-      if (!selected || !parentFp || !challengerReady) return;
-      const passing = shownRowViews.filter((row) => row.audit === "AUDIT_PASS");
-      const script = await askThinkingLab(
-        buildChallengerPrompt({
-          parentStatement: selected.statement,
-          rows: passing.map((row) => ({ code: row.code, statement: row.statement })),
-        }),
-      );
-      const challenger = parseChallenger(script, setFingerprint);
-      const next: LabSetRecord = {
-        ...(setRecord ?? emptySetRecord()),
-        challenger,
-      };
-      await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: next });
-      setNotice(challenger.status);
-    }, "challenger", "Big Thought");
 
   const onLock = () =>
     run(async () => {
@@ -8205,7 +8147,6 @@ export function ThinkingLabPage() {
                                                 window.setTimeout(() => {
                                                   if (masterMenuStage === "generate") void onGenerate();
                                                   else if (masterMenuStage === "audit") void onAudit();
-                                                  else if (masterMenuStage === "challenger") void onChallenger();
                                                   else void onLock();
                                                 }, 0);
                                               }}
@@ -8216,9 +8157,7 @@ export function ThinkingLabPage() {
                                                 ? t("thinkingLab.bt.generate", "Generate Big Thought")
                                                 : masterMenuStage === "audit"
                                                   ? t("thinkingLab.action.audit", "Audit")
-                                                  : masterMenuStage === "challenger"
-                                                    ? t("thinkingLab.action.challenger", "Challenger")
-                                                    : t("thinkingLab.action.lock", "Lock")}
+                                                  : t("thinkingLab.action.lock", "Lock")}
                                             </DropdownMenuItem>
                                           ) : null}
                                         </DropdownMenuContent>
@@ -8304,7 +8243,6 @@ export function ThinkingLabPage() {
                                     <BigThoughtSection
                                   parentStatement={becauseParent}
                                       rows={shownRowViews}
-                                      missingWhy={missingWhy}
                                       notice={notice}
                                       auditProgress={auditProgress}
                                       generateBusy={busy}

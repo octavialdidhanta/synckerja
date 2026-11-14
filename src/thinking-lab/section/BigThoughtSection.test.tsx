@@ -43,7 +43,6 @@ describe("BigThoughtSection territory entry", () => {
             statement: "Bahan yang berbeda punya karakter alami yang berbeda.",
           }),
         ]}
-        missingWhy={null}
         notice={null}
         auditProgress={null}
       />,
@@ -71,7 +70,6 @@ describe("BigThoughtSection territory entry", () => {
             territories: [{ id: "t2", code: "TR09", statement: "Second space" }],
           }),
         ]}
-        missingWhy={null}
         notice={null}
         auditProgress={null}
         onGenerateTerritory={vi.fn()}
@@ -116,7 +114,6 @@ describe("BigThoughtSection territory entry", () => {
             ],
           }),
         ]}
-        missingWhy={null}
         notice={null}
         auditProgress={null}
         onGenerateTerritory={vi.fn()}
@@ -137,7 +134,6 @@ describe("BigThoughtSection territory entry", () => {
     render(
       <BigThoughtSection
         rows={[]}
-        missingWhy={null}
         notice={null}
         auditProgress={null}
         generating
@@ -155,7 +151,6 @@ describe("BigThoughtSection territory entry", () => {
           row({ id: "a", code: "BT03", label: "Bunga Majemuk", statement: "Failed compound", audit: "AUDIT_FAIL" }),
           row({ id: "c", code: "BT05", label: "Beban Finansial", statement: "A passing burden", audit: "AUDIT_PASS" }),
         ]}
-        missingWhy={null}
         notice={null}
         auditProgress={null}
         onFixBigThought={onFixBigThought}
@@ -176,7 +171,6 @@ describe("BigThoughtSection territory entry", () => {
     render(
       <BigThoughtSection
         rows={[]}
-        missingWhy={null}
         notice={null}
         auditProgress={null}
         generating
@@ -231,7 +225,6 @@ describe("BigThoughtSection territory entry", () => {
             },
           }),
         ]}
-        missingWhy={null}
         notice={null}
         auditProgress={null}
       />,
@@ -258,7 +251,6 @@ describe("BigThoughtSection territory entry", () => {
             gateFailure: { gate: "relation", reason: "ELABORATION", earlier: "pass" },
           }),
         ]}
-        missingWhy={null}
         notice={null}
         auditProgress={null}
       />,
@@ -272,7 +264,6 @@ describe("BigThoughtSection territory entry", () => {
     render(
       <BigThoughtSection
         rows={[]}
-        missingWhy={null}
         notice={null}
         auditProgress={{
           done: 1,
@@ -322,7 +313,6 @@ describe("BigThoughtSection territory entry", () => {
             auditGateFailure: { gate: "sibling", reason: "Same reasoning job.", earlier: "pass" },
           }),
         ]}
-        missingWhy={null}
         notice={null}
         auditProgress={null}
       />,

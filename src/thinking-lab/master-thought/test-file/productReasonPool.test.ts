@@ -54,7 +54,6 @@ describe("product reason pool", () => {
       parentStatement: "Sate yang layak dibanggakan ada di dalam komplek.",
       incumbents: [],
       needed: 3,
-      missingWhy: null,
       reasonPool: pool,
     });
     expect(prompt).toContain("r3 advantage");
@@ -65,7 +64,6 @@ describe("product reason pool", () => {
       parentStatement: "Sate yang layak dibanggakan ada di dalam komplek.",
       incumbents: [],
       needed: 3,
-      missingWhy: null,
     });
     expect(general).toContain("Do not use examples from any specific industry, belief system, or brand.");
     expect(general).not.toContain("Allowed product reasons");

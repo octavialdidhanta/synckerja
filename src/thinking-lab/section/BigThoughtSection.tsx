@@ -242,7 +242,6 @@ export type AuditProgress = {
 type BigThoughtSectionProps = {
   parentStatement?: string;
   rows: BigThoughtRowView[];
-  missingWhy: { description: string; boundary: string } | null;
   notice: string | null;
   auditProgress: AuditProgress | null;
   generateBusy?: boolean;
@@ -263,7 +262,6 @@ type BigThoughtSectionProps = {
 export function BigThoughtSection({
   parentStatement = "",
   rows,
-  missingWhy,
   notice,
   auditProgress,
   generateBusy = false,
@@ -307,19 +305,6 @@ export function BigThoughtSection({
         </div>
       ) : null}
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
-      {missingWhy ? (
-        <div className="rounded-md border border-border p-3 text-sm">
-          <p className="font-medium">{t("thinkingLab.bt.missingWhy", "Missing distinct material support")}</p>
-          <p>{missingWhy.description}</p>
-          <p className="text-muted-foreground">{missingWhy.boundary}</p>
-          <p className="text-foreground">
-            {t(
-              "thinkingLab.bt.missingWhyNext",
-              "Generate adds one Big Thought for this WHY. Then run Audit and Challenger again. Lock stays closed until the set is complete.",
-            )}
-          </p>
-        </div>
-      ) : null}
       {generating ? (
         <div className="space-y-2" role="status" aria-live="polite">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { challengerCanRun } from "@/thinking-lab/big-thought/challenger";
 import { evaluateLock } from "@/thinking-lab/big-thought/lock";
 import {
   auditSiblingGate,
@@ -15,7 +14,7 @@ import {
   clearSetConclusions,
   emptySetRecord,
 } from "@/thinking-lab/big-thought/audit";
-import type { ChallengerFacts, LabSetRecord, SiblingSetFacts } from "@/thinking-lab/big-thought/types";
+import type { LabSetRecord, SiblingSetFacts } from "@/thinking-lab/big-thought/types";
 import { bigThoughtFingerprint, incumbentSetFingerprint } from "@/thinking-lab/shared/fingerprint";
 
 function siblingSet(overrides: Partial<SiblingSetFacts> = {}): SiblingSetFacts {
@@ -137,14 +136,6 @@ function auditedSet(): {
       bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parent }),
     ),
   });
-  const challenger: ChallengerFacts = {
-    setFingerprint,
-    status: "COMPLETE",
-    missingWhyDescription: "",
-    missingWhyBoundary: "",
-    resolution: "RESOLVED",
-    unresolvedReasons: [],
-  };
   const record: LabSetRecord = {
     schema: "thinking-lab/v1",
     siblingSet: siblingSet({
@@ -161,7 +152,6 @@ function auditedSet(): {
         { code: "BT03", verdict: "AUDIT_FAIL" },
       ],
     },
-    challenger,
     semanticExclusions: null,
   };
   return { record, setFingerprint };
@@ -179,7 +169,6 @@ describe("audit record history", () => {
       parentFingerprint: "parent",
       siblingSet: fresh,
       audit: { setFingerprint: fresh.fingerprint, items: [{ code: "BT01", verdict: "AUDIT_PASS" }] },
-      challenger: null,
     });
     expect(next.siblingSet).toEqual(fresh);
     expect(next.semanticExclusions?.entries).toEqual(
@@ -190,7 +179,7 @@ describe("audit record history", () => {
     );
   });
 
-  it("does not let exclusion history satisfy audit, challenger, or lock", () => {
+  it("does not let exclusion history satisfy audit or lock", () => {
     const { record } = auditedSet();
     record.semanticExclusions = {
       parentFingerprint: "parent",
@@ -207,15 +196,6 @@ describe("audit record history", () => {
     expect(items.every((item) => item.verdict !== "AUDIT_PASS")).toBe(true);
     expect(siblingReasonProofReady(siblingSet({ reasonContributions: [] }), ["BT01", "BT02"])).toBe(false);
     expect(
-      challengerCanRun({
-        auditPassCount: 0,
-        activeCount: 3,
-        anyFail: false,
-        anyStale: false,
-        anyUnresolved: true,
-      }),
-    ).toBe(false);
-    expect(
       evaluateLock({
         auditPassCount: 0,
         activeCount: 3,
@@ -223,8 +203,6 @@ describe("audit record history", () => {
         anyStale: false,
         anyUnresolved: true,
         siblingCurrent: false,
-        challenger: null,
-        challengerCurrent: false,
       }).ok,
     ).toBe(false);
     expect(record.semanticExclusions?.entries[0]?.explanation).toBe("A stored overlap.");
@@ -242,7 +220,6 @@ describe("audit record history", () => {
       parentFingerprint: "next-parent",
       siblingSet: siblingSet({ fingerprint: "next-parent\n\nfresh" }),
       audit: null,
-      challenger: null,
     });
     expect(next.semanticExclusions?.entries).toEqual([]);
   });
@@ -254,7 +231,6 @@ describe("Big Thought fix lessons", () => {
       schema: "thinking-lab/v1",
       siblingSet: null,
       audit: null,
-      challenger: null,
       fixLessons: [
         { code: "BT07", statement: "The failed clause", reason: "explains: It names a result." },
         { code: "bt07", statement: "The failed clause", reason: "explains: It names a result." },
@@ -289,7 +265,6 @@ describe("Big Thought generate lessons", () => {
       schema: "thinking-lab/v1",
       siblingSet: null,
       audit: null,
-      challenger: null,
       fixLessons: [{ code: "BT04", statement: "A card already saved", reason: "explains: It names a result." }],
       generateLessons: [
         { gate: "relation", statement: failed, reason: "It restates the Master Thought." },
@@ -327,7 +302,6 @@ describe("Big Thought generate lessons", () => {
       parentFingerprint: "parent",
       siblingSet: null,
       audit: null,
-      challenger: null,
     });
     expect(next.generateLessons).toEqual(record.generateLessons);
     expect(next.fixLessons).toEqual(record.fixLessons);

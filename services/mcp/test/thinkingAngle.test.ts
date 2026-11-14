@@ -80,7 +80,7 @@ describe("thinking.angle.lock", () => {
   it("locks passed Angles", async () => {
     const rows = [{ id: "a1", code: "AN01", statement: angle.statement, status: "candidate", admission: "GENERATE_VALID", sort_order: 1, subject: angle.subject }];
     const set = {
-      schema: "thinking-lab/angle-set/v1", repairCount: 0, siblingSet: null, challenger: null, auditLessons: [],
+      schema: "thinking-lab/angle-set/v1", repairCount: 0, siblingSet: null, auditLessons: [],
       audit: { fingerprint: "", items: [{ code: "AN01", verdict: "AUDIT_PASS", statementFingerprint: angleFingerprint({ statement: angle.statement, territoryFingerprint: trFp }) }] },
     };
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];

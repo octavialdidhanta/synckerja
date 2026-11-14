@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { imageSettingsForCreativeFormat } from "@/thinking-lab/creative-idea/formats";
 import { buildCreativeGeneratePrompt, nextCreativeCode, parseCreativeDrafts } from "@/thinking-lab/creative-idea/generate";
 import { developmentPathPatch, lockedPillarCards, mergeLockedPillar, readDevelopmentPaths, upsertDevelopmentPath } from "@/thinking-lab/creative-idea/paths";
 import { mergePillarReviews, parsePillarReviews, reviewContentPillars, selectPillarReviewSet } from "@/thinking-lab/creative-idea/recommend";
@@ -520,21 +519,20 @@ describe("execution link", () => {
     expect(developed).not.toContain("Creative Idea.");
   });
 
-  it("uses the image generator for carousel and post, and video for video", () => {
-    expect(imageSettingsForCreativeFormat("video")).toBeNull();
-    expect(imageSettingsForCreativeFormat("carousel")?.format).toBe("carousel");
-    expect(imageSettingsForCreativeFormat("post")?.format).toBe("single");
+  it("builds image prompts for a single post and a carousel", () => {
+    const post = { format: "single", slideCountMode: "idea", slideCount: null, withImage: true } as const;
+    const carousel = { ...post, format: "carousel" } as const;
     const slides = buildImageGeneratePrompt({
       ...base,
-      image: imageSettingsForCreativeFormat("post")!,
+      image: post,
       creativeIdea: { statement: "Bagaimana jika satu kartu." },
     });
     expect(slides).toContain("Bagaimana jika satu kartu.");
-    expect(buildImageGeneratePrompt({ ...base, image: imageSettingsForCreativeFormat("post")! })).not.toContain("Creative Idea.");
-    expect(buildImageGeneratePrompt({ ...base, image: imageSettingsForCreativeFormat("post")! })).not.toContain("Pillar development.");
+    expect(buildImageGeneratePrompt({ ...base, image: post })).not.toContain("Creative Idea.");
+    expect(buildImageGeneratePrompt({ ...base, image: post })).not.toContain("Pillar development.");
     const developedSlides = buildImageGeneratePrompt({
       ...base,
-      image: imageSettingsForCreativeFormat("carousel")!,
+      image: carousel,
       pillarDevelopment: "Jejak kerja tampil sebagai adegan yang bisa ditonton.",
     });
     expect(developedSlides).toContain("Pillar development. Realize this communication.");

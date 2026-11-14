@@ -82,7 +82,7 @@ describe("thinking.territory.lock", () => {
   const names = ["Bau prengus kambing", "Pilih daging di pasar", "Makan malam keluarga"];
   const rows = names.map((statement, index) => ({ id: `t${index}`, code: `TR0${index + 1}`, statement, status: "candidate", admission: "GENERATE_VALID", sort_order: index }));
   const set = {
-    schema: "thinking-lab/territory-set/v1", repairCount: 0, siblingSet: null, challenger: null, auditLessons: [],
+    schema: "thinking-lab/territory-set/v1", repairCount: 0, siblingSet: null, auditLessons: [],
     audit: { fingerprint: "", items: rows.map((row) => ({ code: row.code, verdict: "AUDIT_PASS", statementFingerprint: territoryFingerprint({ statement: row.statement, bigThoughtFingerprint: btFp }) })) },
   };
 
