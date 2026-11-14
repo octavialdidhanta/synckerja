@@ -2817,6 +2817,8 @@ export function ThinkingLabPage() {
         ...emptyAngleSetRecord(),
         auditLessons: angleSet.data?.auditLessons ?? [],
       });
+      // The card showed the checks of the old sentence; show the check the new sentence just passed.
+      publishAngleChecklist(row.code, checked.checks);
       return null;
     });
 
