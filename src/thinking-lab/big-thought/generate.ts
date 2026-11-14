@@ -1,29 +1,11 @@
-import { scoreAuditRow } from "./audit";
 import { asBecauseClause, BECAUSE_RESULT_LINES } from "./because";
-import {
-  attachLesson,
-  checklistFrame,
-  checklistFrames,
-  checkingSiblingFrame,
-  completeChecklist,
-  evaluateIndividualChecklist,
-  pendingPassChecklist,
-  uncheckedDuplicateChecklist,
-  type GateLesson,
-  type PassChecklist,
-} from "./checklist";
+import type { GateLesson } from "./checklist";
 import { bigThoughtRepeats, normalizeBigThoughtLabel } from "./label";
 import { productReasonLines, statementUsesReason, type ProductReasonPool } from "../master-thought/productReasonPool";
 import { MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "../shared/limits";
 import { individualAdmission } from "./policy";
-import { judgeBigThought } from "./semantic";
-import type { BigThoughtFacts, GenerateMode, MissingWhy, SemanticExclusion, SiblingSetFacts } from "./types";
+import type { BigThoughtFacts, GenerateMode, MissingWhy, SemanticExclusion } from "./types";
 import type { IndividualAdmission } from "../shared/verdict";
-
-export type { GateLesson, PassChecklist };
-
-export const CHECKED_GENERATE_ATTEMPTS = MAX_GENERATE_ROUNDS * TARGET_GENERATE_VALID;
-const CHECKED_CANDIDATE_CODE = "NEW";
 
 export type GeneratedBigThought = {
   label: string;
@@ -71,7 +53,6 @@ export function shownBigThoughtFacts(code: string, statement: string): BigThough
     code,
     whatItSays: statement.trim(),
     relationToParent: "DISTINCT_MATERIAL_SUPPORT",
-    supportRole: "REASON",
     explainsWhyParentIsTrue: true,
     introducesUnsupportedPremise: false,
     duplicateOfCode: null,
@@ -269,10 +250,6 @@ export function keepGroundedBigThoughts(
   });
 }
 
-export function parseGeneratedStatements(raw: unknown, parentStatement = ""): string[] {
-  return parseGeneratedBigThoughts(raw, parentStatement).map((row) => row.statement);
-}
-
 export type GenerateRunResult = {
   outcome: "READY" | "INSUFFICIENT_VALID_BIG_THOUGHTS";
   generateValid: number;
@@ -341,159 +318,6 @@ export async function runGenerateRounds<
     outcome: filled ? "READY" : "INSUFFICIENT_VALID_BIG_THOUGHTS",
     generateValid,
     target: input.missingWhy ? countGenerateValid(input.incumbents) + 1 : TARGET_GENERATE_VALID,
-    incumbents,
-  };
-}
-
-export async function judgeCandidateWithAsk(input: {
-  parentStatement: string;
-  statement: string;
-  code: string;
-  siblings: Array<{ code: string; statement: string }>;
-  ask: (prompt: string, temperature?: 0 | 0.2) => Promise<string | null>;
-}): Promise<BigThoughtFacts> {
-  return judgeBigThought(
-    {
-      parentStatement: input.parentStatement,
-      candidate: { code: input.code, statement: input.statement },
-      siblings: input.siblings,
-    },
-    (prompt) => input.ask(prompt, 0),
-  );
-}
-
-function siblingVerdict(set: SiblingSetFacts, activeCodes: string[]): { passed: boolean; reason: string } {
-  const verdict = scoreAuditRow({
-    code: CHECKED_CANDIDATE_CODE,
-    admission: "GENERATE_VALID",
-    siblingSet: set,
-    siblingSetCurrent: true,
-    activeCodes,
-  });
-  if (verdict === "AUDIT_PASS") return { passed: true, reason: "" };
-  const pair = set.duplicatePairs.find(
-    (item) =>
-      item.a.toUpperCase() === CHECKED_CANDIDATE_CODE || item.b.toUpperCase() === CHECKED_CANDIDATE_CODE,
-  );
-  return {
-    passed: false,
-    reason: pair?.explanation?.trim() || set.unresolvedReasons[0] || "This Big Thought repeats another reasoning job.",
-  };
-}
-
-async function publishChecklist(
-  publish: ((checklist: PassChecklist) => void | Promise<void>) | undefined,
-  checklist: PassChecklist,
-) {
-  if (publish) await publish(checklist);
-}
-
-async function publishFrames(
-  publish: ((checklist: PassChecklist) => void | Promise<void>) | undefined,
-  checklist: PassChecklist,
-) {
-  for (const frame of checklistFrames(checklist)) {
-    await publishChecklist(publish, frame);
-  }
-}
-
-export async function runCheckedGenerate<
-  T extends { code: string; statement: string; admission: IndividualAdmission; label?: string },
->(input: {
-  parentStatement: string;
-  incumbents: T[];
-  missingWhy: MissingWhy | null;
-  topUp?: boolean;
-  initialLessons?: GateLesson[];
-  propose: (plan: PlannedGenerate, incumbents: T[], lessons: GateLesson[]) => Promise<GeneratedBigThought[]>;
-  judge: (
-    statement: string,
-    siblings: Array<{ code: string; statement: string }>,
-  ) => Promise<BigThoughtFacts>;
-  judgeSibling: (
-    rows: Array<{ code: string; statement: string }>,
-  ) => Promise<SiblingSetFacts>;
-  persist: (candidate: GeneratedBigThought, facts: BigThoughtFacts, checklist: PassChecklist) => Promise<T>;
-  onChecklist?: (checklist: PassChecklist) => void | Promise<void>;
-}): Promise<GenerateRunResult & { incumbents: T[] }> {
-  let incumbents = [...input.incumbents];
-  const validAtStart = countGenerateValid(incumbents);
-  const targetAdded = input.missingWhy ? 1 : TARGET_GENERATE_VALID;
-  if (!input.missingWhy && !input.topUp && validAtStart >= TARGET_GENERATE_VALID) {
-    return {
-      outcome: "READY",
-      generateValid: validAtStart,
-      target: TARGET_GENERATE_VALID,
-      incumbents,
-    };
-  }
-  const lessons: GateLesson[] = [...(input.initialLessons ?? [])];
-  let passed = 0;
-  for (let attempt = 0; attempt < CHECKED_GENERATE_ATTEMPTS && passed < targetAdded; attempt += 1) {
-    const plan: PlannedGenerate = {
-      needed: 1,
-      mode: input.missingWhy ? "gap" : "fill",
-      stop: null,
-      missingWhy: input.missingWhy,
-    };
-    await publishChecklist(input.onChecklist, pendingPassChecklist());
-    const proposed = await input.propose(plan, incumbents, lessons);
-    const candidate = proposed[0];
-    if (!candidate) break;
-    const kept = incumbents.filter((row) => row.admission === "GENERATE_VALID");
-    const repeated = kept.find((row) => bigThoughtRepeats(candidate, row));
-    let facts: BigThoughtFacts;
-    let checklist: PassChecklist;
-    if (repeated) {
-      facts = {
-        code: CHECKED_CANDIDATE_CODE,
-        whatItSays: candidate.statement,
-        relationToParent: "DUPLICATE",
-        supportRole: "UNRESOLVED",
-        explainsWhyParentIsTrue: false,
-        introducesUnsupportedPremise: false,
-        duplicateOfCode: repeated.code,
-        resolution: "RESOLVED",
-        unresolvedReasons: [],
-      };
-      checklist = attachLesson(uncheckedDuplicateChecklist(`Same Big Thought as ${repeated.code}.`), candidate.statement);
-      await publishFrames(input.onChecklist, checklist);
-    } else {
-      const siblings = kept.map((row) => ({ code: row.code, statement: row.statement }));
-      facts = await input.judge(candidate.statement, siblings);
-      const individual = evaluateIndividualChecklist(facts);
-      if (individual.failure) {
-        checklist = attachLesson(individual, candidate.statement);
-        await publishFrames(input.onChecklist, checklist);
-      } else {
-        await publishFrames(input.onChecklist, individual);
-        await publishChecklist(input.onChecklist, checkingSiblingFrame(individual));
-        const sibling =
-          kept.length === 0
-            ? { passed: true, reason: "" }
-            : siblingVerdict(
-                await input.judgeSibling([
-                  ...siblings,
-                  { code: CHECKED_CANDIDATE_CODE, statement: candidate.statement },
-                ]),
-                [...siblings.map((row) => row.code), CHECKED_CANDIDATE_CODE],
-              );
-        checklist = attachLesson(completeChecklist(individual, sibling), candidate.statement);
-        await publishChecklist(input.onChecklist, checklistFrame(checklist, "sibling", "checked"));
-      }
-    }
-    if (checklist.passed) facts = { ...facts, passConfirmed: true };
-    else if (checklist.failure) facts = { ...facts, gateFailure: checklist.failure };
-    const saved = await input.persist(candidate, facts, checklist);
-    incumbents = [...incumbents, { ...saved, admission: saved.admission, label: saved.label || candidate.label }];
-    if (checklist.lesson) lessons.push(checklist.lesson);
-    if (checklist.passed) passed += 1;
-  }
-  const generateValid = countGenerateValid(incumbents);
-  return {
-    outcome: passed >= targetAdded ? "READY" : "INSUFFICIENT_VALID_BIG_THOUGHTS",
-    generateValid,
-    target: input.missingWhy ? validAtStart + 1 : validAtStart + targetAdded,
     incumbents,
   };
 }

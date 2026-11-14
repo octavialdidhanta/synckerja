@@ -1,6 +1,5 @@
 import { parseModelJson } from "@/thinking-lab/shared/parseModelJson";
 import type { Resolution } from "@/thinking-lab/shared/verdict";
-import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
 import type { ChallengerFacts, ChallengerStatus } from "@/thinking-lab/big-thought/types";
 
 const STATUSES = new Set<ChallengerStatus>(["COMPLETE", "MISSING_MATERIAL_SUPPORT", "UNRESOLVED"]);
@@ -136,6 +135,3 @@ export function currentMissingWhy(
   };
 }
 
-export function auditHasBlocker(verdicts: Array<AuditVerdict | null>): boolean {
-  return verdicts.some((verdict) => verdict === "AUDIT_FAIL" || verdict === "STALE" || verdict === "UNRESOLVED" || verdict == null);
-}

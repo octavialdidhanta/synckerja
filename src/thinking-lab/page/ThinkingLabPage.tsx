@@ -107,9 +107,7 @@ import {
   dropFixLessons,
   stuckBigThoughtFixes,
   auditSiblingGate,
-  scoreAuditRow,
   siblingSetIsCurrent,
-  siblingReasonProofReady,
 } from "@/thinking-lab/big-thought/audit";
 import {
   buildChallengerPrompt,
@@ -120,7 +118,6 @@ import {
 import {
   buildGeneratePrompt,
   countGenerateValid,
-  judgeCandidateWithAsk,
   keepGroundedBigThoughts,
   nextBigThoughtCode,
   parseGeneratedBigThoughts,
@@ -156,6 +153,7 @@ import { asBecauseClause, becauseSentence } from "@/thinking-lab/big-thought/bec
 import {
   bigThoughtLabelIsOpen,
   bigThoughtLabelRestates,
+  bigThoughtRepeats,
   buildBigThoughtLabelPrompt,
   buildKeyBeliefFromLabelPrompt,
   parseBigThoughtLabels,
@@ -167,7 +165,7 @@ import { individualAdmission } from "@/thinking-lab/big-thought/policy";
 import { manualRejection, ManualStatementForm } from "@/thinking-lab/section/ManualStatementForm";
 import { activeBigThoughts } from "@/thinking-lab/big-thought/repository";
 import { judgeSiblingSet } from "@/thinking-lab/big-thought/semantic";
-import type { BigThoughtFacts, GateFailure, LabBigThought, LabSetRecord } from "@/thinking-lab/big-thought/types";
+import type { BigThoughtFacts, LabSetRecord } from "@/thinking-lab/big-thought/types";
 import { useBigThoughts, useLockedLabTree } from "@/thinking-lab/big-thought/useBigThoughts";
 import { canShowGenerateAngle } from "@/thinking-lab/angle/eligibility";
 import { angleChallengerCanRun, buildAngleChallengerPrompt, coverageFromAngleChallenger, parseAngleChallenger } from "@/thinking-lab/angle/challenger";
@@ -3487,6 +3485,29 @@ export function ThinkingLabPage() {
     }
   };
 
+  /**
+   * The same admission as Generate: an exact repeat of a passed Big Thought, then the switched-on
+   * finished-claim and relation checks. Audit runs the remaining checks later.
+   */
+  const admitBigThought = async (input: {
+    code: string;
+    label: string;
+    statement: string;
+    siblings: Array<{ code: string; statement: string; label?: string }>;
+  }): Promise<{ facts: BigThoughtFacts; rejection: null } | { facts: null; rejection: string }> => {
+    const repeated = input.siblings.find((row) => bigThoughtRepeats({ label: input.label, statement: input.statement }, row));
+    if (repeated) return { facts: null, rejection: `duplicate: Same Big Thought as ${repeated.code}.` };
+    const checklist = await runGenerateAdmissionChecks({
+      skip: skipFor("bigThought"),
+      batch: true,
+      statement: input.statement,
+      parentStatement: becauseParent,
+      ask: (prompt) => askScoped("manual-big-thought", input.code, prompt, 0),
+    });
+    if (checklist.failure) return { facts: null, rejection: `${checklist.failure.gate}: ${checklist.failure.reason}` };
+    return { facts: { ...factsForGenerateAdmission(input.statement, checklist), code: input.code }, rejection: null };
+  };
+
   const onManualBigThought = (raw: string) =>
     runManual("manual-big-thought", async () => {
       if (!selected || !parentFp || !ready) return null;
@@ -3505,7 +3526,7 @@ export function ThinkingLabPage() {
       const code = nextBigThoughtCode(known.map((row) => row.code));
       const siblings = rowViews
         .filter((row) => row.admission === "GENERATE_VALID")
-        .map((row) => ({ code: row.code, statement: row.statement }));
+        .map((row) => ({ code: row.code, statement: row.statement, label: row.label }));
       const pool = selected.productReasonPool;
       if (pool && pool.items.length === 0) {
         return t(
@@ -3515,7 +3536,7 @@ export function ThinkingLabPage() {
       }
       let rejectionNote: string | null = null;
       let statement = "";
-      let sealed = null as Awaited<ReturnType<typeof judgeCandidateWithAsk>> | null;
+      let sealed: BigThoughtFacts | null = null;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const script = await askThinkingLab(
           buildKeyBeliefFromLabelPrompt({
@@ -3538,21 +3559,10 @@ export function ThinkingLabPage() {
           if (attempt === 1) return rejectionNote;
           continue;
         }
-        const facts = await judgeCandidateWithAsk({
-          parentStatement: becauseParent,
-          statement,
-          code,
-          siblings,
-          ask: askThinkingLab,
-        });
-        sealed = { ...facts, code };
-        const rejection = manualRejection({
-          admission: individualAdmission({ facts: sealed, factsCurrent: true }),
-          relation: sealed.relationToParent,
-          reasons: sealed.unresolvedReasons,
-          note: sealed.judgmentReason,
-        });
-        if (!rejection) break;
+        const admitted = await admitBigThought({ code, label: read.label, statement, siblings });
+        sealed = admitted.facts;
+        const rejection = admitted.rejection;
+        if (rejection === null) break;
         rejectionNote = rejection;
         if (attempt === 1) return rejection;
       }
@@ -3580,24 +3590,16 @@ export function ThinkingLabPage() {
       if (!row || row.status !== "candidate") return null;
       const clause = asBecauseClause(statement, becauseParent);
       if (!clause) return null;
-      const facts = await judgeCandidateWithAsk({
-        parentStatement: becauseParent,
-        statement: clause,
+      const admitted = await admitBigThought({
         code: row.code,
+        label: "",
+        statement: clause,
         siblings: rowViews
           .filter((item) => item.admission === "GENERATE_VALID" && item.id !== id)
           .map((item) => ({ code: item.code, statement: item.statement })),
-        ask: askThinkingLab,
       });
-      const sealed = { ...facts, code: row.code };
-      const admission = individualAdmission({ facts: sealed, factsCurrent: true });
-      const rejection = manualRejection({
-        admission,
-        relation: sealed.relationToParent,
-        reasons: sealed.unresolvedReasons,
-        note: sealed.judgmentReason,
-      });
-      if (rejection) return rejection;
+      if (admitted.rejection !== null) return admitted.rejection;
+      const sealed = admitted.facts;
       const label = await labelFor(row.code, clause);
       await thoughts.updateFacts.mutateAsync({
         id,

@@ -1,16 +1,27 @@
 import type { CertificationCase, SiblingCertificationCase } from "@/thinking-lab/big-thought/certificationCases";
-import type { ParentRelation, SameReasonPair, SupportRole } from "@/thinking-lab/big-thought/types";
+import type { PassChecklist } from "@/thinking-lab/big-thought/checklist";
+import type { SameReasonPair } from "@/thinking-lab/big-thought/types";
+import { isUndecided } from "@/thinking-lab/shared/batchGates";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 
 export type CertificationRunStatus = "PASS" | "FAIL" | "NOT_RUN";
 export type OverallCertificationStatus = "CERTIFIED" | "PENDING_LIVE" | "NOT_CERTIFIED";
 
 export type LiveObservation = {
-  relationToParent: string;
-  supportRole: string;
-  resolution: string;
+  /** The first failed check, or null when every individual check passed. */
+  failedGate: string | null;
   individualAdmission: IndividualAdmission;
 };
+
+/** Every individual check passed: valid. A check the model could not decide: unresolved. Any other failure: reject. */
+export function observeChecklist(checklist: Pick<PassChecklist, "passed" | "failure">): LiveObservation {
+  if (checklist.passed || !checklist.failure) return { failedGate: null, individualAdmission: "GENERATE_VALID" };
+  const undecided = isUndecided({ pass: false, reason: checklist.failure.reason });
+  return {
+    failedGate: checklist.failure.gate,
+    individualAdmission: undecided ? "UNRESOLVED" : "GENERATE_REJECT",
+  };
+}
 
 export type SiblingRunObservation = {
   distinct: boolean | "unresolved";
@@ -69,23 +80,8 @@ export function classifyIndividualCase(testCase: CertificationCase, runs: LiveOb
     criticalFailures.push(testCase.id);
   }
   for (const run of runs) {
-    if (
-      testCase.acceptableSupportRoles &&
-      run.individualAdmission === "GENERATE_VALID" &&
-      run.resolution === "RESOLVED" &&
-      !testCase.acceptableSupportRoles.includes(run.supportRole as SupportRole)
-    ) {
-      criticalFailures.push(`${testCase.id}:supportRole:${run.supportRole}`);
-    }
     if (run.individualAdmission === "UNRESOLVED") {
       acceptableAmbiguities.push(`${testCase.id}:UNRESOLVED`);
-    }
-    if (
-      run.individualAdmission === "GENERATE_REJECT" &&
-      testCase.acceptableRelations &&
-      !testCase.acceptableRelations.includes(run.relationToParent as ParentRelation)
-    ) {
-      acceptableAmbiguities.push(`${testCase.id}:${run.relationToParent}`);
     }
   }
   return {

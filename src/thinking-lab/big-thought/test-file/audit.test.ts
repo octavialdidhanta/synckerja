@@ -2,18 +2,12 @@ import { describe, expect, it } from "vitest";
 import { challengerCanRun } from "@/thinking-lab/big-thought/challenger";
 import { evaluateLock } from "@/thinking-lab/big-thought/lock";
 import {
-  auditRowContinuation,
   auditSiblingGate,
-  displayedAuditVerdict,
-  holdPassingAuditVerdicts,
   keptPassingAuditItems,
   exclusionsForParent,
   nextAuthoritativeSetRecord,
-  heldAuditAfterFix,
-  persistedSetRecordAfterFix,
   scoreAudit,
   siblingReasonProofReady,
-  withAuditConfirmation,
   parseLabSetRecord,
   mergeFixLessons,
   mergeGenerateLessons,
@@ -21,7 +15,7 @@ import {
   clearSetConclusions,
   emptySetRecord,
 } from "@/thinking-lab/big-thought/audit";
-import type { BigThoughtFacts, ChallengerFacts, LabSetRecord, SiblingSetFacts } from "@/thinking-lab/big-thought/types";
+import type { ChallengerFacts, LabSetRecord, SiblingSetFacts } from "@/thinking-lab/big-thought/types";
 import { bigThoughtFingerprint, incumbentSetFingerprint } from "@/thinking-lab/shared/fingerprint";
 
 function siblingSet(overrides: Partial<SiblingSetFacts> = {}): SiblingSetFacts {
@@ -57,15 +51,6 @@ describe("keptPassingAuditItems", () => {
     });
     expect(kept.map((item) => item.code)).toEqual(["BT01", "BT02"]);
     expect(kept[0]?.gatesChecked).toBe(true);
-    const scored = holdPassingAuditVerdicts(
-      [
-        { code: "BT01", verdict: "AUDIT_FAIL" },
-        { code: "BT02", verdict: "AUDIT_FAIL" },
-        { code: "BT06", verdict: "AUDIT_PASS" },
-      ],
-      kept.map((item) => item.code),
-    );
-    expect(scored.map((item) => item.verdict)).toEqual(["AUDIT_PASS", "AUDIT_PASS", "AUDIT_PASS"]);
   });
 });
 
@@ -110,12 +95,6 @@ describe("set audit", () => {
     expect(items[0]?.verdict).toBe("STALE");
   });
 
-  it("retries the same Big Thought after a failed gate and moves on only after it passes", () => {
-    expect(auditRowContinuation({ passed: false, attempt: 0, maxAttempts: 6 })).toBe("retry");
-    expect(auditRowContinuation({ passed: false, attempt: 5, maxAttempts: 6 })).toBe("stop");
-    expect(auditRowContinuation({ passed: true, attempt: 2, maxAttempts: 6 })).toBe("next");
-  });
-
   it("reports the sibling gate from the same audit score", () => {
     const passed = auditSiblingGate({
       code: "BT02",
@@ -140,41 +119,10 @@ describe("set audit", () => {
     expect(passed).toEqual({ passed: true, reason: "" });
     expect(failed).toEqual({ passed: false, reason: "Same reasoning job." });
   });
-
-  it("keeps the checklist report only when it matches the saved verdict", () => {
-    const failure = { gate: "sibling" as const, reason: "Same reasoning job.", earlier: "pass" as const };
-    expect(
-      withAuditConfirmation(
-        [{ code: "BT01", verdict: "AUDIT_PASS" }],
-        new Map([["BT01", { gatesChecked: true as const }]]),
-      ),
-    ).toEqual([{ code: "BT01", verdict: "AUDIT_PASS", gatesChecked: true }]);
-    expect(
-      withAuditConfirmation([{ code: "BT01", verdict: "AUDIT_FAIL" }], new Map([["BT01", { gateFailure: failure }]])),
-    ).toEqual([{ code: "BT01", verdict: "AUDIT_FAIL", gateFailure: failure }]);
-    expect(
-      withAuditConfirmation([{ code: "BT01", verdict: "AUDIT_PASS" }], new Map([["BT01", { gateFailure: failure }]])),
-    ).toEqual([{ code: "BT01", verdict: "AUDIT_PASS" }]);
-  });
 });
-
-function rowFacts(code: string, statement: string): BigThoughtFacts {
-  return {
-    code,
-    whatItSays: statement,
-    relationToParent: "DISTINCT_MATERIAL_SUPPORT",
-    supportRole: "REASON",
-    explainsWhyParentIsTrue: true,
-    introducesUnsupportedPremise: false,
-    duplicateOfCode: null,
-    resolution: "RESOLVED",
-    unresolvedReasons: [],
-  };
-}
 
 function auditedSet(): {
   record: LabSetRecord;
-  facts: BigThoughtFacts[];
   setFingerprint: string;
 } {
   const parent = "parent";
@@ -183,7 +131,6 @@ function auditedSet(): {
     { code: "BT02", statement: "Second why" },
     { code: "BT03", statement: "Third why" },
   ];
-  const facts = statements.map((row) => rowFacts(row.code, row.statement));
   const setFingerprint = incumbentSetFingerprint({
     masterThoughtFingerprint: parent,
     bigThoughtFingerprints: statements.map((row) =>
@@ -217,108 +164,10 @@ function auditedSet(): {
     challenger,
     semanticExclusions: null,
   };
-  return { record, facts, setFingerprint };
+  return { record, setFingerprint };
 }
 
-describe("fix audit persistence", () => {
-  it("keeps the audit record when no replacement is inserted", () => {
-    const { record, facts, setFingerprint } = auditedSet();
-    const before = structuredClone(record);
-    const factsBefore = structuredClone(facts);
-    const decision = persistedSetRecordAfterFix(record, 0);
-    const fingerprintAfter = incumbentSetFingerprint({
-      masterThoughtFingerprint: "parent",
-      bigThoughtFingerprints: facts.map((row) =>
-        bigThoughtFingerprint({ statement: row.whatItSays, masterThoughtFingerprint: "parent" }),
-      ),
-    });
-
-    expect(decision).toEqual({ write: false });
-    expect(record).toEqual(before);
-    expect(facts).toEqual(factsBefore);
-    expect(fingerprintAfter).toBe(setFingerprint);
-    expect(record.challenger).toEqual(before.challenger);
-    for (const item of record.audit?.items ?? []) {
-      expect(
-        displayedAuditVerdict(record.audit?.items, record.audit?.setFingerprint, setFingerprint, item.code),
-      ).toBe(item.verdict);
-    }
-  });
-
-  it("clears set conclusions after a real replacement", () => {
-    const { record } = auditedSet();
-    const decision = persistedSetRecordAfterFix(record, 1);
-    expect(decision.write).toBe(true);
-    if (!decision.write) return;
-    expect(decision.lastAudit.audit).toBeNull();
-    expect(decision.lastAudit.challenger).toBeNull();
-    expect(decision.lastAudit.siblingSet).toEqual(record.siblingSet);
-  });
-
-  it("keeps an unchanged AUDIT_PASS after a replacement", () => {
-    const { record } = auditedSet();
-    const held = heldAuditAfterFix({
-      items: record.audit?.items,
-      rows: [
-        { code: "BT02", statementFingerprint: "fp-02" },
-        { code: "BT03", statementFingerprint: "fp-03" },
-      ],
-      replacedCodes: ["BT01"],
-    });
-    const decision = persistedSetRecordAfterFix(record, 1, null, held);
-    expect(decision.write).toBe(true);
-    if (!decision.write) return;
-    expect(decision.lastAudit.audit?.items).toEqual([
-      { code: "BT02", verdict: "AUDIT_PASS", statementFingerprint: "fp-02" },
-      { code: "BT03", verdict: "AUDIT_FAIL", statementFingerprint: "fp-03" },
-    ]);
-    expect(
-      displayedAuditVerdict(
-        decision.lastAudit.audit?.items,
-        decision.lastAudit.audit?.setFingerprint,
-        "a-different-set",
-        "BT02",
-        undefined,
-        "fp-02",
-      ),
-    ).toBe("AUDIT_PASS");
-  });
-
-  it("keeps audit state when exhaustion only adds search context", () => {
-    const { record } = auditedSet();
-    const history = {
-      parentFingerprint: "parent",
-      entries: [
-        {
-          reasonContribution: "A candidate job",
-          explanation: "Overlaps the incumbent job.",
-          codes: ["BT01", "NEW"],
-        },
-      ],
-    };
-    const decision = persistedSetRecordAfterFix(record, 0, history);
-    expect(decision.write).toBe(true);
-    if (!decision.write) return;
-    expect(decision.lastAudit.audit).toEqual(record.audit);
-    expect(decision.lastAudit.challenger).toEqual(record.challenger);
-    expect(decision.lastAudit.siblingSet).toEqual(record.siblingSet);
-    expect(decision.lastAudit.semanticExclusions).toEqual(history);
-  });
-
-  it("keeps semantic exclusion history when a replacement clears authoritative conclusions", () => {
-    const { record } = auditedSet();
-    const history = {
-      parentFingerprint: "parent",
-      entries: [{ reasonContribution: "Kept job", explanation: "Same reasoning job.", codes: ["BT01", "BT03"] }],
-    };
-    const decision = persistedSetRecordAfterFix(record, 1, history);
-    expect(decision.write).toBe(true);
-    if (!decision.write) return;
-    expect(decision.lastAudit.audit).toBeNull();
-    expect(decision.lastAudit.challenger).toBeNull();
-    expect(decision.lastAudit.semanticExclusions).toEqual(history);
-  });
-
+describe("audit record history", () => {
   it("replaces the authoritative sibling set without deleting exclusion history", () => {
     const { record, setFingerprint } = auditedSet();
     const fresh = siblingSet({

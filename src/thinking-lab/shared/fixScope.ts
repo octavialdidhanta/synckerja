@@ -25,18 +25,6 @@ export function fixScopeFromChecks(
   };
 }
 
-/** Keep every check that already passed, and point the next attempt at the checks that just failed. */
-export function nextFixScope(
-  previous: FixScope,
-  checks: ReadonlyArray<{ id: string; state: string; reason?: string }>,
-): FixScope {
-  const latest = fixScopeFromChecks(checks);
-  return {
-    preserve: [...new Set([...previous.preserve, ...latest.preserve])],
-    repair: latest.repair.length > 0 ? latest.repair : previous.repair,
-  };
-}
-
 const CHECK_REASON = /^([a-z][A-Za-z0-9]*):\s*([\s\S]+)$/;
 
 /** When the checklist was cleared, rebuild the failed checks from every stored reason. */
@@ -128,8 +116,8 @@ export function fixScopeLines(scope: FixScope): string[] {
     ...(onlyRepair === "relation"
       ? ["Change only the part that restates, unpacks, or executes the Master Thought. Keep the distinct support that already passed."]
       : []),
-    ...(onlyRepair === "role"
-      ? ["Name only the premise, reason, or evidence. Keep the sentence that already passed."]
+    ...(onlyRepair === "showable"
+      ? ["Change only the part that is abstract or does not concern the Master Thought subject, so the reason can be shown, compared, or experienced in content. Keep the reason that already passed."]
       : []),
     ...(onlyRepair === "explains"
       ? ["Change only the part that does not show why the Master Thought is true. Keep the support that already passed."]

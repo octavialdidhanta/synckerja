@@ -4,12 +4,10 @@ import {
   bigThoughtHeading,
   bigThoughtLabelIsOpen,
   bigThoughtLabelRestates,
-  bigThoughtTreeCode,
   buildBigThoughtLabelPrompt,
   buildKeyBeliefFromLabelPrompt,
   normalizeBigThoughtLabel,
   parseBigThoughtLabels,
-  parseKeyBeliefFromLabel,
   readBigThoughtLabel,
   sameBigThoughtLabel,
 } from "@/thinking-lab/big-thought/label";
@@ -40,7 +38,6 @@ describe("big thought labels", () => {
     const belief =
       "Bahan yang berbeda punya karakter alami yang berbeda, sehingga tidak seharusnya diperlakukan dengan cara yang sama.";
     expect(bigThoughtHeading("BT01", "Karakter Bahan")).toBe("BT01 — Karakter Bahan");
-    expect(bigThoughtTreeCode("BT01", "Karakter Bahan")).toBe("BT01-Karakter Bahan");
     expect(belief).toContain("karakter alami");
   });
 
@@ -79,11 +76,6 @@ describe("big thought labels", () => {
     expect(prompt).toContain("Do not change, translate, or replace the label.");
     expect(prompt).toContain("Do not restate or elaborate the Master Thought.");
     expect(prompt).toContain("Inserting because between the Master Thought and this clause must already make one sentence.");
-    expect(
-      parseKeyBeliefFromLabel({
-        statement: "Kualitas hidangan yang dirasakan menentukan apakah perpaduan itu terasa berkesan.",
-      }),
-    ).toContain("Kualitas hidangan");
   });
 
   it("treats a reordered label as the same Big Thought", () => {

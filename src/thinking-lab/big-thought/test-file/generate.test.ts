@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildBigThoughtJudgePrompt, buildSiblingSetPrompt } from "@/thinking-lab/big-thought/semantic";
+import { buildSiblingSetPrompt } from "@/thinking-lab/big-thought/semantic";
 import {
   buildGeneratePrompt,
   nextBigThoughtCode,
   planGenerate,
-  runCheckedGenerate,
   runGenerateRounds,
 } from "@/thinking-lab/big-thought/generate";
-import type { BigThoughtFacts, SiblingSetFacts } from "@/thinking-lab/big-thought/types";
+import type { BigThoughtFacts } from "@/thinking-lab/big-thought/types";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 
 const BANNED = ["tithing", "tithe", "obc", "charity", "apple", "iphone"];
@@ -17,7 +16,6 @@ function validFacts(): BigThoughtFacts {
     code: "BT02",
     whatItSays: "Another foundational reason",
     relationToParent: "DISTINCT_MATERIAL_SUPPORT",
-    supportRole: "REASON",
     explainsWhyParentIsTrue: true,
     introducesUnsupportedPremise: false,
     duplicateOfCode: null,
@@ -91,7 +89,6 @@ describe("generate planner", () => {
           : {
               ...validFacts(),
               relationToParent: "ELABORATION",
-              supportRole: "UNRESOLVED",
               explainsWhyParentIsTrue: false,
             },
       persist: async (candidate) => {
@@ -173,11 +170,7 @@ describe("generate planner", () => {
     expect(prompt).toContain("semantic name of that statement's meaning");
     expect(prompt).toContain("Do not shorten or rewrite the statement so that it matches the label.");
     expect(prompt).toContain("same words as an incumbent label, in any order");
-    const lower = `${prompt}\n${buildBigThoughtJudgePrompt({
-      parentStatement: "A general belief",
-      candidate: { code: "BT04", statement: "Candidate" },
-      siblings: [],
-    })}\n${buildSiblingSetPrompt({ parentStatement: "A general belief", rows: [] })}`.toLowerCase();
+    const lower = `${prompt}\n${buildSiblingSetPrompt({ parentStatement: "A general belief", rows: [] })}`.toLowerCase();
     for (const word of BANNED) expect(lower).not.toContain(word);
   });
 
@@ -192,213 +185,5 @@ describe("generate planner", () => {
     expect(prompt).toContain("Failed gate: relation. Cause: ELABORATION Failed clause: Only a weaker quality.");
     expect(prompt).toContain("Do not repeat those failures.");
     expect(prompt).toContain("Return at most 1 item(s).");
-  });
-});
-
-function distinctSet(codes: string[]): SiblingSetFacts {
-  return {
-    fingerprint: "generate-check",
-    distinct: true,
-    duplicatePairs: [],
-    reasonContributions: codes.map((code) => ({ code, reasonContribution: `${code} job` })),
-    resolution: "RESOLVED",
-    unresolvedReasons: [],
-  };
-}
-
-describe("checked generate", () => {
-  it("saves a failed candidate and carries the cause into the next attempt", async () => {
-    const lessons: string[] = [];
-    const saved: string[] = [];
-    let siblingCalls = 0;
-    const result = await runCheckedGenerate({
-      parentStatement: "A general belief",
-      incumbents: [incumbent("BT01")],
-      missingWhy: null,
-      topUp: true,
-      propose: async (_plan, _incumbents, prior) => {
-        lessons.push(prior.map((lesson) => lesson.gate).join(","));
-        const index = saved.length;
-        return [{ label: `Reason ${index}`, statement: index === 0 ? "Only a weaker quality." : `Support ${index}` }];
-      },
-      judge: async (statement) =>
-        statement === "Only a weaker quality."
-          ? { ...validFacts(), relationToParent: "ELABORATION", supportRole: "UNRESOLVED", explainsWhyParentIsTrue: false }
-          : validFacts(),
-      judgeSibling: async (rows) => {
-        siblingCalls += 1;
-        return distinctSet(rows.map((row) => row.code));
-      },
-      persist: async (candidate, _facts, checklist) => {
-        saved.push(candidate.statement);
-        return {
-          code: `BT0${saved.length + 1}`,
-          statement: candidate.statement,
-          label: candidate.label,
-          admission: checklist.passed ? "GENERATE_VALID" : "GENERATE_REJECT",
-        };
-      },
-    });
-    expect(saved[0]).toBe("Only a weaker quality.");
-    expect(lessons[1]).toBe("relation");
-    expect(siblingCalls).toBe(3);
-    expect(result.outcome).toBe("READY");
-    expect(saved).toHaveLength(4);
-  });
-
-  it("starts from stored failures so the first attempt already avoids them", async () => {
-    const seen: string[][] = [];
-    await runCheckedGenerate({
-      parentStatement: "A general belief",
-      incumbents: [],
-      missingWhy: null,
-      topUp: true,
-      initialLessons: [{ gate: "relation", reason: "ELABORATION", statement: "Only a weaker quality." }],
-      propose: async (_plan, _incumbents, lessons) => {
-        seen.push(lessons.map((lesson) => lesson.statement));
-        return [{ label: `Reason ${seen.length}`, statement: `Support ${seen.length}` }];
-      },
-      judge: async () => validFacts(),
-      judgeSibling: async (rows) => distinctSet(rows.map((row) => row.code)),
-      persist: async (candidate) => ({
-        code: candidate.statement,
-        statement: candidate.statement,
-        label: candidate.label,
-        admission: "GENERATE_VALID" as const,
-      }),
-    });
-    expect(seen[0]).toEqual(["Only a weaker quality."]);
-    expect(seen).toHaveLength(3);
-  });
-
-  it("does not judge a repeated label and stops after six failed attempts", async () => {
-    let judgeCalls = 0;
-    let siblingCalls = 0;
-    const saved: string[] = [];
-    const repeated = await runCheckedGenerate({
-      parentStatement: "A general belief",
-      incumbents: [{ code: "BT01", statement: "Kept reason.", label: "Pengalaman Pengguna", admission: "GENERATE_VALID" }],
-      missingWhy: null,
-      topUp: true,
-      propose: async () => [{ label: "Pengalaman Pengguna", statement: "A later clause about the same experience." }],
-      judge: async () => {
-        judgeCalls += 1;
-        return validFacts();
-      },
-      judgeSibling: async () => {
-        siblingCalls += 1;
-        return distinctSet(["BT01", "NEW"]);
-      },
-      persist: async (candidate) => {
-        saved.push(candidate.statement);
-        return {
-          code: `BT0${saved.length + 1}`,
-          statement: candidate.statement,
-          admission: "GENERATE_REJECT" as IndividualAdmission,
-          label: candidate.label,
-        };
-      },
-    });
-    expect(judgeCalls).toBe(0);
-    expect(siblingCalls).toBe(0);
-    expect(saved).toHaveLength(6);
-    expect(repeated.outcome).toBe("INSUFFICIENT_VALID_BIG_THOUGHTS");
-
-    judgeCalls = 0;
-    const failed = await runCheckedGenerate({
-      parentStatement: "A general belief",
-      incumbents: [],
-      missingWhy: null,
-      topUp: true,
-      propose: async () => [{ label: "Weak", statement: "Still weak." }],
-      judge: async () => {
-        judgeCalls += 1;
-        return { ...validFacts(), relationToParent: "METHOD", explainsWhyParentIsTrue: false };
-      },
-      judgeSibling: async () => {
-        siblingCalls += 1;
-        return distinctSet(["NEW"]);
-      },
-      persist: async (candidate) => ({ code: candidate.statement, statement: candidate.statement, admission: "GENERATE_REJECT" }),
-    });
-    expect(judgeCalls).toBe(6);
-    expect(siblingCalls).toBe(0);
-    expect(failed.outcome).toBe("INSUFFICIENT_VALID_BIG_THOUGHTS");
-  });
-
-  it("reports each requirement before the next one, and checks siblings only after the earlier gates pass", async () => {
-    const reports: string[] = [];
-    let siblingAfter = "";
-    let confirmed = false;
-    let proposed = 0;
-    await runCheckedGenerate({
-      parentStatement: "A general belief",
-      incumbents: [incumbent("BT01")],
-      missingWhy: null,
-      topUp: true,
-      propose: async () => {
-        proposed += 1;
-        if (proposed > 1) return [];
-        return [{ label: "Reason 1", statement: "A distinct support." }];
-      },
-      judge: async () => validFacts(),
-      judgeSibling: async (rows) => {
-        siblingAfter = reports.at(-1) ?? "";
-        return distinctSet(rows.map((row) => row.code));
-      },
-      onChecklist: async (checklist) => {
-        if (checklist.report) reports.push(`${checklist.report.phase}:${checklist.report.gate}`);
-      },
-      persist: async (candidate, facts, checklist) => {
-        confirmed = facts.passConfirmed === true && checklist.passed;
-        return { code: "BT02", statement: candidate.statement, label: candidate.label, admission: "GENERATE_VALID" as const };
-      },
-    });
-    expect(siblingAfter).toBe("checking:sibling");
-    expect(reports).toEqual([
-      "checking:resolved",
-      "checked:resolved",
-      "checking:relation",
-      "checked:relation",
-      "checking:role",
-      "checked:role",
-      "checking:explains",
-      "checked:explains",
-      "checking:premise",
-      "checked:premise",
-      "checking:duplicate",
-      "checked:duplicate",
-      "checking:sibling",
-      "checked:sibling",
-    ]);
-    expect(confirmed).toBe(true);
-  });
-
-  it("stops the report at the first failed requirement", async () => {
-    const reports: string[] = [];
-    let proposed = 0;
-    await runCheckedGenerate({
-      parentStatement: "A general belief",
-      incumbents: [],
-      missingWhy: null,
-      topUp: true,
-      propose: async () => {
-        proposed += 1;
-        if (proposed > 1) return [];
-        return [{ label: "Weak", statement: "Still weak." }];
-      },
-      judge: async () => ({ ...validFacts(), relationToParent: "METHOD", explainsWhyParentIsTrue: false }),
-      judgeSibling: async () => distinctSet(["NEW"]),
-      onChecklist: async (checklist) => {
-        if (checklist.report) reports.push(`${checklist.report.phase}:${checklist.report.gate}`);
-      },
-      persist: async (candidate) => ({ code: "BT01", statement: candidate.statement, admission: "GENERATE_REJECT" as const }),
-    });
-    expect(reports).toEqual([
-      "checking:resolved",
-      "checked:resolved",
-      "checking:relation",
-      "checked:relation",
-    ]);
   });
 });

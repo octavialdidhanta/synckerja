@@ -86,10 +86,6 @@ function AuditDetails({ row }: { row: BigThoughtRowView }) {
           value={storedValue(facts?.relationToParent, notStored)}
         />
         <FactLine
-          label={t("thinkingLab.bt.detail.supportRole", "Support role")}
-          value={storedValue(facts?.supportRole, notStored)}
-        />
-        <FactLine
           label={t("thinkingLab.bt.detail.explainsWhy", "Explains why parent is true")}
           value={storedValue(facts?.explainsWhyParentIsTrue, notStored)}
         />
@@ -156,9 +152,9 @@ function passLabel(id: PassGateId, t: (key: string, fallback?: string) => string
   const labels: Record<PassGateId, [string, string]> = {
     resolved: ["thinkingLab.bt.pass.resolved", "The judgment is finished."],
     relation: ["thinkingLab.bt.pass.relation", "Not a restatement, elaboration, outcome, or method."],
-    role: ["thinkingLab.bt.pass.role", "Role is premise, reason, or evidence."],
     explains: ["thinkingLab.bt.pass.explains", "Explains why the Master Thought is true."],
     premise: ["thinkingLab.bt.pass.premise", "The premise is supported."],
+    showable: ["thinkingLab.bt.pass.showable", "The reason can be shown in content."],
     duplicate: ["thinkingLab.bt.pass.duplicate", "Not a duplicate of a Big Thought that already passed."],
     sibling: ["thinkingLab.bt.pass.sibling", "Distinct from the other Big Thoughts."],
   };

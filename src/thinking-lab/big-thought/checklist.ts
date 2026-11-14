@@ -1,13 +1,13 @@
-import type { BigThoughtFacts, GateFailure, GeneratePassGate, ParentRelation, PassGateId } from "./types";
+import type { GateFailure, GeneratePassGate, PassGateId } from "./types";
 
 export type { GateFailure, PassGateId };
 
 export const PASS_GATE_IDS: readonly PassGateId[] = [
   "resolved",
   "relation",
-  "role",
   "explains",
   "premise",
+  "showable",
   "duplicate",
   "sibling",
 ];
@@ -39,20 +39,6 @@ export type PassChecklist = {
   failure: GateFailure | null;
   report?: GateReport | null;
 };
-
-const REJECT_RELATIONS = new Set<ParentRelation>([
-  "RESTATEMENT",
-  "ELABORATION",
-  "OUTCOME",
-  "CONSEQUENCE",
-  "METHOD",
-  "CRITERION",
-  "EXAMPLE",
-  "TACTIC",
-  "EXECUTION",
-  "DUPLICATE",
-  "UNSUPPORTED_PREMISE",
-]);
 
 function clip(value: string): string {
   const text = value.trim().replace(/\s+/g, " ");
@@ -106,19 +92,6 @@ export function checklistFrame(
   };
 }
 
-/** Checking, then the confirmed result, stopping at the first failure. Unchecked gates are not reported. */
-export function checklistFrames(final: PassChecklist): PassChecklist[] {
-  const frames: PassChecklist[] = [];
-  for (const item of final.items) {
-    if (item.state !== "pass" && item.state !== "fail") continue;
-    frames.push(checklistFrame(final, item.id, "checking"));
-    frames.push(checklistFrame(final, item.id, "checked"));
-    if (item.state === "fail") break;
-  }
-  return frames;
-}
-
-/** How long the live report stays on screen, in milliseconds. */
 /**
  * A short beat so each check visibly ticks. It used to be 0.7 s + 0.9 s per check, about 10 s of
  * waiting per Big Thought on top of the model calls.
@@ -137,21 +110,6 @@ export function waitForChecklistReport(checklist: { report?: GateReport | null }
   });
 }
 
-/** The set-level sibling check, before a row-by-row result is known. */
-export function setSiblingCheckingFrame(): PassChecklist {
-  return {
-    items: PASS_GATE_IDS.map((id) => ({
-      id,
-      state: id === "sibling" ? "checking" : "pending",
-      reason: "",
-    })),
-    passed: false,
-    lesson: null,
-    failure: null,
-    report: { gate: "sibling", phase: "checking", outcome: "pass" },
-  };
-}
-
 /** Sibling is still in flight. Earlier individual gates stay confirmed. */
 export function checkingSiblingFrame(individual: PassChecklist): PassChecklist {
   return checklistFrame(
@@ -168,18 +126,6 @@ export function confirmedPassChecklist(): PassChecklist {
   return passedChecklist();
 }
 
-/** Audit checks Big Thoughts that already passed Generate. A stored generate failure stays out. */
-export function bigThoughtReadyForAudit(row: {
-  admission: string;
-  gateFailure?: GateFailure | null;
-  passConfirmed?: boolean;
-}): boolean {
-  if (row.admission === "GENERATE_REJECT") return false;
-  if (row.gateFailure) return false;
-  if (row.passConfirmed === true) return true;
-  return row.admission === "GENERATE_VALID";
-}
-
 /** A Big Thought stays in the list only when no pass gate has failed. Failures stay stored. */
 export function bigThoughtListed(row: {
   admission: string;
@@ -191,63 +137,6 @@ export function bigThoughtListed(row: {
   if (row.audit === "AUDIT_FAIL" || row.auditGateFailure) return true;
   if (row.gateFailure && row.audit !== "AUDIT_PASS") return false;
   return true;
-}
-
-export function pendingPassChecklist(): PassChecklist {
-  return {
-    items: PASS_GATE_IDS.map((id) => ({ id, state: "pending", reason: "" })),
-    passed: false,
-    lesson: null,
-    failure: null,
-  };
-}
-
-/** Individual gates only. Sibling stays unchecked until a later step applies it. */
-export function evaluateIndividualChecklist(facts: BigThoughtFacts | null): PassChecklist {
-  const finished =
-    Boolean(facts) &&
-    facts?.resolution === "RESOLVED" &&
-    facts.unresolvedReasons.length === 0 &&
-    Boolean(facts.whatItSays.trim()) &&
-    facts.relationToParent !== "UNRESOLVED" &&
-    facts.explainsWhyParentIsTrue !== "unresolved" &&
-    facts.introducesUnsupportedPremise !== "unresolved";
-  if (!finished || !facts) {
-    return stopped("resolved", facts?.unresolvedReasons[0] || "The judgment is not finished.", "pass");
-  }
-  if (REJECT_RELATIONS.has(facts.relationToParent) || facts.relationToParent !== "DISTINCT_MATERIAL_SUPPORT") {
-    return stopped("relation", facts.judgmentReason?.trim() || facts.relationToParent, "pass");
-  }
-  if (facts.supportRole !== "PREMISE" && facts.supportRole !== "REASON" && facts.supportRole !== "EVIDENCE") {
-    return stopped("role", `supportRole ${facts.supportRole}`, "pass");
-  }
-  if (facts.explainsWhyParentIsTrue !== true) {
-    return stopped("explains", "The clause does not explain why the Master Thought is true.", "pass");
-  }
-  if (facts.introducesUnsupportedPremise !== false) {
-    return stopped("premise", "The clause introduces an unsupported premise.", "pass");
-  }
-  if (facts.duplicateOfCode) {
-    return stopped("duplicate", `Duplicates ${facts.duplicateOfCode}.`, "pass");
-  }
-  return {
-    items: PASS_GATE_IDS.map((id) => ({
-      id,
-      state: id === "sibling" ? "unchecked" : "pass",
-      reason: "",
-    })),
-    passed: false,
-    lesson: null,
-    failure: null,
-  };
-}
-
-export function individualChecklistPassed(facts: BigThoughtFacts): boolean {
-  return evaluateIndividualChecklist(facts).failure === null;
-}
-
-export function uncheckedDuplicateChecklist(reason: string): PassChecklist {
-  return stopped("duplicate", reason, "unchecked");
 }
 
 export function completeChecklist(

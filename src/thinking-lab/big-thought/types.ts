@@ -15,9 +15,7 @@ export type ParentRelation =
   | "UNSUPPORTED_PREMISE"
   | "UNRESOLVED";
 
-export type SupportRole = "PREMISE" | "REASON" | "EVIDENCE" | "UNRESOLVED";
-
-export type PassGateId = "resolved" | "relation" | "role" | "explains" | "premise" | "duplicate" | "sibling";
+export type PassGateId = "resolved" | "relation" | "explains" | "premise" | "showable" | "duplicate" | "sibling";
 
 /** Model checks Generate already passed for this exact sentence. */
 export type GeneratePassGate = "resolved" | "relation";
@@ -32,15 +30,11 @@ export type BigThoughtFacts = {
   code: string;
   whatItSays: string;
   relationToParent: ParentRelation;
-  supportRole: SupportRole;
   explainsWhyParentIsTrue: TriState;
   introducesUnsupportedPremise: TriState;
   duplicateOfCode: string | null;
   resolution: Resolution;
   unresolvedReasons: string[];
-  confidence?: number;
-  judgmentVerdict?: string;
-  judgmentReason?: string;
   answeredQuestion?: string;
   answeredQuestionVersion?: number;
   gateFailure?: GateFailure;

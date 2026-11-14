@@ -7,26 +7,17 @@ import {
   requestCertificationScript,
   type CertificationTransportContext,
 } from "@/thinking-lab/big-thought/certificationTransport";
-import { individualAdmission } from "@/thinking-lab/big-thought/policy";
-import { buildBigThoughtJudgePrompt, buildSiblingSetPrompt, judgeBigThought, parseBigThoughtJudge } from "@/thinking-lab/big-thought/semantic";
+import { buildBigThoughtBatchPrompt, runBigThoughtIndividualChecks } from "@/thinking-lab/big-thought/passChecks";
+import { buildSiblingSetPrompt } from "@/thinking-lab/big-thought/semantic";
 
 const context: CertificationTransportContext = {
   caseId: "weak-consistency",
   runNumber: 2,
-  stage: "INDIVIDUAL_FIRST_PASS",
+  stage: "INDIVIDUAL",
 };
 
-const unresolvedScript = JSON.stringify({
-  code: "NEW",
-  whatItSays: "The dominant reasoning job is unclear",
-  relationToParent: "UNRESOLVED",
-  supportRole: "UNRESOLVED",
-  explainsWhyParentIsTrue: "unresolved",
-  introducesUnsupportedPremise: "unresolved",
-  duplicateOfCode: null,
-  resolution: "UNRESOLVED",
-  unresolvedReasons: ["DOMINANT_JOB"],
-});
+/** A model answer that could not decide the first check. */
+const unresolvedScript = JSON.stringify({ pass: false, reason: "This check could not be decided." });
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -34,11 +25,6 @@ function jsonResponse(status: number, body: unknown): Response {
 
 describe("certification transport", () => {
   it("keeps an HTTP failure out of semantic UNRESOLVED", async () => {
-    const unavailable = individualAdmission({
-      facts: parseBigThoughtJudge(null, "NEW"),
-      factsCurrent: true,
-    });
-    expect(unavailable).toBe("UNRESOLVED");
     const assessment = assessCertificationAttempt({
       httpStatus: 503,
       body: { error: "upstream unavailable" },
@@ -54,14 +40,16 @@ describe("certification transport", () => {
     expect(assessment.failure.responseError).toBe("upstream unavailable");
     expect(assessment.failure.caseId).toBe("weak-consistency");
     expect(assessment.failure.runNumber).toBe(2);
-    expect(assessment.failure.stage).toBe("INDIVIDUAL_FIRST_PASS");
+    expect(assessment.failure.stage).toBe("INDIVIDUAL");
     await expect(
-      judgeBigThought(
-        { parentStatement: "A parent claim.", candidate: { code: "NEW", statement: "A candidate claim." }, siblings: [] },
-        async () => {
+      runBigThoughtIndividualChecks({
+        statement: "A candidate claim.",
+        parentStatement: "A parent claim.",
+        others: [],
+        ask: async () => {
           throw assessment.failure;
         },
-      ),
+      }),
     ).rejects.toBeInstanceOf(CertificationInfrastructureError);
   });
 
@@ -87,27 +75,22 @@ describe("certification transport", () => {
     });
     expect(assessment.outcome).toBe("script");
     if (assessment.outcome !== "script") return;
-    const facts = parseBigThoughtJudge(assessment.script, "NEW");
-    expect(facts.unresolvedReasons).toContain("DOMINANT_JOB");
-    expect(facts.unresolvedReasons).not.toContain("JUDGE_UNAVAILABLE");
-    expect(individualAdmission({ facts, factsCurrent: true })).toBe("UNRESOLVED");
-    let calls = 0;
-    const judged = await judgeBigThought(
-      { parentStatement: "A parent claim.", candidate: { code: "NEW", statement: "A candidate claim." }, siblings: [] },
-      async () => {
-        calls += 1;
-        return assessment.script;
-      },
-    );
-    expect(calls).toBe(1);
-    expect(individualAdmission({ facts: judged, factsCurrent: true })).toBe("UNRESOLVED");
+    const script = assessment.script;
+    const checklist = await runBigThoughtIndividualChecks({
+      statement: "A candidate claim.",
+      parentStatement: "A parent claim.",
+      others: [],
+      ask: async () => script,
+    });
+    expect(checklist.passed).toBe(false);
+    expect(checklist.failure).toMatchObject({ gate: "resolved", reason: "This check could not be decided." });
   });
 
   it("prevents certification when infrastructure failed", () => {
     const report = combineCertificationReport({
       deterministicStatus: "PASS",
       live: infrastructureCertificationLive([
-        "TRANSPORT_FAILURE case=weak-consistency run=2 stage=INDIVIDUAL_ADVERSARIAL http=503 scriptMissing=true error=upstream unavailable",
+        "TRANSPORT_FAILURE case=weak-consistency run=2 stage=INDIVIDUAL http=503 scriptMissing=true error=upstream unavailable",
       ]),
     });
     expect(report.liveSemanticStatus).toBe("FAIL");
@@ -162,19 +145,17 @@ describe("certification transport", () => {
     expect(providerFetches).toBe(1);
   });
 
-  it("reads the judge stage from the production prompt", () => {
+  it("reads the check stage from the production prompt", () => {
     expect(
       certificationStageFromPrompt(
-        buildBigThoughtJudgePrompt({
+        buildBigThoughtBatchPrompt({
+          ids: ["resolved", "relation"],
+          statement: "Candidate",
           parentStatement: "Parent",
-          candidate: { code: "NEW", statement: "Candidate" },
-          siblings: [],
+          others: [],
         }),
       ),
-    ).toBe("INDIVIDUAL_FIRST_PASS");
-    expect(certificationStageFromPrompt("You are the adversarial verifier for one Big Thought classification.")).toBe(
-      "INDIVIDUAL_ADVERSARIAL",
-    );
+    ).toBe("INDIVIDUAL");
     expect(
       certificationStageFromPrompt(
         buildSiblingSetPrompt({ parentStatement: "Parent", rows: [{ code: "BT01", statement: "One" }] }),

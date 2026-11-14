@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scoreAudit } from "@/thinking-lab/big-thought/audit";
+import { countAuditPass, scoreAudit } from "@/thinking-lab/big-thought/audit";
 import {
   INDIVIDUAL_CERTIFICATION_CASES,
   SIBLING_CERTIFICATION_CASES,
@@ -11,20 +11,46 @@ import {
   classifySiblingCase,
   combineCertificationReport,
   deterministicStatusFromExitCode,
+  observeChecklist,
   overallCertificationStatus,
   siblingPairCovers,
   type SiblingRunObservation,
 } from "@/thinking-lab/big-thought/certificationReport";
-import { lockDecisionFromScoredSet } from "@/thinking-lab/big-thought/certificationSafety";
+import { evaluateLock, type LockDecision } from "@/thinking-lab/big-thought/lock";
 import { individualAdmission } from "@/thinking-lab/big-thought/policy";
 import type { BigThoughtFacts, ChallengerFacts, ParentRelation, SiblingSetFacts } from "@/thinking-lab/big-thought/types";
+import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
+
+/** The lock decision for a scored set, the same way the page decides it. */
+function lockDecisionFromScoredSet(input: {
+  rows: Array<{ code: string; admission: IndividualAdmission }>;
+  siblingSet: SiblingSetFacts | null;
+  siblingSetCurrent: boolean;
+  challenger: ChallengerFacts | null;
+  challengerCurrent: boolean;
+}): LockDecision {
+  const items = scoreAudit({
+    rows: input.rows,
+    siblingSet: input.siblingSet,
+    siblingSetCurrent: input.siblingSetCurrent,
+  });
+  return evaluateLock({
+    auditPassCount: countAuditPass(items),
+    activeCount: input.rows.length,
+    anyFail: items.some((item) => item.verdict === "AUDIT_FAIL"),
+    anyStale: items.some((item) => item.verdict === "STALE"),
+    anyUnresolved: items.some((item) => item.verdict === "UNRESOLVED"),
+    siblingCurrent: input.siblingSetCurrent,
+    challenger: input.challenger,
+    challengerCurrent: input.challengerCurrent,
+  });
+}
 
 function facts(overrides: Partial<BigThoughtFacts> = {}): BigThoughtFacts {
   return {
     code: "BT01",
     whatItSays: "A distinct material support",
     relationToParent: "DISTINCT_MATERIAL_SUPPORT",
-    supportRole: "REASON",
     explainsWhyParentIsTrue: true,
     introducesUnsupportedPremise: false,
     duplicateOfCode: null,
@@ -104,7 +130,7 @@ describe("certification policy completeness", () => {
     for (const relationToParent of relations) {
       expect(
         individualAdmission({
-          facts: facts({ relationToParent, supportRole: "UNRESOLVED", explainsWhyParentIsTrue: false }),
+          facts: facts({ relationToParent, explainsWhyParentIsTrue: false }),
           factsCurrent: true,
         }),
       ).toBe("GENERATE_REJECT");
@@ -279,80 +305,34 @@ describe("certification report", () => {
   it("records a valid leak and a missed material support without calling a model", () => {
     expect(restatement).toBeTruthy();
     expect(clean).toBeTruthy();
-    const leaked = classifyIndividualCase(restatement!, [
-      {
-        relationToParent: "DISTINCT_MATERIAL_SUPPORT",
-        supportRole: "PREMISE",
-        resolution: "RESOLVED",
-        individualAdmission: "GENERATE_VALID",
-      },
-    ]);
+    const leaked = classifyIndividualCase(restatement!, [{ failedGate: null, individualAdmission: "GENERATE_VALID" }]);
     expect(leaked.criticalFailures).toContain("restatement-continuation");
-    const missed = classifyIndividualCase(clean!, [
-      {
-        relationToParent: "ELABORATION",
-        supportRole: "UNRESOLVED",
-        resolution: "RESOLVED",
-        individualAdmission: "GENERATE_REJECT",
-      },
-    ]);
+    const missed = classifyIndividualCase(clean!, [{ failedGate: "relation", individualAdmission: "GENERATE_REJECT" }]);
     expect(missed.falseNegatives).toContain("clean-causal-premise");
-    const unresolvedReject = classifyIndividualCase(restatement!, [
-      {
-        relationToParent: "UNRESOLVED",
-        supportRole: "UNRESOLVED",
-        resolution: "UNRESOLVED",
-        individualAdmission: "UNRESOLVED",
-      },
-    ]);
+    const unresolvedReject = classifyIndividualCase(restatement!, [{ failedGate: "resolved", individualAdmission: "UNRESOLVED" }]);
     expect(unresolvedReject.criticalFailures).toContain("restatement-continuation");
     expect(siblingPairCovers([{ a: "BT02", b: "BT01", explanation: "same job" }], { a: "BT01", b: "BT02" })).toBe(
       true,
     );
   });
 
-  it("rejects STALE on a NOT_VALID case and a resolved support role outside the golden list", () => {
+  it("rejects STALE on a NOT_VALID case and accepts a clean pass", () => {
     const weak = INDIVIDUAL_CERTIFICATION_CASES.find((row) => row.id === "weak-consistency");
-    const loss = INDIVIDUAL_CERTIFICATION_CASES.find((row) => row.id === "loss-of-control");
     expect(weak).toBeTruthy();
-    expect(clean).toBeTruthy();
-    expect(loss).toBeTruthy();
-    const stale = classifyIndividualCase(weak!, [
-      {
-        relationToParent: "UNRESOLVED",
-        supportRole: "UNRESOLVED",
-        resolution: "UNRESOLVED",
-        individualAdmission: "STALE",
-      },
-    ]);
+    const stale = classifyIndividualCase(weak!, [{ failedGate: null, individualAdmission: "STALE" }]);
     expect(stale.criticalFailures).toContain("weak-consistency");
-    const mismatch = classifyIndividualCase(clean!, [
-      {
-        relationToParent: "DISTINCT_MATERIAL_SUPPORT",
-        supportRole: "EVIDENCE",
-        resolution: "RESOLVED",
-        individualAdmission: "GENERATE_VALID",
-      },
-    ]);
-    expect(mismatch.criticalFailures).toContain("clean-causal-premise:supportRole:EVIDENCE");
-    const allowed = classifyIndividualCase(clean!, [
-      {
-        relationToParent: "DISTINCT_MATERIAL_SUPPORT",
-        supportRole: "PREMISE",
-        resolution: "RESOLVED",
-        individualAdmission: "GENERATE_VALID",
-      },
-    ]);
+    const allowed = classifyIndividualCase(clean!, [{ failedGate: null, individualAdmission: "GENERATE_VALID" }]);
     expect(allowed.criticalFailures).toEqual([]);
-    const unspecified = classifyIndividualCase(loss!, [
-      {
-        relationToParent: "DISTINCT_MATERIAL_SUPPORT",
-        supportRole: "EVIDENCE",
-        resolution: "RESOLVED",
-        individualAdmission: "GENERATE_VALID",
-      },
-    ]);
-    expect(unspecified.criticalFailures).toEqual([]);
+  });
+
+  it("reads a checklist the same way the production checks end", () => {
+    expect(observeChecklist({ passed: true, failure: null })).toEqual({ failedGate: null, individualAdmission: "GENERATE_VALID" });
+    expect(
+      observeChecklist({ passed: false, failure: { gate: "showable", reason: "Terlalu abstrak.", earlier: "pass" } }),
+    ).toEqual({ failedGate: "showable", individualAdmission: "GENERATE_REJECT" });
+    expect(
+      observeChecklist({ passed: false, failure: { gate: "relation", reason: "This check could not be decided.", earlier: "pass" } }),
+    ).toEqual({ failedGate: "relation", individualAdmission: "UNRESOLVED" });
   });
 });
 
