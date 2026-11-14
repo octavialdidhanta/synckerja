@@ -22,9 +22,9 @@ export const CHECK_REGISTRY: Readonly<Record<CheckLevel, readonly CheckEntry[]>>
   bigThought: [
     { id: "resolved", id_label: "Menjawab Master Thought", en_label: "Answers the Master Thought" },
     { id: "relation", id_label: "Hubungan sebab yang jelas", en_label: "Clear cause relation" },
-    { id: "role", id_label: "Peran yang jelas", en_label: "Clear role" },
     { id: "explains", id_label: "Benar-benar menjelaskan", en_label: "Really explains" },
     { id: "premise", id_label: "Premis bisa diterima", en_label: "Acceptable premise" },
+    { id: "showable", id_label: "Bisa ditunjukkan", en_label: "Can be shown" },
     { id: "duplicate", id_label: "Bukan duplikat", en_label: "Not a duplicate" },
     { id: "sibling", id_label: "Beda dari BT lain", en_label: "Distinct from other BTs" },
   ],
@@ -75,18 +75,9 @@ export function checkEnabled(settings: CheckSettings | null | undefined, level: 
   return settings?.[checkKey(level, id)] === true;
 }
 
-/** True when every check of the level is OFF: the level saves without any model check. */
-export function levelChecksOff(settings: CheckSettings | null | undefined, level: CheckLevel): boolean {
-  return CHECK_REGISTRY[level].every((entry) => !checkEnabled(settings, level, entry.id));
-}
-
 /** The checks of one level that are switched OFF: skipped, and recorded on the saved item. */
 export function skippedChecks(settings: CheckSettings | null | undefined, level: CheckLevel): string[] {
   return CHECK_REGISTRY[level].filter((entry) => !checkEnabled(settings, level, entry.id)).map((entry) => entry.id);
-}
-
-export function enabledChecks(settings: CheckSettings | null | undefined, level: CheckLevel): string[] {
-  return CHECK_REGISTRY[level].filter((entry) => checkEnabled(settings, level, entry.id)).map((entry) => entry.id);
 }
 
 export function parseCheckSettings(value: unknown): Record<string, boolean> {
@@ -97,6 +88,3 @@ export function parseCheckSettings(value: unknown): Record<string, boolean> {
   }
   return out;
 }
-
-/** Marker stored on an item saved while some of its level's checks were OFF. */
-export const UNCHECKED_MARKER = "UNCHECKED";

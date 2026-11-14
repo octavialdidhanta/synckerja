@@ -3,7 +3,6 @@ import { fingerprintsMatch } from "../shared/fingerprint";
 import { PASS_GATE_IDS } from "./checklist";
 import type {
   AuditItem,
-  GateFailure,
   BigThoughtFixLesson,
   BigThoughtGenerateLesson,
   LabSetRecord,
@@ -58,17 +57,6 @@ export function scoreAuditRow(input: {
   return "UNRESOLVED";
 }
 
-/** A failed gate retries the same Big Thought. The next Big Thought starts only after this one passes. */
-export function auditRowContinuation(input: {
-  passed: boolean;
-  attempt: number;
-  maxAttempts: number;
-}): "next" | "retry" | "stop" {
-  if (input.passed) return "next";
-  if (input.attempt + 1 < input.maxAttempts) return "retry";
-  return "stop";
-}
-
 /** Sibling pass gate for one Big Thought. Individual gates are checked separately. */
 export function auditSiblingGate(input: {
   code: string;
@@ -92,19 +80,6 @@ export function auditSiblingGate(input: {
   }
   if (!input.siblingSetCurrent) return { passed: false, reason: "The sibling set is out of date." };
   return { passed: false, reason: input.siblingSet?.unresolvedReasons[0] || "The sibling set is not finished." };
-}
-
-export function withAuditConfirmation(
-  items: AuditItem[],
-  confirmations: ReadonlyMap<string, { gatesChecked?: true; gateFailure?: GateFailure }>,
-): AuditItem[] {
-  return items.map((item) => {
-    const extra = confirmations.get(item.code.toUpperCase());
-    if (!extra) return item;
-    if (item.verdict === "AUDIT_PASS" && extra.gatesChecked) return { ...item, gatesChecked: true as const };
-    if (item.verdict !== "AUDIT_PASS" && extra.gateFailure) return { ...item, gateFailure: extra.gateFailure };
-    return item;
-  });
 }
 
 export function scoreAudit(input: {
@@ -132,21 +107,6 @@ export function countAuditPass(items: AuditItem[]): number {
 export function siblingSetIsCurrent(stored: SiblingSetFacts | null, currentFingerprint: string): boolean {
   if (!stored) return false;
   return fingerprintsMatch(stored.fingerprint, currentFingerprint);
-}
-
-export function siblingSetNeedsFreshJudgment(
-  stored: SiblingSetFacts | null,
-  currentFingerprint: string,
-  activeCodes: string[],
-): boolean {
-  if (!siblingSetIsCurrent(stored, currentFingerprint)) return true;
-  return !siblingReasonProofReady(stored, activeCodes);
-}
-
-/** A Big Thought that already passed stays passed. Later scoring can change only the other rows. */
-export function holdPassingAuditVerdicts(scored: AuditItem[], passingCodes: string[]): AuditItem[] {
-  const passing = new Set(passingCodes.map((code) => code.toUpperCase()));
-  return scored.map((item) => (passing.has(item.code.toUpperCase()) ? { ...item, verdict: "AUDIT_PASS" } : item));
 }
 
 /** Passes whose statement did not change. The edited code is left out so only that row is audited again. */
@@ -294,69 +254,6 @@ export function mergeExclusionHistory(
   return {
     parentFingerprint,
     entries: mergeExclusionEntries(exclusionsForParent(history, parentFingerprint), incoming),
-  };
-}
-
-function sameExclusionHistory(
-  left: SemanticExclusionHistory | null | undefined,
-  right: SemanticExclusionHistory | null | undefined,
-): boolean {
-  const leftEntries = left?.entries ?? [];
-  const rightEntries = right?.entries ?? [];
-  if ((left?.parentFingerprint ?? "") !== (right?.parentFingerprint ?? "")) return false;
-  if (leftEntries.length !== rightEntries.length) return false;
-  return leftEntries.every((entry, index) => exclusionKey(entry) === exclusionKey(rightEntries[index] ?? entry));
-}
-
-/** Pass and fail rows whose text did not change. Replaced codes are dropped. */
-export function heldAuditAfterFix(input: {
-  items: AuditItem[] | null | undefined;
-  rows: Array<{ code: string; statementFingerprint: string }>;
-  replacedCodes: string[];
-}): AuditItem[] {
-  const replaced = new Set(input.replacedCodes.map((code) => code.toUpperCase()));
-  const fingerprints = new Map(input.rows.map((row) => [row.code.toUpperCase(), row.statementFingerprint]));
-  return (input.items ?? []).flatMap((item) => {
-    if (item.verdict !== "AUDIT_PASS" && item.verdict !== "AUDIT_FAIL") return [];
-    if (replaced.has(item.code.toUpperCase())) return [];
-    const fingerprint = fingerprints.get(item.code.toUpperCase());
-    if (!fingerprint) return [];
-    if (item.statementFingerprint && !fingerprintsMatch(item.statementFingerprint, fingerprint)) return [];
-    return [{
-      code: item.code,
-      verdict: item.verdict,
-      statementFingerprint: item.statementFingerprint ?? fingerprint,
-      ...(item.gatesChecked ? { gatesChecked: true as const } : {}),
-      ...(item.gateFailure ? { gateFailure: item.gateFailure } : {}),
-    }];
-  });
-}
-
-export function persistedSetRecordAfterFix(
-  record: LabSetRecord | null,
-  replaced: number,
-  exclusions?: SemanticExclusionHistory | null,
-  heldItems?: AuditItem[],
-): { write: false } | { write: true; lastAudit: LabSetRecord } {
-  const base = record ?? emptySetRecord();
-  const semanticExclusions = exclusions === undefined ? base.semanticExclusions : exclusions;
-  if (replaced === 0) {
-    if (sameExclusionHistory(base.semanticExclusions, semanticExclusions)) return { write: false };
-    return {
-      write: true,
-      lastAudit: {
-        ...base,
-        semanticExclusions,
-      },
-    };
-  }
-  return {
-    write: true,
-    lastAudit: {
-      ...clearSetConclusions(base),
-      semanticExclusions,
-      audit: heldItems && heldItems.length > 0 ? { setFingerprint: "held", items: heldItems } : null,
-    },
   };
 }
 

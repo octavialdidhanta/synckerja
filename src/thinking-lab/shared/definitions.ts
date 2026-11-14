@@ -2,7 +2,6 @@
 // pass check, read from the same code the checks run. The page's "i" popover and the MCP server use it.
 // Relative imports only: the MCP server loads this file.
 import { bigThoughtGateRules } from "../big-thought/passChecks";
-import { BECAUSE_RESULT_LINES } from "../big-thought/because";
 import { territoryGateRules } from "../territory/passChecklist";
 import { angleGateRules } from "../angle/passChecklist";
 import { ideaGateRules } from "../idea/passChecklist";
@@ -21,8 +20,8 @@ export const NODE_DEFINITIONS = {
   },
   bigThought: {
     label: "Big Thought",
-    body: "Big Thought memberi alasan: Master Thought benar karena alasan ini. Setiap Big Thought membawa alasan dasar yang berbeda.",
-    note: "Kalau alasan ini dicabut, Master Thought kehilangan satu alasan untuk dipercaya. Ia canggung sebagai nama ruang atau sebagai pengamatan.",
+    body: "Big Thought memberi alasan: Master Thought benar karena alasan ini. Setiap Big Thought membawa alasan dasar yang berbeda, menyangkut subjek Master Thought, dan bisa ditunjukkan atau dialami penonton dalam konten.",
+    note: "Kalau alasan ini dicabut, Master Thought kehilangan satu alasan untuk dipercaya. Big Thought bukan Territory (nama ruang) dan bukan Angle (pengamatan). Merek baru muncul di Idea sebagai penyebab yang terlihat.",
   },
   territory: {
     label: "Territory",
@@ -61,8 +60,11 @@ const FORMS: Record<ChainLevel, string[]> = {
     "Kalimat ini harus menggeser keyakinan lama, bukan mengulangnya.",
   ],
   bigThought: [
-    "Klausa alasan yang bisa dibaca setelah Master Thought + \"karena\" / \"because\".",
-    ...BECAUSE_RESULT_LINES,
+    "Klausa alasan yang bisa dibaca setelah Master Thought + \"karena\".",
+    "Tidak perlu \"sehingga\". Sebab yang sudah menjelaskan Master Thought cukup berhenti di situ.",
+    "Tambahkan satu hasil dengan \"sehingga\" hanya jika sebab itu saja belum nyambung ke Master Thought.",
+    "Hasil itu adalah akibat dari sebab tadi. Tidak boleh mengulang Master Thought dan tidak boleh membuka alasan kedua.",
+    "Tidak menyebut nama merek, toko, atau penyedia, dan bukan promosi.",
     "Label opsional: nama pendek alasan itu.",
   ],
   territory: ["Kata benda atau frasa benda (bukan kalimat, bukan klaim, bukan aktivitas), dalam bahasa audiens."],
@@ -87,7 +89,7 @@ function cleanRules(lines: readonly string[]): string {
 }
 
 const SIBLING_RULE: Record<"bigThought" | "territory" | "angle" | "idea", string> = {
-  bigThought: "Compared with the other Big Thoughts of this Master Thought: each one carries a different base reason; two that do the same job fail.",
+  bigThought: "Dibandingkan dengan Big Thought lain di Master Thought ini: setiap Big Thought membawa alasan dasar yang berbeda. Dua Big Thought yang mengerjakan tugas yang sama gagal.",
   territory: "Compared with the other Territories of this Big Thought: each one is a different area; one that repeats or contains another fails.",
   angle: "Compared with the other Angles of this Territory: each one is a different observation; one that repeats another fails.",
   idea: "Compared with the other Ideas of this Angle (locked ones included): each one is a different mechanism; one that repeats another fails.",

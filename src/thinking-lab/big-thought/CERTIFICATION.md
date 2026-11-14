@@ -21,7 +21,7 @@ Existing stage tests already prove their own contracts. The certification layer 
 
 ## Pipeline
 
-Generate → individual semantic judge → `individualAdmission` → sibling audit → Fix → Challenger → Lock.
+Generate → individual pass checks → `individualAdmission` → sibling audit → Fix → Challenger → Lock.
 
 ## When the engine is CERTIFIED
 
@@ -82,7 +82,7 @@ Live-only status, which does not claim a combined certification:
 THINKING_LAB_LIVE_CERTIFICATION=1 THINKING_LAB_ACCESS_TOKEN=... npm run certify:thinking-lab:bt:live
 ```
 
-Each critical individual case is sent through production `judgeBigThought` five times at temperature `0`. Each critical sibling case is sent through production `judgeSiblingSet` five times. Explanation wording is not required to match.
+Each critical individual case is sent through production `runBigThoughtIndividualChecks` (every check switched on) five times at temperature `0`. Every check passing is `GENERATE_VALID`; a check the model could not decide is `UNRESOLVED`; any other failure is `GENERATE_REJECT`. Each critical sibling case is sent through production `judgeSiblingSet` five times. Explanation wording is not required to match.
 
 ## Frozen after certification
 

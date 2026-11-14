@@ -1,4 +1,3 @@
-import type { ParentRelation, SupportRole } from "@/thinking-lab/big-thought/types";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 
 export type CertificationAdmission = IndividualAdmission | "NOT_VALID";
@@ -9,8 +8,6 @@ export type CertificationCase = {
   parentStatement: string;
   candidateStatement: string;
   expectedAdmission: CertificationAdmission;
-  acceptableRelations?: ParentRelation[];
-  acceptableSupportRoles?: SupportRole[];
   critical: boolean;
 };
 
@@ -33,7 +30,6 @@ export const INDIVIDUAL_CERTIFICATION_CASES: CertificationCase[] = [
     parentStatement: "Tanggung jawab pemberi tidak berhenti setelah dana diserahkan.",
     candidateStatement: "Tanggung jawab pemberi tetap berlanjut setelah dana diserahkan.",
     expectedAdmission: "GENERATE_REJECT",
-    acceptableRelations: ["RESTATEMENT"],
     critical: true,
   },
   {
@@ -51,7 +47,6 @@ export const INDIVIDUAL_CERTIFICATION_CASES: CertificationCase[] = [
     candidateStatement:
       "Pemilihan wadah yang cermat merupakan bentuk integritas pemberi dalam menjalankan kewajibannya.",
     expectedAdmission: "GENERATE_REJECT",
-    acceptableRelations: ["ELABORATION"],
     critical: true,
   },
   {
@@ -61,7 +56,6 @@ export const INDIVIDUAL_CERTIFICATION_CASES: CertificationCase[] = [
     candidateStatement:
       "Pemberian mencerminkan komitmen spiritual pemberi, sehingga pemilihan wadah yang bertanggung jawab harus dilakukan dengan sungguh-sungguh.",
     expectedAdmission: "GENERATE_REJECT",
-    acceptableRelations: ["ELABORATION"],
     critical: true,
   },
   {
@@ -71,8 +65,6 @@ export const INDIVIDUAL_CERTIFICATION_CASES: CertificationCase[] = [
     candidateStatement:
       "Pengelola yang berbeda dapat menggunakan dana yang sama dengan tingkat integritas dan dampak yang berbeda.",
     expectedAdmission: "GENERATE_VALID",
-    acceptableRelations: ["DISTINCT_MATERIAL_SUPPORT"],
-    acceptableSupportRoles: ["PREMISE", "REASON"],
     critical: true,
   },
   {
@@ -90,7 +82,6 @@ export const INDIVIDUAL_CERTIFICATION_CASES: CertificationCase[] = [
     parentStatement: "Ibuku adalah orang paling baik sedunia.",
     candidateStatement: "Dia secara konsisten menunjukkan empati yang mendalam kepada orang yang membutuhkan.",
     expectedAdmission: "GENERATE_VALID",
-    acceptableSupportRoles: ["EVIDENCE"],
     critical: true,
   },
   {
@@ -99,7 +90,6 @@ export const INDIVIDUAL_CERTIFICATION_CASES: CertificationCase[] = [
     parentStatement: "Ibuku adalah orang paling baik sedunia.",
     candidateStatement: "Ibuku pada dasarnya adalah orang yang sangat baik dan penuh kasih.",
     expectedAdmission: "GENERATE_REJECT",
-    acceptableRelations: ["RESTATEMENT", "ELABORATION"],
     critical: true,
   },
   {
@@ -125,7 +115,6 @@ export const INDIVIDUAL_CERTIFICATION_CASES: CertificationCase[] = [
     parentStatement: "A household should keep one shared belief about how it uses its resources.",
     candidateStatement: "The household should hold a weekly meeting and write each decision in a shared note.",
     expectedAdmission: "GENERATE_REJECT",
-    acceptableRelations: ["METHOD"],
     critical: true,
   },
   {
@@ -134,7 +123,6 @@ export const INDIVIDUAL_CERTIFICATION_CASES: CertificationCase[] = [
     parentStatement: "A person is worth trusting with an important task.",
     candidateStatement: "A trustworthy person must keep every commitment they make.",
     expectedAdmission: "GENERATE_REJECT",
-    acceptableRelations: ["CRITERION"],
     critical: true,
   },
   {
@@ -143,7 +131,6 @@ export const INDIVIDUAL_CERTIFICATION_CASES: CertificationCase[] = [
     parentStatement: "Choosing who will carry a duty is part of that duty.",
     candidateStatement: "Every carrier who is not checked by an outside agency will divert most of the resources within one year.",
     expectedAdmission: "NOT_VALID",
-    acceptableRelations: ["UNSUPPORTED_PREMISE", "UNRESOLVED"],
     critical: true,
   },
   {
@@ -162,8 +149,6 @@ export const INDIVIDUAL_CERTIFICATION_CASES: CertificationCase[] = [
       "Tanggung jawab dalam memberikan perpuluhan tidak berhenti pada penyerahan dana perpuluhan itu saja, tetapi kesungguhan memilih wadah yang akan mengelolanya juga merupakan bagian dari tanggung jawab pemberi.",
     candidateStatement: "Dampak dan integritas perpuluhan secara langsung dipengaruhi oleh pengelolaan entitas penerima.",
     expectedAdmission: "GENERATE_VALID",
-    acceptableRelations: ["DISTINCT_MATERIAL_SUPPORT"],
-    acceptableSupportRoles: ["PREMISE", "REASON"],
     critical: true,
   },
   {
@@ -174,7 +159,6 @@ export const INDIVIDUAL_CERTIFICATION_CASES: CertificationCase[] = [
     candidateStatement:
       "Kelalaian dalam memilih penerima dapat merusak niat awal pemberi dan kesucian tindakan memberi itu sendiri.",
     expectedAdmission: "NOT_VALID",
-    acceptableRelations: ["UNSUPPORTED_PREMISE", "UNRESOLVED", "ELABORATION"],
     critical: true,
   },
   {
@@ -185,7 +169,6 @@ export const INDIVIDUAL_CERTIFICATION_CASES: CertificationCase[] = [
     candidateStatement:
       "Kesungguhan pemberi dalam memilih wadah pengelolaan perpuluhan mencerminkan kedalaman komitmennya terhadap tujuan dan prinsip-prinsip yang mendasari tindakan memberi itu sendiri.",
     expectedAdmission: "NOT_VALID",
-    acceptableRelations: ["ELABORATION", "UNRESOLVED"],
     critical: true,
   },
   {
@@ -196,8 +179,6 @@ export const INDIVIDUAL_CERTIFICATION_CASES: CertificationCase[] = [
     candidateStatement:
       "Setelah dana diserahkan, pemberi kehilangan sebagian besar kendali langsung atas bagaimana dana tersebut digunakan.",
     expectedAdmission: "GENERATE_VALID",
-    acceptableRelations: ["DISTINCT_MATERIAL_SUPPORT"],
-    acceptableSupportRoles: ["PREMISE", "REASON"],
     critical: true,
   },
   {
@@ -208,8 +189,6 @@ export const INDIVIDUAL_CERTIFICATION_CASES: CertificationCase[] = [
     candidateStatement:
       "Niat baik pemberi tidak dengan sendirinya menjamin bahwa dana akan dikelola sesuai dengan tujuan yang mendorong pemberian itu.",
     expectedAdmission: "GENERATE_VALID",
-    acceptableRelations: ["DISTINCT_MATERIAL_SUPPORT"],
-    acceptableSupportRoles: ["PREMISE", "REASON"],
     critical: true,
   },
 ];

@@ -13,11 +13,44 @@ export const GENERATE_ADMISSION_GATES = ["duplicate", "resolved", "relation"] as
 const INDIVIDUAL_GATE_IDS = [
   "resolved",
   "relation",
-  "role",
   "explains",
   "premise",
+  "showable",
   "duplicate",
 ] as const satisfies readonly PassGateId[];
+
+type IndividualGateId = (typeof INDIVIDUAL_GATE_IDS)[number];
+
+/** The exact rule of every individual Big Thought check. The model judges with these words and the page shows them. */
+const BIG_THOUGHT_GATE_RULES: Readonly<Record<IndividualGateId, readonly string[]>> = {
+  resolved: [
+    "Lolos hanya jika kalimatnya klaim utuh yang bisa dinilai.",
+    "Gagal jika berupa potongan kalimat, judul, atau belum selesai.",
+  ],
+  relation: [
+    "Lolos hanya jika kalimat ini adalah alasan, dasar, atau bukti tersendiri untuk Master Thought, dan menyisipkan kata \"karena\" di antara Master Thought dan kalimat ini sudah membentuk satu kalimat yang utuh. Kalimat gabungan itu menuntaskan keyakinan, termasuk perbandingannya, tanpa mengulang Master Thought dan tanpa membuka klaim baru. Satu hasil dari sebab yang sama, disambung dengan \"sehingga\", tetap bagian dari alasan.",
+    "Gagal jika kalimat ini klaim sendiri yang harus ditulis ulang agar bisa mengikuti \"karena\", hanya menyebut sebuah area, atau berupa pengamatan yang jarang disadari, bukan alasan. Gagal juga jika hanya mengulang atau menguraikan Master Thought, atau hanya berupa hasil akhir, cara atau metode, contoh, kriteria, taktik, atau eksekusi. Langkah mengerjakan, membuat, menyiapkan, atau menyajikan sesuatu adalah metode, walaupun diikuti \"sehingga\" dan hasilnya. Sifat subjek itu sendiri (apa adanya atau apa yang dimilikinya) bukan metode. Bagian hasil juga gagal jika mengulang Master Thought atau membuka alasan kedua.",
+  ],
+  explains: [
+    "Lolos hanya jika Master Thought benar karena kalimat ini, dan menghapus kalimat ini membuat Master Thought kehilangan satu alasan untuk dipercaya.",
+    "Gagal jika bentuk \"karena\"-nya berputar-putar, atau menghapus kalimat ini tidak mengubah apa-apa karena tidak menambah alasan yang dibutuhkan Master Thought.",
+    "Jangan gagalkan hanya karena tidak ada hasil dengan \"sehingga\". Sebab yang sudah menjelaskan Master Thought sudah cukup.",
+  ],
+  premise: [
+    "Lolos jika kalimat ini premis, alasan, atau bukti yang wajar dan bisa dipertahankan untuk Master Thought.",
+    "Informasi baru yang belum disebut Master Thought boleh. Jangan gagalkan hanya karena Master Thought tidak memuat atau membuktikan kalimat ini.",
+    "Gagal hanya jika dukungannya bergantung pada klaim faktual yang terlalu spesifik dan butuh bukti terpisah: kepastian yang dikarang, jaminan mutlak, angka atau jangka waktu yang presisi, atau prediksi pasti yang tidak bisa berdiri tanpa bukti.",
+    "Alasan wajar tentang produk, layanan, proses, atau sebab-akibat boleh lolos selama tidak mengarang kepastian. Tanda peringatan tidak otomatis berarti gagal.",
+  ],
+  showable: [
+    "Lolos jika alasan ini menyangkut subjek Master Thought dan bisa ditunjukkan, dibandingkan, atau dialami penonton dalam konten.",
+    "Gagal jika alasannya abstrak, tidak menyangkut subjek Master Thought, atau hanya bisa diterima dengan percaya begitu saja.",
+  ],
+  duplicate: [
+    "Lolos hanya jika Big Thought ini bukan Big Thought yang sama dengan yang sudah lolos.",
+    "Gagal jika mengulang salah satu Big Thought itu.",
+  ],
+};
 
 const UNDECIDED = "This check could not be decided.";
 
@@ -89,46 +122,13 @@ export function lessonsForPassGate(
 }
 
 /** The rule text of one Big Thought check, shared by the one-check and the batched prompts. */
-export function bigThoughtGateRules(id: (typeof INDIVIDUAL_GATE_IDS)[number]): string[] {
-  return (
-    id === "resolved"
-      ? [
-          "pass is true only when the sentence is a finished claim that can be judged.",
-          "pass is false when it is a fragment, a heading, or unfinished.",
-        ]
-      : id === "relation"
-        ? [
-            "pass is true only when this is a distinct material reason, basis, or evidence for the Master Thought, and inserting only the word because between the Master Thought and this sentence already makes one grammatical sentence. That sentence finishes the belief, including its comparison, without repeating the Master Thought and without opening a separate claim. One result of that same cause, joined with sehingga or so that, stays part of the reason.",
-            "pass is false when the sentence is its own claim and would need to be rewritten before it can follow because, when it only names an area, or when it is a rarely noticed observation rather than a reason. It also fails when it restates the Master Thought, unpacks it, is only a bare outcome or a method, or is only an example, criterion, tactic, or execution. A cooking, production, preparation, or serving step is a method even when sehingga or so that and a result follow it. A property of the subject itself (what it is or has) is not a method. A bare outcome only follows after the Master Thought. The result also fails when it repeats the Master Thought or opens a second reason.",
-          ]
-        : id === "role"
-          ? [
-              "pass is true only when its job is a premise, a reason, or evidence.",
-              "pass is false when that job cannot be named.",
-            ]
-          : id === "explains"
-            ? [
-                "pass is true only when the Master Thought is true because this sentence, and removing this sentence would leave the Master Thought with one reason fewer to be believed.",
-                "pass is false when the because-form is circular, or when removing the sentence changes nothing because it adds no reason the Master Thought needs.",
-                "Do not fail only because there is no sehingga or so that result. A cause that already explains the Master Thought is enough.",
-              ]
-            : id === "premise"
-              ? [
-                  "pass is true when the sentence is an ordinary defensible premise, reason, or evidence for the Master Thought.",
-                  "New material information that the Master Thought does not already state is allowed. Do not fail merely because the parent does not contain or prove this sentence.",
-                  "pass is false only when the support depends on an unjustifiably specific empirical assertion that needs separate unstated evidence: invented factual certainty, universal or absolute guarantees, precise quantities or time horizons, or strong deterministic predictions that cannot stand without proof.",
-                  "Ordinary product, process, or causal reasons may pass when they function as a defensible premise without fabricated certainty. Warning signs are not automatic rejection.",
-                ]
-              : [
-                  "pass is true only when this is not the same Big Thought as one that already passed.",
-                  "pass is false when it repeats one of those Big Thoughts.",
-                ]
-  );
+export function bigThoughtGateRules(id: IndividualGateId): string[] {
+  return [...BIG_THOUGHT_GATE_RULES[id]];
 }
 
 /** Every open Big Thought check of one sentence in one prompt. */
 export function buildBigThoughtBatchPrompt(input: {
-  ids: ReadonlyArray<(typeof INDIVIDUAL_GATE_IDS)[number]>;
+  ids: ReadonlyArray<IndividualGateId>;
   statement: string;
   parentStatement: string;
   others: Array<{ code: string; statement: string }>;
@@ -160,7 +160,7 @@ export function buildBigThoughtBatchPrompt(input: {
 }
 
 export function buildBigThoughtPassPrompt(input: {
-  id: (typeof INDIVIDUAL_GATE_IDS)[number];
+  id: IndividualGateId;
   statement: string;
   parentStatement: string;
   others: Array<{ code: string; statement: string }>;
@@ -207,7 +207,7 @@ export function parseBigThoughtPassCheck(script: string | null): { pass: boolean
 }
 
 /** Checks that judge what kind of statement it is. Patching a part cannot change the kind. */
-export const BT_KIND_GATES = ["relation", "role", "explains"] as const;
+export const BT_KIND_GATES = ["relation", "explains"] as const;
 
 export type BigThoughtFixMode = "repair" | "replace";
 
@@ -219,7 +219,7 @@ export function lessonsOnGate(lessons: ReadonlyArray<{ reason: string }>, gate: 
 }
 
 /**
- * Repair patches the failed part. Once a kind check (method, restatement, role, explains)
+ * Repair patches the failed part. Once a kind check (method, restatement, explains)
  * has failed `replaceAfter` times, patching keeps the same idea, so the fix writes a new reason.
  */
 export function bigThoughtFixMode(input: {
@@ -319,7 +319,7 @@ export function parseBigThoughtFixStatement(script: string | null, parentStateme
 }
 
 async function askGate(input: {
-  id: (typeof INDIVIDUAL_GATE_IDS)[number];
+  id: IndividualGateId;
   statement: string;
   parentStatement: string;
   others: Array<{ code: string; statement: string; label?: string }>;
@@ -446,7 +446,6 @@ export function factsForGenerateAdmission(statement: string, checklist: PassChec
     return {
       ...shownBigThoughtFacts("NEW", statement),
       relationToParent: "DUPLICATE",
-      supportRole: "UNRESOLVED",
       explainsWhyParentIsTrue: false,
     };
   }
@@ -454,7 +453,6 @@ export function factsForGenerateAdmission(statement: string, checklist: PassChec
     return {
       ...shownBigThoughtFacts("NEW", statement),
       relationToParent: "RESTATEMENT",
-      supportRole: "UNRESOLVED",
       explainsWhyParentIsTrue: false,
     };
   }
@@ -577,7 +575,7 @@ export async function runBigThoughtOpenChecks(input: {
  */
 async function batchedBigThoughtAnswers(input: {
   batch?: boolean;
-  open: ReadonlyArray<(typeof INDIVIDUAL_GATE_IDS)[number]>;
+  open: ReadonlyArray<IndividualGateId>;
   statement: string;
   parentStatement: string;
   others: Array<{ code: string; statement: string; label?: string }>;

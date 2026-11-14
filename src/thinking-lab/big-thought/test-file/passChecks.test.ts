@@ -23,10 +23,9 @@ describe("Big Thought pass checks", () => {
       parentStatement: "Sate kambing berkualitas tinggi dapat dinikmati tanpa bau prengus.",
       others: [],
     });
-    expect(prompt).toContain("New material information that the Master Thought does not already state is allowed");
-    expect(prompt).toContain("Do not fail merely because the parent does not contain or prove this sentence");
-    expect(prompt).toContain("unjustifiably specific empirical assertion");
-    expect(prompt).not.toContain("does not depend on a specific fact that would need separate evidence");
+    expect(prompt).toContain("Informasi baru yang belum disebut Master Thought boleh");
+    expect(prompt).toContain("Jangan gagalkan hanya karena Master Thought tidak memuat atau membuktikan kalimat ini");
+    expect(prompt).toContain("klaim faktual yang terlalu spesifik dan butuh bukti terpisah");
   });
 
   it("sends earlier premise failures into the premise pass prompt", () => {
@@ -72,10 +71,8 @@ describe("Big Thought pass checks", () => {
       parentStatement: "Memilih pengelola adalah bagian dari tanggung jawab.",
       others: [],
     });
-    expect(prompt).toContain("joined with sehingga or so that, stays part of the reason");
-    expect(prompt).toContain("A bare outcome only follows after the Master Thought.");
-    expect(prompt).toContain("The result also fails when it repeats the Master Thought or opens a second reason.");
-    expect(prompt).not.toContain("names an outcome");
+    expect(prompt).toContain("disambung dengan \"sehingga\", tetap bagian dari alasan");
+    expect(prompt).toContain("Bagian hasil juga gagal jika mengulang Master Thought atau membuka alasan kedua.");
   });
 
   it("rejects a finished sentence that does not already follow because", () => {
@@ -86,12 +83,12 @@ describe("Big Thought pass checks", () => {
       others: [],
     });
     expect(prompt).toContain(
-      "inserting only the word because between the Master Thought and this sentence already makes one grammatical sentence",
+      "menyisipkan kata \"karena\" di antara Master Thought dan kalimat ini sudah membentuk satu kalimat yang utuh",
     );
-    expect(prompt).toContain("without opening a separate claim");
-    expect(prompt).toContain("would need to be rewritten before it can follow because");
-    expect(prompt).toContain("only names an area");
-    expect(prompt).toContain("rarely noticed observation rather than a reason");
+    expect(prompt).toContain("tanpa membuka klaim baru");
+    expect(prompt).toContain("harus ditulis ulang agar bisa mengikuti \"karena\"");
+    expect(prompt).toContain("hanya menyebut sebuah area");
+    expect(prompt).toContain("pengamatan yang jarang disadari, bukan alasan");
   });
 
   it("stops at the first failed check and does not ask the later ones", async () => {
@@ -116,9 +113,9 @@ describe("Big Thought pass checks", () => {
       prior: [
         { id: "resolved", state: "pass", reason: "" },
         { id: "relation", state: "fail", reason: "It restates the Master Thought." },
-        { id: "role", state: "pending", reason: "" },
         { id: "explains", state: "pending", reason: "" },
         { id: "premise", state: "pending", reason: "" },
+        { id: "showable", state: "pending", reason: "" },
         { id: "duplicate", state: "pending", reason: "" },
         { id: "sibling", state: "pending", reason: "" },
       ],
@@ -138,9 +135,9 @@ describe("Big Thought pass checks", () => {
       prior: [
         { id: "resolved", state: "pass", reason: "" },
         { id: "relation", state: "pass", reason: "" },
-        { id: "role", state: "pass", reason: "" },
         { id: "explains", state: "pass", reason: "" },
         { id: "premise", state: "fail", reason: "too specific" },
+        { id: "showable", state: "pending", reason: "" },
         { id: "duplicate", state: "pending", reason: "" },
         { id: "sibling", state: "pending", reason: "" },
       ],
@@ -171,9 +168,10 @@ describe("Big Thought pass checks", () => {
       },
     });
     expect(ask).toHaveBeenCalledTimes(4);
-    expect(String(callsOf<[string]>(ask)[0]?.[0])).toContain("its job is a premise");
+    expect(String(callsOf<[string]>(ask)[0]?.[0])).toContain("kehilangan satu alasan untuk dipercaya");
+    expect(String(callsOf<[string]>(ask)[2]?.[0])).toContain("bisa ditunjukkan, dibandingkan, atau dialami");
     expect(String(callsOf<[string]>(ask)[3]?.[0])).toContain("Big Thoughts that already passed:");
-    expect(steps[0]).toBe("checking:role");
+    expect(steps[0]).toBe("checking:explains");
     expect(steps).not.toContain("checking:resolved");
     expect(steps).not.toContain("checking:relation");
     expect(result.passed).toBe(true);
@@ -200,9 +198,9 @@ describe("Big Thought pass checks", () => {
       [
         { id: "resolved", state: "pass", reason: "" },
         { id: "relation", state: "pass", reason: "" },
-        { id: "role", state: "pass", reason: "" },
-        { id: "explains", state: "pending", reason: "" },
+        { id: "explains", state: "pass", reason: "" },
         { id: "premise", state: "pending", reason: "" },
+        { id: "showable", state: "pending", reason: "" },
         { id: "duplicate", state: "pending", reason: "" },
         { id: "sibling", state: "pending", reason: "" },
       ],
@@ -211,7 +209,7 @@ describe("Big Thought pass checks", () => {
     );
     expect(prior.find((item) => item.id === "resolved")?.state).toBe("pending");
     expect(prior.find((item) => item.id === "relation")?.state).toBe("pending");
-    expect(prior.find((item) => item.id === "role")?.state).toBe("pass");
+    expect(prior.find((item) => item.id === "explains")?.state).toBe("pass");
   });
 });
 

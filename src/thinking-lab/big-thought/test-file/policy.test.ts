@@ -15,7 +15,6 @@ function facts(overrides: Partial<BigThoughtFacts> = {}): BigThoughtFacts {
     code: "BT01",
     whatItSays: "A distinct foundational reason",
     relationToParent: "DISTINCT_MATERIAL_SUPPORT",
-    supportRole: "REASON",
     explainsWhyParentIsTrue: true,
     introducesUnsupportedPremise: false,
     duplicateOfCode: null,
@@ -33,12 +32,6 @@ describe("big thought individual policy", () => {
     }
   });
 
-  it("accepts premise, reason, and evidence, and refuses an unresolved support role", () => {
-    expect(individualAdmission({ facts: facts({ supportRole: "PREMISE" }), factsCurrent: true })).toBe("GENERATE_VALID");
-    expect(individualAdmission({ facts: facts({ supportRole: "EVIDENCE" }), factsCurrent: true })).toBe("GENERATE_VALID");
-    expect(individualAdmission({ facts: facts({ supportRole: "UNRESOLVED" }), factsCurrent: true })).toBe("UNRESOLVED");
-  });
-
   it("rejects restatement, outcome, method, duplicate, and unsupported premise", () => {
     const relations: ParentRelation[] = ["RESTATEMENT", "OUTCOME", "METHOD", "DUPLICATE", "UNSUPPORTED_PREMISE"];
     for (const relationToParent of relations) {
@@ -46,14 +39,13 @@ describe("big thought individual policy", () => {
     }
   });
 
-  it("does not turn confidence into a verdict", () => {
+  it("keeps an unfinished judgment unresolved", () => {
     expect(
       individualAdmission({
-        facts: facts({ resolution: "UNRESOLVED", unresolvedReasons: ["INCOMPLETE"], confidence: 0.99 }),
+        facts: facts({ resolution: "UNRESOLVED", unresolvedReasons: ["INCOMPLETE"] }),
         factsCurrent: true,
       }),
     ).toBe("UNRESOLVED");
-    expect(individualAdmission({ facts: facts({ confidence: 0.01 }), factsCurrent: true })).toBe("GENERATE_VALID");
   });
 
   it("treats a stale fingerprint as stale rather than a reject", () => {
@@ -100,7 +92,6 @@ describe("big thought individual policy", () => {
       individualAdmission({
         facts: facts({
           relationToParent: "DISTINCT_MATERIAL_SUPPORT",
-          supportRole: "PREMISE",
           explainsWhyParentIsTrue: "unresolved",
         }),
         factsCurrent: true,
@@ -110,7 +101,6 @@ describe("big thought individual policy", () => {
       individualAdmission({
         facts: facts({
           relationToParent: "DISTINCT_MATERIAL_SUPPORT",
-          supportRole: "PREMISE",
           explainsWhyParentIsTrue: true,
           introducesUnsupportedPremise: false,
           duplicateOfCode: null,

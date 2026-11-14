@@ -105,11 +105,6 @@ export function bigThoughtHeading(code: string, label: string): string {
   return clean ? `${code} — ${clean}` : code;
 }
 
-export function bigThoughtTreeCode(code: string, label: string): string {
-  const clean = normalizeBigThoughtLabel(label);
-  return clean ? `${code}-${clean}` : code;
-}
-
 export function buildBigThoughtLabelPrompt(rows: Array<{ code: string; statement: string }>): string {
   const lines = rows.map((row) => `${row.code}: ${row.statement.trim()}`).join("\n");
   return [
@@ -184,10 +179,6 @@ export function buildKeyBeliefFromLabelPrompt(input: {
     "Incumbent Big Thoughts:",
     kept,
   ].join("\n");
-}
-
-export function parseKeyBeliefFromLabel(raw: unknown, parentStatement = ""): string {
-  return parseKeyBeliefChoice(raw, parentStatement)?.statement ?? "";
 }
 
 export function parseKeyBeliefChoice(

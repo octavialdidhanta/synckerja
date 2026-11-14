@@ -1,4 +1,4 @@
-export type CertificationJudgeStage = "INDIVIDUAL_FIRST_PASS" | "INDIVIDUAL_ADVERSARIAL" | "SIBLING";
+export type CertificationJudgeStage = "INDIVIDUAL" | "SIBLING";
 
 export type InfrastructureFailureKind = "TRANSPORT_FAILURE" | "PROVIDER_FAILURE" | "AUTH_FAILURE" | "MALFORMED_RESPONSE";
 
@@ -56,9 +56,8 @@ export function formatInfrastructureFailure(input: {
 
 export function certificationStageFromPrompt(prompt: string): CertificationJudgeStage {
   const opening = prompt.slice(0, 180);
-  if (opening.includes("adversarial verifier")) return "INDIVIDUAL_ADVERSARIAL";
   if (opening.includes("sibling distinctness")) return "SIBLING";
-  return "INDIVIDUAL_FIRST_PASS";
+  return "INDIVIDUAL";
 }
 
 export function isCertificationInfrastructureError(error: unknown): error is CertificationInfrastructureError {

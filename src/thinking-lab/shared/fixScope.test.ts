@@ -3,7 +3,6 @@ import {
   fixMistakeLines,
   fixScopeFromChecks,
   fixScopeLines,
-  nextFixScope,
   openMistakeLines,
   scopeFromHistory,
 } from "@/thinking-lab/shared/fixScope";
@@ -19,18 +18,6 @@ describe("fix scope", () => {
     expect(lines).toContain("partOfBigThought");
     expect(lines).toContain("siblingsDistinct: TR01 · TR03: the same meal choice");
     expect(lines).toContain("Move only the boundary");
-  });
-
-  it("points the next round at the new failure and remembers the passed checks", () => {
-    const next = nextFixScope(
-      { preserve: ["partOfBigThought"], repair: [{ id: "siblingsDistinct", reason: "overlap" }] },
-      [
-        { id: "partOfBigThought", state: "pass" },
-        { id: "audienceLanguage", state: "fail", reason: "internal term" },
-      ],
-    );
-    expect(next.preserve).toEqual(["partOfBigThought"]);
-    expect(next.repair).toEqual([{ id: "audienceLanguage", reason: "internal term" }]);
   });
 
   it("tells a name-only failure to rename the same area", () => {
@@ -96,7 +83,7 @@ describe("fix scope", () => {
 
   it("lets a premise-only fix change the supporting reason", () => {
     const lines = fixScopeLines({
-      preserve: ["resolved", "relation", "role", "explains"],
+      preserve: ["resolved", "relation", "explains"],
       repair: [{ id: "premise", reason: "the claim needs separate proof" }],
     }).join("\n");
     expect(lines).toContain("Replace the unsupported specific empirical claim");
@@ -105,6 +92,15 @@ describe("fix scope", () => {
     expect(lines).not.toContain("Keep the meaning that made those passed checks true");
     expect(lines).not.toContain("Remove only the unsupported factual claim");
     expect(lines).toContain("premise: the claim needs separate proof");
+  });
+
+  it("tells a showable-only fix to make the reason visible in content", () => {
+    const lines = fixScopeLines({
+      preserve: ["resolved", "relation", "explains", "premise"],
+      repair: [{ id: "showable", reason: "too abstract" }],
+    }).join("\n");
+    expect(lines).toContain("so the reason can be shown, compared, or experienced in content");
+    expect(lines).toContain("showable: too abstract");
   });
 
   it("tells a situation failure to drop the verbal conclusion", () => {

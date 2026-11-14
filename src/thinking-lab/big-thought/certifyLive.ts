@@ -10,6 +10,7 @@ import {
   classifySiblingCase,
   combineCertificationReport,
   infrastructureCertificationLive,
+  observeChecklist,
   type LiveObservation,
   type SiblingRunObservation,
 } from "@/thinking-lab/big-thought/certificationReport";
@@ -20,8 +21,8 @@ import {
   isCertificationInfrastructureError,
   requestCertificationScript,
 } from "@/thinking-lab/big-thought/certificationTransport";
-import { individualAdmission } from "@/thinking-lab/big-thought/policy";
-import { judgeBigThought, judgeSiblingSet } from "@/thinking-lab/big-thought/semantic";
+import { runBigThoughtIndividualChecks } from "@/thinking-lab/big-thought/passChecks";
+import { judgeSiblingSet } from "@/thinking-lab/big-thought/semantic";
 import { bigThoughtFingerprint, incumbentSetFingerprint } from "@/thinking-lab/shared/fingerprint";
 
 const REPEATS = 5;
@@ -30,7 +31,7 @@ const PARENT_FINGERPRINT = "thinking-lab-certification-parent";
 function requireLiveFlag(): void {
   if (process.env.THINKING_LAB_LIVE_CERTIFICATION !== "1") {
     console.error(
-      "Live semantic certification did not run. Set THINKING_LAB_LIVE_CERTIFICATION=1 to call the production judge. Default npm test stays offline.",
+      "Live semantic certification did not run. Set THINKING_LAB_LIVE_CERTIFICATION=1 to call the production checks. Default npm test stays offline.",
     );
     process.exit(1);
   }
@@ -55,27 +56,16 @@ async function askProduction(prompt: string): Promise<string> {
   });
 }
 
+/** Every individual check, all switched on, the same way the page and the MCP server run them. */
 async function observeIndividual(testCase: CertificationCase): Promise<LiveObservation> {
-  const facts = await judgeBigThought(
-    {
-      parentStatement: testCase.parentStatement,
-      candidate: { code: "NEW", statement: testCase.candidateStatement },
-      siblings: [],
-    },
-    askProduction,
-  );
-  return {
-    relationToParent: facts.relationToParent,
-    supportRole: facts.supportRole,
-    resolution: facts.resolution,
-    individualAdmission: individualAdmission({ facts, factsCurrent: true }),
-  };
-}
-
-function relationAccepted(testCase: CertificationCase, run: LiveObservation): boolean {
-  if (!testCase.acceptableRelations || run.individualAdmission === "UNRESOLVED") return true;
-  if (run.individualAdmission !== "GENERATE_REJECT" && run.individualAdmission !== "GENERATE_VALID") return true;
-  return testCase.acceptableRelations.some((relation) => relation === run.relationToParent);
+  const checklist = await runBigThoughtIndividualChecks({
+    batch: true,
+    statement: testCase.candidateStatement,
+    parentStatement: testCase.parentStatement,
+    others: [],
+    ask: askProduction,
+  });
+  return observeChecklist(checklist);
 }
 
 function observeSibling(facts: {
@@ -123,11 +113,6 @@ async function runLiveCases() {
     acceptableAmbiguities.push(...classified.acceptableAmbiguities);
     falseNegatives.push(...classified.falseNegatives);
     repeatabilityFailures.push(...classified.repeatabilityFailures);
-    for (const run of runs) {
-      if (!relationAccepted(testCase, run) && run.individualAdmission === "GENERATE_VALID") {
-        criticalFailures.push(`${testCase.id}:relation`);
-      }
-    }
     if (classified.criticalFailures.length > 0 || classified.falseNegatives.length > 0 || classified.repeatabilityFailures.length > 0) {
       console.error(
         [
@@ -143,9 +128,7 @@ async function runLiveCases() {
       JSON.stringify({
         id: testCase.id,
         runs: runs.map((run) => ({
-          relationToParent: run.relationToParent,
-          supportRole: run.supportRole,
-          resolution: run.resolution,
+          failedGate: run.failedGate,
           individualAdmission: run.individualAdmission,
         })),
       }),

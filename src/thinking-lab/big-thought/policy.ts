@@ -35,11 +35,8 @@ export function individualAdmission(input: {
   if (facts.duplicateOfCode && facts.relationToParent === "DISTINCT_MATERIAL_SUPPORT") {
     return "UNRESOLVED";
   }
-  const supportReady =
-    facts.supportRole === "PREMISE" || facts.supportRole === "REASON" || facts.supportRole === "EVIDENCE";
   const valid =
     facts.relationToParent === "DISTINCT_MATERIAL_SUPPORT" &&
-    supportReady &&
     facts.explainsWhyParentIsTrue === true &&
     facts.introducesUnsupportedPremise === false &&
     !facts.duplicateOfCode;
