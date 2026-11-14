@@ -1,75 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { evaluateLock, selectStageAction } from "@/thinking-lab/big-thought/lock";
 
-function ready() {
-  return {
-    auditPassCount: 3,
-    activeCount: 3,
-    anyFail: false,
-    anyStale: false,
-    anyUnresolved: false,
-    siblingCurrent: true,
-  };
-}
+const PASS = "AUDIT_PASS" as const;
+const FAIL = "AUDIT_FAIL" as const;
 
 describe("lock decision", () => {
-  it("refuses when the passing rows are not the whole active set", () => {
-    expect(evaluateLock({ ...ready(), auditPassCount: 2 }).ok).toBe(false);
-    expect(evaluateLock({ ...ready(), auditPassCount: 0, activeCount: 1 }).ok).toBe(false);
-  });
-
-  it("allows lock when one passing row is the whole set", () => {
-    expect(evaluateLock({ ...ready(), auditPassCount: 1, activeCount: 1 })).toEqual({ ok: true });
-  });
-
-  it("refuses stale, unresolved, sibling, and failure gates", () => {
-    expect(evaluateLock({ ...ready(), anyStale: true })).toMatchObject({ reason: "STALE" });
-    expect(evaluateLock({ ...ready(), anyUnresolved: true })).toMatchObject({ reason: "UNRESOLVED" });
-    expect(evaluateLock({ ...ready(), siblingCurrent: false })).toMatchObject({ reason: "SIBLING" });
-    expect(evaluateLock({ ...ready(), anyFail: true })).toMatchObject({ reason: "AUDIT_FAIL" });
-  });
-
-  it("allows lock when every gate is current", () => {
-    expect(evaluateLock(ready())).toEqual({ ok: true });
-  });
-
-  it("does not lock when audit proof is incomplete", () => {
-    const decision = evaluateLock({ ...ready(), auditPassCount: 2, anyUnresolved: true });
-    expect(decision).toEqual({ ok: false, reason: "NEED_AUDIT_PASS" });
-    expect(decision).not.toBeInstanceOf(Promise);
+  it("locks when every listed Big Thought passed", () => {
+    expect(evaluateLock({ verdicts: [PASS] }).ok).toBe(true);
+    expect(evaluateLock({ verdicts: [PASS, PASS, PASS] }).ok).toBe(true);
+    expect(evaluateLock({ verdicts: [] })).toEqual({ ok: false, reason: "NEED_AUDIT_PASS" });
+    expect(evaluateLock({ verdicts: [PASS, null] })).toEqual({ ok: false, reason: "NEED_AUDIT_PASS" });
+    expect(evaluateLock({ verdicts: [PASS, FAIL] })).toEqual({ ok: false, reason: "AUDIT_FAIL" });
   });
 });
 
-describe("stage action priority", () => {
-  const base = {
-    anyFail: false,
-    generateValidCount: 3,
-    activeCount: 3,
-    auditPassCount: 3,
-    anyStale: false,
-    anyUnresolved: false,
-    siblingCurrent: true,
-    lockOk: false,
-  };
-
-  it("shows only the current priority", () => {
-    expect(selectStageAction({ ...base, anyFail: true, generateValidCount: 1, auditPassCount: 0 })).toBe("generate");
-    expect(selectStageAction({ ...base, anyFail: true, awaitingVerdict: true })).toBe("audit");
-    expect(selectStageAction({ ...base, generateValidCount: 2, activeCount: 2, auditPassCount: 0 })).toBe("audit");
-    expect(selectStageAction({ ...base, generateValidCount: 2, activeCount: 2, auditPassCount: 2 })).toBe("generate");
-    expect(selectStageAction({ ...base, generateValidCount: 0, activeCount: 0, auditPassCount: 0 })).toBe("generate");
-    expect(selectStageAction({ ...base, auditPassCount: 2 })).toBe("audit");
-    expect(selectStageAction(base)).toBeNull();
-    expect(selectStageAction({ ...base, lockOk: true })).toBe("lock");
-    expect(
-      selectStageAction({
-        ...base,
-        generateValidCount: 1,
-        activeCount: 1,
-        auditPassCount: 1,
-        lockOk: true,
-      }),
-    ).toBe("lock");
-    expect(selectStageAction({ ...base, siblingCurrent: false, lockOk: false })).toBe("audit");
+describe("stage action", () => {
+  it("audits cards never checked, locks when all passed, otherwise generates up to the target", () => {
+    expect(selectStageAction({ verdicts: [] })).toBe("generate");
+    expect(selectStageAction({ verdicts: [PASS, null] })).toBe("audit");
+    expect(selectStageAction({ verdicts: [PASS, PASS] })).toBe("lock");
+    expect(selectStageAction({ verdicts: [PASS, FAIL] })).toBe("generate");
+    // A failed card is revised on the card; with the target reached the set has no action.
+    expect(selectStageAction({ verdicts: [PASS, PASS, PASS, FAIL] })).toBeNull();
   });
 });

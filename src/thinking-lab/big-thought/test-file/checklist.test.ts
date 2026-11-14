@@ -2,21 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   PASS_GATE_IDS,
   bigThoughtListed,
-  checklistFrame,
   checklistFromFailure,
-  completeChecklist,
-  type PassChecklist,
+  readBigThoughtCheckId,
+  readGateFailure,
 } from "@/thinking-lab/big-thought/checklist";
-
-/** Every individual gate passed; sibling not checked yet. */
-function individualPassed(): PassChecklist {
-  return {
-    items: PASS_GATE_IDS.map((id) => ({ id, state: id === "sibling" ? "unchecked" : "pass", reason: "" })),
-    passed: false,
-    lesson: null,
-    failure: null,
-  };
-}
 
 describe("list visibility", () => {
   it("keeps an audit failure visible and hides a generate rejection", () => {
@@ -25,7 +14,7 @@ describe("list visibility", () => {
       bigThoughtListed({
         admission: "GENERATE_VALID",
         audit: "AUDIT_FAIL",
-        auditGateFailure: { gate: "sibling", reason: "Same reasoning job.", earlier: "pass" },
+        auditGateFailure: { gate: "duplicate", reason: "Same reasoning job.", earlier: "pass" },
       }),
     ).toBe(true);
     expect(
@@ -39,23 +28,14 @@ describe("list visibility", () => {
 
 describe("pass checklist", () => {
   it("lists the checks in the order they are judged", () => {
-    expect([...PASS_GATE_IDS]).toEqual(["resolved", "relation", "explains", "premise", "showable", "duplicate", "sibling"]);
+    expect([...PASS_GATE_IDS]).toEqual(["resolved", "relation", "explains", "premise", "showable", "duplicate"]);
   });
 
-  it("fails sibling only after the individual gates pass", () => {
-    const blocked = completeChecklist(checklistFromFailure({ gate: "relation", reason: "METHOD", earlier: "pass" }), {
-      passed: false,
-      reason: "Same reasoning job",
-    });
-    expect(blocked.failure?.gate).toBe("relation");
-
-    const distinct = completeChecklist(individualPassed(), { passed: true, reason: "" });
-    expect(distinct.passed).toBe(true);
-    expect(distinct.items.every((item) => item.state === "pass")).toBe(true);
-
-    const overlap = completeChecklist(individualPassed(), { passed: false, reason: "Same reasoning job" });
-    expect(overlap.failure).toMatchObject({ gate: "sibling", earlier: "pass" });
-    expect(overlap.items.find((item) => item.id === "duplicate")?.state).toBe("pass");
+  it("reads the earlier set-wide sibling check as duplicate", () => {
+    expect(readBigThoughtCheckId("sibling")).toBe("duplicate");
+    expect(readBigThoughtCheckId("premise")).toBe("premise");
+    expect(readBigThoughtCheckId("other")).toBeNull();
+    expect(readGateFailure({ gate: "sibling", reason: "Same reasoning job." })).toMatchObject({ gate: "duplicate" });
   });
 
   it("rebuilds a stored failure without checking later gates", () => {
@@ -67,21 +47,6 @@ describe("pass checklist", () => {
       ["premise", "pass"],
       ["showable", "fail"],
       ["duplicate", "unchecked"],
-      ["sibling", "unchecked"],
     ]);
-  });
-
-  it("keeps later gates pending while one gate is being checked", () => {
-    const frame = checklistFrame(individualPassed(), "explains", "checking");
-    expect(frame.items.map((item) => item.state)).toEqual([
-      "pass",
-      "pass",
-      "checking",
-      "pending",
-      "pending",
-      "pending",
-      "pending",
-    ]);
-    expect(frame.report).toEqual({ gate: "explains", phase: "checking", outcome: "pass" });
   });
 });

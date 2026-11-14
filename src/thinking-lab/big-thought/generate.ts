@@ -4,7 +4,7 @@ import { bigThoughtRepeats, normalizeBigThoughtLabel } from "./label";
 import { productReasonLines, statementUsesReason, type ProductReasonPool } from "../master-thought/productReasonPool";
 import { MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "../shared/limits";
 import { individualAdmission } from "./policy";
-import type { BigThoughtFacts, GenerateMode, SemanticExclusion } from "./types";
+import type { BigThoughtFacts, GenerateMode } from "./types";
 import type { IndividualAdmission } from "../shared/verdict";
 
 export type GeneratedBigThought = {
@@ -66,69 +66,26 @@ export function nextBigThoughtCode(existingCodes: string[]): string {
   return `BT${String(max + 1).padStart(2, "0")}`;
 }
 
-function incumbentLines(
-  rows: Array<{ code: string; statement: string; label?: string; reasonContribution?: string | null }>,
-): string {
+function incumbentLines(rows: Array<{ code: string; statement: string; label?: string }>): string {
   if (rows.length === 0) return "(none)";
   return rows
     .map((row) => {
       const label = row.label?.trim();
-      const heading = label ? `${row.code} ${label}: ${row.statement}` : `${row.code}: ${row.statement}`;
-      const contribution = row.reasonContribution?.trim() ?? "";
-      return contribution ? `${heading}\nReason contribution: ${contribution}` : heading;
+      return label ? `${row.code} ${label}: ${row.statement}` : `${row.code}: ${row.statement}`;
     })
     .join("\n");
 }
 
-function exclusionLines(entries: SemanticExclusion[]): string {
-  if (entries.length === 0) return "(none)";
-  return entries
-    .map((entry) => {
-      const lines = [
-        entry.codes.length > 0 ? `Codes: ${entry.codes.join(", ")}` : "",
-        entry.reasonContribution.trim() ? `Reason contribution: ${entry.reasonContribution.trim()}` : "",
-        entry.explanation.trim() ? `Overlap explanation: ${entry.explanation.trim()}` : "",
-      ].filter(Boolean);
-      return lines.join("\n");
-    })
-    .filter(Boolean)
-    .join("\n\n");
-}
-
 export function buildGeneratePrompt(input: {
   parentStatement: string;
-  incumbents: Array<{ code: string; statement: string; label?: string; reasonContribution?: string | null }>;
+  incumbents: Array<{ code: string; statement: string; label?: string }>;
   needed: number;
-  exclusions?: SemanticExclusion[];
-  failed?: { code: string; statement: string; reasonContribution?: string | null } | null;
   lessons?: GateLesson[];
   reasonPool?: ProductReasonPool | null;
 }): string {
   const kept = incumbentLines(input.incumbents);
   const pool = input.reasonPool ?? null;
   const gap = "Search for a because-clause that is not already in the incumbent list.";
-  const exclusionSearch =
-    input.exclusions === undefined
-      ? []
-      : [
-          "You are looking for another because-clause.",
-          "These reasoning jobs are already occupied.",
-          "These reasoning spaces have already been found to collide.",
-          "Do not merely reword, reframe, generalize, specialize, or change the emphasis of those same reasoning jobs.",
-          "Search for a genuinely different because-clause that finishes the Master Thought.",
-          "Different wording is not sufficient.",
-          "Different subject vocabulary is not sufficient.",
-          "The candidate must perform a genuinely different explanatory job.",
-          "",
-          "Occupied incumbent reasoning jobs:",
-          kept,
-          "",
-          "Failed row being replaced:",
-          input.failed ? incumbentLines([input.failed]) : "(none)",
-          "",
-          "Known semantic exclusions:",
-          exclusionLines(input.exclusions),
-        ];
   const productSearch = pool
     ? [
         "Use exactly one allowed product reason for each candidate.",
@@ -175,7 +132,6 @@ export function buildGeneratePrompt(input: {
     "Write the label in the same language as the statement.",
     ...productSearch,
     gap,
-    ...exclusionSearch,
     ...lessonSearch,
     `Return at most ${input.needed} item(s).`,
     pool

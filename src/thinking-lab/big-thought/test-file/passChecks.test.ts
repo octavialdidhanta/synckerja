@@ -1,16 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 import { individualAdmission } from "@/thinking-lab/big-thought/policy";
-import { normalizeBigThoughtFacts } from "@/thinking-lab/big-thought/semantic";
 import {
   buildBigThoughtPassPrompt,
-  factsForGenerateAdmission,
-  fixPriorForNextSentence,
-  generateDuplicateFailure,
+  factsForBigThoughtChecks,
   lessonsForPassGate,
-  runBigThoughtIndividualChecks,
-  runBigThoughtOpenChecks,
-  runGenerateAdmissionChecks,
+  runBigThoughtChecks,
 } from "@/thinking-lab/big-thought/passChecks";
+import { checklistFromFailure } from "@/thinking-lab/big-thought/checklist";
+
+/** Answers a batched prompt; the checks in `fails` fail with their reason, every other check passes. */
+function batchAnswer(prompt: string, fails: Record<string, string> = {}): string {
+  const listed = /check id: ([^\n]+)\./.exec(prompt);
+  const ids = listed ? listed[1].split(", ") : [];
+  return JSON.stringify({ checks: ids.map((id) => ({ id, pass: !fails[id], reason: fails[id] ?? "" })) });
+}
+
+const isBatch = (prompt: string) => prompt.includes('"checks"');
 
 /** vi.fn() mocks declared without params record calls as `[]`; read them with the real arg types. */
 const callsOf = <T extends unknown[]>(fn: { mock: { calls: unknown[] } }) => fn.mock.calls as unknown as T[];
@@ -91,188 +96,133 @@ describe("Big Thought pass checks", () => {
     expect(prompt).toContain("pengamatan yang jarang disadari, bukan alasan");
   });
 
-  it("stops at the first failed check and does not ask the later ones", async () => {
-    const ask = vi.fn(async () => "{\"pass\":false,\"reason\":\"It restates the Master Thought.\"}");
-    const result = await runBigThoughtIndividualChecks({
+  it("stops at the first failed check and leaves the later ones unchecked", async () => {
+    const ask = vi.fn(async (prompt: string) =>
+      isBatch(prompt) ? batchAnswer(prompt, { relation: "It restates the Master Thought." }) : '{"pass":true,"reason":""}',
+    );
+    const result = await runBigThoughtChecks({
       statement: "The same claim again",
       parentStatement: "The master claim",
       others: [],
       ask,
     });
     expect(ask).toHaveBeenCalledTimes(1);
-    expect(result.failure?.gate).toBe("resolved");
-    expect(result.items.find((item) => item.id === "relation")?.state).toBe("pending");
+    expect(result.failure).toMatchObject({ gate: "relation", reason: "It restates the Master Thought." });
+    expect(result.items.find((item) => item.id === "resolved")?.state).toBe("pass");
+    expect(result.items.find((item) => item.id === "explains")?.state).toBe("unchecked");
+    expect(individualAdmission({ facts: factsForBigThoughtChecks("NEW", "The same claim again", result), factsCurrent: true })).toBe(
+      "GENERATE_REJECT",
+    );
   });
 
-  it("keeps a passed check and asks only the failed one again", async () => {
-    const ask = vi.fn(async () => "{\"pass\":true,\"reason\":\"\"}");
-    const result = await runBigThoughtOpenChecks({
-      statement: "A repaired clause",
+  it("passes the duplicate check without a model when no Big Thought has passed yet", async () => {
+    const ask = vi.fn(async (prompt: string) => (isBatch(prompt) ? batchAnswer(prompt) : '{"pass":true,"reason":""}'));
+    const result = await runBigThoughtChecks({
+      statement: "A distinct material reason",
       parentStatement: "The master claim",
-      others: [{ code: "BT01", statement: "A different reason" }],
-      prior: [
-        { id: "resolved", state: "pass", reason: "" },
-        { id: "relation", state: "fail", reason: "It restates the Master Thought." },
-        { id: "explains", state: "pending", reason: "" },
-        { id: "premise", state: "pending", reason: "" },
-        { id: "showable", state: "pending", reason: "" },
-        { id: "duplicate", state: "pending", reason: "" },
-        { id: "sibling", state: "pending", reason: "" },
-      ],
+      others: [],
       ask,
     });
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(String(callsOf<[string]>(ask)[0]?.[0])).not.toContain("Check duplicate:");
     expect(result.passed).toBe(true);
-    expect(callsOf<[string]>(ask).length).toBe(5);
-    expect(result.items.find((item) => item.id === "resolved")?.state).toBe("pass");
+    expect(individualAdmission({ facts: factsForBigThoughtChecks("BT01", "A distinct material reason", result), factsCurrent: true })).toBe(
+      "GENERATE_VALID",
+    );
   });
 
-  it("feeds premise lessons into the open premise re-check", async () => {
-    const ask = vi.fn(async () => "{\"pass\":true,\"reason\":\"\"}");
-    await runBigThoughtOpenChecks({
+  it("compares the sentence with the Big Thoughts that already passed", async () => {
+    const ask = vi.fn(async (prompt: string) =>
+      isBatch(prompt) ? batchAnswer(prompt, { duplicate: "BT01: alasan dasar yang sama." }) : '{"pass":true,"reason":""}',
+    );
+    const result = await runBigThoughtChecks({
+      statement: "A second reason in other words",
+      parentStatement: "The master claim",
+      others: [{ code: "BT01", statement: "A first reason" }],
+      ask,
+    });
+    const prompt = String(callsOf<[string]>(ask)[0]?.[0]);
+    expect(prompt).toContain("Big Thoughts that already passed:");
+    expect(prompt).toContain("BT01: A first reason");
+    expect(prompt).toContain("alasan dasar yang berbeda");
+    expect(result.failure).toMatchObject({ gate: "duplicate", reason: "BT01: alasan dasar yang sama." });
+  });
+
+  it("fails an exact repeat in code", async () => {
+    const ask = vi.fn(async (prompt: string) => (isBatch(prompt) ? batchAnswer(prompt) : '{"pass":true,"reason":""}'));
+    const result = await runBigThoughtChecks({
+      statement: "A first reason",
+      parentStatement: "The master claim",
+      others: [{ code: "BT01", statement: "A first reason" }],
+      ask,
+    });
+    expect(String(callsOf<[string]>(ask)[0]?.[0])).not.toContain("Check duplicate:");
+    expect(result.failure).toMatchObject({ gate: "duplicate", reason: "Same Big Thought as BT01." });
+  });
+
+  it("does not ask the checks it keeps or the ones switched off", async () => {
+    const ask = vi.fn(async () => '{"pass":true,"reason":""}');
+    const result = await runBigThoughtChecks({
+      statement: "A distinct material reason",
+      parentStatement: "The master claim",
+      others: [],
+      keep: ["resolved", "relation", "explains"],
+      skip: ["premise"],
+      ask,
+    });
+    // Only showable is left for the model, so it is asked alone.
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(String(callsOf<[string]>(ask)[0]?.[0])).toContain("bisa ditunjukkan, dibandingkan, atau dialami");
+    expect(result.passed).toBe(true);
+    expect(result.items.find((item) => item.id === "premise")?.reason).toBe("Dimatikan untuk organisasi ini.");
+  });
+
+  it("feeds earlier failures of a check into that check's prompt", async () => {
+    const ask = vi.fn(async () => '{"pass":true,"reason":""}');
+    await runBigThoughtChecks({
       statement: "An ordinary process reason",
       parentStatement: "The master claim",
       others: [],
-      prior: [
-        { id: "resolved", state: "pass", reason: "" },
-        { id: "relation", state: "pass", reason: "" },
-        { id: "explains", state: "pass", reason: "" },
-        { id: "premise", state: "fail", reason: "too specific" },
-        { id: "showable", state: "pending", reason: "" },
-        { id: "duplicate", state: "pending", reason: "" },
-        { id: "sibling", state: "pending", reason: "" },
-      ],
-      lessons: [
-        {
-          statement: "Every batch is always 100% free of smell.",
-          reason: "premise: Klaim universal yang membutuhkan bukti terpisah.",
-        },
-      ],
+      keep: ["resolved", "relation", "explains", "showable"],
+      lessons: [{ statement: "Every batch is always 100% free of smell.", reason: "premise: Klaim universal yang membutuhkan bukti terpisah." }],
       ask,
     });
     expect(String(callsOf<[string]>(ask)[0]?.[0])).toContain("Earlier premise failures for this Big Thought");
     expect(String(callsOf<[string]>(ask)[0]?.[0])).toContain("Every batch is always 100% free of smell.");
   });
 
-  it("keeps the two generate passes and audits the remaining checks", async () => {
+  it("reports each check as it is checked", async () => {
     const steps: string[] = [];
-    const ask = vi.fn(async () => "{\"pass\":true,\"reason\":\"\"}");
-    const result = await runBigThoughtIndividualChecks({
+    const ask = vi.fn(async (prompt: string) => (isBatch(prompt) ? batchAnswer(prompt) : '{"pass":true,"reason":""}'));
+    await runBigThoughtChecks({
       statement: "A distinct material reason",
       parentStatement: "The master claim",
-      others: [{ code: "BT01", statement: "Another reason", label: "Other" }],
-      carried: ["resolved", "relation"],
+      others: [],
       ask,
       onStep: (checklist) => {
         const report = checklist.report;
         steps.push(report ? `${report.phase}:${report.gate}` : "blank");
       },
     });
-    expect(ask).toHaveBeenCalledTimes(4);
-    expect(String(callsOf<[string]>(ask)[0]?.[0])).toContain("kehilangan satu alasan untuk dipercaya");
-    expect(String(callsOf<[string]>(ask)[2]?.[0])).toContain("bisa ditunjukkan, dibandingkan, atau dialami");
-    expect(String(callsOf<[string]>(ask)[3]?.[0])).toContain("Big Thoughts that already passed:");
-    expect(steps[0]).toBe("checking:explains");
-    expect(steps).not.toContain("checking:resolved");
-    expect(steps).not.toContain("checking:relation");
-    expect(result.passed).toBe(true);
-    expect(result.items.find((item) => item.id === "resolved")?.state).toBe("pass");
-    expect(result.items.find((item) => item.id === "duplicate")?.state).toBe("pass");
-  });
-
-  it("passes the duplicate check without a model when no Big Thought has passed yet", async () => {
-    const ask = vi.fn(async () => "{\"pass\":true,\"reason\":\"\"}");
-    const result = await runBigThoughtIndividualChecks({
-      statement: "A distinct material reason",
-      parentStatement: "The master claim",
-      others: [],
-      carried: ["resolved", "relation"],
-      ask,
-    });
-    expect(ask).toHaveBeenCalledTimes(3);
-    expect(String(callsOf<[string]>(ask).map((call) => call[0])).includes("Big Thoughts that already passed:")).toBe(false);
-    expect(result.items.find((item) => item.id === "duplicate")?.state).toBe("pass");
-  });
-
-  it("asks the finished-claim check again after the sentence changes", () => {
-    const prior = fixPriorForNextSentence(
-      [
-        { id: "resolved", state: "pass", reason: "" },
-        { id: "relation", state: "pass", reason: "" },
-        { id: "explains", state: "pass", reason: "" },
-        { id: "premise", state: "pending", reason: "" },
-        { id: "showable", state: "pending", reason: "" },
-        { id: "duplicate", state: "pending", reason: "" },
-        { id: "sibling", state: "pending", reason: "" },
-      ],
-      "The old clause",
-      "The new clause",
-    );
-    expect(prior.find((item) => item.id === "resolved")?.state).toBe("pending");
-    expect(prior.find((item) => item.id === "relation")?.state).toBe("pending");
-    expect(prior.find((item) => item.id === "explains")?.state).toBe("pass");
+    expect(steps[0]).toBe("blank");
+    expect(steps).toContain("checking:resolved");
+    expect(steps.at(-1)).toBe("checked:duplicate");
   });
 });
 
-describe("Big Thought generate admission", () => {
-  it("stops when the sentence is unfinished and does not ask the relation check", async () => {
-    const ask = vi.fn(async () => "{\"pass\":false,\"reason\":\"It is only a heading.\"}");
-    const result = await runGenerateAdmissionChecks({
-      statement: "Integrasi data",
-      parentStatement: "The master claim",
-      ask,
-    });
-    expect(ask).toHaveBeenCalledTimes(1);
-    expect(result.passed).toBe(false);
-    expect(result.failure?.gate).toBe("resolved");
-    expect(result.items.find((item) => item.id === "relation")?.state).toBe("unchecked");
-    expect(result.items.find((item) => item.id === "duplicate")?.state).toBe("pass");
-    expect(individualAdmission({ facts: factsForGenerateAdmission("Integrasi data", result), factsCurrent: true })).toBe(
-      "UNRESOLVED",
-    );
-  });
-
-  it("asks the relation check only after the sentence is finished", async () => {
-    const ask = vi
-      .fn()
-      .mockResolvedValueOnce("{\"pass\":true,\"reason\":\"\"}")
-      .mockResolvedValueOnce("{\"pass\":false,\"reason\":\"It restates the Master Thought.\"}");
-    const result = await runGenerateAdmissionChecks({
-      statement: "The same claim again",
-      parentStatement: "The master claim",
-      ask,
-    });
-    expect(ask).toHaveBeenCalledTimes(2);
-    expect(result.failure?.gate).toBe("relation");
-    expect(result.items.find((item) => item.id === "resolved")?.state).toBe("pass");
-    expect(individualAdmission({ facts: factsForGenerateAdmission("The same claim again", result), factsCurrent: true })).toBe(
-      "GENERATE_REJECT",
-    );
-  });
-
-  it("admits a sentence after the finished-claim and relation checks pass", async () => {
-    const ask = vi.fn(async () => "{\"pass\":true,\"reason\":\"\"}");
-    const result = await runGenerateAdmissionChecks({
-      statement: "A distinct material reason",
-      parentStatement: "The master claim",
-      ask,
-    });
-    expect(ask).toHaveBeenCalledTimes(2);
-    expect(result.passed).toBe(true);
-    const facts = factsForGenerateAdmission("A distinct material reason", result);
-    expect(facts.generatePasses).toEqual(["resolved", "relation"]);
-    expect(individualAdmission({ facts, factsCurrent: true })).toBe("GENERATE_VALID");
-    expect(
-      normalizeBigThoughtFacts({ ...facts, generatePasses: ["duplicate", "resolved", "relation"] }).generatePasses,
-    ).toEqual(["resolved", "relation"]);
-  });
-
-  it("rejects an exact copy without a model call", () => {
-    const result = generateDuplicateFailure("Same Big Thought as BT01.");
-    expect(result.failure?.gate).toBe("duplicate");
-    expect(result.items.find((item) => item.id === "resolved")?.state).toBe("unchecked");
-    expect(individualAdmission({ facts: factsForGenerateAdmission("Same words", result), factsCurrent: true })).toBe(
-      "GENERATE_REJECT",
-    );
+describe("facts after the checks", () => {
+  it("makes a failed sentence a reject or unresolved, never valid", () => {
+    const admitted = (gate: "resolved" | "relation" | "explains" | "premise" | "showable" | "duplicate") =>
+      individualAdmission({
+        facts: factsForBigThoughtChecks("NEW", "Some clause", checklistFromFailure({ gate, reason: "No.", earlier: "pass" })),
+        factsCurrent: true,
+      });
+    expect(admitted("duplicate")).toBe("GENERATE_REJECT");
+    expect(admitted("relation")).toBe("GENERATE_REJECT");
+    expect(admitted("explains")).toBe("GENERATE_REJECT");
+    expect(admitted("premise")).toBe("GENERATE_REJECT");
+    expect(admitted("resolved")).toBe("UNRESOLVED");
+    expect(admitted("showable")).toBe("UNRESOLVED");
   });
 });
 

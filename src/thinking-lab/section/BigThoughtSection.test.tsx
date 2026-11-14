@@ -21,10 +21,6 @@ function row(overrides: Partial<BigThoughtRowView> & Pick<BigThoughtRowView, "id
     admission: "GENERATE_VALID",
     audit: null,
     facts: null,
-    siblingDistinct: null,
-    siblingPairs: null,
-    reasonContribution: null,
-    siblingUnresolvedReasons: null,
     canGenerateTerritory: false,
     territories: [],
     ...overrides,
@@ -143,7 +139,7 @@ describe("BigThoughtSection territory entry", () => {
     expect(screen.queryByText("No Big Thoughts yet.")).toBeNull();
   });
 
-  it("keeps an audit failure in the list and offers Fix for that card", () => {
+  it("keeps an audit failure in the list and offers Revise for that card", () => {
     const onFixBigThought = vi.fn();
     render(
       <BigThoughtSection
@@ -159,11 +155,11 @@ describe("BigThoughtSection territory entry", () => {
     );
     expect(screen.getByText(/Failed compound/)).toBeTruthy();
     expect(screen.getByText(/A passing burden/)).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "Fix" })).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Fix" }));
+    expect(screen.getAllByRole("button", { name: "Revise" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Revise" }));
     expect(onFixBigThought).toHaveBeenCalledWith("BT03");
     fireEvent.keyDown(screen.getAllByRole("button", { name: /More actions/ })[0], { key: "Enter" });
-    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Revise" }));
     expect(onFixBigThought).toHaveBeenCalledWith("BT03");
   });
 
@@ -182,7 +178,6 @@ describe("BigThoughtSection territory entry", () => {
             { id: "premise", state: "unchecked", reason: "" },
             { id: "showable", state: "unchecked", reason: "" },
             { id: "duplicate", state: "unchecked", reason: "" },
-            { id: "sibling", state: "unchecked", reason: "" },
           ],
           passed: false,
           lesson: { gate: "relation", reason: "ELABORATION", statement: "Hidden failed clause" },
@@ -199,9 +194,9 @@ describe("BigThoughtSection territory entry", () => {
     expect(screen.queryByText("Hidden failed clause")).toBeNull();
     expect(screen.queryByText("Role is premise, reason, or evidence.")).toBeNull();
     const checks = screen.getAllByRole("listitem").map((item) => item.textContent ?? "");
-    expect(checks[0]).toContain("Not a duplicate of a Big Thought that already passed.");
-    expect(checks[1]).toContain("The judgment is finished.");
-    expect(checks[2]).toContain("Not a restatement, elaboration, outcome, or method.");
+    expect(checks[0]).toContain("The judgment is finished.");
+    expect(checks[1]).toContain("Not a restatement, elaboration, outcome, or method.");
+    expect(checks[5]).toContain("A basic reason different from every Big Thought that already passed.");
   });
 
   it("reports on a saved Big Thought that every pass requirement was checked", () => {
@@ -231,7 +226,7 @@ describe("BigThoughtSection territory entry", () => {
     );
     expect(screen.getByText("Every pass requirement was checked.")).toBeTruthy();
     expect(screen.getByText("The judgment is finished.")).toBeTruthy();
-    expect(screen.getByText("Distinct from the other Big Thoughts.")).toBeTruthy();
+    expect(screen.getByText("A basic reason different from every Big Thought that already passed.")).toBeTruthy();
   });
 
   it("keeps a rejected Big Thought out of the list", () => {
@@ -277,7 +272,6 @@ describe("BigThoughtSection territory entry", () => {
               { id: "premise", state: "pending", reason: "" },
               { id: "showable", state: "pending", reason: "" },
               { id: "duplicate", state: "pending", reason: "" },
-              { id: "sibling", state: "pending", reason: "" },
             ],
             passed: false,
             lesson: null,
@@ -310,7 +304,7 @@ describe("BigThoughtSection territory entry", () => {
             code: "BT02",
             statement: "A private room that repeats another job",
             audit: "AUDIT_FAIL",
-            auditGateFailure: { gate: "sibling", reason: "Same reasoning job.", earlier: "pass" },
+            auditGateFailure: { gate: "duplicate", reason: "Same reasoning job.", earlier: "pass" },
           }),
         ]}
         notice={null}

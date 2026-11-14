@@ -1,28 +1,24 @@
+// Runs the six Big Thought checks on one sentence, in order, and stops at the first one that does not pass.
+// The same runner serves Generate, a manual add or edit, Revise, Audit of cards never checked, and the MCP server.
+// "duplicate" compares the sentence with the Big Thoughts that already passed: a different basic reason.
+// Relative imports only: the MCP server loads this file.
 import { bigThoughtRepeats } from "./label";
 import type { PassChecklist, PassGateCheck, PassGateId } from "./checklist";
 import { PASS_GATE_IDS } from "./checklist";
-import { parseModelJson } from "../shared/parseModelJson";
-import { UNDECIDED_REASON, answerGate, askBatchGates, buildBatchGatePrompt, parseGateAnswer, type GateAnswer } from "../shared/batchGates";
-import { fixScopeLines, openMistakeLines, type FixScope } from "../shared/fixScope";
-import { parseGeneratedBigThoughts, shownBigThoughtFacts } from "./generate";
-import type { BigThoughtFacts, GeneratePassGate } from "./types";
-
-/** Generate admits a sentence only after these three. Audit repeats the duplicate check by meaning, and keeps the other two while the sentence stays the same. */
-export const GENERATE_ADMISSION_GATES = ["duplicate", "resolved", "relation"] as const satisfies readonly PassGateId[];
-
-const INDIVIDUAL_GATE_IDS = [
-  "resolved",
-  "relation",
-  "explains",
-  "premise",
-  "showable",
-  "duplicate",
-] as const satisfies readonly PassGateId[];
-
-type IndividualGateId = (typeof INDIVIDUAL_GATE_IDS)[number];
+import {
+  SWITCHED_OFF_REASON,
+  UNDECIDED_REASON,
+  answerGate,
+  askBatchGates,
+  buildBatchGatePrompt,
+  parseGateAnswer,
+  type GateAnswer,
+} from "../shared/batchGates";
+import { shownBigThoughtFacts } from "./generate";
+import type { BigThoughtFacts } from "./types";
 
 /** The exact rule of every individual Big Thought check. The model judges with these words and the page shows them. */
-const BIG_THOUGHT_GATE_RULES: Readonly<Record<IndividualGateId, readonly string[]>> = {
+const BIG_THOUGHT_GATE_RULES: Readonly<Record<PassGateId, readonly string[]>> = {
   resolved: [
     "Lolos hanya jika kalimatnya klaim utuh yang bisa dinilai.",
     "Gagal jika berupa potongan kalimat, judul, atau belum selesai.",
@@ -47,8 +43,9 @@ const BIG_THOUGHT_GATE_RULES: Readonly<Record<IndividualGateId, readonly string[
     "Gagal jika alasannya abstrak, tidak menyangkut subjek Master Thought, atau hanya bisa diterima dengan percaya begitu saja.",
   ],
   duplicate: [
-    "Lolos hanya jika Big Thought ini bukan Big Thought yang sama dengan yang sudah lolos.",
-    "Gagal jika mengulang salah satu Big Thought itu.",
+    "Lolos hanya jika Big Thought ini membawa alasan dasar yang berbeda dari setiap Big Thought yang sudah lolos.",
+    "Gagal jika mengulang salah satunya, atau mengerjakan tugas yang sama dengan kata lain: alasan dasar yang sama untuk Master Thought. Jika gagal, sebut kode Big Thought yang diulang.",
+    "Topik atau kata yang sama tidak membuatnya gagal selama alasan dasarnya berbeda.",
   ],
 };
 
@@ -56,34 +53,6 @@ const UNDECIDED = UNDECIDED_REASON;
 
 export function emptyBigThoughtChecks(): PassGateCheck[] {
   return PASS_GATE_IDS.map((id) => ({ id, state: "pending", reason: "" }));
-}
-
-function admissionChecklist(items: PassGateCheck[], report?: PassChecklist["report"]): PassChecklist {
-  const watched = GENERATE_ADMISSION_GATES.map(
-    (id) => items.find((item) => item.id === id) ?? { id, state: "unchecked" as const, reason: "" },
-  );
-  const failureItem = watched.find((item) => item.state === "fail");
-  const failure = failureItem
-    ? {
-        gate: failureItem.id,
-        reason: failureItem.reason || UNDECIDED,
-        earlier: watched.some(
-          (item) =>
-            item.state === "pass" &&
-            GENERATE_ADMISSION_GATES.findIndex((gate) => gate === item.id) <
-              GENERATE_ADMISSION_GATES.findIndex((gate) => gate === failureItem.id),
-        )
-          ? ("pass" as const)
-          : ("unchecked" as const),
-      }
-    : null;
-  return {
-    items: items.map((item) => ({ ...item })),
-    passed: watched.every((item) => item.state === "pass"),
-    lesson: null,
-    failure,
-    report: report ?? null,
-  };
 }
 
 function checklistFrom(items: PassGateCheck[], report?: PassChecklist["report"]): PassChecklist {
@@ -97,7 +66,7 @@ function checklistFrom(items: PassGateCheck[], report?: PassChecklist["report"])
     : null;
   return {
     items: items.map((item) => ({ ...item })),
-    passed: failure == null && INDIVIDUAL_GATE_IDS.every((id) => items.some((item) => item.id === id && item.state === "pass")),
+    passed: failure == null && PASS_GATE_IDS.every((id) => items.some((item) => item.id === id && item.state === "pass")),
     lesson: null,
     failure,
     report: report ?? null,
@@ -122,13 +91,13 @@ export function lessonsForPassGate(
 }
 
 /** The rule text of one Big Thought check, shared by the one-check and the batched prompts. */
-export function bigThoughtGateRules(id: IndividualGateId): string[] {
+export function bigThoughtGateRules(id: PassGateId): string[] {
   return [...BIG_THOUGHT_GATE_RULES[id]];
 }
 
 /** Every open Big Thought check of one sentence in one prompt. */
 export function buildBigThoughtBatchPrompt(input: {
-  ids: ReadonlyArray<IndividualGateId>;
+  ids: ReadonlyArray<PassGateId>;
   statement: string;
   parentStatement: string;
   others: Array<{ code: string; statement: string }>;
@@ -160,7 +129,7 @@ export function buildBigThoughtBatchPrompt(input: {
 }
 
 export function buildBigThoughtPassPrompt(input: {
-  id: IndividualGateId;
+  id: PassGateId;
   statement: string;
   parentStatement: string;
   others: Array<{ code: string; statement: string }>;
@@ -197,398 +166,112 @@ export function buildBigThoughtPassPrompt(input: {
 
 export const parseBigThoughtPassCheck = parseGateAnswer;
 
-/** Checks that judge what kind of statement it is. Patching a part cannot change the kind. */
-export const BT_KIND_GATES = ["relation", "explains"] as const;
+type Peer = { code: string; statement: string; label?: string };
 
-export type BigThoughtFixMode = "repair" | "replace";
-
-/** How many lessons failed on this check. Lesson reasons start with "<gate>: ". */
-export function lessonsOnGate(lessons: ReadonlyArray<{ reason: string }>, gate: string): number {
-  if (!gate) return 0;
-  const prefix = `${gate}:`;
-  return lessons.filter((lesson) => lesson.reason.trim().startsWith(prefix)).length;
+/** The duplicate check decided without a model: an exact repeat fails, no passed Big Thought passes. */
+function duplicateInCode(statement: string, others: readonly Peer[]): GateAnswer | null {
+  const repeated = others.find((row) =>
+    bigThoughtRepeats({ label: "", statement }, { label: row.label, statement: row.statement }),
+  );
+  if (repeated) return { pass: false, reason: `Same Big Thought as ${repeated.code}.` };
+  if (others.length === 0) return { pass: true, reason: "" };
+  return null;
 }
 
 /**
- * Repair patches the failed part. Once a kind check (method, restatement, explains)
- * has failed `replaceAfter` times, patching keeps the same idea, so the fix writes a new reason.
+ * Runs the six checks in order and stops at the first one that does not pass.
+ * A check switched OFF, or kept from an earlier pass on this card, is not asked.
  */
-export function bigThoughtFixMode(input: {
-  gate: string;
-  lessons: ReadonlyArray<{ reason: string }>;
-  replaceAfter: number;
-  force?: BigThoughtFixMode;
-}): BigThoughtFixMode {
-  if (input.force) return input.force;
-  if (!(BT_KIND_GATES as readonly string[]).includes(input.gate)) return "repair";
-  return lessonsOnGate(input.lessons, input.gate) >= input.replaceAfter ? "replace" : "repair";
-}
-
-export function buildBigThoughtFixPrompt(input: {
-  parentStatement: string;
-  failed: { code: string; statement: string };
-  keepers: Array<{ code: string; statement: string }>;
-  scope: FixScope;
-  lessons?: Array<{ statement: string; reason: string }>;
-  mode?: BigThoughtFixMode;
-}): string {
-  if (input.mode === "replace") return buildBigThoughtReplacePrompt(input);
-  const keeperLines =
-    input.keepers.length === 0 ? "(none)" : input.keepers.map((row) => `${row.code}: ${row.statement}`).join("\n");
-  const lessons = input.lessons ?? [];
-  const lessonLines =
-    lessons.length === 0
-      ? "(none)"
-      : lessons.map((lesson) => `${lesson.statement}\nWhy it failed: ${lesson.reason}`).join("\n");
-  return [
-    "Rewrite only the failed part of this Big Thought.",
-    "Keep the checks that already passed. Do not write a new Big Thought from the beginning.",
-    "The sentence is one because-clause in the same language as the Master Thought.",
-    "It is a distinct material reason, basis, or evidence for why the Master Thought is true.",
-    "Do not repeat a keeper or the failed sentence.",
-    ...fixScopeLines(input.scope),
-    "Return JSON only: {\"items\":[{\"label\":\"\",\"statement\":\"...\"}]}",
-    "",
-    "Master Thought:",
-    input.parentStatement.trim(),
-    "",
-    "Failed Big Thought:",
-    `${input.failed.code}: ${input.failed.statement}`,
-    "",
-    "Big Thoughts that stay:",
-    keeperLines,
-    "",
-    "Earlier failures. Do not repeat these sentences or this mistake:",
-    lessonLines,
-    ...openMistakeLines(
-      lessons.map((lesson) => ({ reason: lesson.reason })),
-      input.scope,
-    ),
-  ].join("\n");
-}
-
-function buildBigThoughtReplacePrompt(input: {
-  parentStatement: string;
-  failed: { code: string; statement: string };
-  keepers: Array<{ code: string; statement: string }>;
-  lessons?: Array<{ statement: string; reason: string }>;
-}): string {
-  const keeperLines =
-    input.keepers.length === 0 ? "(none)" : input.keepers.map((row) => `${row.code}: ${row.statement}`).join("\n");
-  const lessons = input.lessons ?? [];
-  const lessonLines =
-    lessons.length === 0
-      ? "(none)"
-      : lessons.map((lesson) => `${lesson.statement}\nWhy it failed: ${lesson.reason}`).join("\n");
-  return [
-    "Write a new Big Thought for this place. Patching the failed one did not work: its idea keeps failing the same check.",
-    "Do not keep the failed sentence's idea, subject, or mechanism. Choose a different reason.",
-    "The sentence is one because-clause in the same language as the Master Thought.",
-    "It is a distinct material reason, basis, or evidence for why the Master Thought is true.",
-    "It is not a method, recipe, process, or way of doing something. It is not an outcome, a restatement, or an unpacking of the Master Thought.",
-    "It must explain the main claim of the Master Thought, not a side benefit.",
-    "Do not cover what a Big Thought that stays already covers.",
-    "Return JSON only: {\"items\":[{\"label\":\"\",\"statement\":\"...\"}]}",
-    "",
-    "Master Thought:",
-    input.parentStatement.trim(),
-    "",
-    "Failed Big Thought:",
-    `${input.failed.code}: ${input.failed.statement}`,
-    "",
-    "Big Thoughts that stay:",
-    keeperLines,
-    "",
-    "Earlier failures. Do not repeat these sentences or this mistake:",
-    lessonLines,
-  ].join("\n");
-}
-
-export function parseBigThoughtFixStatement(script: string | null, parentStatement: string): string {
-  if (!script?.trim()) return "";
-  return parseGeneratedBigThoughts(parseModelJson(script), parentStatement)[0]?.statement.trim() ?? "";
-}
-
-async function askGate(input: {
-  id: IndividualGateId;
+export async function runBigThoughtChecks(input: {
   statement: string;
   parentStatement: string;
-  others: Array<{ code: string; statement: string; label?: string }>;
-  lessons?: Array<{ statement: string; reason: string }>;
-  ask: (prompt: string) => Promise<string | null>;
-  /** The answer of the batched call for this check, when it came back. */
-  answer?: GateAnswer;
-}): Promise<{ pass: boolean; reason: string }> {
-  if (input.id === "duplicate") {
-    const repeated = input.others.find((row) =>
-      bigThoughtRepeats({ label: "", statement: input.statement }, { label: row.label, statement: row.statement }),
-    );
-    if (repeated) return { pass: false, reason: `Same Big Thought as ${repeated.code}.` };
-    if (input.others.length === 0) return { pass: true, reason: "" };
-  }
-  return answerGate({
-    batched: input.answer,
-    prompt: () =>
-      buildBigThoughtPassPrompt({
-        id: input.id,
-        statement: input.statement,
-        parentStatement: input.parentStatement,
-        others: input.others,
-        lessons: input.lessons,
-      }),
-    ask: input.ask,
-  });
-}
-
-function admissionItems(duplicate: PassGateCheck): PassGateCheck[] {
-  return PASS_GATE_IDS.map((id) => {
-    if (id === "duplicate") return duplicate;
-    if (id === "resolved" || id === "relation") return { id, state: "pending" as const, reason: "" };
-    return { id, state: "unchecked" as const, reason: "" };
-  });
-}
-
-/** Exact copy or the same label. No model call, and the other generate checks stay unasked. */
-export function generateDuplicateFailure(reason: string): PassChecklist {
-  return admissionChecklist(
-    PASS_GATE_IDS.map((id) => ({
-      id,
-      state: id === "duplicate" ? ("fail" as const) : ("unchecked" as const),
-      reason: id === "duplicate" ? reason : "",
-    })),
-    { gate: "duplicate", phase: "checked", outcome: "fail" },
-  );
-}
-
-/**
- * Generate checks the coarse duplicate before this runs.
- * Then one model call for a finished sentence, and one for a real reason.
- */
-export async function runGenerateAdmissionChecks(input: {
-  /** Ask every open check in one model call (falls back to one call per check). */
-  batch?: boolean;
-  statement: string;
-  parentStatement: string;
-  /** Checks switched OFF for this organization: treated as passed, never asked. */
-  skip?: readonly string[];
-  ask: (prompt: string) => Promise<string | null>;
-  onStep?: (checklist: PassChecklist) => void | Promise<void>;
-}): Promise<PassChecklist> {
-  const items = admissionItems({ id: "duplicate", state: "pass", reason: "" });
-  const publish = async (id: PassGateId, phase: "checking" | "checked", outcome: "pass" | "fail") => {
-    await input.onStep?.(admissionChecklist(items, { gate: id, phase, outcome }));
-  };
-  await publish("duplicate", "checked", "pass");
-  const batched = await batchedBigThoughtAnswers({
-    batch: input.batch,
-    open: (["resolved", "relation"] as const).filter((id) => !input.skip?.includes(id)),
-    statement: input.statement,
-    parentStatement: input.parentStatement,
-    others: [],
-    ask: input.ask,
-  });
-  for (const id of ["resolved", "relation"] as const) {
-    const index = items.findIndex((item) => item.id === id);
-    if (input.skip?.includes(id)) {
-      items[index] = { id, state: "pass", reason: "" };
-      await publish(id, "checked", "pass");
-      continue;
-    }
-    items[index] = { id, state: "checking", reason: "" };
-    await publish(id, "checking", "pass");
-    const parsed = await askGate({
-      id,
-      statement: input.statement,
-      parentStatement: input.parentStatement,
-      others: [],
-      ask: input.ask,
-      answer: batched.get(id),
-    });
-    if (!parsed.pass) {
-      items[index] = { id, state: "fail", reason: parsed.reason };
-      for (const later of ["resolved", "relation"] as const) {
-        const laterIndex = items.findIndex((item) => item.id === later);
-        if (items[laterIndex]?.state === "pending") {
-          items[laterIndex] = { id: later, state: "unchecked", reason: "" };
-        }
-      }
-      const checklist = admissionChecklist(items, { gate: id, phase: "checked", outcome: "fail" });
-      await input.onStep?.(checklist);
-      return checklist;
-    }
-    items[index] = { id, state: "pass", reason: "" };
-    await publish(id, "checked", "pass");
-  }
-  return admissionChecklist(items, { gate: "relation", phase: "checked", outcome: "pass" });
-}
-
-export function factsForGenerateAdmission(statement: string, checklist: PassChecklist): BigThoughtFacts {
-  if (checklist.passed || !checklist.failure) {
-    const facts = shownBigThoughtFacts("NEW", statement);
-    const resolved = checklist.items.some((item) => item.id === "resolved" && item.state === "pass");
-    const relation = checklist.items.some((item) => item.id === "relation" && item.state === "pass");
-    if (resolved && relation) return { ...facts, generatePasses: ["resolved", "relation"] };
-    return facts;
-  }
-  if (checklist.failure.gate === "duplicate") {
-    return {
-      ...shownBigThoughtFacts("NEW", statement),
-      relationToParent: "DUPLICATE",
-      explainsWhyParentIsTrue: false,
-    };
-  }
-  if (checklist.failure.gate === "relation") {
-    return {
-      ...shownBigThoughtFacts("NEW", statement),
-      relationToParent: "RESTATEMENT",
-      explainsWhyParentIsTrue: false,
-    };
-  }
-  return {
-    ...shownBigThoughtFacts("NEW", statement),
-    resolution: "UNRESOLVED",
-    unresolvedReasons: [checklist.failure.reason],
-  };
-}
-
-/** A rewritten sentence loses the two Generate passes. Checks that passed on this sentence stay. */
-export function fixPriorForNextSentence(
-  prior: readonly PassGateCheck[],
-  previousStatement: string,
-  nextStatement: string,
-): PassGateCheck[] {
-  const changed = previousStatement.trim().toLocaleLowerCase() !== nextStatement.trim().toLocaleLowerCase();
-  return prior.map((item) =>
-    changed && (item.id === "resolved" || item.id === "relation")
-      ? { id: item.id, state: "pending", reason: "" }
-      : { ...item },
-  );
-}
-
-export async function runBigThoughtIndividualChecks(input: {
-  /** Ask every open check in one model call (falls back to one call per check). */
-  batch?: boolean;
-  statement: string;
-  parentStatement: string;
-  others: Array<{ code: string; statement: string; label?: string }>;
-  /** Generate passes for this exact sentence. Audit does not ask these again. */
-  carried?: readonly GeneratePassGate[];
-  /** Prior fix/audit failures for this card. Gate prompts keep only matching gate ids. */
+  /** Big Thoughts that already passed (or are locked); the card itself is not in this list. */
+  others: readonly Peer[];
+  /** Earlier failures of this card. Each check's prompt keeps only its own. */
   lessons?: Array<{ statement: string; reason: string }>;
   /** Checks switched OFF for this organization: treated as passed, never asked. */
   skip?: readonly string[];
+  /** Checks that already passed on this exact card; they stay passed. */
+  keep?: readonly PassGateId[];
   ask: (prompt: string) => Promise<string | null>;
   onStep?: (checklist: PassChecklist) => void | Promise<void>;
 }): Promise<PassChecklist> {
-  const carried = new Set<GeneratePassGate>(input.carried ?? []);
   const skip = new Set<string>(input.skip ?? []);
-  const items = emptyBigThoughtChecks().map((item) =>
-    (carried.has(item.id as GeneratePassGate) && (item.id === "resolved" || item.id === "relation")) || skip.has(item.id)
-      ? { id: item.id, state: "pass" as const, reason: "" }
-      : item,
-  );
-  const publish = async (id: PassGateId, phase: "checking" | "checked", outcome: "pass" | "fail") => {
-    await input.onStep?.(checklistFrom(items, { gate: id, phase, outcome }));
-  };
-  if (carried.size === 0) await input.onStep?.(checklistFrom(items));
-  const batched = await batchedBigThoughtAnswers({
-    ...input,
-    open: INDIVIDUAL_GATE_IDS.filter((id) => items.find((item) => item.id === id)?.state !== "pass"),
-  });
-  for (const id of INDIVIDUAL_GATE_IDS) {
-    const index = items.findIndex((item) => item.id === id);
-    if (items[index]?.state === "pass") continue;
-    items[index] = { id, state: "checking", reason: "" };
-    await publish(id, "checking", "pass");
-    const parsed = await askGate({ ...input, id, lessons: input.lessons, answer: batched.get(id) });
-    if (!parsed.pass) {
-      items[index] = { id, state: "fail", reason: parsed.reason };
-      const checklist = checklistFrom(items, { gate: id, phase: "checked", outcome: "fail" });
-      await input.onStep?.(checklist);
-      return checklist;
-    }
-    items[index] = { id, state: "pass", reason: "" };
-    await publish(id, "checked", "pass");
-  }
-  return checklistFrom(items, { gate: "premise", phase: "checked", outcome: "pass" });
-}
-
-/** Re-ask the checks that failed or have not run. A passed check stays passed. */
-export async function runBigThoughtOpenChecks(input: {
-  /** Ask every open check in one model call (falls back to one call per check). */
-  batch?: boolean;
-  statement: string;
-  parentStatement: string;
-  others: Array<{ code: string; statement: string; label?: string }>;
-  prior: readonly PassGateCheck[];
-  lessons?: Array<{ statement: string; reason: string }>;
-  /** Checks switched OFF for this organization: treated as passed, never asked. */
-  skip?: readonly string[];
-  ask: (prompt: string) => Promise<string | null>;
-  onStep?: (checklist: PassChecklist) => void | Promise<void>;
-}): Promise<PassChecklist> {
-  const items: PassGateCheck[] = emptyBigThoughtChecks().map((item) => {
-    const previous = input.prior.find((check) => check.id === item.id);
-    return previous?.state === "pass" || input.skip?.includes(item.id) ? { id: item.id, state: "pass" as const, reason: "" } : { id: item.id, state: "pending" as const, reason: "" };
-  });
-  const publish = async (id: PassGateId, phase: "checking" | "checked", outcome: "pass" | "fail") => {
-    await input.onStep?.(checklistFrom(items, { gate: id, phase, outcome }));
+  const keep = new Set<string>(input.keep ?? []);
+  const items = emptyBigThoughtChecks();
+  const set = (index: number, item: PassGateCheck) => {
+    items[index] = item;
   };
   await input.onStep?.(checklistFrom(items));
-  const batched = await batchedBigThoughtAnswers({
-    ...input,
-    open: INDIVIDUAL_GATE_IDS.filter((id) => items.find((item) => item.id === id)?.state !== "pass"),
-  });
-  for (const id of INDIVIDUAL_GATE_IDS) {
-    const index = items.findIndex((item) => item.id === id);
-    if (items[index]?.state === "pass") continue;
-    items[index] = { id, state: "checking", reason: "" };
-    await publish(id, "checking", "pass");
-    const parsed = await askGate({ ...input, id, lessons: input.lessons, answer: batched.get(id) });
-    if (!parsed.pass) {
-      items[index] = { id, state: "fail", reason: parsed.reason };
+  const others = [...input.others];
+  const coded = duplicateInCode(input.statement, others);
+  const open = PASS_GATE_IDS.filter((id) => !skip.has(id) && !keep.has(id));
+  const byModel = open.filter((id) => id !== "duplicate" || !coded);
+  const batched =
+    byModel.length > 1
+      ? ((await askBatchGates({
+          prompt: buildBigThoughtBatchPrompt({
+            ids: byModel,
+            statement: input.statement,
+            parentStatement: input.parentStatement,
+            others,
+            lessons: input.lessons,
+          }),
+          ids: byModel,
+          ask: input.ask,
+        })) ?? new Map<string, GateAnswer>())
+      : new Map<string, GateAnswer>();
+  for (const [index, id] of PASS_GATE_IDS.entries()) {
+    if (skip.has(id) || keep.has(id)) {
+      set(index, { id, state: "pass", reason: skip.has(id) ? SWITCHED_OFF_REASON : "" });
+      await input.onStep?.(checklistFrom(items, { gate: id, phase: "checked", outcome: "pass" }));
+      continue;
+    }
+    set(index, { id, state: "checking", reason: "" });
+    await input.onStep?.(checklistFrom(items, { gate: id, phase: "checking", outcome: "pass" }));
+    const answer =
+      (id === "duplicate" ? coded : null) ??
+      (await answerGate({
+        batched: batched.get(id),
+        prompt: () =>
+          buildBigThoughtPassPrompt({
+            id,
+            statement: input.statement,
+            parentStatement: input.parentStatement,
+            others,
+            lessons: input.lessons,
+          }),
+        ask: input.ask,
+      }));
+    if (!answer.pass) {
+      set(index, { id, state: "fail", reason: answer.reason || UNDECIDED });
+      for (const [later] of PASS_GATE_IDS.entries()) {
+        if (later > index) set(later, { id: PASS_GATE_IDS[later], state: "unchecked", reason: "" });
+      }
       const checklist = checklistFrom(items, { gate: id, phase: "checked", outcome: "fail" });
       await input.onStep?.(checklist);
       return checklist;
     }
-    items[index] = { id, state: "pass", reason: "" };
-    await publish(id, "checked", "pass");
+    set(index, { id, state: "pass", reason: "" });
+    await input.onStep?.(checklistFrom(items, { gate: id, phase: "checked", outcome: "pass" }));
   }
-  return checklistFrom(items, { gate: "premise", phase: "checked", outcome: "pass" });
+  return checklistFrom(items, { gate: "duplicate", phase: "checked", outcome: "pass" });
 }
 
 /**
- * One model call for every open check of one sentence. The duplicate check is left out when it
- * is decided without a model (an exact repeat, or no other Big Thought yet).
+ * The facts stored with a sentence after its checks. A failed check makes the sentence a reject, so
+ * Generate does not save it: a repeat or a restatement by its relation, a missing reason by "explains",
+ * an unsupported premise by its relation, anything else stays unresolved.
  */
-async function batchedBigThoughtAnswers(input: {
-  batch?: boolean;
-  open: ReadonlyArray<IndividualGateId>;
-  statement: string;
-  parentStatement: string;
-  others: Array<{ code: string; statement: string; label?: string }>;
-  lessons?: Array<{ statement: string; reason: string }>;
-  ask: (prompt: string) => Promise<string | null>;
-}): Promise<Map<string, GateAnswer>> {
-  if (!input.batch) return new Map();
-  const modelIds = input.open.filter((id) => {
-    if (id !== "duplicate") return true;
-    if (input.others.length === 0) return false;
-    return !input.others.some((row) =>
-      bigThoughtRepeats({ label: "", statement: input.statement }, { label: row.label, statement: row.statement }),
-    );
-  });
-  if (modelIds.length < 2) return new Map();
-  const answers = await askBatchGates({
-    prompt: buildBigThoughtBatchPrompt({
-      ids: modelIds,
-      statement: input.statement,
-      parentStatement: input.parentStatement,
-      others: input.others,
-      lessons: input.lessons,
-    }),
-    ids: modelIds,
-    ask: input.ask,
-  });
-  return answers ?? new Map();
+export function factsForBigThoughtChecks(code: string, statement: string, checklist: PassChecklist): BigThoughtFacts {
+  const facts = shownBigThoughtFacts(code, statement);
+  const failure = checklist.failure;
+  if (!failure) return facts;
+  if (failure.gate === "duplicate") return { ...facts, relationToParent: "DUPLICATE", explainsWhyParentIsTrue: false };
+  if (failure.gate === "relation") return { ...facts, relationToParent: "RESTATEMENT", explainsWhyParentIsTrue: false };
+  if (failure.gate === "explains") return { ...facts, explainsWhyParentIsTrue: false };
+  if (failure.gate === "premise") {
+    return { ...facts, relationToParent: "UNSUPPORTED_PREMISE", introducesUnsupportedPremise: true, explainsWhyParentIsTrue: false };
+  }
+  return { ...facts, resolution: "UNRESOLVED", unresolvedReasons: [failure.reason] };
 }

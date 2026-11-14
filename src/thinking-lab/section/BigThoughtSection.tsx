@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Circle, Loader2, MoreVertical, Pencil, RefreshCw, Sparkles, Trash2, Wrench, X } from "lucide-react";
+import { Check, Circle, Loader2, MoreVertical, Pencil, Sparkles, Trash2, Wrench, X } from "lucide-react";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -11,12 +11,10 @@ import {
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { becauseSentence } from "@/thinking-lab/big-thought/because";
 import { bigThoughtListed, checklistFromFailure, confirmedPassChecklist, PASS_GATE_IDS, type PassChecklist, type PassGateId, type PassGateState } from "@/thinking-lab/big-thought/checklist";
-import { GENERATE_ADMISSION_GATES } from "@/thinking-lab/big-thought/passChecks";
 import { bigThoughtHeading } from "@/thinking-lab/big-thought/label";
 import { EditableStatement } from "@/thinking-lab/section/ManualStatementForm";
 import type { BigThoughtFacts, GateFailure } from "@/thinking-lab/big-thought/types";
-import type { StuckFix } from "@/thinking-lab/big-thought/audit";
-import type { AuditVerdict, IndividualAdmission, TriState } from "@/thinking-lab/shared/verdict";
+import type { AuditVerdict, IndividualAdmission } from "@/thinking-lab/shared/verdict";
 
 export type BigThoughtRowView = {
   id: string;
@@ -27,10 +25,6 @@ export type BigThoughtRowView = {
   admission: IndividualAdmission;
   audit: AuditVerdict | null;
   facts: BigThoughtFacts | null;
-  siblingDistinct: TriState | null;
-  siblingPairs: Array<{ a: string; b: string; explanation?: string }> | null;
-  reasonContribution: string | null;
-  siblingUnresolvedReasons: string[] | null;
   gateFailure?: GateFailure | null;
   auditGatesChecked?: boolean;
   auditGateFailure?: GateFailure | null;
@@ -53,15 +47,6 @@ function storedValue(value: string | number | boolean | null | undefined, notSto
 function storedList(values: string[] | null, notStored: string): string {
   if (values == null) return notStored;
   return values.length === 0 ? "[]" : values.join(", ");
-}
-
-function storedPairs(
-  pairs: Array<{ a: string; b: string; explanation?: string }> | null,
-  notStored: string,
-  none: string,
-): string {
-  if (pairs == null) return notStored;
-  return pairs.length === 0 ? none : pairs.map((pair) => `${pair.a} / ${pair.b}`).join(", ");
 }
 
 function AuditDetails({ row }: { row: BigThoughtRowView }) {
@@ -98,54 +83,16 @@ function AuditDetails({ row }: { row: BigThoughtRowView }) {
           value={notStored}
         />
         <FactLine
-          label={t("thinkingLab.bt.detail.reasonContribution", "Reason contribution")}
-          value={storedValue(row.reasonContribution, notStored)}
-        />
-        {(row.siblingPairs ?? [])
-          .filter((pair) => pair.a.toUpperCase() === row.code.toUpperCase() || pair.b.toUpperCase() === row.code.toUpperCase())
-          .map((pair) => {
-            const other = pair.a.toUpperCase() === row.code.toUpperCase() ? pair.b : pair.a;
-            return (
-              <FactLine
-                key={`${pair.a}-${pair.b}`}
-                label={t("thinkingLab.bt.detail.reasonOverlap", "Reason overlap with {{code}}", { code: other })}
-                value={storedValue(pair.explanation, notStored)}
-              />
-            );
-          })}
-        <FactLine
-          label={t("thinkingLab.bt.detail.siblingDistinct", "Overall sibling set distinctness")}
-          value={storedValue(row.siblingDistinct, notStored)}
-        />
-        <FactLine
           label={t("thinkingLab.bt.detail.duplicateOfCode", "Duplicate of")}
           value={facts ? storedValue(facts.duplicateOfCode, "null") : notStored}
-        />
-        <FactLine
-          label={t("thinkingLab.bt.detail.duplicatePairs", "Duplicate pairs involving this BT")}
-          value={storedPairs(row.siblingPairs, notStored, t("thinkingLab.bt.detail.noPairs", "none"))}
         />
         <FactLine
           label={t("thinkingLab.bt.detail.unresolvedReasons", "Unresolved reasons")}
           value={storedList(facts?.unresolvedReasons ?? null, notStored)}
         />
-        <FactLine
-          label={t("thinkingLab.bt.detail.siblingUnresolvedReasons", "Sibling unresolved reasons")}
-          value={storedList(row.siblingUnresolvedReasons, notStored)}
-        />
       </div>
     </details>
   );
-}
-
-/** "relation: <judge reason>" → the check's plain label and the judge's reason. */
-function stuckReasonText(reason: string, t: (key: string, fallback?: string) => string): string {
-  const match = /^([a-zA-Z]+):\s*(.*)$/s.exec(reason.trim());
-  if (!match) return reason;
-  const gate = match[1] as PassGateId;
-  if (!PASS_GATE_IDS.includes(gate)) return reason;
-  const why = gate === "relation" ? t("thinkingLab.bt.stuck.relation", "This reads as a method, outcome, or restatement, not a reason.") : passLabel(gate, t);
-  return match[2] ? `${why} ${match[2]}` : why;
 }
 
 function passLabel(id: PassGateId, t: (key: string, fallback?: string) => string): string {
@@ -155,8 +102,7 @@ function passLabel(id: PassGateId, t: (key: string, fallback?: string) => string
     explains: ["thinkingLab.bt.pass.explains", "Explains why the Master Thought is true."],
     premise: ["thinkingLab.bt.pass.premise", "The premise is supported."],
     showable: ["thinkingLab.bt.pass.showable", "The reason can be shown in content."],
-    duplicate: ["thinkingLab.bt.pass.duplicate", "Not a duplicate of a Big Thought that already passed."],
-    sibling: ["thinkingLab.bt.pass.sibling", "Distinct from the other Big Thoughts."],
+    duplicate: ["thinkingLab.bt.pass.duplicate", "A basic reason different from every Big Thought that already passed."],
   };
   const [key, fallback] = labels[id];
   return t(key, fallback);
@@ -250,11 +196,8 @@ type BigThoughtSectionProps = {
   onGenerateTerritory?: (bigThoughtId: string) => void;
   onEditBigThought?: (id: string, statement: string) => Promise<string | null>;
   onDeleteBigThought?: (bigThoughtId: string) => void;
+  /** Checks a card that was never checked, or revises a failed one. */
   onFixBigThought?: (code: string) => void;
-  /** Writes a new reason for a Big Thought whose Fix is closed. */
-  onRewriteBigThought?: (code: string) => void;
-  /** Big Thoughts whose Fix failed too often, by upper-case code. */
-  stuckFixes?: Record<string, StuckFix>;
   checklists?: Record<string, PassChecklist>;
   fixingCodes?: string[];
 };
@@ -271,8 +214,6 @@ export function BigThoughtSection({
   onEditBigThought,
   onDeleteBigThought,
   onFixBigThought,
-  onRewriteBigThought,
-  stuckFixes = {},
   checklists,
   fixingCodes = [],
 }: BigThoughtSectionProps) {
@@ -312,7 +253,7 @@ export function BigThoughtSection({
             <span>{t("thinkingLab.bt.generating", "Generating Big Thoughts…")}</span>
           </div>
           {generateChecklist ? (
-            <PassChecklistCard checklist={generateChecklist} reveal gates={GENERATE_ADMISSION_GATES} />
+            <PassChecklistCard checklist={generateChecklist} reveal />
           ) : null}
         </div>
       ) : null}
@@ -330,7 +271,6 @@ export function BigThoughtSection({
               Boolean(onFixBigThought) &&
               (row.audit === "AUDIT_FAIL" || (liveChecklist?.items ?? []).some((item) => item.state === "fail"));
             const fixing = fixingCodes.some((code) => code.toUpperCase() === row.code.toUpperCase());
-            const stuck = needsFix ? stuckFixes[row.code.toUpperCase()] ?? null : null;
             return (
             <li key={row.id} className="rounded-md border border-border p-3">
               <div className="flex items-start justify-between gap-2">
@@ -374,48 +314,7 @@ export function BigThoughtSection({
                       <PassChecklistCard checklist={checklistFromFailure(row.gateFailure)} reveal={false} />
                     </div>
                   ) : null}
-                  {stuck ? (
-                    <div className="mt-2 space-y-2 rounded-md border border-destructive/40 p-2 text-sm" role="status">
-                      <p className="text-foreground">
-                        {t("thinkingLab.bt.fixStuckCard", "Fix stopped after {{count}} failed tries.", {
-                          count: String(stuck.count),
-                        })}
-                      </p>
-                      <p className="text-muted-foreground">{stuckReasonText(stuck.reason, t)}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {onRewriteBigThought ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-8 gap-2"
-                            disabled={generateBusy || fixingCodes.length > 0}
-                            onClick={() => onRewriteBigThought(row.code)}
-                          >
-                            {fixing ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                            ) : (
-                              <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-                            )}
-                            {t("thinkingLab.bt.rewriteReason", "Rewrite the reason")}
-                          </Button>
-                        ) : null}
-                        {canDelete ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-8 gap-2 text-destructive"
-                            disabled={generateBusy || fixing}
-                            onClick={() => onDeleteBigThought?.(row.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                            {t("thinkingLab.action.delete", "Delete")}
-                          </Button>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : needsFix ? (
+                  {needsFix ? (
                     <Button
                       type="button"
                       size="sm"
@@ -425,7 +324,7 @@ export function BigThoughtSection({
                       onClick={() => onFixBigThought?.(row.code)}
                     >
                       {fixing ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Wrench className="h-3.5 w-3.5" aria-hidden />}
-                      {t("thinkingLab.action.fix", "Fix")}
+                      {t("thinkingLab.idea.revise", "Revise")}
                     </Button>
                   ) : null}
                 </div>
@@ -445,14 +344,14 @@ export function BigThoughtSection({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-[9rem]">
-                      {needsFix && !stuck ? (
+                      {needsFix ? (
                         <DropdownMenuItem
                           className="cursor-pointer gap-2"
                           disabled={generateBusy || fixingCodes.length > 0}
                           onSelect={() => onFixBigThought?.(row.code)}
                         >
                           <Wrench className="h-3.5 w-3.5" />
-                          {t("thinkingLab.action.fix", "Fix")}
+                          {t("thinkingLab.idea.revise", "Revise")}
                         </DropdownMenuItem>
                       ) : null}
                       {canEdit ? (

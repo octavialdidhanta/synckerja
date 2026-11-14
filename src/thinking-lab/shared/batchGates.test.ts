@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { runBigThoughtOpenChecks, runGenerateAdmissionChecks } from "@/thinking-lab/big-thought/passChecks";
+import { runBigThoughtChecks } from "@/thinking-lab/big-thought/passChecks";
 import { runTerritoryChecks } from "@/thinking-lab/territory/passChecklist";
 import { runAngleChecks } from "@/thinking-lab/angle/passChecklist";
 import { runIdeaChecks } from "@/thinking-lab/idea/check/run";
@@ -91,28 +91,24 @@ function batchModel(fail: Record<string, string> = {}) {
 describe("runners with batch on", () => {
   it("checks every open Big Thought gate in one call and stops at the first failure", async () => {
     const model = batchModel({ premise: "Klaim mutlak." });
-    const result = await runBigThoughtOpenChecks({
-      batch: true,
+    const result = await runBigThoughtChecks({
       statement: "karena kambingnya muda",
       parentStatement: "MT",
       others: [{ code: "BT01", statement: "karena bumbunya pas" }],
-      prior: [],
       ask: model.ask,
     });
     expect(model.count()).toBe(1);
     expect(result.passed).toBe(false);
     expect(result.failure?.gate).toBe("premise");
-    expect(result.items.find((item) => item.id === "duplicate")?.state).toBe("pending");
+    expect(result.items.find((item) => item.id === "duplicate")?.state).toBe("unchecked");
   });
 
   it("falls back to one call per check when the batch reply cannot be read", async () => {
     let calls = 0;
-    const result = await runBigThoughtOpenChecks({
-      batch: true,
+    const result = await runBigThoughtChecks({
       statement: "karena kambingnya muda",
       parentStatement: "MT",
       others: [],
-      prior: [],
       ask: async (prompt) => {
         calls += 1;
         return prompt.startsWith("Decide each") ? "garbage" : '{"pass":true,"reason":""}';
@@ -120,13 +116,6 @@ describe("runners with batch on", () => {
     });
     expect(result.passed).toBe(true);
     expect(calls).toBe(2 + 5);
-  });
-
-  it("admits a generated sentence with one call", async () => {
-    const model = batchModel();
-    const result = await runGenerateAdmissionChecks({ batch: true, statement: "karena X", parentStatement: "MT", ask: model.ask });
-    expect(result.passed).toBe(true);
-    expect(model.count()).toBe(1);
   });
 
   it("checks a Territory in one call when its question is known", async () => {
