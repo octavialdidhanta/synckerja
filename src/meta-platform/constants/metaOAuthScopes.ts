@@ -56,15 +56,16 @@ export const META_SCOPE_ALIASES: Record<string, readonly string[]> = {
   instagram_business_basic: ['instagram_basic'],
 };
 
-/** Scopes not yet approved in Meta App Review (Jul 2026) — show amber in UI. */
+/**
+ * Scopes not yet approved in Meta App Review — show amber in UI.
+ * Advanced access granted (Nov 2026): instagram_content_publish, read_insights.
+ */
 export const META_PENDING_APP_REVIEW_SCOPES = [
   'instagram_manage_comments',
   'pages_manage_engagement',
   'pages_read_user_content',
   'instagram_manage_insights',
   'pages_read_engagement',
-  'read_insights',
-  'instagram_content_publish',
   'pages_manage_posts',
   'business_management',
 ] as const;
