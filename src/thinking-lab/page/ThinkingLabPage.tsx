@@ -214,71 +214,25 @@ import {
   parseIdeaDiscoveryQuestions,
   type IdeaDiscoveryQuestion,
 } from "@/thinking-lab/idea/discover";
-import { buildIdeaFixOptionsPrompt, ideaReplacementPasses, parseIdeaFixDraftScript } from "@/thinking-lab/idea/fix";
 import { sameIdeaConcept } from "@/thinking-lab/idea/conceptIdentity";
-import {
-  IDEA_ACTIVE_CAP,
-  ideaFactsForValidation,
-  nextIdeaCode,
-  parseGeneratedIdeaDrafts,
-  proposeIdeaStatements,
-  runIdeaGenerate,
-  shownIdeaFacts,
-} from "@/thinking-lab/idea/generate";
-import { evaluateIdeaLock, selectIdeaStage } from "@/thinking-lab/idea/lock";
+import { IDEA_ACTIVE_CAP, nextIdeaCode, parseGeneratedIdeaDrafts, proposeIdea, runIdeaGenerate, type IdeaDraft } from "@/thinking-lab/idea/generate";
+import { ideaFacts } from "@/thinking-lab/idea/facts";
 import { loadIdeaComparisonHistory, loadIdeaParentGate, loadIdeaSet, saveIdeaSet, saveIdeaValidation, type LabIdea } from "@/thinking-lab/idea/repository";
 import { developmentForPillar, latestPathReviews, leadMagnetBriefForPillar, lockedPillarCards, mergeLockedPillar } from "@/thinking-lab/creative-idea/paths";
 import { leadMagnetPassChecklist, reviewContentPillars, reviewsToStore, type LeadMagnetReviewStep } from "@/thinking-lab/creative-idea/recommend";
 import { saveDevelopmentPath } from "@/thinking-lab/creative-idea/repository";
 import type { CreativeExecutionLink, CreativeFormat, DevelopmentPath, StoredPillarReview } from "@/thinking-lab/creative-idea/types";
-import { readIdeaGeneratePasses } from "@/thinking-lab/idea/generatePasses";
 import {
   admissionForDecision,
-  applyCrossStatus,
-  auditVerdictForValidation,
-  buildIdeaRevisionPrompt,
-  canReviseIdea,
   checksFromValidation,
-  classifyLegacyIdea,
-  crossPeersFromIdeas,
-  failureItemsFromIdeas,
-  failureMemoryFromValidation,
   ideaHistorySummary,
-  judgeCrossIdeas,
-  lessonSentence,
-  relevantFromPeer,
-  revisionCount,
-  runIdeaPassChecks,
-  withComparedIdeaId,
-  type CrossIdeaCandidate,
-  type CrossIdeaPeer,
-  type FailureMemoryItem,
+  uncheckedIdeaValidation,
   type IdeaValidation,
-  type RelevantIdea,
-} from "@/thinking-lab/idea/validation";
-import {
-  beginIdeaSiblingCheck,
-  finishIdeaSiblingCheck,
-  fixPriorForNextIdeaStatement,
-  ideaChecksFromStored,
-  runIdeaIndividualChecks,
-  runIdeaOpenChecks,
-  type IdeaPassCheck,
-} from "@/thinking-lab/idea/passChecklist";
-import {
-  buildIdeaSiblingPrompt,
-  emptyIdeaSetRecord,
-  ideaCodesHeldPass,
-  ideaFailureLessons,
-  ideaSetIsCurrent,
-  mergeIdeaAuditLessons,
-  parseIdeaSet,
-  scoreIdeaAudit,
-  usableIdeaFixLessons,
-  type IdeaAuditItem,
-  type IdeaDiscovery,
-} from "@/thinking-lab/idea/setAudit";
-import type { IdeaSemanticFacts } from "@/thinking-lab/idea/types";
+} from "@/thinking-lab/idea/check/record";
+import { failureItemsFromIdeas, failureMemoryFromValidation, peersFromIdeas, type FailureMemoryItem } from "@/thinking-lab/idea/check/memory";
+import { runIdeaChecks } from "@/thinking-lab/idea/check/run";
+import { buildIdeaRevisionPrompt, canReviseIdea, revisionCount } from "@/thinking-lab/idea/revise";
+import { emptyIdeaSetRecord, type IdeaDiscovery } from "@/thinking-lab/idea/ideaSet";
 import { useIdeaSet, useLabIdeas } from "@/thinking-lab/idea/useIdeas";
 import { buildExecutionGeneratePrompt, judgeAndSealExecution } from "@/thinking-lab/execution/generate";
 import { buildImageGeneratePrompt } from "@/thinking-lab/execution/imageGenerate";
@@ -605,9 +559,7 @@ export function ThinkingLabPage() {
   const labRunRef = useRef(false);
   const generatingTerritoryIdsRef = useRef(new Set<string>());
   const [generatingTerritoryIds, setGeneratingTerritoryIds] = useState<ReadonlySet<string>>(() => new Set());
-  const fixingIdeaCodesRef = useRef(new Set<string>());
   const legacyIdeaSaveRef = useRef(new Set<string>());
-  const [fixingIdeaCodes, setFixingIdeaCodes] = useState<ReadonlySet<string>>(() => new Set());
   const fixingAngleCodesRef = useRef(new Set<string>());
   const [fixingAngleCodes, setFixingAngleCodes] = useState<ReadonlySet<string>>(() => new Set());
   const fixingTerritoryCodesRef = useRef(new Set<string>());
@@ -642,7 +594,6 @@ export function ThinkingLabPage() {
       [key]: note ? { checks, note } : { checks },
     }));
   };
-  const [ideaChecklists, setIdeaChecklists] = useState<Record<string, { checks: IdeaPassCheck[]; note?: string }>>({});
   const [ideaGenerateRun, setIdeaGenerateRun] = useState<{
     angleId: string;
     checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
@@ -662,22 +613,12 @@ export function ThinkingLabPage() {
     ideaPassPrevious.current = next;
     setIdeaGenerateRun({ angleId, checks: next, report: ideaLiveReport(next, previous) });
   };
-  const publishIdeaChecklist = (code: string, checks: IdeaPassCheck[], note?: string) => {
-    const key = code.trim().toUpperCase();
-    setIdeaChecklists((current) => ({
-      ...current,
-      [key]: note ? { checks, note } : { checks },
-    }));
-  };
   const [notice, setNotice] = useState<string | null>(null);
   const [territoryFixOffers, setTerritoryFixOffers] = useState<
     Array<{ thoughtId: string; failedCode: string; statement: string; facts: TerritorySemanticFacts }>
   >([]);
   const [angleFixOffers, setAngleFixOffers] = useState<
     Array<{ territoryId: string; failedCode: string; statement: string; facts: AngleSemanticFacts }>
-  >([]);
-  const [ideaFixOffers, setIdeaFixOffers] = useState<
-    Array<{ angleId: string; failedCode: string; statement: string; facts: IdeaSemanticFacts }>
   >([]);
   const [auditProgress, setAuditProgress] = useState<AuditProgress | null>(null);
   const [bigThoughtChecklists, setBigThoughtChecklists] = useState<Record<string, PassChecklist>>({});
@@ -756,7 +697,6 @@ export function ThinkingLabPage() {
     setAuditProgress(null);
     setTerritoryFixOffers([]);
     setAngleFixOffers([]);
-    setIdeaFixOffers([]);
   }, [selected?.id]);
 
   useEffect(() => {
@@ -869,7 +809,7 @@ export function ThinkingLabPage() {
       .filter(
         (idea) =>
           idea.angleId === focus.angleId &&
-          (idea.validation ?? classifyLegacyIdea(idea.statement, angle.statement)).decision === "LOLOS",
+          (idea.validation ?? uncheckedIdeaValidation(idea.statement, angle.statement)).decision === "LOLOS",
       )
       .map((idea) => idea.id);
   }, [focus, labAngles.data, labIdeas.data]);
@@ -1270,10 +1210,9 @@ export function ThinkingLabPage() {
   const showGenerateIdea = canShowGenerateIdea(focusedAngle, focusedTerritoryFingerprint || null);
   const angleIdeaRows = (labIdeas.data ?? []).filter((row) => focusedAngle && row.angleId === focusedAngle.id);
   const validationForIdea = (row: (typeof angleIdeaRows)[number]) =>
-    row.validation ?? classifyLegacyIdea(row.statement, focusedAngle?.statement ?? "");
+    row.validation ?? uncheckedIdeaValidation(row.statement, focusedAngle?.statement ?? "");
   const admittedIdeas = angleIdeaRows.filter((row) => validationForIdea(row).decision === "LOLOS");
   const openIdeas = admittedIdeas.filter((row) => row.status !== "locked");
-  const lockedIdeas = admittedIdeas.filter((row) => row.status === "locked");
   useEffect(() => {
     if (!masters.organizationId || !focusedAngle) return;
     const angleId = focusedAngle.id;
@@ -1287,7 +1226,7 @@ export function ThinkingLabPage() {
       let failed = false;
       for (const row of pending) {
         legacyIdeaSaveRef.current.add(row.id);
-        const validation = classifyLegacyIdea(row.statement, angleStatement);
+        const validation = uncheckedIdeaValidation(row.statement, angleStatement);
         try {
           await saveIdeaValidation({
             organizationId: masters.organizationId as string,
@@ -1321,59 +1260,14 @@ export function ThinkingLabPage() {
       ideaFingerprint({ statement: row.statement, angleFingerprint: parentAngleFingerprint }),
     ),
   });
-  const storedIdeaSet = ideaSet.data?.siblingSet ?? null;
-  const ideaAuditCurrent =
-    ideaSetIsCurrent(storedIdeaSet, ideaFingerprintNow) &&
-    fingerprintsMatch(ideaSet.data?.audit?.fingerprint, ideaFingerprintNow);
-  const rescoredIdeaAudit =
-    ideaAuditCurrent && storedIdeaSet
-      ? scoreIdeaAudit({
-          codes: openIdeas.map((row) => row.code),
-          siblingSet: storedIdeaSet,
-          siblingSetCurrent: true,
-        })
-      : null;
-  const ideaVerdicts = openIdeas.map((row) => {
-    const statementFingerprint = parentAngleFingerprint
-      ? ideaFingerprint({ statement: row.statement, angleFingerprint: parentAngleFingerprint })
-      : "";
-    const stored = ideaSet.data?.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
-    if (
-      stored?.statementFingerprint === statementFingerprint &&
-      (stored.verdict === "AUDIT_PASS" || stored.verdict === "AUDIT_FAIL")
-    ) {
-      return stored.verdict;
-    }
-    return rescoredIdeaAudit?.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict ?? null;
+  /** Every open Idea already carries a pass mark for its current sentence, so Lock does not save one again. */
+  const ideaAuditSaved = openIdeas.every((row) => {
+    const item = ideaSet.data?.audit?.items.find((entry) => entry.code.toUpperCase() === row.code.toUpperCase());
+    return (
+      item?.verdict === "AUDIT_PASS" &&
+      item.statementFingerprint === ideaFingerprint({ statement: row.statement, angleFingerprint: parentAngleFingerprint })
+    );
   });
-  const shownIdeaVerdicts = openIdeas.map((row) => {
-    const verdict = auditVerdictForValidation(validationForIdea(row));
-    return verdict === "AUDIT_PASS" ? ("AUDIT_PASS" as const) : null;
-  });
-  const ideaLock = evaluateIdeaLock({
-    admittedCount: openIdeas.length,
-    verdicts: shownIdeaVerdicts,
-  });
-  const ideaStage = selectIdeaStage({
-    admittedCount: openIdeas.length,
-    verdicts: shownIdeaVerdicts,
-    repairsUsed: (ideaSet.data?.repairCount ?? 0) > 0,
-    lockOk: ideaLock.ok,
-  });
-  const ideaNotes = [
-    ...(storedIdeaSet && ideaSetIsCurrent(storedIdeaSet, ideaFingerprintNow)
-      ? [
-          ...storedIdeaSet.materialOverlapPairs.map((pair) => `${pair.ideaCodeA} · ${pair.ideaCodeB}: ${pair.explanation}`),
-          ...storedIdeaSet.containmentPairs.map(
-            (pair) => `${pair.containerCode} · ${pair.containedCode}: ${pair.explanation}`,
-          ),
-        ]
-      : []),
-    ...(ideaVerdicts.some((verdict) => verdict === "AUDIT_FAIL") &&
-    (ideaSet.data?.repairCount ?? 0) > 0
-      ? [t("thinkingLab.idea.repairStopped", "Fix already ran once. This set stays open until the ideas pass.")]
-      : []),
-  ];
   const ideaSetLocked = admittedIdeas.length > 0 && admittedIdeas.every((row) => row.status === "locked");
   const focusedIdea =
     focus?.kind === "idea" || focus?.kind === "pillar" || focus?.kind === "execution"
@@ -1385,7 +1279,7 @@ export function ThinkingLabPage() {
   const focusedIdeaPassed = Boolean(
     focusedIdea &&
       focusedIdeaAngle &&
-      (focusedIdea.validation ?? classifyLegacyIdea(focusedIdea.statement, focusedIdeaAngle.statement)).decision === "LOLOS",
+      (focusedIdea.validation ?? uncheckedIdeaValidation(focusedIdea.statement, focusedIdeaAngle.statement)).decision === "LOLOS",
   );
   const labExecutions = useLabExecutions(focusedIdeaPassed && focusedIdea?.status === "locked" ? focusedIdea.id : null);
   const contentPillars = useOrgContentPillars(masters.organizationId, locked);
@@ -2546,6 +2440,7 @@ export function ThinkingLabPage() {
   const writeGeneratedIdeas = (angleId: string, discovery: IdeaDiscovery) =>
     run(async () => {
       if (!masters.organizationId || !parentFp) return;
+      const organizationId = masters.organizationId;
       const angle =
         (labAngles.data ?? []).find((row) => row.id === angleId) ??
         (focusedAngle?.id === angleId ? focusedAngle : null);
@@ -2567,310 +2462,132 @@ export function ThinkingLabPage() {
         });
       }
       const storedSet =
-        angleId === focusedAngle?.id && ideaSet.data
-          ? ideaSet.data
-          : await loadIdeaSet(masters.organizationId, angleId);
-      const auditLessons = storedSet?.auditLessons ?? [];
+        angleId === focusedAngle?.id && ideaSet.data ? ideaSet.data : await loadIdeaSet(organizationId, angleId);
+      const storedDiscovery = storedSet.discovery;
+      const discoveryUnchanged =
+        storedDiscovery?.angleFingerprint === discovery.angleFingerprint &&
+        storedDiscovery.decisions.length === discovery.decisions.length &&
+        storedDiscovery.decisions.every(
+          (row, index) =>
+            row.category === discovery.decisions[index]?.category &&
+            row.question === discovery.decisions[index]?.question &&
+            row.answer === discovery.decisions[index]?.answer,
+        );
+      if (discovery.angleFingerprint && !discoveryUnchanged) {
+        const record = { ...storedSet, discovery };
+        await saveIdeaSet({ organizationId, angleId, record });
+        queryClient.setQueryData(["thinking-lab-idea-set", organizationId, angleId], record);
+        await queryClient.invalidateQueries({ queryKey: ["thinking-lab-idea-set", organizationId, angleId] });
+      }
       const known = (labIdeas.data ?? []).filter((row) => row.angleId === angleId);
       let sort = known.reduce((max, row) => Math.max(max, row.sortOrder), 0);
-      const learned = [...auditLessons];
-      let setRecord = storedSet ?? emptyIdeaSetRecord();
-      if (discovery.angleFingerprint) {
-        const storedDiscovery = setRecord.discovery;
-        const unchanged =
-          storedDiscovery?.angleFingerprint === discovery.angleFingerprint &&
-          storedDiscovery.decisions.length === discovery.decisions.length &&
-          storedDiscovery.decisions.every(
-            (row, index) =>
-              row.category === discovery.decisions[index]?.category &&
-              row.question === discovery.decisions[index]?.question &&
-              row.answer === discovery.decisions[index]?.answer,
-          );
-        setRecord = { ...setRecord, discovery };
-        if (!unchanged) {
-          await saveIdeaSet({
-            organizationId: masters.organizationId as string,
-            angleId,
-            record: setRecord,
-          });
-          queryClient.setQueryData(["thinking-lab-idea-set", masters.organizationId, angleId], setRecord);
-          await queryClient.invalidateQueries({
-            queryKey: ["thinking-lab-idea-set", masters.organizationId, angleId],
-          });
-        }
-      }
-      const prepared = known.map((row) => {
-        if (row.validation) return row;
-        return { ...row, admission: admissionForDecision(classifyLegacyIdea(row.statement, angle.statement).decision) };
-      });
+      const history = await loadIdeaComparisonHistory(organizationId, angleId);
+      let memory: FailureMemoryItem[] = failureItemsFromIdeas(history.ideas, angleId);
+      let peers = peersFromIdeas(history.ideas);
       let historyUnsaved = false;
-      for (const row of known) {
-        if (row.validation || legacyIdeaSaveRef.current.has(row.id)) continue;
-        legacyIdeaSaveRef.current.add(row.id);
-        const validation = classifyLegacyIdea(row.statement, angle.statement);
-        try {
-          await saveIdeaValidation({
-            organizationId: masters.organizationId as string,
-            angleId: row.angleId,
-            id: row.id,
-            validation,
-            admission: admissionForDecision(validation.decision),
-          });
-        } catch {
-          historyUnsaved = true;
-        }
-      }
-      if (historyUnsaved) {
-        setNotice(t("thinkingLab.idea.historyUnsaved", "This history could not be saved."));
-      }
-      let memory: FailureMemoryItem[] = [];
-      let relevant: RelevantIdea[] = [];
-      let storedPeers: CrossIdeaPeer[] = [];
-      const loadedHistory = await loadIdeaComparisonHistory(masters.organizationId, angleId);
-      const historyAvailable = loadedHistory.historyAvailable;
-      const storedIdeas = loadedHistory.ideas;
-      memory = failureItemsFromIdeas(storedIdeas, angleId);
-      storedPeers = crossPeersFromIdeas(storedIdeas);
-      relevant = storedPeers.map((peer) => relevantFromPeer(peer, angleId));
-      const blockedStatements = new Set(memory.map((item) => item.statement.trim().toLowerCase()));
-      const draftByStatement = new Map<string, Awaited<ReturnType<typeof proposeIdeaStatements>>[number]>();
-      const pendingValidation = new Map<string, IdeaValidation>();
-      const staged: Array<{
-        id: string;
-        angleId: string;
-        code: string;
-        statement: string;
-        sortOrder: number;
-        facts: Awaited<ReturnType<typeof ideaFactsForValidation>>;
-        validation: IdeaValidation;
-      }> = [];
-      const comparedIds = new Map(storedPeers.map((peer) => [peer.code.toUpperCase(), peer.id]));
-      let savedPassed = prepared.filter((row) => {
-        const decision = row.validation?.decision ?? classifyLegacyIdea(row.statement, angle.statement).decision;
-        return decision === "LOLOS";
-      }).length;
-      let shownDecision: "LOLOS" | "DITOLAK" | "BELUM_TERVERIFIKASI" | null = null;
-      let shownChecks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }> = [];
-      const publishLive = (
-        checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>,
-      ) => {
-        const previous = shownChecks;
-        shownChecks = checks.map((check) => ({ ...check }));
-        setIdeaGenerateRun({ angleId, checks: shownChecks, report: ideaLiveReport(checks, previous) });
-      };
-      let result: Awaited<ReturnType<typeof runIdeaGenerate>>;
+      let savedPassed = known.filter(
+        (row) => (row.validation ?? uncheckedIdeaValidation(row.statement, angle.statement)).decision === "LOLOS",
+      ).length;
+      let shownDecision: IdeaValidation["decision"] | null = null;
+      const ancestors = (parent: { ancestors?: AncestorStake[] }) => ancestorsWithMaster(parent.ancestors ?? []);
       try {
-      result = await runIdeaGenerate({
-        loadParent: () =>
-          loadIdeaParentGate({
-            organizationId: masters.organizationId as string,
-            angleId,
-            expectedTerritoryId: angle.territoryId,
-            masterThoughtFingerprint: parentFp,
-          }),
-        incumbents: prepared.map((row) => ({
-          code: row.code,
-          statement: row.statement,
-          admission: row.admission,
-          angleId: row.angleId,
-          locked: row.status === "locked",
-        })),
-        carryLessons: true,
-        propose: async (plan, parent, incumbents) => {
-          const drafts = await proposeIdeaStatements({
-            parentStatement: parent.statement,
-            masterSubject,
-            ancestors: ancestorsWithMaster(parent.ancestors ?? []),
-            incumbents: incumbents
-              .filter((row) => row.admission === "GENERATE_VALID")
-              .map((row) => ({
-                code: row.code,
-                statement: row.statement,
-                locked: row.locked === true,
-              })),
-            failures: memory,
-            decisions: discovery.decisions,
-            needed: plan.needed,
-            ask: (prompt) => askThinkingLab(prompt, 0.2),
-          });
-          for (const draft of drafts) draftByStatement.set(draft.statement.trim().toLowerCase(), draft);
-          return drafts.filter((draft) => !blockedStatements.has(draft.statement.trim().toLowerCase()));
-        },
-        judge: async (_parent, code, statement, mechanismKeys) => {
-          const draft = draftByStatement.get(statement.trim().toLowerCase());
-          let validation = await runIdeaPassChecks({
-            skip: skipFor("idea"),
-            batch: true,
-            statement,
-            title: draft?.subject ?? "",
-            concept: draft?.concept ?? "",
-            mechanism: draft?.mechanism ?? "",
-            value: draft?.value ?? "",
-            angle: angle.statement,
-            territory: focusedTerritory?.statement ?? "",
-            bigThought: focusedThought?.statement ?? "",
-            masterThought: masterStatement,
-            ...ideaAudience,
-            failures: memory,
-            peers: relevant,
-            historyAvailable,
-            ask: (prompt) => askThinkingLab(prompt, 0),
-            onStep: publishLive,
-          });
-          if (validation.decision === "LOLOS" && !skipFor("idea").includes("K5")) {
-            const batchPeers = [
-              ...storedPeers,
-              ...staged.map((row) => ({
-                id: row.id,
-                code: row.code,
-                statement: row.statement,
-                concept: row.validation.concept,
-                mechanism: row.validation.mechanism,
-                value: row.validation.value,
-                validation: row.validation,
-              })),
-            ];
-            try {
-              const [settled] = await judgeCrossIdeas({
-                candidates: [
-                  {
-                    code,
-                    statement,
-                    concept: draft?.concept || validation.concept,
-                    mechanism: draft?.mechanism || validation.mechanism,
-                    value: draft?.value || validation.value,
-                    validation,
-                  },
-                ],
-                peers: batchPeers,
-                historyAvailable,
-                ask: (prompt) => askThinkingLab(prompt, 0),
-              });
-              validation = settled?.validation ?? applyCrossStatus(validation, "BELUM_TERVERIFIKASI");
-            } catch {
-              validation = applyCrossStatus(validation, "BELUM_TERVERIFIKASI");
-            }
-          }
-          pendingValidation.set(code, validation);
-          relevant = [
-            ...relevant,
-            {
-              code,
-              statement,
-              concept: draft?.concept ?? validation.concept,
-              mechanism: draft?.mechanism ?? validation.mechanism,
-              value: draft?.value ?? validation.value,
-              decision: validation.decision,
-              sameAngle: true,
-            },
-          ];
-          return ideaFactsForValidation(code, statement, validation.decision, mechanismKeys, draft?.subject || validation.title);
-        },
-        persist: async ({ parent, code, statement, facts, admission }) => {
-          const validation = pendingValidation.get(code) ?? null;
-          sort += 1;
-          if (validation) {
-            const settled = withComparedIdeaId(validation, comparedIds);
+        const result = await runIdeaGenerate({
+          loadParent: () =>
+            loadIdeaParentGate({
+              organizationId,
+              angleId,
+              expectedTerritoryId: angle.territoryId,
+              masterThoughtFingerprint: parentFp,
+            }),
+          incumbents: known.map((row) => ({
+            code: row.code,
+            statement: row.statement,
+            admission: row.validation ? row.admission : admissionForDecision(uncheckedIdeaValidation(row.statement, angle.statement).decision),
+            angleId: row.angleId,
+            locked: row.status === "locked",
+          })),
+          propose: (parent, incumbents) =>
+            proposeIdea({
+              parentStatement: parent.statement,
+              masterSubject,
+              ancestors: ancestors(parent),
+              incumbents: incumbents
+                .filter((row) => row.admission === "GENERATE_VALID")
+                .map((row) => ({ code: row.code, statement: row.statement, locked: row.locked === true })),
+              failures: memory,
+              decisions: discovery.decisions,
+              ask: (prompt) => askThinkingLab(prompt, 0.2),
+            }),
+          check: (parent, draft) =>
+            runIdeaChecks({
+              statement: draft.statement,
+              title: draft.title,
+              concept: draft.concept,
+              mechanism: draft.mechanism,
+              value: draft.value,
+              mechanismKeys: draft.mechanismKeys,
+              angle: parent.statement,
+              territory: focusedTerritory.statement,
+              bigThought: focusedThought?.statement ?? "",
+              masterThought: masterStatement,
+              masterSubject,
+              ...ideaAudience,
+              failures: memory,
+              peers,
+              historyAvailable: history.historyAvailable,
+              skip: skipFor("idea"),
+              ask: (prompt) => askThinkingLab(prompt, 0),
+              onStep: (steps) => publishLiveIdea(angleId, steps),
+            }),
+          persist: async ({ parent, code, draft, validation, admission }) => {
+            sort += 1;
             try {
               const saved = await labIdeas.insert.mutateAsync({
                 angleId: parent.id,
                 expectedTerritoryId: angle.territoryId,
                 masterThoughtFingerprint: parentFp,
                 code,
-                statement,
+                statement: draft.statement,
                 sortOrder: sort,
-                facts: ideaFactsForValidation(
-                  code,
-                  statement,
-                  settled.decision,
-                  facts.mechanismKeys,
-                  settled.title || facts.subject,
-                ),
-                admission: admissionForDecision(settled.decision),
-                validation: settled,
+                facts: ideaFacts({ code, statement: draft.statement, subject: draft.title, mechanismKeys: draft.mechanismKeys }),
+                admission,
+                validation,
                 parentIdeaId: null,
               });
-              if (saved.id) comparedIds.set(saved.code.toUpperCase(), saved.id);
-              staged.push({
-                id: saved.id,
-                angleId: parent.id,
-                code,
-                statement,
-                sortOrder: sort,
-                facts,
-                validation: settled,
-              });
               queryClient.setQueriesData<LabIdea[]>(
-                { queryKey: ["thinking-lab-ideas", masters.organizationId] },
+                { queryKey: ["thinking-lab-ideas", organizationId] },
                 (current) => (current && !current.some((row) => row.id === saved.id) ? [...current, saved] : current),
               );
-              if (settled.decision === "LOLOS") {
-                savedPassed += 1;
-                shownDecision = "LOLOS";
-                setIdeaRevisionTarget({ nonce: Date.now(), decision: "LOLOS" });
-              } else if (shownDecision !== "LOLOS") {
-                shownDecision = settled.decision;
-              }
             } catch {
               historyUnsaved = true;
             }
-            if (validation.decision !== "LOLOS") {
-              const lesson = failureMemoryFromValidation({
-                code,
-                statement,
-                angleId: parent.id,
-                validation: settled,
-              });
-              if (lesson) {
-                memory = [lesson, ...memory.filter((item) => item.statement.trim().toLowerCase() !== statement.trim().toLowerCase())];
-                blockedStatements.add(statement.trim().toLowerCase());
-              }
+            if (validation.decision === "LOLOS") {
+              savedPassed += 1;
+              shownDecision = "LOLOS";
+              peers = [...peers, { code, statement: draft.statement, mechanism: validation.mechanism }];
+            } else {
+              if (shownDecision !== "LOLOS") shownDecision = validation.decision;
+              const lesson = failureMemoryFromValidation({ code, statement: draft.statement, angleId: parent.id, validation });
+              if (lesson) memory = [lesson, ...memory];
             }
-          }
-          return {
-            code,
-            statement,
-            admission,
-            angleId: parent.id,
-            locked: false,
-          };
-        },
-      });
-      if (result.outcome === "DENIED" && result.reason) {
-        toast.error(result.reason);
-        return;
-      }
-      if (historyUnsaved) {
-        setNotice(t("thinkingLab.idea.historyUnsaved", "This history could not be saved."));
-      } else if (savedPassed < result.target) {
-        setNotice(
-          t("thinkingLab.idea.insufficient", "INSUFFICIENT_VALID_IDEAS {{count}}/{{target}}", {
-            count: savedPassed,
-            target: result.target,
-          }),
-        );
-      }
-      const beforeValid = known
-        .filter((row) => row.admission === "GENERATE_VALID")
-        .map((row) => row.code.toUpperCase())
-        .sort()
-        .join("\0");
-      const afterValid = result.incumbents
-        .filter((row) => row.admission === "GENERATE_VALID")
-        .map((row) => row.code.toUpperCase())
-        .sort()
-        .join("\0");
-      if (learned.length !== auditLessons.length || beforeValid !== afterValid) {
-        await saveIdeaSet({
-          organizationId: masters.organizationId,
-          angleId,
-          record: setRecord,
+            return { code, statement: draft.statement, admission, angleId: parent.id, locked: false };
+          },
         });
-        await queryClient.invalidateQueries({
-          queryKey: ["thinking-lab-idea-set", masters.organizationId, angleId],
-        });
-      }
-      if (shownDecision) setIdeaRevisionTarget({ nonce: Date.now(), decision: shownDecision });
+        if (result.outcome === "DENIED" && result.reason) {
+          toast.error(result.reason);
+          return;
+        }
+        if (historyUnsaved) {
+          setNotice(t("thinkingLab.idea.historyUnsaved", "This history could not be saved."));
+        } else if (savedPassed < result.target) {
+          setNotice(
+            t("thinkingLab.idea.insufficient", "INSUFFICIENT_VALID_IDEAS {{count}}/{{target}}", {
+              count: savedPassed,
+              target: result.target,
+            }),
+          );
+        }
+        if (shownDecision) setIdeaRevisionTarget({ nonce: Date.now(), decision: shownDecision });
       } finally {
         setIdeaGenerateRun((current) => {
           if (!current || current.angleId !== angleId) return current;
@@ -2880,288 +2597,11 @@ export function ThinkingLabPage() {
       }
     }, "generate-idea");
 
-  const repairFailedIdeas = async (onlyCode?: string) => {
-    if (!focusedAngle || !focusedThought || !masters.organizationId || !parentFp || openIdeas.length === 0) return;
-    const ancestors: AncestorStake[] = [
-      ...(focusedTerritory?.statement.trim() ? [{ label: "Territory", statement: focusedTerritory.statement.trim() }] : []),
-      ...angleAncestors,
-    ];
-    const failedAt = (index: number, code: string) =>
-      ideaVerdicts[index] === "AUDIT_FAIL" ||
-      (ideaChecklists[code.toUpperCase()]?.checks ?? []).some((check) => check.state === "fail");
-    const failed = openIdeas.filter((row, index) => {
-      if (!failedAt(index, row.code)) return false;
-      return !onlyCode || row.code.toUpperCase() === onlyCode.toUpperCase();
-    });
-    if (failed.length === 0) return;
-    const keepers = [
-      ...lockedIdeas,
-      ...openIdeas.filter((_, index) => ideaVerdicts[index] === "AUDIT_PASS"),
-    ];
-    const applied = new Map<string, string>();
-    let setRecord = {
-      schema: "thinking-lab/idea-set/v1" as const,
-      repairCount: ideaSet.data?.repairCount ?? 0,
-      siblingSet: storedIdeaSet,
-      audit: ideaSet.data?.audit ?? null,
-      downTop: ideaSet.data?.downTop ?? null,
-      auditLessons: [...(ideaSet.data?.auditLessons ?? [])],
-      discovery: ideaSet.data?.discovery ?? null,
-    };
-    for (const row of failed) {
-      const learned = [...usableIdeaFixLessons(setRecord.auditLessons, row.code)];
-      const refused = new Set(setRecord.auditLessons.map((lesson) => lesson.statement.trim().toLowerCase()));
-      refused.add(row.statement.trim().toLowerCase());
-      const storedFailure = setRecord.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
-      const alreadyPassed =
-        storedFailure?.verdict === "AUDIT_PASS" ||
-        ideaVerdicts[openIdeas.findIndex((item) => item.id === row.id)] === "AUDIT_PASS";
-      let shown = ideaChecklists[row.code.toUpperCase()]?.checks ?? [];
-      if (shown.length === 0) {
-        shown = ideaChecksFromStored({
-          generatePasses: row.canonicalSemantic.generatePasses,
-          gateFailure: alreadyPassed || storedFailure?.verdict !== "AUDIT_FAIL" ? null : (storedFailure.gateFailure ?? null),
-          passed: alreadyPassed,
-        });
-      }
-      let scope: FixScope = scopeFromHistory(shown, learned);
-      const rememberFixLesson = async (lesson: { code: string; statement: string; reason: string }) => {
-        learned.push(lesson);
-        refused.add(lesson.statement.trim().toLowerCase());
-        setRecord = {
-          ...setRecord,
-          auditLessons: mergeIdeaAuditLessons(setRecord.auditLessons, [lesson]),
-        };
-        await ideaSet.save.mutateAsync(setRecord);
-      };
-      const sealIdeaPass = async (
-        statement: string,
-        mechanismKeys: typeof row.canonicalSemantic.mechanismKeys,
-        subject: string,
-      ) => {
-        await labIdeas.replace.mutateAsync({
-          angleId: focusedAngle.id,
-          id: row.id,
-          statement,
-          facts: {
-            ...row.canonicalSemantic,
-            ...shownIdeaFacts(row.code, statement, mechanismKeys, subject),
-            generatePasses: ["sentenceForm", "mechanismShape"],
-          },
-          admission: "GENERATE_VALID",
-        });
-        const codeKey = row.code.toUpperCase();
-        const statementFingerprint = ideaFingerprint({
-          statement,
-          angleFingerprint: parentAngleFingerprint,
-        });
-        const previousItems = setRecord.audit?.items ?? [];
-        const items = previousItems.some((item) => item.code.toUpperCase() === codeKey)
-          ? previousItems.map((item) =>
-              item.code.toUpperCase() === codeKey
-                ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("idea") }
-                : item,
-            )
-          : [...previousItems, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("idea") }];
-        setRecord = {
-          ...setRecord,
-          audit: { fingerprint: setRecord.audit?.fingerprint ?? "", items },
-        };
-        await ideaSet.save.mutateAsync(setRecord);
-        applied.set(codeKey, statement);
-      };
-      let offered = false;
-      for (let attempt = 0; attempt < fixAttemptCap() && !offered; attempt += 1) {
-        const script = await askThinkingLab(
-          buildIdeaFixOptionsPrompt({
-            parentStatement: focusedAngle.statement,
-            masterSubject,
-            ancestors,
-            failed: { code: row.code, statement: row.statement },
-            keepers: keepers
-              .filter((keeper) => keeper.code.toUpperCase() !== row.code.toUpperCase())
-              .map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
-            conflicts: ideaNotes,
-            lessons: learned,
-            decisions: ideaDiscoveryMatches(setRecord.discovery, focusedAngle.semanticFingerprint)
-              ? setRecord.discovery.decisions
-              : [],
-            scope,
-          }),
-          0.2,
-        );
-        const drafts = parseIdeaFixDraftScript(script);
-        const draft = drafts.find(
-          (candidate) =>
-            !refused.has(candidate.statement.trim().toLowerCase()) &&
-            !keepers.some((keeper) => sameIdeaConcept(keeper.statement, candidate.statement)),
-        );
-        if (!draft) {
-          if (drafts.length === 0) {
-            await rememberFixLesson({ code: row.code, statement: row.statement, reason: "No replacement came back." });
-          } else {
-            for (const candidate of drafts) {
-              await rememberFixLesson({
-                code: row.code,
-                statement: candidate.statement,
-                reason: "This sentence was offered again after it already failed.",
-              });
-            }
-          }
-          continue;
-        }
-        const keepKeys = scope.preserve.includes("causeLock") && row.canonicalSemantic.mechanismKeys.length > 0;
-        const mechanismKeys = keepKeys
-          ? row.canonicalSemantic.mechanismKeys
-          : draft.mechanismKeys.length > 0
-            ? draft.mechanismKeys
-            : row.canonicalSemantic.mechanismKeys;
-        const subject = draft.subject.trim() || row.canonicalSemantic.subject;
-        const checked = await runIdeaOpenChecks({
-          skip: skipFor("idea"),
-          batch: true,
-          statement: draft.statement,
-          parentStatement: focusedAngle.statement,
-          ancestors,
-          masterSubject,
-          mechanismKeys,
-          prior: fixPriorForNextIdeaStatement(shown, row.statement, draft.statement),
-          ask: (prompt) => askThinkingLab(prompt, 0),
-          onStep: (checks) => publishIdeaChecklist(row.code, checks),
-        });
-        if (!checked.passed) {
-          const failedCheck = checked.checks.find((check) => check.state === "fail");
-          const reason = failedCheck ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim() : "This check could not be decided.";
-          await rememberFixLesson({ code: row.code, statement: draft.statement, reason });
-          shown = checked.checks;
-          scope = fixScopeFromChecks(checked.checks);
-          continue;
-        }
-        publishIdeaChecklist(row.code, beginIdeaSiblingCheck(checked.checks));
-        const openKeepers = keepers.filter(
-          (item) => item.code.toUpperCase() !== row.code.toUpperCase() && item.status !== "locked",
-        );
-        const siblingRows = [
-          ...openKeepers.map((item) => ({ code: item.code, statement: item.statement })),
-          { code: row.code, statement: draft.statement },
-        ];
-        const sealed = lockedIdeas
-          .filter((item) => item.code.toUpperCase() !== row.code.toUpperCase())
-          .map((item) => ({ code: item.code, statement: item.statement }));
-        let siblingPass = skipFor("idea").includes("siblingsDistinct") || siblingRows.length + sealed.length < 2;
-        let siblingReason = "";
-        if (!siblingPass) {
-          const fingerprint = ideaSetFingerprint({
-            angleFingerprint: parentAngleFingerprint,
-            ideaFingerprints: [...siblingRows, ...sealed].map((item) =>
-              ideaFingerprint({ statement: item.statement, angleFingerprint: parentAngleFingerprint }),
-            ),
-          });
-          const siblingScript = await askThinkingLab(
-            buildIdeaSiblingPrompt({
-              parentStatement: focusedAngle.statement,
-              rows: siblingRows,
-              sealed,
-            }),
-            0,
-          );
-          const siblingSet = parseIdeaSet(siblingScript, fingerprint);
-          siblingPass = ideaReplacementPasses(siblingSet, row.code);
-          siblingReason = siblingPass
-            ? ""
-            : ideaFailureLessons({
-                rows: [{ code: row.code, statement: draft.statement }],
-                items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
-                siblingSet,
-              })[0]?.reason ?? "Sibling audit failed this Idea.";
-        }
-        if (!siblingPass) {
-          await rememberFixLesson({ code: row.code, statement: draft.statement, reason: `siblingsDistinct: ${siblingReason}` });
-          const failedSibling = finishIdeaSiblingCheck(checked.checks, false, siblingReason);
-          shown = failedSibling;
-          publishIdeaChecklist(row.code, failedSibling);
-          scope = fixScopeFromChecks(failedSibling);
-          continue;
-        }
-        const passedChecks = finishIdeaSiblingCheck(checked.checks, true, "");
-        publishIdeaChecklist(row.code, passedChecks);
-        await sealIdeaPass(draft.statement, mechanismKeys, subject);
-        const passedKeeper = { ...row, statement: draft.statement };
-        const keeperIndex = keepers.findIndex((keeper) => keeper.code.toUpperCase() === row.code.toUpperCase());
-        if (keeperIndex >= 0) keepers[keeperIndex] = passedKeeper;
-        else keepers.push(passedKeeper);
-        offered = true;
-      }
-    }
-    const replaced = new Set(failed.map((row) => row.code.toUpperCase()));
-    setIdeaFixOffers((current) =>
-      current.filter((offer) => offer.angleId !== focusedAngle.id || !replaced.has(offer.failedCode.toUpperCase())),
-    );
-    const covered = applied.size;
-    if (covered > 0) {
-      const items = openIdeas.flatMap((row, index) => {
-        const code = row.code.toUpperCase();
-        const previous = setRecord.audit?.items.find((item) => item.code.toUpperCase() === code);
-        const statement = applied.get(code) ?? row.statement;
-        const verdict = applied.has(code) ? ("AUDIT_PASS" as const) : ideaVerdicts[index];
-        if (verdict !== "AUDIT_PASS" && verdict !== "AUDIT_FAIL") return [];
-        return [
-          {
-            code: row.code,
-            verdict,
-            statementFingerprint: ideaFingerprint({
-              statement,
-              angleFingerprint: parentAngleFingerprint,
-            }),
-            ...(verdict === "AUDIT_FAIL" && previous?.gateFailure ? { gateFailure: previous.gateFailure } : {}),
-          },
-        ];
-      });
-      await ideaSet.save.mutateAsync({
-        ...setRecord,
-        repairCount: setRecord.repairCount + 1,
-        siblingSet: null,
-        audit: items.length > 0 ? { fingerprint: "", items } : setRecord.audit,
-        downTop: null,
-      });
-    }
-    if (covered < failed.length) {
-      setNotice(
-        t("thinkingLab.idea.noSafeReplacement", "NO_SAFE_REPLACEMENT {{count}}/{{failed}}", {
-          count: covered,
-          failed: failed.length,
-        }),
-      );
-    } else {
-      setNotice(null);
-    }
-  };
-
-  const onFixIdea = (code: string) => {
-    const key = code.trim().toUpperCase();
-    if (!key || fixingIdeaCodesRef.current.has(key)) return;
-    fixingIdeaCodesRef.current.add(key);
-    setFixingIdeaCodes(new Set(fixingIdeaCodesRef.current));
-    void (async () => {
-      try {
-        await repairFailedIdeas(code);
-      } catch (error) {
-        reportStepError(error);
-      } finally {
-        fixingIdeaCodesRef.current.delete(key);
-        setFixingIdeaCodes(new Set(fixingIdeaCodesRef.current));
-      }
-    })();
-  };
-
+  /** Saves a pass mark for each open Idea's current sentence: Lock in chat and the "Tanpa cek" badge read it. */
   const savePassedIdeaAudit = async () => {
-    if (!parentAngleFingerprint || openIdeas.length === 0) return;
-    if (!shownIdeaVerdicts.every((verdict) => verdict === "AUDIT_PASS")) return;
-    if (ideaVerdicts.every((verdict) => verdict === "AUDIT_PASS")) return;
+    if (!parentAngleFingerprint || openIdeas.length === 0 || ideaAuditSaved) return;
     await ideaSet.save.mutateAsync({
-      schema: "thinking-lab/idea-set/v1",
-      repairCount: ideaSet.data?.repairCount ?? 0,
-      siblingSet: storedIdeaSet,
+      ...(ideaSet.data ?? emptyIdeaSetRecord()),
       audit: {
         fingerprint: ideaFingerprintNow,
         items: openIdeas.map((row) => ({
@@ -3174,222 +2614,18 @@ export function ThinkingLabPage() {
           }),
         })),
       },
-      downTop: ideaSet.data?.downTop ?? null,
-      auditLessons: ideaSet.data?.auditLessons ?? [],
-      discovery: ideaSet.data?.discovery ?? null,
     });
   };
 
-  const onIdeaStage = () =>
-    run(async () => {
-      if (!focusedAngle || !focusedThought || !masters.organizationId || !parentFp || openIdeas.length === 0) return;
-      if (ideaStage === "fix") {
-        await repairFailedIdeas();
-        return;
-      }
-      if (ideaStage === "audit") {
-        const ancestors: AncestorStake[] = [
-          ...(focusedTerritory?.statement.trim() ? [{ label: "Territory", statement: focusedTerritory.statement.trim() }] : []),
-          ...angleAncestors,
-        ];
-        const heldPass = new Set(ideaCodesHeldPass(openIdeas, shownIdeaVerdicts).map((code) => code.toUpperCase()));
-        const passedCodes = new Set<string>([
-          ...heldPass,
-          ...lockedIdeas.map((row) => row.code.toUpperCase()),
-        ]);
-        const lessons: Array<{ code: string; statement: string; reason: string }> = [];
-        const failures = new Map<string, { gate: IdeaPassCheck["id"]; reason: string }>();
-        let siblingSet = storedIdeaSet;
-        const siblingCache = new Map<string, NonNullable<typeof storedIdeaSet>>();
-        let judgedEveryOpenIdea = false;
-        // Each Idea's own checks run a few at once; the sibling check stays in order below.
-        const individualRuns = startLimited(
-          openIdeas.filter((row) => !heldPass.has(row.code.toUpperCase())),
-          (row) => row.code.toUpperCase(),
-          THINKING_PARALLEL_CHECKS,
-          (row) => runIdeaIndividualChecks({
-            skip: skipFor("idea"),
-            batch: true,
-            statement: row.statement,
-            parentStatement: focusedAngle.statement,
-            ancestors,
-            masterSubject,
-            mechanismKeys: row.canonicalSemantic.mechanismKeys,
-            carried: readIdeaGeneratePasses(row.canonicalSemantic.generatePasses),
-            ask: (prompt) => askThinkingLab(prompt, 0),
-            onStep: (checks) => publishIdeaChecklist(row.code, checks),
-          }),
-        );
-        for (const row of openIdeas) {
-          const codeKey = row.code.toUpperCase();
-          if (heldPass.has(codeKey)) continue;
-          const run = await individualRuns.get(codeKey)!;
-          if (!run.passed) {
-            const failedCheck = run.checks.find((check) => check.state === "fail");
-            const gate = failedCheck?.id ?? "sentenceForm";
-            const reason = failedCheck?.reason?.trim() || "This check could not be decided.";
-            failures.set(codeKey, { gate, reason });
-            lessons.push({ code: row.code, statement: row.statement, reason: `${gate}: ${reason}` });
-            continue;
-          }
-          const siblingRows = [
-            ...openIdeas
-              .filter((item) => passedCodes.has(item.code.toUpperCase()))
-              .map((item) => ({ code: item.code, statement: item.statement })),
-            { code: row.code, statement: row.statement },
-          ];
-          const sealed = lockedIdeas.map((item) => ({ code: item.code, statement: item.statement }));
-          let siblingPass = skipFor("idea").includes("siblingsDistinct") || siblingRows.length + sealed.length < 2;
-          if (!siblingPass) {
-            publishIdeaChecklist(row.code, beginIdeaSiblingCheck(run.checks));
-            const fingerprint = ideaSetFingerprint({
-              angleFingerprint: parentAngleFingerprint,
-              ideaFingerprints: [...siblingRows, ...sealed].map((item) =>
-                ideaFingerprint({ statement: item.statement, angleFingerprint: parentAngleFingerprint }),
-              ),
-            });
-            let judged = siblingCache.get(fingerprint) ?? null;
-            if (!judged) {
-              const siblingScript = await askThinkingLab(
-                buildIdeaSiblingPrompt({
-                  parentStatement: focusedAngle.statement,
-                  rows: siblingRows,
-                  sealed,
-                }),
-                0,
-              );
-              judged = parseIdeaSet(siblingScript, fingerprint);
-              if (judged) siblingCache.set(fingerprint, judged);
-            }
-            if (siblingRows.length === openIdeas.length && judged) {
-              siblingSet = judged;
-              judgedEveryOpenIdea = true;
-            }
-            siblingPass = Boolean(judged && ideaReplacementPasses(judged, row.code));
-            if (!siblingPass) {
-              const reason =
-                ideaFailureLessons({
-                  rows: [{ code: row.code, statement: row.statement }],
-                  items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
-                  siblingSet: judged,
-                })[0]?.reason ?? "Sibling audit failed this Idea.";
-              failures.set(codeKey, { gate: "siblingsDistinct", reason });
-              lessons.push({ code: row.code, statement: row.statement, reason: `siblingsDistinct: ${reason}` });
-              publishIdeaChecklist(row.code, finishIdeaSiblingCheck(run.checks, false, reason));
-              continue;
-            }
-          }
-          publishIdeaChecklist(row.code, finishIdeaSiblingCheck(run.checks, true, ""));
-          passedCodes.add(codeKey);
-        }
-        const items: IdeaAuditItem[] = openIdeas.flatMap((row): IdeaAuditItem[] => {
-          const codeKey = row.code.toUpperCase();
-          const statementFingerprint = ideaFingerprint({
-            statement: row.statement,
-            angleFingerprint: parentAngleFingerprint,
-          });
-          if (heldPass.has(codeKey)) {
-            const previous = ideaSet.data?.audit?.items.find((item) => item.code.toUpperCase() === codeKey);
-            return [
-              {
-                code: row.code,
-                verdict: "AUDIT_PASS" as const,
-                statementFingerprint: previous?.statementFingerprint ?? statementFingerprint,
-                ...(previous?.skipped ? { skipped: previous?.skipped } : {}),
-              },
-            ];
-          }
-          const failed = failures.get(codeKey);
-          if (failed) {
-            return [
-              {
-                code: row.code,
-                verdict: "AUDIT_FAIL" as const,
-                statementFingerprint,
-                gateFailure: failed,
-              },
-            ];
-          }
-          if (!passedCodes.has(codeKey)) return [];
-          return [{ code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("idea") }];
-        });
-        await ideaSet.save.mutateAsync({
-          schema: "thinking-lab/idea-set/v1",
-          repairCount: failures.size > 0 ? (ideaSet.data?.repairCount ?? 0) : 0,
-          siblingSet: judgedEveryOpenIdea ? siblingSet : storedIdeaSet,
-          audit: { fingerprint: ideaFingerprintNow, items },
-          downTop: null,
-          auditLessons: mergeIdeaAuditLessons(ideaSet.data?.auditLessons ?? [], lessons),
-          discovery: ideaSet.data?.discovery ?? null,
-        });
-        return;
-      }
-      if (ideaStage === "lock" && ideaLock.ok) {
-        await savePassedIdeaAudit();
-        await ideaSet.lock.mutateAsync({
-          angleFingerprint: parentAngleFingerprint,
-          ids: openIdeas.map((row) => row.id),
-        });
-      }
-    }, ideaStage ?? "audit", "Idea");
-
   const onLockIdeas = () =>
     run(async () => {
-      if (!focusedAngle || !parentAngleFingerprint || openIdeas.length === 0 || !ideaLock.ok) return;
-      if (!shownIdeaVerdicts.every((verdict) => verdict === "AUDIT_PASS")) return;
+      if (!focusedAngle || !parentAngleFingerprint || openIdeas.length === 0) return;
       await savePassedIdeaAudit();
       await ideaSet.lock.mutateAsync({
         angleFingerprint: parentAngleFingerprint,
         ids: openIdeas.map((row) => row.id),
       });
     }, "lock");
-
-  const onPickIdeaFixOffer = (failedCode: string, statement: string) =>
-    run(async () => {
-      if (!focusedAngle || !masters.organizationId) return;
-      const offer = ideaFixOffers.find(
-        (row) =>
-          row.angleId === focusedAngle.id &&
-          row.failedCode.toUpperCase() === failedCode.toUpperCase() &&
-          row.statement === statement,
-      );
-      const previous = openIdeas.find((row) => row.code.toUpperCase() === failedCode.toUpperCase());
-      if (!offer || !previous) return;
-      await labIdeas.replace.mutateAsync({
-        angleId: focusedAngle.id,
-        id: previous.id,
-        statement: offer.statement,
-        facts: offer.facts,
-        admission: "GENERATE_VALID",
-      });
-      const nextFingerprint = ideaFingerprint({
-        statement: offer.statement,
-        angleFingerprint: parentAngleFingerprint,
-      });
-      const items = (ideaSet.data?.audit?.items ?? []).map((item) =>
-        item.code.toUpperCase() === failedCode.toUpperCase()
-          ? { code: item.code, verdict: "AUDIT_PASS" as const, statementFingerprint: nextFingerprint }
-          : item,
-      );
-      if (!items.some((item) => item.code.toUpperCase() === failedCode.toUpperCase())) {
-        items.push({ code: previous.code, verdict: "AUDIT_PASS", statementFingerprint: nextFingerprint });
-      }
-      await ideaSet.save.mutateAsync({
-        schema: "thinking-lab/idea-set/v1",
-        repairCount: ideaSet.data?.repairCount ?? 0,
-        siblingSet: null,
-        audit: { fingerprint: "", items },
-        downTop: ideaSet.data?.downTop ?? null,
-        auditLessons: ideaSet.data?.auditLessons ?? [],
-        discovery: ideaSet.data?.discovery ?? null,
-      });
-      setIdeaFixOffers((current) =>
-        current.filter(
-          (row) => row.angleId !== focusedAngle.id || row.failedCode.toUpperCase() !== failedCode.toUpperCase(),
-        ),
-      );
-      setNotice(null);
-    }, "pick-idea-fix");
 
   const labelFor = async (code: string, statement: string) => {
     try {
@@ -3715,24 +2951,33 @@ export function ThinkingLabPage() {
     });
   };
 
-  const settleAgainstStored = async (
-    candidate: CrossIdeaCandidate,
-    peers: CrossIdeaPeer[],
-    historyAvailable: boolean,
-  ): Promise<IdeaValidation> => {
-    // The cross-branch comparison is K5; with K5 OFF it is not asked.
-    if (skipFor("idea").includes("K5")) return candidate.validation;
-    try {
-      const [settled] = await judgeCrossIdeas({
-        candidates: [candidate],
-        peers,
-        historyAvailable,
-        ask: (prompt) => askThinkingLab(prompt, 0),
-      });
-      return settled?.validation ?? applyCrossStatus(candidate.validation, "BELUM_TERVERIFIKASI");
-    } catch {
-      return applyCrossStatus(candidate.validation, "BELUM_TERVERIFIKASI");
-    }
+  /** Runs the switched-on Idea checks on one sentence, compared with the Ideas stored under this Territory. */
+  const checkIdeaSentence = async (input: {
+    angle: { id: string; statement: string };
+    statement: string;
+    exceptId?: string;
+    draft?: Partial<Pick<IdeaDraft, "title" | "concept" | "mechanism" | "value" | "mechanismKeys">>;
+    keptPasses?: IdeaValidation["criteria"];
+  }): Promise<IdeaValidation> => {
+    const history = await loadIdeaComparisonHistory(masters.organizationId as string, input.angle.id);
+    const others = history.ideas.filter((row) => row.id !== input.exceptId);
+    return runIdeaChecks({
+      statement: input.statement,
+      ...input.draft,
+      angle: input.angle.statement,
+      territory: focusedTerritory?.statement ?? "",
+      bigThought: focusedThought?.statement ?? "",
+      masterThought: masterStatement,
+      masterSubject,
+      ...ideaAudience,
+      failures: failureItemsFromIdeas(others, input.angle.id),
+      peers: peersFromIdeas(others),
+      historyAvailable: history.historyAvailable,
+      keptPasses: input.keptPasses,
+      skip: skipFor("idea"),
+      ask: (prompt) => askThinkingLab(prompt, 0),
+      onStep: (steps) => publishLiveIdea(input.angle.id, steps),
+    });
   };
 
   const onManualIdea = (statement: string) =>
@@ -3740,7 +2985,7 @@ export function ThinkingLabPage() {
       if (!focusedAngle || !focusedTerritory || !masters.organizationId || !parentFp) return null;
       const known = (labIdeas.data ?? []).filter((row) => row.angleId === focusedAngle.id);
       const active = known.filter(
-        (row) => (row.validation ?? classifyLegacyIdea(row.statement, focusedAngle.statement)).decision !== "DITOLAK",
+        (row) => (row.validation ?? uncheckedIdeaValidation(row.statement, focusedAngle.statement)).decision !== "DITOLAK",
       );
       if (active.length >= IDEA_ACTIVE_CAP) return t("thinkingLab.manual.cap", "This set is full.");
       if (known.some((row) => sameIdeaConcept(row.statement, statement))) {
@@ -3750,36 +2995,7 @@ export function ThinkingLabPage() {
         );
       }
       const code = nextIdeaCode(known.map((row) => row.code));
-      const loaded = await loadIdeaComparisonHistory(masters.organizationId, focusedAngle.id);
-      const failures = failureItemsFromIdeas(loaded.ideas, focusedAngle.id);
-      const peers = crossPeersFromIdeas(loaded.ideas);
-      const checked = await runIdeaPassChecks({
-        skip: skipFor("idea"),
-        batch: true,
-        statement,
-        angle: focusedAngle.statement,
-        territory: focusedTerritory.statement,
-        bigThought: focusedThought?.statement ?? "",
-        masterThought: masterStatement,
-        ...ideaAudience,
-        failures,
-        peers: peers.map((peer) => relevantFromPeer(peer, focusedAngle.id)),
-        historyAvailable: loaded.historyAvailable,
-        ask: (prompt) => askThinkingLab(prompt, 0),
-        onStep: (checks) => publishLiveIdea(focusedAngle.id, checks),
-      });
-      const validation = await settleAgainstStored(
-        {
-          code,
-          statement,
-          concept: checked.concept,
-          mechanism: checked.mechanism,
-          value: checked.value,
-          validation: checked,
-        },
-        peers,
-        loaded.historyAvailable,
-      );
+      const validation = await checkIdeaSentence({ angle: focusedAngle, statement });
       await labIdeas.insert.mutateAsync({
         angleId: focusedAngle.id,
         expectedTerritoryId: focusedAngle.territoryId,
@@ -3787,7 +3003,7 @@ export function ThinkingLabPage() {
         code,
         statement,
         sortOrder: known.reduce((max, row) => Math.max(max, row.sortOrder), 0) + 1,
-        facts: ideaFactsForValidation(code, statement, validation.decision, [], validation.title),
+        facts: ideaFacts({ code, statement }),
         admission: admissionForDecision(validation.decision),
         validation,
       });
@@ -3808,52 +3024,31 @@ export function ThinkingLabPage() {
           "This repeats an idea that is already saved. Locked ideas count, so write a different situation.",
         );
       }
-      const loaded = await loadIdeaComparisonHistory(masters.organizationId, idea.angleId);
-      const failures = failureItemsFromIdeas(loaded.ideas, idea.angleId);
-      const peers = crossPeersFromIdeas(loaded.ideas.filter((row) => row.id !== idea.id));
-      const checked = await runIdeaPassChecks({
-        skip: skipFor("idea"),
-        batch: true,
+      const validation = await checkIdeaSentence({
+        angle,
         statement,
-        angle: angle.statement,
-        territory: focusedTerritory?.statement ?? "",
-        bigThought: focusedThought?.statement ?? "",
-        masterThought: masterStatement,
-        ...ideaAudience,
-        failures,
-        peers: peers.map((peer) => relevantFromPeer(peer, idea.angleId)),
-        historyAvailable: loaded.historyAvailable,
-        ask: (prompt) => askThinkingLab(prompt, 0),
-        onStep: (checks) => publishLiveIdea(angle.id, checks),
+        exceptId: idea.id,
+        draft: { title: idea.validation?.title, mechanismKeys: idea.canonicalSemantic.mechanismKeys },
       });
-      const validation = await settleAgainstStored(
-        {
-          code: idea.code,
-          statement,
-          concept: checked.concept,
-          mechanism: checked.mechanism,
-          value: checked.value,
-          validation: checked,
-        },
-        peers,
-        loaded.historyAvailable,
-      );
       if (validation.decision !== "LOLOS") {
         return (
           validation.decisionReason ||
           t("thinkingLab.idea.editKept", "This wording did not pass, so the saved idea was left as it was.")
         );
       }
-      const facts = ideaFactsForValidation(idea.code, statement, validation.decision, idea.canonicalSemantic.mechanismKeys, validation.title);
       await labIdeas.replace.mutateAsync({
         angleId: idea.angleId,
         id,
         statement,
-        facts,
+        facts: ideaFacts({
+          code: idea.code,
+          statement,
+          subject: idea.canonicalSemantic.subject,
+          mechanismKeys: idea.canonicalSemantic.mechanismKeys,
+        }),
         admission: admissionForDecision(validation.decision),
         validation,
       });
-      if (idea.angleId === focusedAngle?.id) setIdeaChecklists({});
       return null;
     });
 
@@ -3868,35 +3063,20 @@ export function ThinkingLabPage() {
         const rows = (labIdeas.data ?? []).filter((row) => row.angleId === focusedAngle.id);
         const idea = rows.find((row) => row.id === id);
         if (!idea) return;
-        const current = idea.validation ?? classifyLegacyIdea(idea.statement, focusedAngle.statement);
+        const current = idea.validation ?? uncheckedIdeaValidation(idea.statement, focusedAngle.statement);
         const repairsUsed = Math.max(revisionCount(idea.id, rows), current.auditHistory.length);
         if (!canReviseIdea(idea, rows, current.decision, repairsUsed)) {
-          setNotice(
-            t("thinkingLab.idea.revisionClosed", "This idea stays rejected. It has already been revised three times."),
-          );
-          toast.error(t("thinkingLab.idea.revisionClosed", "This idea stays rejected. It has already been revised three times."));
+          const closed = t("thinkingLab.idea.revisionClosed", "This idea stays rejected. It has already been revised three times.");
+          setNotice(closed);
+          toast.error(closed);
           return;
         }
-        const loaded = await loadIdeaComparisonHistory(masters.organizationId, focusedAngle.id);
-        const ownStatement = idea.statement.trim().toLowerCase();
-        const failures = failureItemsFromIdeas(loaded.ideas, focusedAngle.id).filter(
-          (item) => item.statement.trim().toLowerCase() !== ownStatement,
-        );
-        const peers = crossPeersFromIdeas(loaded.ideas.filter((row) => row.id !== idea.id)).filter(
-          (peer) => peer.validation.decision === "LOLOS",
-        );
-        const failed = current.criteria
-          .filter((criterion) => criterion.status === "FAIL" || (criterion.status === "BELUM_TERVERIFIKASI" && Boolean(lessonSentence(criterion))))
-          .map((criterion) => ({ id: criterion.id, reason: lessonSentence(criterion) || criterion.reason }));
-        const passed = current.criteria
-          .filter((criterion) => criterion.status === "PASS")
-          .map((criterion) => ({ id: criterion.id, reason: lessonSentence(criterion) || criterion.reason }));
         const script = await askThinkingLab(
           buildIdeaRevisionPrompt({
             angle: focusedAngle.statement,
             statement: idea.statement,
-            failed,
-            passed,
+            failed: current.criteria.filter((row) => row.status !== "PASS" && (row.status === "FAIL" || row.reason)),
+            passed: current.criteria.filter((row) => row.status === "PASS"),
             revision: repairsUsed + 1,
           }),
           0.2,
@@ -3906,66 +3086,36 @@ export function ThinkingLabPage() {
           toast.error(t("thinkingLab.idea.reviseEmpty", "The revision did not repair this card."));
           return;
         }
-        const checked = await runIdeaPassChecks({
-          skip: skipFor("idea"),
-          batch: true,
-          statement: draft.statement,
-          title: draft.subject || current.title,
+        const revised: IdeaDraft = {
+          ...draft,
+          title: draft.title || current.title,
           concept: draft.concept || current.concept,
           mechanism: draft.mechanism || current.mechanism,
           value: draft.value || current.value,
-          angle: focusedAngle.statement,
-          territory: focusedTerritory?.statement ?? "",
-          bigThought: focusedThought?.statement ?? "",
-          masterThought: masterStatement,
-          ...ideaAudience,
-          failures,
-          peers: peers.map((peer) => relevantFromPeer(peer, focusedAngle.id)),
-          historyAvailable: loaded.historyAvailable,
-          keptPasses: current.criteria.filter((criterion) => criterion.status === "PASS"),
-          ask: (prompt) => askThinkingLab(prompt, 0),
-          onStep: (checks) => publishLiveIdea(focusedAngle.id, checks),
+          mechanismKeys: draft.mechanismKeys.length > 0 ? draft.mechanismKeys : idea.canonicalSemantic.mechanismKeys,
+        };
+        const validation = await checkIdeaSentence({
+          angle: focusedAngle,
+          statement: revised.statement,
+          exceptId: idea.id,
+          draft: revised,
+          keptPasses: current.criteria.filter((row) => row.status === "PASS"),
         });
-        const validation = await settleAgainstStored(
-          {
-            code: idea.code,
-            statement: draft.statement,
-            concept: draft.concept || checked.concept,
-            mechanism: draft.mechanism || checked.mechanism,
-            value: draft.value || checked.value,
-            validation: checked,
-          },
-          peers,
-          loaded.historyAvailable,
-        );
-        const facts = ideaFactsForValidation(
-          idea.code,
-          draft.statement,
-          validation.decision,
-          draft.mechanismKeys,
-          draft.subject || validation.title,
-        );
+        const facts = ideaFacts({ code: idea.code, statement: revised.statement, subject: revised.title, mechanismKeys: revised.mechanismKeys });
+        const admission = admissionForDecision(validation.decision);
         await labIdeas.replace.mutateAsync({
           angleId: focusedAngle.id,
           id: idea.id,
-          statement: draft.statement,
+          statement: revised.statement,
           facts,
-          admission: admissionForDecision(validation.decision),
+          admission,
           validation,
         });
         queryClient.setQueriesData<LabIdea[]>(
           { queryKey: ["thinking-lab-ideas", masters.organizationId] },
           (cached) =>
             cached?.map((row) =>
-              row.id === idea.id
-                ? {
-                    ...row,
-                    statement: draft.statement,
-                    admission: admissionForDecision(validation.decision),
-                    validation,
-                    canonicalSemantic: facts,
-                  }
-                : row,
+              row.id === idea.id ? { ...row, statement: revised.statement, admission, validation, canonicalSemantic: facts } : row,
             ) ?? cached,
         );
         setIdeaRevisionTarget({ nonce: Date.now(), decision: validation.decision });
@@ -8507,7 +7657,7 @@ export function ThinkingLabPage() {
                                     const ideas = (labIdeas.data ?? []).filter(
                                       (idea) =>
                                         idea.angleId === angle.id &&
-                                        (idea.validation ?? classifyLegacyIdea(idea.statement, angle.statement)).decision ===
+                                        (idea.validation ?? uncheckedIdeaValidation(idea.statement, angle.statement)).decision ===
                                           "LOLOS",
                                     );
                                     const territoryName =
@@ -8550,7 +7700,7 @@ export function ThinkingLabPage() {
                                                 code: idea.code,
                                                 statement: idea.statement,
                                                 subject: idea.canonicalSemantic.subject,
-                                                recommended: idea.canonicalSemantic.causeLock === "LOCKED",
+                                                recommended: idea.validation?.criteria.some((row) => row.id === "causeLock" && row.status === "PASS") ?? false,
                                                 childCount: cards.length > 0 ? cards.length : (executionCounts[idea.id] ?? 0),
                                                 pillars: open
                                                   ? cards.map((card) => ({
@@ -8992,11 +8142,9 @@ export function ThinkingLabPage() {
                                           value: validation.value,
                                           mechanismKeys: row.canonicalSemantic.mechanismKeys,
                                           editable: row.status === "candidate" && validation.decision === "LOLOS",
-                                          verdict: auditVerdictForValidation(validation) === "AUDIT_PASS" ? "AUDIT_PASS" : null,
+                                          verdict: validation.decision === "LOLOS" ? "AUDIT_PASS" : null,
                                           checklist: checksFromValidation(validation),
-                                          showChecklistPending: false,
                                           canRevise: canReviseIdea(row, angleIdeaRows, validation.decision),
-                                          checklistNote: ideaChecklists[row.code.toUpperCase()]?.note,
                                           unchecked: savedUnchecked(ideaSet.data?.audit?.items, row.code),
                                           parentChanged: savedParentChanged(ideaSet.data?.audit?.items, row.code),
                                         };
@@ -9010,41 +8158,9 @@ export function ThinkingLabPage() {
                                 }
                                 ideaRevisionTarget={focus.kind === "angle" ? ideaRevisionTarget : null}
                                 onReviseIdea={focus.kind === "angle" ? onReviseIdea : undefined}
-                                ideaStage={focus.kind === "angle" && !ideaSetLocked ? ideaStage : null}
-                                onIdeaStage={() => void onIdeaStage()}
                                 onLockIdeas={
-                                  focus.kind === "angle" && !ideaSetLocked && ideaLock.ok
+                                  focus.kind === "angle" && !ideaSetLocked && openIdeas.length > 0
                                     ? () => void onLockIdeas()
-                                    : undefined
-                                }
-                                onFixIdea={
-                                  focus.kind === "angle" && !ideaSetLocked ? onFixIdea : undefined
-                                }
-                                fixingIdeaCodes={focus.kind === "angle" && !ideaSetLocked ? [...fixingIdeaCodes] : undefined}
-                                ideaNotes={
-                                  focus.kind === "angle" && !ideaSetLocked
-                                    ? ideaNotes.filter((note) => {
-                                        const openCodes = new Set(openIdeas.map((row) => row.code.toUpperCase()));
-                                        const pair = note.match(/^([A-Za-z0-9]+)\s·\s([A-Za-z0-9]+):/);
-                                        if (pair) {
-                                          return openCodes.has(pair[1].toUpperCase()) || openCodes.has(pair[2].toUpperCase());
-                                        }
-                                        const single = note.match(/^([A-Za-z0-9]+):/);
-                                        if (single) return openCodes.has(single[1].toUpperCase());
-                                        return true;
-                                      })
-                                    : undefined
-                                }
-                                ideaFixOffers={
-                                  focus.kind === "angle" && !ideaSetLocked
-                                    ? ideaFixOffers
-                                        .filter((offer) => offer.angleId === focusedAngle?.id)
-                                        .map((offer) => ({ failedCode: offer.failedCode, statement: offer.statement }))
-                                    : undefined
-                                }
-                                onPickIdeaFixOffer={
-                                  focus.kind === "angle" && !ideaSetLocked
-                                    ? (code, statement) => void onPickIdeaFixOffer(code, statement)
                                     : undefined
                                 }
                                 ideaGenerateChecklist={

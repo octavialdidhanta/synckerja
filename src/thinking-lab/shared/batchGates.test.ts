@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runBigThoughtOpenChecks, runGenerateAdmissionChecks } from "@/thinking-lab/big-thought/passChecks";
 import { runTerritoryIndividualChecks } from "@/thinking-lab/territory/passChecklist";
 import { runAngleIndividualChecks } from "@/thinking-lab/angle/passChecklist";
-import { runIdeaIndividualChecks } from "@/thinking-lab/idea/passChecklist";
+import { runIdeaChecks } from "@/thinking-lab/idea/check/run";
 import { askBatchGates, buildBatchGatePrompt, isUndecided, parseBatchGates } from "@/thinking-lab/shared/batchGates";
 
 describe("batched pass checks", () => {
@@ -123,16 +123,20 @@ describe("runners with batch on", () => {
 
   it("checks an Idea in one call", async () => {
     const model = batchModel();
-    const result = await runIdeaIndividualChecks({
-      batch: true,
+    const result = await runIdeaChecks({
       statement: "Kita ajak dua orang blind test sate kambing muda dan steak, sehingga rasa yang diingat terlihat tanpa nama tempat.",
-      parentStatement: "Orang bayar mahal buat suasana, padahal yang diingat rasanya.",
-      masterSubject: "sate kambing muda Sate Sultan PIK",
+      angle: "Orang bayar mahal buat suasana, padahal yang diingat rasanya.",
+      territory: "Makan malam di luar",
+      bigThought: "Rasa yang diingat datang dari dagingnya.",
+      masterThought: "Rasa daging lebih menentukan daripada suasana tempat.",
+      masterSubject: "sate kambing muda",
       mechanismKeys: [{ otherExplanation: "lapar", close: "dua-duanya dicicipi saat sama-sama kenyang" }],
+      failures: [],
+      peers: [{ code: "ID01", statement: "Kita bandingkan dua bumbu sehingga beda rasanya terasa.", mechanism: "" }],
+      historyAvailable: true,
       ask: model.ask,
-      onStep: () => {},
     });
-    expect(result.passed).toBe(true);
+    expect(result.decision).toBe("LOLOS");
     expect(model.count()).toBe(1);
   });
 });

@@ -807,9 +807,9 @@ describe("LabNodeInspector territory entry", () => {
             canRevise: true,
             checklist: [
               {
-                id: "K5",
+                id: "distinct",
                 state: "fail",
-                reason: "Tidak ada bukti perbandingan dengan ide yang sudah lolos.",
+                reason: "Sama dengan ID01: penonton tetap membandingkan dua piring.",
               },
             ],
           },
@@ -817,7 +817,7 @@ describe("LabNodeInspector territory entry", () => {
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Rejected" }));
-    const label = screen.getByText("Meaningfully different from passed, rejected, and unverified ideas");
+    const label = screen.getByText("Differs from every other passed Idea");
     expect(label.className).toContain("text-destructive");
     fireEvent.click(screen.getByRole("button", { name: "Revise" }));
     expect(onReviseIdea).toHaveBeenCalledWith("i2");
@@ -834,7 +834,6 @@ describe("LabNodeInspector territory entry", () => {
           { id: "i4", code: "ID04", statement: "Mantan profesional menulis buku", verdict: "AUDIT_PASS", editable: true },
         ]}
         onEditIdea={vi.fn(async () => null)}
-        onFixIdea={vi.fn()}
         onDeleteIdea={onDeleteIdea}
       />,
     );
@@ -843,78 +842,18 @@ describe("LabNodeInspector territory entry", () => {
     expect(onDeleteIdea).toHaveBeenCalledWith("i4");
   });
 
-  it("puts a Fix button on each failed Idea card", () => {
-    const onFixIdea = vi.fn();
-    render(
-      <LabNodeInspector
-        kind="angle"
-        code="AN01"
-        statement="Waktu kerja bunga"
-        ideas={[
-          { id: "i2", code: "ID02", statement: "Mengundang pensiunan menjadi mentor", verdict: "AUDIT_FAIL" },
-          { id: "i3", code: "ID03", statement: "Membangun kebun komunitas", verdict: "AUDIT_FAIL" },
-          { id: "i4", code: "ID04", statement: "Mantan profesional menulis buku", verdict: "AUDIT_PASS" },
-        ]}
-        ideaStage="fix"
-        onIdeaStage={vi.fn()}
-        onFixIdea={onFixIdea}
-      />,
-    );
-    expect(screen.getAllByRole("button", { name: /More actions ID0/ })).toHaveLength(2);
-    openActionMenu(/More actions ID02/);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
-    expect(onFixIdea).toHaveBeenCalledWith("ID02");
-  });
-
-  it("keeps the other Fix buttons clickable while one Idea fix is running", () => {
-    const onFixIdea = vi.fn();
+  it("locks the open Ideas from the button above the list", () => {
+    const onLockIdeas = vi.fn();
     render(
       <LabNodeInspector
         kind="angle"
         statement="Waktu kerja bunga"
-        ideas={[
-          { id: "i2", code: "ID02", statement: "Mengundang pensiunan menjadi mentor", verdict: "AUDIT_FAIL" },
-          { id: "i5", code: "ID05", statement: "Mahasiswa menolak berinvestasi", verdict: "AUDIT_FAIL" },
-        ]}
-        ideaStage="fix"
-        onFixIdea={onFixIdea}
-        fixingIdeaCodes={["ID05"]}
-        pendingAction="fix-idea:ID05"
+        ideas={[{ id: "i4", code: "ID04", statement: "Mantan profesional menulis buku", verdict: "AUDIT_PASS" }]}
+        onLockIdeas={onLockIdeas}
       />,
     );
-    const menus = screen.getAllByRole("button", { name: /More actions ID0/ });
-    const running = menus.find((button) => button.getAttribute("aria-busy") === "true");
-    const waiting = menus.find((button) => button.getAttribute("aria-busy") !== "true");
-    expect(running).toBeTruthy();
-    expect((running as HTMLButtonElement).disabled).toBe(true);
-    expect((waiting as HTMLButtonElement).disabled).toBe(false);
-    openActionMenu(/More actions ID02/);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
-    expect(onFixIdea).toHaveBeenCalledWith("ID02");
-  });
-
-  it("keeps each idea note on its card until the arrow expands it", () => {
-    render(
-      <LabNodeInspector
-        kind="angle"
-        statement="Waktu kerja bunga"
-        ideas={[
-          { id: "i1", code: "ID01", statement: "Pengembangan keterampilan analisis" },
-          { id: "i2", code: "ID02", statement: "Pemahaman pasar investasi dini" },
-        ]}
-        ideaNotes={[
-          "ID01: Big Thought: kekuatan bunga majemuk memiliki lebih banyak waktu untuk bekerja.",
-          "ID02: Big Thought: ide ini mengunci penjelasan lain.",
-          "Fix already ran once. This set stays open until the ideas pass.",
-        ]}
-      />,
-    );
-    expect(screen.queryByText(/kekuatan bunga majemuk/)).toBeNull();
-    expect(screen.queryByText(/mengunci penjelasan lain/)).toBeNull();
-    expect(screen.getByText("Fix already ran once. This set stays open until the ideas pass.")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Note ID01" }));
-    expect(screen.getByText(/kekuatan bunga majemuk/)).toBeTruthy();
-    expect(screen.queryByText(/mengunci penjelasan lain/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Lock" }));
+    expect(onLockIdeas).toHaveBeenCalledTimes(1);
   });
 
   it("fixes every failed Angle from the territory menu", () => {
@@ -976,18 +915,18 @@ describe("LabNodeInspector territory entry", () => {
             statement: "Kita bandingkan harga per ons sehingga hematnya terlihat",
             verdict: "AUDIT_FAIL",
             checklist: [
-              { id: "sentenceForm", state: "pass" },
-              { id: "stakeHolds", state: "fail", reason: "Masih berdiri tanpa Angle." },
-              { id: "mechanismShape", state: "pending" },
+              { id: "proposal", state: "pass" },
+              { id: "mechanism", state: "fail", reason: "Ini masih pengamatan." },
+              { id: "result", state: "pending" },
             ],
           },
         ]}
       />,
     );
-    expect(screen.getByText("Names what is made, invited, shown, or created, then what becomes true")).toBeTruthy();
-    expect(screen.getByText("Still depends on the stake of the Angle and its ancestors")).toBeTruthy();
-    expect(screen.getByText("Masih berdiri tanpa Angle.")).toBeTruthy();
-    expect(screen.queryByText("A mechanism, not an observation, area name, reason, or finished form")).toBeNull();
+    expect(screen.getByText("One proposal: We … so that …, naming what is made and what becomes true")).toBeTruthy();
+    expect(screen.getByText("A clear mechanism: comparison, experiment, demonstration, or situation")).toBeTruthy();
+    expect(screen.getByText("Ini masih pengamatan.")).toBeTruthy();
+    expect(screen.queryByText("What becomes true follows from the mechanism, not explained in words")).toBeNull();
   });
 
   it("hides the territory Fix when every Angle passed", () => {

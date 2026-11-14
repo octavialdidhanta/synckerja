@@ -6,7 +6,7 @@ import {
   ideaFingerprint,
   territoryFingerprint,
 } from "../../../../src/thinking-lab/shared/fingerprint";
-import type { IdeaMechanismKey } from "../../../../src/thinking-lab/idea/types";
+import type { IdeaMechanismKey } from "../../../../src/thinking-lab/idea/facts";
 import { loadMasterCatalog, type JudgeConfig } from "./thinkingLab";
 import { addThinkingAngle } from "./thinkingAngle";
 import { addThinkingIdea } from "./thinkingIdea";

@@ -1,4 +1,4 @@
-import { angleFingerprint, fingerprintsMatch, territoryFingerprint } from "../shared/fingerprint";
+import { angleFingerprint, fingerprintsMatch } from "../shared/fingerprint";
 import type { AngleParentDenial } from "../angle/eligibility";
 import { evaluateAngleParent } from "../angle/eligibility";
 
@@ -47,14 +47,4 @@ export function canShowGenerateIdea(
   if (!angle || angle.status !== "locked" || !parentTerritoryFingerprint?.trim()) return false;
   const current = angleFingerprint({ statement: angle.statement, territoryFingerprint: parentTerritoryFingerprint });
   return fingerprintsMatch(angle.semanticFingerprint, current);
-}
-
-export function currentTerritoryFingerprintForIdea(input: {
-  territoryStatement: string;
-  bigThoughtFingerprint: string;
-}): string {
-  return territoryFingerprint({
-    statement: input.territoryStatement,
-    bigThoughtFingerprint: input.bigThoughtFingerprint,
-  });
 }

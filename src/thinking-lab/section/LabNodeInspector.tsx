@@ -93,10 +93,8 @@ type LabNodeInspectorProps = {
     concept?: string;
     mechanism?: string;
     value?: string;
-    showChecklistPending?: boolean;
     canRevise?: boolean;
     checklist?: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
-    checklistNote?: string;
     mechanismKeys?: Array<{ otherExplanation: string; close: string }>;
     unchecked?: boolean;
     parentChanged?: boolean;
@@ -104,15 +102,8 @@ type LabNodeInspectorProps = {
   ideaHistory?: { passed: number; rejected: number; unverified: number; topFailed: string | null } | null;
   ideaRevisionTarget?: { nonce: number; decision: "LOLOS" | "DITOLAK" | "BELUM_TERVERIFIKASI" } | null;
   onReviseIdea?: (id: string) => void;
-  ideaStage?: "fix" | "audit" | "lock" | null;
-  onIdeaStage?: () => void;
   onLockIdeas?: () => void;
-  onFixIdea?: (code: string) => void;
   onDeleteIdea?: (id: string) => void;
-  fixingIdeaCodes?: readonly string[];
-  ideaNotes?: string[];
-  ideaFixOffers?: Array<{ failedCode: string; statement: string }>;
-  onPickIdeaFixOffer?: (failedCode: string, statement: string) => void;
   ideaGenerateChecklist?: {
     checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
     report: { gate: string; phase: "checking" | "checked"; outcome: "pass" | "fail" | "unverified" } | null;
@@ -232,21 +223,13 @@ const ANGLE_PASS_CHECK_LABELS: Record<string, string> = {
 };
 
 const IDEA_PASS_CHECK_LABELS: Record<string, string> = {
-  sentenceForm: "Names what is made, invited, shown, or created, then what becomes true",
+  proposal: "One proposal: We … so that …, naming what is made and what becomes true",
+  mechanism: "A clear mechanism: comparison, experiment, demonstration, or situation",
+  result: "What becomes true follows from the mechanism, not explained in words",
   stakeHolds: "Still depends on the stake of the Angle and its ancestors",
-  mechanismShape: "A mechanism, not an observation, area name, reason, or finished form",
-  vehicle: "A comparison, experiment, demonstration, or situation",
-  recognizable: "The mechanism is recognizable and its boundary is clear",
-  situationFelt: "The reason is felt through the mechanism, not explained in words",
-  causeLock: "The keys close the other explanations",
-  siblingsDistinct: "Does not overlap a sibling Idea",
-  K1: "A specific proposal: We … so that …",
-  K2: "Ordinary-life action (retired, always passes)",
-  K3: "The mechanism can produce the stated value",
-  K4: "A beneficiary, a need, and a benefit linked to the mechanism",
-  K5: "Meaningfully different from passed, rejected, and unverified ideas",
-  K6: "Shows the stored Master Thought, Big Thought, and Territory, and how each supports the idea",
-  K7: "Fits the stored audience and can be adopted in their current life",
+  causeLock: "The Master Thought subject is the only plausible cause",
+  watchable: "The stored audience can watch it or join it",
+  distinct: "Differs from every other passed Idea",
 };
 
 function checkRowFailed(
@@ -554,15 +537,8 @@ export function LabNodeInspector({
   ideaHistory = null,
   ideaRevisionTarget = null,
   onReviseIdea,
-  ideaStage = null,
-  onIdeaStage,
   onLockIdeas,
-  onFixIdea,
   onDeleteIdea,
-  fixingIdeaCodes,
-  ideaNotes,
-  ideaFixOffers,
-  onPickIdeaFixOffer,
   ideaGenerateChecklist = null,
   angles,
   angleStage = null,
@@ -623,7 +599,6 @@ export function LabNodeInspector({
   const [angleEditToken, setAngleEditToken] = useState<Record<string, number>>({});
   const [ideaEditToken, setIdeaEditToken] = useState<Record<string, number>>({});
   const [ideaListFilter, setIdeaListFilter] = useState<"LOLOS" | "DITOLAK">("LOLOS");
-  const [openIdeaNotes, setOpenIdeaNotes] = useState<Record<string, boolean>>({});
   const [openAngleNotes, setOpenAngleNotes] = useState<Record<string, boolean>>({});
   const [showWriteIdea, setShowWriteIdea] = useState(false);
   const [statementEditToken, setStatementEditToken] = useState(0);
@@ -644,15 +619,6 @@ export function LabNodeInspector({
   });
   const showWriteIdeaAction = Boolean(kind === "angle" && manualAdd && !childGenerateRunning);
   const showGenerateIdeaAction = Boolean(kind === "angle" && ideaReady && onGenerateIdea && angleId && !manualRunning);
-  const showIdeaStageAction = Boolean(
-    kind === "angle" && ideaStage && onIdeaStage && !(ideaStage === "fix" && onFixIdea),
-  );
-  const ideaActionLabel =
-    ideaStage === "audit"
-      ? t("thinkingLab.action.audit", "Audit")
-      : ideaStage === "fix"
-        ? t("thinkingLab.action.fix", "Fix")
-        : t("thinkingLab.action.lock", "Lock");
   const showAngleMenu =
     showWriteIdeaAction || showGenerateIdeaAction || Boolean(kind === "angle" && (onLockIdeas || onDelete));
   const showTerritoryStageAction = Boolean(
@@ -1131,16 +1097,16 @@ export function LabNodeInspector({
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("thinkingLab.idea.list", "Ideas")}</p>
-            {showIdeaStageAction ? (
+            {onLockIdeas ? (
               <Button
                 type="button"
                 size="sm"
-                onClick={onIdeaStage}
+                onClick={onLockIdeas}
                 disabled={Boolean(pendingAction)}
-                aria-busy={pendingAction === ideaStage}
+                aria-busy={pendingAction === "lock"}
               >
-                {pendingAction === ideaStage ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                {ideaActionLabel}
+                {pendingAction === "lock" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                {t("thinkingLab.action.lock", "Lock")}
               </Button>
             ) : null}
           </div>
@@ -1179,7 +1145,9 @@ export function LabNodeInspector({
                     {
                       passed: ideaHistory.passed,
                       rejected: ideaHistory.rejected + ideaHistory.unverified,
-                      criterion: ideaHistory.topFailed ?? t("thinkingLab.idea.historyNone", "none"),
+                      criterion: ideaHistory.topFailed
+                        ? t(`thinkingLab.idea.pass.${ideaHistory.topFailed}`, IDEA_PASS_CHECK_LABELS[ideaHistory.topFailed] ?? ideaHistory.topFailed)
+                        : t("thinkingLab.idea.historyNone", "none"),
                     },
                   )}
                 </p>
@@ -1191,20 +1159,8 @@ export function LabNodeInspector({
           ) : null}
           <ul className="space-y-2">
             {shownIdeas.map((idea) => {
-              const ideaFixing =
-                (fixingIdeaCodes ?? []).some((code) => code.toUpperCase() === idea.code.toUpperCase()) ||
-                pendingAction === `fix-idea:${idea.code}`;
-              const otherWorkRunning = Boolean(pendingAction) && !pendingAction.startsWith("fix-idea:");
-              const ideaNeedsFix =
-                !idea.decision &&
-                (idea.verdict?.includes("FAIL") ||
-                  idea.verdict === "UNRESOLVED" ||
-                  (idea.checklist ?? []).some((check) => check.state === "fail"));
-              const showIdeaMenu =
-                Boolean(idea.editable && onEditIdea) ||
-                (ideaNeedsFix && Boolean(onFixIdea)) ||
-                Boolean(onDeleteIdea);
-              const cardNotes = ideaNotesForCode(ideaNotes ?? [], idea.code);
+              const ideaBusy = Boolean(pendingAction);
+              const showIdeaMenu = Boolean(idea.editable && onEditIdea) || Boolean(onDeleteIdea);
               return (
               <li key={idea.id} className="rounded-lg border border-border bg-background px-3 py-3">
                 <div className="mb-3 flex items-center gap-1.5">
@@ -1221,21 +1177,16 @@ export function LabNodeInspector({
                           variant="ghost"
                           className="ml-auto h-6 w-6 shrink-0 text-muted-foreground"
                           aria-label={`${t("thinkingLab.action.more", "More actions")} ${idea.code}`}
-                          aria-busy={ideaFixing || undefined}
-                          disabled={ideaFixing || otherWorkRunning}
+                          disabled={ideaBusy}
                         >
-                          {ideaFixing ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                          ) : (
-                            <MoreVertical className="h-3.5 w-3.5" />
-                          )}
+                          <MoreVertical className="h-3.5 w-3.5" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="min-w-[11rem]">
                         {idea.editable && onEditIdea ? (
                           <DropdownMenuItem
                             className="cursor-pointer gap-2"
-                            disabled={ideaFixing || otherWorkRunning}
+                            disabled={ideaBusy}
                             onSelect={() =>
                               setIdeaEditToken((current) => ({
                                 ...current,
@@ -1247,21 +1198,10 @@ export function LabNodeInspector({
                             {t("thinkingLab.manual.edit", "Edit")}
                           </DropdownMenuItem>
                         ) : null}
-                        {ideaNeedsFix && onFixIdea ? (
-                          <DropdownMenuItem
-                            className="cursor-pointer gap-2"
-                            disabled={ideaFixing || otherWorkRunning}
-                            aria-busy={ideaFixing}
-                            onSelect={() => onFixIdea(idea.code)}
-                          >
-                            <Wrench className="h-3.5 w-3.5" />
-                            {t("thinkingLab.action.fix", "Fix")}
-                          </DropdownMenuItem>
-                        ) : null}
                         {onDeleteIdea ? (
                           <DropdownMenuItem
                             className="cursor-pointer gap-2 text-destructive focus:text-destructive"
-                            disabled={ideaFixing || otherWorkRunning}
+                            disabled={ideaBusy}
                             onSelect={() => onDeleteIdea(idea.id)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1306,15 +1246,7 @@ export function LabNodeInspector({
                     {t(`thinkingLab.idea.decision.${idea.decision}`, idea.decision === "DITOLAK" ? "Rejected" : "Not verified yet")}
                   </p>
                 ) : null}
-                <TerritoryPassChecklist
-                  checks={idea.checklist}
-                  note={idea.checklistNote}
-                  labelPrefix="thinkingLab.idea.pass"
-                  showPending={idea.showChecklistPending}
-                  onFix={ideaNeedsFix && onFixIdea ? () => onFixIdea(idea.code) : undefined}
-                  fixing={ideaFixing}
-                  blocked={otherWorkRunning}
-                />
+                <TerritoryPassChecklist checks={idea.checklist} labelPrefix="thinkingLab.idea.pass" />
                 {idea.canRevise && onReviseIdea ? (
                   <Button
                     type="button"
@@ -1346,82 +1278,11 @@ export function LabNodeInspector({
                     ))}
                   </div>
                 ) : null}
-                {cardNotes.length > 0 ? (
-                  ideaNeedsFix ? (
-                    <div className="mt-2 space-y-1">
-                      {cardNotes.map((note) => (
-                        <p key={note} className="text-sm leading-relaxed text-muted-foreground">
-                          {note}
-                        </p>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-2">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground"
-                        aria-expanded={Boolean(openIdeaNotes[idea.id])}
-                        aria-label={`${t("thinkingLab.idea.note", "Note")} ${idea.code}`}
-                        onClick={() =>
-                          setOpenIdeaNotes((current) => ({ ...current, [idea.id]: !current[idea.id] }))
-                        }
-                      >
-                        <ChevronRight
-                          className={cn("h-3.5 w-3.5 transition-transform", openIdeaNotes[idea.id] && "rotate-90")}
-                          aria-hidden
-                        />
-                        {t("thinkingLab.idea.note", "Note")}
-                      </button>
-                      {openIdeaNotes[idea.id] ? (
-                        <div className="mt-1 space-y-1 pl-5">
-                          {cardNotes.map((note) => (
-                            <p key={note} className="text-sm leading-relaxed text-muted-foreground">
-                              {note}
-                            </p>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  )
-                ) : null}
-                {onPickIdeaFixOffer
-                  ? (ideaFixOffers ?? [])
-                      .filter((offer) => offer.failedCode.toUpperCase() === idea.code.toUpperCase())
-                      .map((offer) => (
-                        <div key={offer.statement} className="mt-2 rounded-md border border-border p-2">
-                          <p className="text-xs font-medium text-muted-foreground">
-                            {t("thinkingLab.idea.fixOffer", "Recommended repair · AUDIT_PASS")}
-                          </p>
-                          <p className="mt-1 text-sm text-foreground">{offer.statement}</p>
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="mt-2"
-                            disabled={Boolean(pendingAction)}
-                            onClick={() => onPickIdeaFixOffer(idea.code, offer.statement)}
-                          >
-                            {pendingAction === "pick-idea-fix" ? (
-                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                            ) : null}
-                            {t("thinkingLab.fix.pick", "Use this repair")}
-                          </Button>
-                        </div>
-                      ))
-                  : null}
                 </div>
               </li>
               );
             })}
           </ul>
-          {ideaNotesWithoutCard(ideaNotes ?? [], (ideas ?? []).map((idea) => idea.code)).length > 0 ? (
-            <ul className="space-y-1 pt-2">
-              {ideaNotesWithoutCard(ideaNotes ?? [], (ideas ?? []).map((idea) => idea.code)).map((note) => (
-                <li key={note} className="text-sm text-muted-foreground">
-                  {note}
-                </li>
-              ))}
-            </ul>
-          ) : null}
         </div>
       ) : null}
       {kind === "territory" && angleGenerateChecklist ? (

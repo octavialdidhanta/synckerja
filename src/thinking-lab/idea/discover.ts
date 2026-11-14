@@ -1,4 +1,4 @@
-import type { IdeaDecision, IdeaDiscovery } from "./setAudit";
+import type { IdeaDecision, IdeaDiscovery } from "./ideaSet";
 import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
 
 export type IdeaDiscoveryQuestion = {

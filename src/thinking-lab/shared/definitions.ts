@@ -4,8 +4,8 @@
 import { bigThoughtGateRules } from "../big-thought/passChecks";
 import { territoryGateRules } from "../territory/passChecklist";
 import { angleGateRules } from "../angle/passChecklist";
-import { ideaGateRules } from "../idea/passChecklist";
-import { CRITERION_RULE } from "../idea/validation";
+import { IDEA_CHECK_RULES } from "../idea/check/rules";
+import type { IdeaCheckId } from "../idea/check/ids";
 import { MASTER_CHECK_RULES, type MasterCheckId } from "../master-thought/semantic";
 import { EXECUTION_PASS_CHECK_IDS } from "../execution/passChecklist";
 import { CHECK_REGISTRY, checkEnabled, type CheckLevel, type CheckSettings } from "./checkSettings";
@@ -35,8 +35,8 @@ export const NODE_DEFINITIONS = {
   },
   idea: {
     label: "Idea",
-    body: "Idea merancang mekanisme: konsep konkret yang membuat Angle terjadi, terlihat, atau terbukti, lewat demonstrasi, eksperimen, perbandingan, atau situasi.",
-    note: "Bentuknya satu kalimat: kita bikin, ajak, tunjukkan, atau ciptakan sesuatu sehingga Angle terbukti. Kunci mekanisme ditulis terpisah di bawah kalimat. Pillar dipilih nanti.",
+    body: "Idea merancang mekanisme: konsep konkret yang membuat Angle terjadi, terlihat, atau terbukti, lewat demonstrasi, eksperimen, perbandingan, atau situasi. Situasi boleh berlanjut: akibat yang baru terlihat seiring waktu, dengan subjek Master Thought sebagai titik baliknya.",
+    note: "Bentuknya satu kalimat: kita bikin, ajak, tunjukkan, atau ciptakan sesuatu sehingga Angle terbukti. Kunci mekanisme ditulis terpisah di bawah kalimat. Cerita jadi dengan alur dan dialog bukan Idea; ia diceritakan nanti di Pillar.",
   },
 } as const;
 
@@ -73,7 +73,7 @@ const FORMS: Record<ChainLevel, string[]> = {
     "subject: frasa pendek yang membawa fakta khas pengamatan itu. example: satu situasi nyata yang bisa ditunjuk.",
   ],
   idea: [
-    "Satu kalimat: \"Kita [bikin/ajak/tunjukkan/ciptakan] … sehingga …\" (\"We … so that …\"). Demonstrasi, eksperimen, perbandingan, atau situasi yang bisa ditonton atau diikuti, aman ditiru, dengan subjek Master Thought terlihat sebagai penyebab.",
+    "Satu kalimat: \"Kita [bikin/ajak/tunjukkan/ciptakan] … sehingga …\" (\"We … so that …\"). Demonstrasi, eksperimen, perbandingan, atau situasi (boleh berlanjut seiring waktu) yang bisa ditonton atau diikuti, aman ditiru, dengan subjek Master Thought terlihat sebagai penyebab.",
     "keys: penjelasan lain yang mungkin dipikirkan penonton, dan cara Idea menutup masing-masing.",
   ],
   pillar: ["Pilih content pillar aktif + tulis arah pengembangan (development) dan alasan (reason)."],
@@ -88,11 +88,10 @@ function cleanRules(lines: readonly string[]): string {
     .join(" ");
 }
 
-const SIBLING_RULE: Record<"bigThought" | "territory" | "angle" | "idea", string> = {
+const SIBLING_RULE: Record<"bigThought" | "territory" | "angle", string> = {
   bigThought: "Dibandingkan dengan Big Thought lain di Master Thought ini: setiap Big Thought membawa alasan dasar yang berbeda. Dua Big Thought yang mengerjakan tugas yang sama gagal.",
   territory: "Compared with the other Territories of this Big Thought: each one is a different area; one that repeats or contains another fails.",
   angle: "Compared with the other Angles of this Territory: each one is a different observation; one that repeats another fails.",
-  idea: "Compared with the other Ideas of this Angle (locked ones included): each one is a different mechanism; one that repeats another fails.",
 };
 
 function ruleFor(level: CheckLevel, id: string): string {
@@ -101,11 +100,10 @@ function ruleFor(level: CheckLevel, id: string): string {
     if (id === "sibling") return SIBLING_RULE.bigThought;
     return cleanRules(bigThoughtGateRules(id as Parameters<typeof bigThoughtGateRules>[0]));
   }
+  if (level === "idea") return IDEA_CHECK_RULES[id as IdeaCheckId].join(" ");
   if (id === "siblingsDistinct") return SIBLING_RULE[level];
   if (level === "territory") return cleanRules(territoryGateRules(id as Parameters<typeof territoryGateRules>[0]));
-  if (level === "angle") return cleanRules(angleGateRules(id as Parameters<typeof angleGateRules>[0]));
-  if (/^K\d$/.test(id)) return (CRITERION_RULE as Record<string, string>)[id] ?? "";
-  return cleanRules(ideaGateRules(id as Parameters<typeof ideaGateRules>[0]));
+  return cleanRules(angleGateRules(id as Parameters<typeof angleGateRules>[0]));
 }
 
 export type ChainDefinition = {
@@ -126,14 +124,12 @@ export function thinkingChainDefinitions(settings: CheckSettings | null | undefi
     definition: NODE_DEFINITIONS[level].body,
     note: NODE_DEFINITIONS[level].note,
     form: FORMS[level],
-    checks: CHECK_REGISTRY[level]
-      .filter((entry) => entry.id !== "K2")
-      .map((entry) => ({
-        id: entry.id,
-        label: language === "id" ? entry.id_label : entry.en_label,
-        on: checkEnabled(settings, level, entry.id),
-        rule: ruleFor(level, entry.id),
-      })),
+    checks: CHECK_REGISTRY[level].map((entry) => ({
+      id: entry.id,
+      label: language === "id" ? entry.id_label : entry.en_label,
+      on: checkEnabled(settings, level, entry.id),
+      rule: ruleFor(level, entry.id),
+    })),
   }));
   return [
     ...levels,
