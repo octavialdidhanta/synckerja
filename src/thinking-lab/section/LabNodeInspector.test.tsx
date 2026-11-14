@@ -1164,7 +1164,7 @@ describe("LabNodeInspector territory entry", () => {
     render(<LabNodeInspector kind="master" statement="Pandangan dunia utama." />);
     expect(screen.queryByText(/single biggest belief/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Definisi Master Thought" }));
-    expect(screen.getByText(/kita ingin orang percaya bahwa ini benar/i)).toBeTruthy();
+    expect(screen.getByText(/bukan nama mereknya/i)).toBeTruthy();
     expect(screen.getByText(/diuji sebagai penyebab di Idea/i)).toBeTruthy();
   });
 
