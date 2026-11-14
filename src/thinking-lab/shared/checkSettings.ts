@@ -13,7 +13,11 @@ export const CHECK_REGISTRY: Readonly<Record<CheckLevel, readonly CheckEntry[]>>
     { id: "oneClaim", id_label: "Satu klaim saja", en_label: "One claim only" },
     { id: "oneSentence", id_label: "Satu kalimat", en_label: "One sentence" },
     { id: "notPromo", id_label: "Bukan promosi", en_label: "Not a promotion" },
+    { id: "noBrand", id_label: "Bukan klaim merek", en_label: "No brand name" },
+    { id: "subjectClear", id_label: "Subjek jelas", en_label: "Clear subject" },
+    { id: "audienceLanguage", id_label: "Bahasa audiens", en_label: "Audience language" },
     { id: "shift", id_label: "Menggeser keyakinan lama", en_label: "Shifts the prior belief" },
+    { id: "accountable", id_label: "Bisa dipertanggungjawabkan", en_label: "Defensible claim" },
   ],
   bigThought: [
     { id: "resolved", id_label: "Menjawab Master Thought", en_label: "Answers the Master Thought" },

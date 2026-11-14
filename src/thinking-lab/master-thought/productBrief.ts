@@ -1,4 +1,4 @@
-import { beliefsMatch } from "./semantic";
+import { MASTER_CHECK_RULES, beliefsMatch } from "./semantic";
 
 export type ProductBeliefSourceRow = {
   category: string;
@@ -74,6 +74,11 @@ export function buildProductBeliefPrompt(rows: ProductBeliefSourceRow[]): string
     "What Makes Them Stop is the friction the new belief has to overcome.",
     "If False Belief is empty, build priorBelief only from Problem, Impact, and What Makes Them Stop.",
     "plantedBelief is one sentence that replaces priorBelief. It must not repeat the old belief. Do not start it with because or karena.",
+    "plantedBelief is about what the offer has, does, or solves, never about the Category name itself. It must meet these rules:",
+    MASTER_CHECK_RULES.noBrand,
+    MASTER_CHECK_RULES.notPromo,
+    MASTER_CHECK_RULES.subjectClear,
+    MASTER_CHECK_RULES.accountable,
     "When several rows are selected, choose the one shared shift those features can make. Do not paste every column into the sentences.",
     "Write priorBelief, plantedBelief, and audience in the same language as the product-knowledge rows.",
     "Return JSON only with this shape:",

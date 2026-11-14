@@ -685,7 +685,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "thinking.master.create",
     description:
-      "Create one Master Thought in Thinking Lab for the organization locked in this session, from a belief written in chat. Requires belief and prior_belief (the old belief it shifts); audience and catalog are optional. catalog is the name or id of an active catalog (the Catalog dropdown on the page); a name that matches none or several returns saved false with the catalog names and nothing is saved. The belief is checked first, with the same rule as Keep as written on the page: exactly one claim, one sentence, not a promotion (a product claim is allowed; an offer, guarantee, price, discount, challenge, call to buy, or tagline is not), and a real shift from the old belief. On a pass it is saved as confirmed and returns saved true with its id. On a fail nothing is saved and it returns saved false with the reasons; rewrite the belief and call again. Does not create Big Thoughts.",
+      "Create one Master Thought in Thinking Lab for the organization locked in this session, from a belief written in chat. Requires belief, prior_belief (the old belief it shifts), and catalog (the name or id of an active catalog category, the Catalog dropdown on the page). audience is optional. sub_categories and features are optional lists of names or ids of that category's sub-categories and Product Knowledge features; several may be picked. A name that matches none or several returns saved false with the choices and nothing is saved. The belief is checked first, with the same switched-on checks as Keep as written on the page: one claim, one sentence, no promotion (offer, guarantee, price, discount, challenge, call to buy, tagline), no brand, store, or provider name, one clear subject the catalog has, the audience's own words, a real shift from the old belief, and a defensible claim. On a pass it is saved as confirmed and returns saved true with its id. On a fail nothing is saved and it returns saved false with the reasons; rewrite the belief and call again. Does not create Big Thoughts.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: THINKING_LAB_PAGE_PATH,
@@ -701,7 +701,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "thinking.master.catalog.set",
     description:
-      "Link one Thinking Lab Master Thought to a catalog for the organization locked in this session, like the Catalog dropdown on the page. Requires master_thought_id and catalog (the catalog name or id). An empty catalog clears the link. A name that matches none or several returns saved false with the catalog names and changes nothing. Does not change the belief or its tree.",
+      "Link one Thinking Lab Master Thought to its catalog for the organization locked in this session, like the Catalog field on the page. Requires master_thought_id and catalog (the category name or id). sub_categories and features are optional lists of names or ids of that category's sub-categories and Product Knowledge features; the call replaces the saved lists. A name that matches none or several returns saved false with the choices and changes nothing. Does not change the belief or its tree.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: THINKING_LAB_PAGE_PATH,

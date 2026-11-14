@@ -33,7 +33,7 @@ function master(id: string, statement: string): LabMasterThought {
     semanticFingerprint: "fp",
     lastAudit: null,
     productReasonPool: null,
-    serviceId: null,
+    catalog: { serviceId: null, subServiceIds: [], featureIds: [] },
     updatedAt: "",
   };
 }

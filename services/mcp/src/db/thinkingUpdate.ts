@@ -7,7 +7,7 @@ import {
   territoryFingerprint,
 } from "../../../../src/thinking-lab/shared/fingerprint";
 import type { IdeaMechanismKey } from "../../../../src/thinking-lab/idea/types";
-import type { JudgeConfig } from "./thinkingLab";
+import { loadMasterCatalog, type JudgeConfig } from "./thinkingLab";
 import { addThinkingAngle } from "./thinkingAngle";
 import { addThinkingIdea } from "./thinkingIdea";
 import { addThinkingTerritory } from "./thinkingTerritory";
@@ -15,6 +15,7 @@ import {
   addThinkingBigThought,
   loadCheckSettings,
   makeAsk,
+  masterCheckReason,
   rpcError,
   sessionArgs,
   skippedChecks,
@@ -251,6 +252,7 @@ export async function updateThinkingMaster(
   const belief = (input.belief ?? tree.master.statement).replace(/\s+/g, " ").trim();
   const priorBelief = (input.priorBelief ?? tree.master.prior_belief ?? "").replace(/\s+/g, " ").trim();
   if (!belief) throw new Error("invalid_input");
+  const audience = (input.audience ?? tree.master.audience ?? "").trim();
   const beliefChanged = belief !== tree.master.statement.trim() || priorBelief !== (tree.master.prior_belief ?? "").trim();
   const changes = emptyChanges();
   changes.master = {
@@ -262,15 +264,10 @@ export async function updateThinkingMaster(
     if (priorBelief && !skip.includes("shift") && beliefsMatch(belief, priorBelief)) {
       return { saved: false, failed: [{ check: "shift", reason: "The new belief repeats the old belief." }] };
     }
-    const check = await checkWrittenBelief({ belief, priorBelief, skip }, makeAsk(config, ctx, deps));
+    const catalog = await loadMasterCatalog(admin, ctx, tree.master.id);
+    const check = await checkWrittenBelief({ belief, priorBelief, audience, catalog, skip }, makeAsk(config, ctx, deps));
     if (!check.pass) {
-      return {
-        saved: false,
-        failed: check.reasons.map((reason) => ({
-          check: "masterThought",
-          reason: reason === "UNDECIDED" ? "The check could not be decided. Try again." : reason,
-        })),
-      };
+      return { saved: false, failed: check.reasons.map((reason) => ({ check: "masterThought", reason: masterCheckReason(reason) })) };
     }
     if (belief !== tree.master.statement.trim()) {
       const after: Subtree = { ...tree, master: { ...tree.master, statement: belief, root_belief: belief } };

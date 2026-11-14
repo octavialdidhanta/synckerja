@@ -561,8 +561,6 @@ export const idTranslations: TranslationDictionary = {
   "geminiPrepaid.body": "Kredit prabayar Google AI Studio sudah habis. Isi ulang kredit di AI Studio, lalu coba lagi.",
   "thinkingLab.tree.masterThought": "Master Thought",
   "thinkingLab.tree.bigThought": "Big Thought",
-  "thinkingLab.mtDefinition.body": "Master Thought menetapkan keyakinan tujuan: kita ingin orang percaya bahwa ini benar. Bukan tagline dan bukan klaim produk.",
-  "thinkingLab.mtDefinition.level": "Subjeknya harus jelas, karena subjek itu yang nanti diuji sebagai penyebab di Idea. Audiens target belum sepenuhnya memercayainya.",
   "thinkingLab.btDefinition.body": "Big Thought memberi alasan mengapa Master Thought layak dipercaya. Setiap Big Thought membawa alasan dasar yang berbeda.",
   "thinkingLab.btDefinition.level": "Bentuknya cocok di kalimat Master Thought, karena alasan ini. Kalau dicabut, Master Thought kehilangan satu alasan untuk dipercaya.",
   "sidebar.humanResources.title": "Sumber Daya Manusia",

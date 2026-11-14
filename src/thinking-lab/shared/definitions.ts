@@ -7,7 +7,7 @@ import { territoryGateRules } from "../territory/passChecklist";
 import { angleGateRules } from "../angle/passChecklist";
 import { ideaGateRules } from "../idea/passChecklist";
 import { CRITERION_RULE } from "../idea/validation";
-import { buildWrittenBeliefCheckPrompt } from "../master-thought/semantic";
+import { MASTER_CHECK_RULES, type MasterCheckId } from "../master-thought/semantic";
 import { EXECUTION_PASS_CHECK_IDS } from "../execution/passChecklist";
 import { CHECK_REGISTRY, checkEnabled, type CheckLevel, type CheckSettings } from "./checkSettings";
 
@@ -16,8 +16,8 @@ export type ChainLevel = CheckLevel | "pillar" | "execution";
 export const NODE_DEFINITIONS = {
   master: {
     label: "Master Thought",
-    body: "Master Thought menetapkan keyakinan tujuan: kita ingin orang percaya bahwa ini benar. Bukan tagline dan bukan klaim produk.",
-    note: "Subjeknya harus jelas, karena subjek itu yang nanti diuji sebagai penyebab di Idea. Audiens target belum sepenuhnya memercayainya.",
+    body: "Master Thought menetapkan keyakinan tujuan: satu hal yang ingin kita buat dipercaya audiens, yang saat ini belum mereka percayai sepenuhnya. Subjeknya adalah hal yang dimiliki, dilakukan, atau diselesaikan oleh produk atau layanan, bukan nama mereknya. Bukan promosi dan bukan tagline.",
+    note: "Subjeknya harus jelas, karena subjek itu yang nanti diuji sebagai penyebab di Idea. Merek baru muncul di Idea sebagai penyebab yang terlihat. Klaimnya harus bisa dipertanggungjawabkan dan tidak menyesatkan. Keyakinan lama wajib diisi. Kategori katalog wajib dipilih. Sub-kategori dan fitur boleh dipilih lebih dari satu agar subjek bisa diperiksa lebih ketat.",
   },
   bigThought: {
     label: "Big Thought",
@@ -57,8 +57,8 @@ const EXTRA_DEFINITIONS: Record<"pillar" | "execution", { label: string; body: s
 /** The shape each level is written in, as the checks expect it. */
 const FORMS: Record<ChainLevel, string[]> = {
   master: [
-    "Satu kalimat, satu klaim, dalam bahasa audiens. Boleh klaim produk, tidak boleh promosi (penawaran, garansi, harga, diskon, ajakan beli, tagline).",
-    "Kalau ada keyakinan lama, kalimat ini harus menggeser keyakinan lama itu, bukan mengulangnya.",
+    "Satu kalimat, satu klaim, dalam bahasa audiens. Tidak menyebut nama merek, toko, atau penyedia. Tidak boleh promosi (penawaran, garansi, harga, diskon, ajakan beli, tagline).",
+    "Kalimat ini harus menggeser keyakinan lama, bukan mengulangnya.",
   ],
   bigThought: [
     "Klausa alasan yang bisa dibaca setelah Master Thought + \"karena\" / \"because\".",
@@ -86,16 +86,6 @@ function cleanRules(lines: readonly string[]): string {
     .join(" ");
 }
 
-function masterRules(): Record<string, string> {
-  const prompt = buildWrittenBeliefCheckPrompt({ belief: "", priorBelief: "-" });
-  const rules: Record<string, string> = {};
-  for (const line of prompt.split("\n")) {
-    const match = /^(oneClaim|oneSentence|notPromo|shift):\s*(.+)$/.exec(line.trim());
-    if (match) rules[match[1]] = match[2];
-  }
-  return rules;
-}
-
 const SIBLING_RULE: Record<"bigThought" | "territory" | "angle" | "idea", string> = {
   bigThought: "Compared with the other Big Thoughts of this Master Thought: each one carries a different base reason; two that do the same job fail.",
   territory: "Compared with the other Territories of this Big Thought: each one is a different area; one that repeats or contains another fails.",
@@ -104,7 +94,7 @@ const SIBLING_RULE: Record<"bigThought" | "territory" | "angle" | "idea", string
 };
 
 function ruleFor(level: CheckLevel, id: string): string {
-  if (level === "master") return masterRules()[id] ?? "";
+  if (level === "master") return MASTER_CHECK_RULES[id as MasterCheckId] ?? "";
   if (level === "bigThought") {
     if (id === "sibling") return SIBLING_RULE.bigThought;
     return cleanRules(bigThoughtGateRules(id as Parameters<typeof bigThoughtGateRules>[0]));

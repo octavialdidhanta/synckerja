@@ -1,3 +1,4 @@
+import type { MasterCatalogLink } from "./catalog";
 import type { ProductReasonPool } from "./productReasonPool";
 import type { Resolution } from "../shared/verdict";
 
@@ -33,6 +34,13 @@ export type MasterThoughtFacts = {
   beliefOptions?: BeliefOption[] | null;
 };
 
+/** Catalog linked to a Master Thought, by name: the category is required, sub-categories and features are optional. */
+export type MasterCatalogContext = {
+  category: string;
+  subCategories: string[];
+  features: string[];
+};
+
 export type MasterBeliefInput = {
   planted: string;
   priorBelief: string;
@@ -56,6 +64,6 @@ export type LabMasterThought = {
   semanticFingerprint: string | null;
   lastAudit: unknown;
   productReasonPool: ProductReasonPool | null;
-  serviceId: string | null;
+  catalog: MasterCatalogLink;
   updatedAt: string;
 };

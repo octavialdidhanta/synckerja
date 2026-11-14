@@ -6,12 +6,13 @@ import {
   deleteLabMaster,
   listLabMasters,
   lockLabMaster,
-  saveLabMasterService,
+  saveLabMasterCatalog,
   saveLabSetRecord,
   saveOriginalInput,
   saveUnderstanding,
   unlockLabMaster,
 } from "@/thinking-lab/master-thought/repository";
+import type { MasterCatalogLink } from "@/thinking-lab/master-thought/catalog";
 import type {
   ConfirmationSource,
   LabMasterThought,
@@ -40,7 +41,8 @@ export function useMasterThought() {
   };
 
   const create = useMutation({
-    mutationFn: (input: MasterBeliefInput) => createLabMaster(organizationId as string, input),
+    mutationFn: (input: MasterBeliefInput & { catalog: MasterCatalogLink }) =>
+      createLabMaster(organizationId as string, input),
     onSuccess: invalidate,
   });
 
@@ -73,9 +75,9 @@ export function useMasterThought() {
     onSuccess: invalidate,
   });
 
-  const saveService = useMutation({
-    mutationFn: (input: { id: string; serviceId: string | null }) =>
-      saveLabMasterService(input.id, organizationId as string, input.serviceId),
+  const saveCatalog = useMutation({
+    mutationFn: (input: { id: string; catalog: MasterCatalogLink }) =>
+      saveLabMasterCatalog(input.id, organizationId as string, input.catalog),
     onSuccess: invalidate,
   });
 
@@ -124,7 +126,7 @@ export function useMasterThought() {
     saveJudge,
     confirm,
     saveSet,
-    saveService,
+    saveCatalog,
     lock,
     unlock,
     remove,

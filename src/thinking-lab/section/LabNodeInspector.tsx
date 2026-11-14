@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { NODE_DEFINITIONS } from "@/thinking-lab/shared/definitions";
 import { MasterCatalogField } from "@/thinking-lab/section/MasterCatalogField";
-import type { LabCatalog } from "@/thinking-lab/master-thought/useLabCatalogs";
+import { EMPTY_CATALOG_LINK, type LabCatalog, type MasterCatalogLink } from "@/thinking-lab/master-thought/catalog";
 import { cn } from "@/shared/lib/utils";
 import { CreativePathPanel, type CreativePathView } from "@/thinking-lab/section/CreativePathPanel";
 import { EditableStatement, ManualStatementForm } from "@/thinking-lab/section/ManualStatementForm";
@@ -69,10 +69,10 @@ type LabNodeInspectorProps = {
   onFixNode?: () => void;
   fixingNode?: boolean;
   onUnlock?: () => void;
-  catalogServiceId?: string | null;
+  catalog?: MasterCatalogLink;
   catalogs?: LabCatalog[];
   catalogPending?: boolean;
-  onSaveCatalog?: (serviceId: string | null) => void;
+  onSaveCatalog?: (catalog: MasterCatalogLink) => void;
   onDelete?: () => void;
   unlockDisabled?: boolean;
   onGenerateAngle?: (territoryId: string) => void;
@@ -538,7 +538,7 @@ export function LabNodeInspector({
   onFixNode,
   fixingNode = false,
   onUnlock,
-  catalogServiceId = null,
+  catalog = EMPTY_CATALOG_LINK,
   catalogs = [],
   catalogPending = false,
   onSaveCatalog,
@@ -1069,8 +1069,8 @@ export function LabNodeInspector({
       {kind === "territory" ? null : pathBlock}
       {kind === "master" && onSaveCatalog ? (
         <MasterCatalogField
-          serviceId={catalogServiceId}
-          services={catalogs}
+          value={catalog}
+          catalogs={catalogs}
           pending={catalogPending}
           onSave={onSaveCatalog}
         />

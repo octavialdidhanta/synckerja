@@ -461,6 +461,8 @@ import { ExecutionConfirmDialog } from "@/thinking-lab/section/ExecutionConfirmD
 import { MasterThoughtMapTree } from "@/thinking-lab/section/MasterThoughtMapTree";
 import { ContentUsageAudit } from "@/6-1-dashboard/modal/ContentUsageAudit";
 import { MasterCatalogField } from "@/thinking-lab/section/MasterCatalogField";
+import { MasterCatalogPicker } from "@/thinking-lab/section/MasterCatalogPicker";
+import { EMPTY_CATALOG_LINK, catalogContext, type MasterCatalogLink } from "@/thinking-lab/master-thought/catalog";
 import { SavedMasterThoughtList } from "@/thinking-lab/section/SavedMasterThoughtList";
 import { useLabCatalogs } from "@/thinking-lab/master-thought/useLabCatalogs";
 import { MasterThoughtSection } from "@/thinking-lab/section/MasterThoughtSection";
@@ -607,6 +609,7 @@ export function ThinkingLabPage() {
   const [newPlanted, setNewPlanted] = useState("");
   const [newAudience, setNewAudience] = useState("");
   const [reasonPool, setReasonPool] = useState<ProductReasonPool | null>(null);
+  const [newCatalog, setNewCatalog] = useState<MasterCatalogLink>(EMPTY_CATALOG_LINK);
   const [originalDraft, setOriginalDraft] = useState("");
   const [priorDraft, setPriorDraft] = useState("");
   const [audienceDraft, setAudienceDraft] = useState("");
@@ -711,6 +714,10 @@ export function ThinkingLabPage() {
   const [focus, setFocus] = useState<LabFocus | null>(() => storedView?.focus ?? null);
   const skipAutoSelect = useRef(false);
   const selected = masters.data?.find((row) => row.id === selectedId) ?? null;
+  /** Names of the selected Master Thought's catalog; null until a category is linked. */
+  const selectedCatalog = selected ? catalogContext(selected.catalog, catalogs.data ?? []) : null;
+  const catalogRequiredMessage = () =>
+    t("thinkingLab.catalog.required", "Pilih kategori katalog dulu sebelum menyimpan Master Thought.");
   const thoughts = useBigThoughts(selected?.id ?? null);
   const lockedTree = useLockedLabTree();
   const showContent = useDebouncedReady(!masters.hasPendingLoad && !lockedTree.isLoading, 200);
@@ -1661,14 +1668,17 @@ export function ThinkingLabPage() {
       const planted = newPlanted.trim();
       const priorBelief = newPrior.trim();
       const audience = newAudience.trim();
+      const catalog = catalogContext(newCatalog, catalogs.data ?? []);
+      if (!catalog) throw new Error(catalogRequiredMessage());
       const created = await masters.create.mutateAsync({
         planted,
         priorBelief,
         audience,
         productReasonPool: reasonPool,
+        catalog: newCatalog,
       });
       bindUsage("formulate", created.id);
-      const facts = await collectBeliefOptions({ planted, priorBelief, audience }, (prompt) => askThinkingLab(prompt, 0.2));
+      const facts = await collectBeliefOptions({ planted, priorBelief, audience, catalog }, (prompt) => askThinkingLab(prompt, 0.2));
       await masters.saveJudge.mutateAsync({
         id: created.id,
         facts,
@@ -1678,6 +1688,7 @@ export function ThinkingLabPage() {
       setNewPlanted("");
       setNewAudience("");
       setReasonPool(null);
+      setNewCatalog(EMPTY_CATALOG_LINK);
       setComposerOpen(false);
       skipAutoSelect.current = false;
       setSelectedId(created.id);
@@ -1689,6 +1700,7 @@ export function ThinkingLabPage() {
     setNewPlanted("");
     setNewAudience("");
     setReasonPool(null);
+    setNewCatalog(EMPTY_CATALOG_LINK);
   };
 
   const confirmDelete = () => {
@@ -1797,6 +1809,7 @@ export function ThinkingLabPage() {
   const onUnderstand = (clarification?: { question: string; answer: string }) =>
     run(async () => {
       if (!selected) return;
+      if (!selectedCatalog) throw new Error(catalogRequiredMessage());
       const prior = priorDraft.trim();
       const audience = audienceDraft.trim();
       const chosen = clarification?.answer.trim() ?? "";
@@ -1824,7 +1837,10 @@ export function ThinkingLabPage() {
           audience,
         });
       }
-      const facts = await collectBeliefOptions({ planted: text, priorBelief: prior, audience }, (prompt) => askThinkingLab(prompt, 0.2));
+      const facts = await collectBeliefOptions(
+        { planted: text, priorBelief: prior, audience, catalog: selectedCatalog },
+        (prompt) => askThinkingLab(prompt, 0.2),
+      );
       await masters.saveJudge.mutateAsync({
         id: selected.id,
         facts,
@@ -8436,6 +8452,15 @@ export function ThinkingLabPage() {
                               setNewAudience(draft.audience);
                             }}
                           />
+                          <div className="shrink-0 space-y-1 text-sm font-medium text-foreground">
+                            {t("thinkingLab.catalog.label", "Kategori katalog")}
+                            <MasterCatalogPicker
+                              value={newCatalog}
+                              catalogs={catalogs.data ?? []}
+                              disabled={busy}
+                              onChange={setNewCatalog}
+                            />
+                          </div>
                           <label className="shrink-0 space-y-1 text-sm font-medium text-foreground">
                             {t("thinkingLab.master.prior", "Old belief (false belief)")}
                           <Textarea
@@ -8479,7 +8504,13 @@ export function ThinkingLabPage() {
                             type="button"
                             className="shrink-0"
                             onClick={onCreate}
-                            disabled={busy || !newPrior.trim() || !newPlanted.trim() || beliefsMatch(newPrior, newPlanted)}
+                            disabled={
+                              busy ||
+                              !newCatalog.serviceId ||
+                              !newPrior.trim() ||
+                              !newPlanted.trim() ||
+                              beliefsMatch(newPrior, newPlanted)
+                            }
                             aria-busy={busyAction === "formulate" || undefined}
                           >
                             {busyAction === "formulate" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
@@ -8711,9 +8742,9 @@ export function ThinkingLabPage() {
                             <SavedMasterThoughtList
                               masters={masters.data ?? []}
                               catalogs={catalogs.data ?? []}
-                              catalogPending={masters.saveService.isPending}
-                              onSaveCatalog={(id, serviceId) => {
-                                void masters.saveService.mutateAsync({ id, serviceId });
+                              catalogPending={masters.saveCatalog.isPending}
+                              onSaveCatalog={(id, catalog) => {
+                                void masters.saveCatalog.mutateAsync({ id, catalog });
                               }}
                               onOpen={(id) => {
                                 const row = masters.data?.find((item) => item.id === id);
@@ -8937,13 +8968,13 @@ export function ThinkingLabPage() {
                                     : null
                                 }
                                 onUnlock={focus.kind === "master" ? () => void onUnlock() : undefined}
-                                catalogServiceId={focus.kind === "master" ? selected.serviceId : null}
+                                catalog={focus.kind === "master" ? selected.catalog : undefined}
                                 catalogs={focus.kind === "master" ? (catalogs.data ?? []) : []}
-                                catalogPending={masters.saveService.isPending}
+                                catalogPending={masters.saveCatalog.isPending}
                                 onSaveCatalog={
                                   focus.kind === "master"
-                                    ? (serviceId) => {
-                                        void masters.saveService.mutateAsync({ id: selected.id, serviceId });
+                                    ? (catalog) => {
+                                        void masters.saveCatalog.mutateAsync({ id: selected.id, catalog });
                                       }
                                     : undefined
                                 }
@@ -9415,11 +9446,11 @@ export function ThinkingLabPage() {
                                     </p>
                                   ) : null}
                                   <MasterCatalogField
-                                    serviceId={selected.serviceId}
-                                    services={catalogs.data ?? []}
-                                    pending={masters.saveService.isPending}
-                                    onSave={(serviceId) => {
-                                      void masters.saveService.mutateAsync({ id: selected.id, serviceId });
+                                    value={selected.catalog}
+                                    catalogs={catalogs.data ?? []}
+                                    pending={masters.saveCatalog.isPending}
+                                    onSave={(catalog) => {
+                                      void masters.saveCatalog.mutateAsync({ id: selected.id, catalog });
                                     }}
                                   />
                                   {selected.productReasonPool ? (
@@ -9467,7 +9498,17 @@ export function ThinkingLabPage() {
                                       const prior = priorDraft.trim();
                                       const ask = (prompt: string) => askThinkingLab(prompt, 0);
                                       // A belief typed by hand meets the same bar as a chosen option.
-                                      const check = await checkWrittenBelief({ belief: planted, priorBelief: prior, skip: skipFor("master") }, ask);
+                                      const check = await checkWrittenBelief(
+                                        {
+                                          belief: planted,
+                                          priorBelief: prior,
+                                          audience: audienceDraft.trim(),
+                                          catalog: selectedCatalog,
+                                          skip: skipFor("master"),
+                                        },
+                                        ask,
+                                      );
+                                      if (check.reasons.includes("CATALOG_REQUIRED")) throw new Error(catalogRequiredMessage());
                                       if (!check.pass) {
                                         toast.error(
                                           t(
@@ -9486,7 +9527,7 @@ export function ThinkingLabPage() {
                                           { duration: 12000 },
                                         );
                                         const options = await collectBeliefOptions(
-                                          { planted, priorBelief: prior, audience: audienceDraft.trim() },
+                                          { planted, priorBelief: prior, audience: audienceDraft.trim(), catalog: selectedCatalog },
                                           (prompt) => askThinkingLab(prompt, 0.2),
                                         );
                                         await masters.saveJudge.mutateAsync({

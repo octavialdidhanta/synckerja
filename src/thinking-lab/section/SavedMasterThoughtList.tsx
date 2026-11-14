@@ -8,7 +8,7 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type { LabMasterThought } from "@/thinking-lab/master-thought/types";
-import type { LabCatalog } from "@/thinking-lab/master-thought/useLabCatalogs";
+import type { LabCatalog, MasterCatalogLink } from "@/thinking-lab/master-thought/catalog";
 import { MasterCatalogField } from "@/thinking-lab/section/MasterCatalogField";
 
 type Props = {
@@ -17,7 +17,7 @@ type Props = {
   catalogPending: boolean;
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
-  onSaveCatalog: (id: string, serviceId: string | null) => void;
+  onSaveCatalog: (id: string, catalog: MasterCatalogLink) => void;
 };
 
 function savedTitle(row: LabMasterThought): string {
@@ -93,10 +93,10 @@ export function SavedMasterThoughtList({ masters, catalogs, catalogPending, onOp
               </div>
               <div className="mt-3">
                 <MasterCatalogField
-                  serviceId={row.serviceId}
-                  services={catalogs}
+                  value={row.catalog}
+                  catalogs={catalogs}
                   pending={catalogPending}
-                  onSave={(serviceId) => onSaveCatalog(row.id, serviceId)}
+                  onSave={(catalog) => onSaveCatalog(row.id, catalog)}
                 />
               </div>
             </li>

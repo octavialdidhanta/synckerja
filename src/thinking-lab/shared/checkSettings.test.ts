@@ -4,6 +4,7 @@ import { TERRITORY_PASS_CHECK_IDS } from "../territory/passChecklist";
 import { ANGLE_PASS_CHECK_IDS } from "../angle/passChecklist";
 import { IDEA_PASS_CHECK_IDS } from "../idea/passChecklist";
 import { IDEA_CRITERIA } from "../idea/validation";
+import { MASTER_CHECK_IDS } from "../master-thought/semantic";
 import { CHECK_REGISTRY, checkEnabled, levelChecksOff, parseCheckSettings } from "./checkSettings";
 
 const ids = (level: keyof typeof CHECK_REGISTRY) => CHECK_REGISTRY[level].map((entry) => entry.id);
@@ -14,7 +15,7 @@ describe("check settings", () => {
     expect(ids("territory")).toEqual([...TERRITORY_PASS_CHECK_IDS]);
     expect(ids("angle")).toEqual([...ANGLE_PASS_CHECK_IDS]);
     expect(ids("idea")).toEqual([...IDEA_PASS_CHECK_IDS, ...IDEA_CRITERIA]);
-    expect(ids("master")).toEqual(["oneClaim", "oneSentence", "notPromo", "shift"]);
+    expect(ids("master")).toEqual([...MASTER_CHECK_IDS]);
   });
 
   it("is OFF unless switched on", () => {

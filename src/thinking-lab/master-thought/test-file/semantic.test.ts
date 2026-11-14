@@ -673,7 +673,12 @@ describe("master thought belief options", () => {
   });
 
   it("asks for three plantable beliefs and passes only the ones the check accepts", async () => {
-    const prompt = buildBeliefOptionsPrompt({ planted, priorBelief: prior, audience: "orang kantoran" });
+    const prompt = buildBeliefOptionsPrompt({
+      planted,
+      priorBelief: prior,
+      audience: "orang kantoran",
+      catalog: { category: "Katering Kantor", subCategories: ["Paket Makan Siang"], features: [] },
+    });
     expect(prompt).toContain("exactly one claim");
     expect(prompt).toContain("then karena or because");
     expect(prompt).toContain("Ternyata is optional");
@@ -682,7 +687,9 @@ describe("master thought belief options", () => {
     expect(prompt).toContain("what this belief asks someone to hold");
     expect(prompt).toContain(planted);
     expect(prompt).toContain(prior);
-    const check = buildBeliefOptionCheckPrompt({ beliefs: ["Satu klaim", "Dua klaim"], planted, priorBelief: prior });
+    expect(prompt).toContain("Paket Makan Siang");
+    expect(prompt).toContain("tidak menyebut nama merek");
+    const check = buildBeliefOptionCheckPrompt({ beliefs: ["Satu klaim", "Dua klaim"], planted, priorBelief: prior, catalog: null });
     expect(check).toContain("exactly one claim");
     expect(check).toContain("leaves the shift");
     expect(check).toContain("0: Satu klaim");
@@ -714,7 +721,7 @@ describe("master thought belief options", () => {
         ],
       });
     });
-    const facts = await collectBeliefOptions({ planted, priorBelief: prior }, ask);
+    const facts = await collectBeliefOptions({ planted, priorBelief: prior, catalog: null }, ask);
     expect(facts.beliefOptions).toEqual([
       {
         belief: "Makan di luar lebih hemat daripada bawa bekel tiap hari",
@@ -725,7 +732,7 @@ describe("master thought belief options", () => {
     expect(masterRecovery(facts, planted, prior)).toBeNull();
     const stored = normalizeMasterThoughtFacts(facts, planted, prior);
     expect(stored.beliefOptions).toEqual(facts.beliefOptions);
-    const none = await collectBeliefOptions({ planted, priorBelief: prior }, async () =>
+    const none = await collectBeliefOptions({ planted, priorBelief: prior, catalog: null }, async () =>
       JSON.stringify({ beliefs: [], results: [] }),
     );
     expect(none.unresolvedReasons).toContain("NO_BELIEF_OPTIONS");
