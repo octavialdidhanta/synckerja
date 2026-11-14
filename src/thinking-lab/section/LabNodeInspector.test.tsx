@@ -890,17 +890,17 @@ describe("LabNodeInspector territory entry", () => {
             verdict: "AUDIT_FAIL",
             checklist: [
               { id: "stakeHolds", state: "pass" },
-              { id: "observationShape", state: "fail", reason: "Ini sudah konsep Idea." },
-              { id: "severalIdeas", state: "pending" },
+              { id: "observation", state: "fail", reason: "Ini sudah konsep Idea." },
+              { id: "rightSize", state: "pending" },
             ],
           },
         ]}
       />,
     );
     expect(screen.getByText("Still depends on the Territory, Big Thought, and Master Thought")).toBeTruthy();
-    expect(screen.getByText("An observation, narrower than the Territory and broader than an Idea")).toBeTruthy();
+    expect(screen.getByText("An observation: rarely noticed, a contradiction, or a tension; not a reason or a restatement of the Territory")).toBeTruthy();
     expect(screen.getByText("Ini sudah konsep Idea.")).toBeTruthy();
-    expect(screen.queryByText("Enough for several Ideas")).toBeNull();
+    expect(screen.queryByText("Narrower than the Territory with a clear boundary, yet room for several Ideas")).toBeNull();
   });
 
   it("shows idea pass checks up to the one that failed", () => {
@@ -1033,25 +1033,6 @@ describe("LabNodeInspector territory entry", () => {
     expect(onGenerateIdea).toHaveBeenCalledWith("a1");
   });
 
-  it("keeps Lock in the territory menu while Generate Angle stays on the page", () => {
-    const onLockAngles = vi.fn();
-    render(
-      <LabNodeInspector
-        kind="territory"
-        code="TR01"
-        statement="A locked territory"
-        angles={[{ id: "a1", code: "AN01", statement: "One point of view", verdict: "AUDIT_PASS" }]}
-        angleStage="generate"
-        onAngleStage={vi.fn()}
-        onLockAngles={onLockAngles}
-      />,
-    );
-    expect(screen.getByRole("button", { name: "Generate Angle" })).toBeTruthy();
-    openActionMenu();
-    fireEvent.click(screen.getByRole("menuitem", { name: "Lock" }));
-    expect(onLockAngles).toHaveBeenCalledOnce();
-  });
-
   it("puts Lock only in the territory menu", () => {
     const onAngleStage = vi.fn();
     render(
@@ -1147,22 +1128,6 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.queryByText(/specific point of view/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Definisi Territory" }));
     expect(screen.getByText(/kata benda atau frasa benda, tanpa klaim/i)).toBeTruthy();
-  });
-
-  it("keeps Lock off while Challenger is the territory action", () => {
-    render(
-      <LabNodeInspector
-        kind="territory"
-        code="TR03"
-        statement="A locked territory"
-        angles={[{ id: "a1", code: "AN01", statement: "One point of view", verdict: "AUDIT_PASS" }]}
-        angleStage="challenger"
-        onAngleStage={vi.fn()}
-        onLockAngles={vi.fn()}
-      />,
-    );
-    expect(screen.getByRole("button", { name: "Challenger" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Lock" })).toBeNull();
   });
 
   it("places delete on the open title and keeps it off child rows", () => {

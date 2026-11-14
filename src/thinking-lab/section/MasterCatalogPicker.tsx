@@ -67,7 +67,7 @@ export function MasterCatalogPicker({
         onValueChange={(serviceId) => onChange(withCategory(value, serviceId, catalogs))}
         disabled={disabled}
       >
-        <SelectTrigger className="h-8 w-full" aria-label={t("thinkingLab.catalog.label", "Kategori katalog")}>
+        <SelectTrigger className="h-8 w-full" aria-label={t("thinkingLab.catalog.label", "Kategori")}>
           <SelectValue placeholder={t("thinkingLab.catalog.pick", "Pilih kategori (wajib)")} />
         </SelectTrigger>
         <SelectContent>

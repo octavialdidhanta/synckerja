@@ -106,7 +106,7 @@ export const MASTER_CHECK_RULES: Readonly<Record<MasterCheckId, string>> = {
   singleClaim:
     "Lolos hanya jika berupa satu kalimat dengan tepat satu klaim, yang tetap terbaca utuh saat ditambah koma dan \"karena\" di belakangnya. Gagal jika ada dua keyakinan terpisah yang digabung dengan \"dan\", atau berisi beberapa kalimat, pertanyaan, atau seruan.",
   noPromoOrBrand:
-    "Gagal jika kalimat menyebut nama merek, toko, atau penyedia, atau memuat unsur promosi: penawaran, garansi, harga, diskon, tantangan ke pembaca, ajakan beli atau coba, atau tagline. Tetap gagal walaupun klaimnya bagus.",
+    "Gagal jika kalimat menyebut nama merek, toko, atau penyedia, atau memuat unsur promosi: penawaran, garansi, harga, diskon, tantangan ke pembaca, ajakan beli atau coba, atau tagline. Tetap gagal walaupun klaimnya bagus. Nama berarti nama diri yang tertulis, misalnya nama warung atau nama produk. Kata penunjuk seperti \"di sini\", \"disini\", \"ini\", \"kami\", atau \"kita\" bukan nama, jadi jangan gagalkan karena kata itu.",
   subjectClear:
     "Lolos hanya jika ada satu subjek jelas yang nanti bisa ditunjukkan sebagai penyebab di Idea. Jika sub-kategori atau fitur dipilih, subjek harus dimiliki salah satunya. Jika hanya kategori yang dipilih, subjek cukup masuk akal dimiliki produk atau layanan di kategori itu. Gagal jika subjeknya kabur, lebih dari satu, atau jelas tidak dimiliki produk atau layanan tersebut.",
   shift: "Lolos hanya jika kalimat menggeser keyakinan lama. Gagal jika hanya menyalin atau mengulang keyakinan lama.",
@@ -140,7 +140,8 @@ export function buildWrittenBeliefCheckPrompt(
   return [
     "Judge this Master Thought. Do not rewrite it.",
     ...ids.map((id) => `${id}: ${MASTER_CHECK_RULES[id]}`),
-    "Write each reason in the same language as the belief, in one short sentence a user can act on. Name the words that fail.",
+    "Judge only the words written under Belief. The old belief and the category lines are context: a name that appears only there is not in the belief and never fails noPromoOrBrand.",
+    "Write each reason in the same language as the belief, in one short sentence a user can act on. Name the words that fail, in quotes.",
     `Return JSON only: {"checks":[{"id":"${ids[0] ?? MASTER_CHECK_IDS[0]}","pass":true,"reason":""}]}`,
     "Include one entry for each check id named above.",
     "",
@@ -153,7 +154,31 @@ export function buildWrittenBeliefCheckPrompt(
   ].join("\n");
 }
 
-export function parseWrittenBeliefCheck(raw: unknown, ids: readonly string[]): WrittenBeliefCheck | null {
+function folded(value: string): string {
+  return value.toLocaleLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/** Words the reason quotes ('…', "…", “…”, ‘…’). */
+function quotedWords(reason: string): string[] {
+  return [...reason.matchAll(/['"“‘]([^'"”’]{2,80})['"”’]/g)].map((match) => match[1].trim()).filter(Boolean);
+}
+
+/**
+ * A brand fail that only quotes names the belief does not contain is the model reading the category or
+ * another line of the prompt as the belief, so it does not count.
+ */
+function brandFailIsMisread(reason: string, belief: string): boolean {
+  const quoted = quotedWords(reason);
+  if (quoted.length === 0) return false;
+  const text = folded(belief);
+  return quoted.every((word) => !text.includes(folded(word)));
+}
+
+export function parseWrittenBeliefCheck(
+  raw: unknown,
+  ids: readonly string[],
+  belief?: string,
+): WrittenBeliefCheck | null {
   const row = recordOf(raw);
   const list = Array.isArray(row?.checks) ? row.checks : null;
   if (!list) return null;
@@ -166,6 +191,7 @@ export function parseWrittenBeliefCheck(raw: unknown, ids: readonly string[]): W
     seen.add(id);
     if (entry.pass === true) continue;
     const reason = typeof entry.reason === "string" ? entry.reason.trim() : "";
+    if (id === "noPromoOrBrand" && belief && brandFailIsMisread(reason, belief)) continue;
     reasons.push(reason || id);
   }
   if (ids.some((id) => !seen.has(id))) return null;
@@ -187,7 +213,7 @@ export async function checkWrittenBelief(
   if (ids.length === 0) return { pass: true, reasons: [] };
   const prompt = buildWrittenBeliefCheckPrompt(input, ids);
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const parsed = parseWrittenBeliefCheck(parseModelJson(await ask(prompt)), ids);
+    const parsed = parseWrittenBeliefCheck(parseModelJson(await ask(prompt)), ids, input.belief);
     if (parsed) return parsed;
   }
   return { pass: false, reasons: ["UNDECIDED"] };

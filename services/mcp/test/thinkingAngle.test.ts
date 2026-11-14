@@ -70,9 +70,9 @@ describe("thinking.angle.add", () => {
 
   it("does not save when a check fails", async () => {
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
-    const result = await addThinkingAngle(fakeAdmin(context(), calls), config, ctx, { territoryId: trId, ...angle }, { checks: ALL_ON, ask: answer((id) => id !== "observationJob") });
+    const result = await addThinkingAngle(fakeAdmin(context(), calls), config, ctx, { territoryId: trId, ...angle }, { checks: ALL_ON, ask: answer((id) => id !== "observation") });
     expect(result.saved).toBe(false);
-    if (!result.saved) expect(result.failed[0].check).toBe("observationJob");
+    if (!result.saved) expect(result.failed[0].check).toBe("observation");
   });
 });
 
@@ -102,6 +102,6 @@ describe("thinking.angle.lock", () => {
     const save = calls.find((call) => call.fn === "mcp_add_thinking_angle")!;
     const set = save.args.p_angle_set as { audit: { items: Array<{ verdict: string; skipped?: string[] }> } };
     expect(set.audit.items[0].verdict).toBe("AUDIT_PASS");
-    expect(set.audit.items[0].skipped?.length).toBe(8);
+    expect(set.audit.items[0].skipped?.length).toBe(6);
   });
 });

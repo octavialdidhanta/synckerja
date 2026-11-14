@@ -72,14 +72,12 @@ describe("angle fix", () => {
     expect(angleReplacementPasses(null, "AN04")).toBe(false);
   });
 
-  it("reopens the two Generate checks for a new sentence and drops a check that just failed", () => {
+  it("reopens the Generate check for a new sentence and drops a check that just failed", () => {
     const prior = fixPriorForNextAngleStatement(
       [
         { id: "stakeHolds", state: "pass" },
-        { id: "observationShape", state: "pass" },
-        { id: "severalIdeas", state: "pass" },
-        { id: "clearBoundary", state: "pass" },
-        { id: "observationJob", state: "pass" },
+        { id: "observation", state: "pass" },
+        { id: "rightSize", state: "pass" },
         { id: "ownSubject", state: "pass" },
         { id: "livedExample", state: "fail", reason: "The example is too thin to picture." },
         { id: "siblingsDistinct", state: "pending" },
@@ -87,17 +85,15 @@ describe("angle fix", () => {
       "Porsi kecil membuat harga terlihat hemat",
       "Dapur menghitung porsi sebagai harga",
     );
-    expect(prior.find((check) => check.id === "observationJob")?.state).toBe("pending");
-    expect(prior.find((check) => check.id === "observationShape")?.state).toBe("pending");
+    expect(prior.find((check) => check.id === "observation")?.state).toBe("pending");
     expect(prior.find((check) => check.id === "stakeHolds")?.state).toBe("pass");
     expect(prior.find((check) => check.id === "livedExample")?.state).toBe("fail");
     const scope = fixScopeFromChecks([
-      { id: "observationJob", state: "pass" },
-      { id: "observationShape", state: "fail", reason: "Too narrow." },
+      { id: "observation", state: "pass" },
+      { id: "rightSize", state: "fail", reason: "Too narrow." },
       { id: "stakeHolds", state: "pass" },
-      { id: "severalIdeas", state: "pass" },
     ]);
-    expect(scope.preserve).toEqual(["observationJob", "stakeHolds", "severalIdeas"]);
-    expect(scope.repair).toEqual([{ id: "observationShape", reason: "Too narrow." }]);
+    expect(scope.preserve).toEqual(["observation", "stakeHolds"]);
+    expect(scope.repair).toEqual([{ id: "rightSize", reason: "Too narrow." }]);
   });
 });

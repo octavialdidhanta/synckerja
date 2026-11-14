@@ -143,8 +143,8 @@ export function fixScopeLines(scope: FixScope): string[] {
     ...(onlyRepair === "wideEnough"
       ? ["Widen only the boundary so this area can hold several different Angles. Keep the audience name that already passed."]
       : []),
-    ...(onlyRepair === "observationJob"
-      ? ["Remove only the because-reason or the restatement of the parent. Keep the observation that already passed."]
+    ...(onlyRepair === "observation"
+      ? ["Turn only the because-reason, the label, or the restatement of the parent into an observation: something rarely noticed, a contradiction, or a tension. Keep the part that already passed."]
       : []),
     ...(onlyRepair === "ownSubject"
       ? ["Write only a short noun phrase that carries the rarely noticed fact. Do not name the place or use the Territory's name. Keep the observation sentence."]

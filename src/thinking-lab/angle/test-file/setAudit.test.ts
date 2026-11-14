@@ -184,27 +184,10 @@ describe("selectAngleStage", () => {
       selectAngleStage({
         admittedCount: 2,
         verdicts: ["AUDIT_PASS", "AUDIT_PASS"],
-        challengerComplete: false,
-        materialGap: false,
-        canAdd: true,
         repairsUsed: false,
         lockOk: true,
       }),
     ).toBe("lock");
-  });
-
-  it("asks for one more angle when coverage has a gap and there is room", () => {
-    expect(
-      selectAngleStage({
-        admittedCount: 3,
-        verdicts: ["AUDIT_PASS", "AUDIT_PASS", "AUDIT_PASS"],
-        challengerComplete: false,
-        materialGap: true,
-        canAdd: true,
-        repairsUsed: false,
-        lockOk: false,
-      }),
-    ).toBe("generate");
   });
 
   it("stops after one fix while the audit still fails", () => {
@@ -212,9 +195,6 @@ describe("selectAngleStage", () => {
       selectAngleStage({
         admittedCount: 3,
         verdicts: ["AUDIT_FAIL", "AUDIT_PASS", "AUDIT_PASS"],
-        challengerComplete: false,
-        materialGap: false,
-        canAdd: true,
         repairsUsed: true,
         lockOk: false,
       }),

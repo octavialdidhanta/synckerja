@@ -2,6 +2,7 @@
 // Stored as {"<level>.<checkId>": true}; a missing key is OFF, so every check starts OFF.
 // Relative imports only: the MCP server loads this file.
 import { LEGACY_IDEA_SWITCHES } from "../idea/check/ids";
+import { LEGACY_ANGLE_SWITCHES } from "../angle/passChecklist";
 
 export type CheckLevel = "master" | "bigThought" | "territory" | "angle" | "idea";
 
@@ -35,10 +36,8 @@ export const CHECK_REGISTRY: Readonly<Record<CheckLevel, readonly CheckEntry[]>>
   ],
   angle: [
     { id: "stakeHolds", id_label: "Taruhannya kena", en_label: "The stake holds" },
-    { id: "observationShape", id_label: "Bentuk observasi", en_label: "Observation shape" },
-    { id: "severalIdeas", id_label: "Bisa jadi beberapa Idea", en_label: "Room for several Ideas" },
-    { id: "clearBoundary", id_label: "Batas yang jelas", en_label: "Clear boundary" },
-    { id: "observationJob", id_label: "Observasi menjalankan tugasnya", en_label: "Observation does its job" },
+    { id: "observation", id_label: "Observasi", en_label: "Observation" },
+    { id: "rightSize", id_label: "Ukurannya pas", en_label: "Right size" },
     { id: "ownSubject", id_label: "Subjek sendiri", en_label: "Own subject" },
     { id: "livedExample", id_label: "Contoh nyata", en_label: "Lived example" },
     { id: "siblingsDistinct", id_label: "Beda dari Angle lain", en_label: "Distinct from other Angles" },
@@ -70,7 +69,7 @@ export function skippedChecks(settings: CheckSettings | null | undefined, level:
   return CHECK_REGISTRY[level].filter((entry) => !checkEnabled(settings, level, entry.id)).map((entry) => entry.id);
 }
 
-/** Only switches that exist. An Idea switch saved before the seven Idea checks turns on the check that replaced it. */
+/** Only switches that exist. An Idea or Angle switch saved before its checks were merged turns on the check that replaced it. */
 export function parseCheckSettings(value: unknown): Record<string, boolean> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const on = new Set(
@@ -82,8 +81,13 @@ export function parseCheckSettings(value: unknown): Record<string, boolean> {
   for (const level of CHECK_LEVELS) {
     for (const entry of CHECK_REGISTRY[level]) {
       const key = checkKey(level, entry.id);
-      const replaced = level === "idea" ? (LEGACY_IDEA_SWITCHES[entry.id as keyof typeof LEGACY_IDEA_SWITCHES] ?? []) : [];
-      if (on.has(key) || replaced.some((id) => on.has(checkKey("idea", id)))) out[key] = true;
+      const replaced =
+        level === "idea"
+          ? (LEGACY_IDEA_SWITCHES[entry.id as keyof typeof LEGACY_IDEA_SWITCHES] ?? [])
+          : level === "angle"
+            ? (LEGACY_ANGLE_SWITCHES[entry.id as keyof typeof LEGACY_ANGLE_SWITCHES] ?? [])
+            : [];
+      if (on.has(key) || replaced.some((id) => on.has(checkKey(level, id)))) out[key] = true;
     }
   }
   return out;
