@@ -1,25 +1,9 @@
 import { parseModelJson } from "../shared/parseModelJson";
 import type { PillarFitStatus, StoredPillarReview } from "./types";
 import { PILLAR_REVIEW_LIMIT } from "./types";
+import type { PillarReview, ReviewablePillar } from "./recommendTypes";
 
-export type ReviewablePillar = {
-  id: string;
-  name: string;
-  category?: string | null;
-  description?: string | null;
-  funnel?: string | null;
-};
-
-export type PillarReview = {
-  contentPillarId: string;
-  pillarName: string;
-  status: PillarFitStatus;
-  reason: string;
-  development: string;
-  offer?: string;
-  comment?: string;
-  trigger?: string;
-};
+export type { PillarReview, ReviewablePillar } from "./recommendTypes";
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";

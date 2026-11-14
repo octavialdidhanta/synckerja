@@ -423,9 +423,11 @@ const SCENE_FLOOR = 220;
 const LAYOUT_LEAD = "Layout and type for every page, copied from the reference: ";
 const LAYOUT_TAIL = " Take only this structure from the reference and fit it to each page's content.";
 const HIERARCHY_RULE =
-  "On every page the headline is the biggest text. The small text sits near it and is clearly smaller. Never make the small text bigger than the headline.";
+  "On every page the headline is the biggest text. The small text (deskripsi/supporting line) uses one standard size on every page — roughly half to two-thirds the headline — never tiny, never bigger than the headline, and not a different scale from page to page.";
 /** Fonts only: each page keeps its own layout. */
 export const TYPE_RULE = "Use one headline font and one body font on every page. The layout of each page may differ.";
+const SCENE_MATCH_RULE =
+  "When a page scene names a chart, report, screen, document, or comparison, draw those details so the meaning matches the headline: readable sample numbers, side labels, icons, or short lists — not a blank or decorative chart. Keep composition and layout creative; do not replace the scene with a generic office photo that ignores it.";
 
 function clipScene(text: string, limit: number): string {
   const clean = text.replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
@@ -545,7 +547,7 @@ export function buildCanvaCarouselBrief(input: {
         lines.push(pictureInstruction(scene, meatHint(scene, goat, minced)));
       }
       if (headline) lines.push(`Headline (biggest text): ${headline}`);
-      if (small) lines.push(`Small text: ${small}`);
+      if (small) lines.push(`Small text (standard deskripsi size on every page, about half to two-thirds the headline — not tiny): ${small}`);
       if (labels.length > 0) lines.push(`Small labels: ${labels.join(" | ")}`);
       if (contact.length > 0) lines.push(`Contact box, separate at the bottom of this page: ${contact.join(" ")}`);
       return lines.join("\n");
@@ -559,6 +561,7 @@ export function buildCanvaCarouselBrief(input: {
     logoLine(input.logo),
     HIERARCHY_RULE,
     TYPE_RULE,
+    SCENE_MATCH_RULE,
     showsPerson ? PERSON_PHOTO_RULE : "",
     showsFood || (foodBusiness && products.length > 0) ? FOOD_PHOTO_RULE : "",
     !foodBusiness && products.length > 0 ? PRODUCT_PHOTO_RULE : "",

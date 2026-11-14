@@ -1550,6 +1550,7 @@ const SocialMediaContent = () => {
               onCarouselFirstUploadSuccess={handleCarouselFirstUploadSuccess}
               onCarouselAllRemoved={handleCarouselAllRemoved}
               canRefreshFromCanva={canvaRunByPlanId[notificationPreviewPlan.id]?.status === 'succeeded'}
+              canvaDesignUrl={canvaRunByPlanId[notificationPreviewPlan.id]?.design_url ?? null}
               canvaRefreshing={
                 canvaRunByPlanId[notificationPreviewPlan.id]?.refresh_requested === true
                 && canvaRunByPlanId[notificationPreviewPlan.id]?.images_ready !== true

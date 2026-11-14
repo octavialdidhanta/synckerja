@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
-import { AlertCircle, MoreVertical, Pencil, Star, Trash2 } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,
@@ -12,80 +12,27 @@ import { cn } from "@/shared/lib/utils";
 import { angleListSubject } from "@/thinking-lab/angle/subject";
 import { ideaLabel } from "@/thinking-lab/idea/subject";
 import type { LabMasterThought } from "@/thinking-lab/master-thought/types";
+import { panToCenter } from "@/thinking-lab/section/map/mapGeometry";
+import type {
+  MasterMapAngle,
+  MasterMapChild,
+  MasterMapExecution,
+  MasterMapIdea,
+  MasterMapPillar,
+  MasterMapTerritory,
+} from "@/thinking-lab/section/map/mapTypes";
+import { EqualBranch, MapCurves, longestLabel } from "@/thinking-lab/section/map/MapBranch";
+import { Pill } from "@/thinking-lab/section/map/MapNodePill";
 
-export type MasterMapExecution = {
-  id: string;
-  label: string;
-  passed: boolean;
-  leadMagnet?: boolean;
-};
-
-export type MasterMapPillar = {
-  id: string;
-  label: string;
-  leadMagnet?: boolean;
-  executions?: MasterMapExecution[];
-};
-
-export type MasterMapIdea = {
-  id: string;
-  code: string;
-  statement: string;
-  subject?: string;
-  recommended?: boolean;
-  childCount?: number;
-  pillars?: MasterMapPillar[];
-  executions?: MasterMapExecution[];
-};
-
-export type MasterMapAngle = {
-  id: string;
-  code: string;
-  statement: string;
-  subject?: string;
-  childCount?: number;
-  ideas?: MasterMapIdea[];
-};
-
-export type MasterMapTerritory = {
-    id: string;
-    code: string;
-    statement: string;
-  childCount?: number;
-  angles?: MasterMapAngle[];
-};
-
-export type MasterMapChild = {
-  id: string;
-  code: string;
-  label?: string;
-  statement: string;
-  childCount?: number;
-  territories?: MasterMapTerritory[];
-};
-
-type PillTone = "master" | "bigThought" | "territory" | "angle" | "idea" | "pillar" | "execution";
-
-const SOLID: Record<"master" | "bigThought", string> = {
-  master: "border border-[#16365c] bg-[#1b3a6b] text-white",
-  bigThought: "border border-[#3d6cb5] bg-[#3d6cb5] text-white",
-};
-
-const ACCENT: Record<"territory" | "angle" | "idea" | "pillar" | "execution", string> = {
-  territory: "border border-[#c9a24a] bg-[#3a342c] text-white",
-  angle: "border border-amber-700/80 bg-[#3a342c] text-white",
-  idea: "border border-rose-400/80 bg-[#3a342c] text-white",
-  pillar: "border border-sky-400/80 bg-[#3a342c] text-white",
-  execution: "border border-violet-400/80 bg-[#3a342c] text-white",
-};
-
-const ACCENT_BAR: Record<"territory" | "angle" | "idea" | "pillar" | "execution", string> = {
-  territory: "bg-[#e8b84a]",
-  angle: "bg-amber-500",
-  idea: "bg-rose-400",
-  pillar: "bg-sky-400",
-  execution: "bg-violet-400",
-};
+export type {
+  MasterMapAngle,
+  MasterMapChild,
+  MasterMapExecution,
+  MasterMapIdea,
+  MasterMapPillar,
+  MasterMapTerritory,
+} from "@/thinking-lab/section/map/mapTypes";
+export { mapLinkPath, panToCenter, settleCurves, type MapCurve } from "@/thinking-lab/section/map/mapGeometry";
 
 function masterNodeTitle(row: { canonicalSemantic: { subject: string | null } | null; statement: string; originalInput: string }): string {
   return (row.canonicalSemantic?.subject || row.statement || row.originalInput || "").trim();
@@ -96,117 +43,7 @@ function pillTitle(label: string | undefined, statement: string): string {
   return short || statement.trim();
 }
 
-function longestLabel(labels: string[]): string {
-  return labels.reduce((widest, label) => (label.length > widest.length ? label : widest), "");
-}
-
-function WidthSizer({ label, accent = false, star = false }: { label: string; accent?: boolean; star?: boolean }) {
-  if (!label) return null;
-  return (
-    <div className="invisible col-start-1 row-start-1 h-0 w-max min-w-max" aria-hidden>
-      <div
-        className={cn(
-          "flex w-max items-center whitespace-nowrap border border-transparent text-xs font-medium",
-          accent ? "gap-1.5 pl-1 pr-2" : "px-2",
-        )}
-      >
-        {accent ? <span className="w-0.5 shrink-0" /> : null}
-        <span>{label}</span>
-        {star ? <span className="ml-1 h-3 w-3 shrink-0" /> : null}
-      </div>
-    </div>
-  );
-}
-
-function EqualBranch({
-  labels,
-  widthLabel,
-  accent = false,
-  star = false,
-  levelLabel,
-  codes,
-  rows,
-}: {
-  labels: string[];
-  /** When set, every node in the branch uses this width instead of its own text. */
-  widthLabel?: string;
-  accent?: boolean;
-  star?: boolean;
-  levelLabel?: string;
-  codes?: string[];
-  rows: Array<{ key: string; leading?: ReactNode; pill: ReactNode; branch?: ReactNode }>;
-}) {
-  const open = rows.some((row) => row.branch);
-  const locked = widthLabel?.trim() ?? "";
-  const measured = locked
-    ? [locked]
-    : labels.map((label, index) => {
-        const header = [levelLabel, codes?.[index]?.trim()].filter(Boolean).join(" - ");
-        return header.length > label.length ? header : label;
-      });
-  return (
-    <div
-      className={cn(
-        "inline-grid items-center gap-y-3",
-        open ? "grid-cols-[max-content_auto] gap-x-14" : "grid-cols-[max-content]",
-      )}
-    >
-      {rows.map((row, index) => (
-        <Fragment key={row.key}>
-          <div className="relative grid min-w-full">
-            {index === 0 ? (
-              <WidthSizer label={longestLabel(measured)} accent={accent} star={star} />
-            ) : null}
-            {row.leading}
-            {row.pill}
-          </div>
-          {open ? <div className="flex items-center self-center">{row.branch}</div> : null}
-        </Fragment>
-      ))}
-    </div>
-  );
-}
-
-function layoutBox(root: HTMLElement, node: HTMLElement) {
-  const rootBox = root.getBoundingClientRect();
-  const box = node.getBoundingClientRect();
-  const scaleX = root.offsetWidth > 0 ? rootBox.width / root.offsetWidth : 1;
-  const scaleY = root.offsetHeight > 0 ? rootBox.height / root.offsetHeight : 1;
-  return {
-    left: (box.left - rootBox.left) / scaleX,
-    right: (box.right - rootBox.left) / scaleX,
-    midY: (box.top + box.height / 2 - rootBox.top) / scaleY,
-    width: box.width / scaleX,
-  };
-}
-
-export function mapLinkPath(x1: number, y1: number, x2: number, y2: number): string {
-  if (Math.abs(y1 - y2) <= 24) return `M ${x1} ${y1} L ${x2} ${y2}`;
-  const mid = x1 + (x2 - x1) * 0.55;
-  return `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`;
-}
-
-export type MapCurve = { id: string; d: string };
-
-export function settleCurves<T>(current: T[], measured: T[], unmeasured: number): T[] {
-  if (unmeasured > 0 && measured.length === 0) return current;
-  return measured;
-}
-
 const DEFAULT_MAP_VIEW = { x: 12, y: 12, scale: 1 };
-
-/** Screen-pixel pan that places a node at the center of the map viewport. */
-export function panToCenter(input: {
-  viewport: { left: number; top: number; width: number; height: number };
-  node: { left: number; top: number; width: number; height: number };
-}): { x: number; y: number } | null {
-  const nodeCenterX = input.node.left + input.node.width / 2 - input.viewport.left;
-  const nodeCenterY = input.node.top + input.node.height / 2 - input.viewport.top;
-  const x = input.viewport.width / 2 - nodeCenterX;
-  const y = input.viewport.height / 2 - nodeCenterY;
-  if (Math.hypot(x, y) < 2) return null;
-  return { x, y };
-}
 
 function mapNodeSelector(nodeId: string): string {
   return `[data-map-node="${nodeId.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`;
@@ -228,10 +65,11 @@ type OpenBranches = {
   thoughts: ReadonlySet<string>;
   territories: ReadonlySet<string>;
   angles: ReadonlySet<string>;
+  ideas: ReadonlySet<string>;
 };
 
 function freshBranches(): OpenBranches {
-  return { master: false, thoughts: new Set(), territories: new Set(), angles: new Set() };
+  return { master: false, thoughts: new Set(), territories: new Set(), angles: new Set(), ideas: new Set() };
 }
 
 function withId(ids: ReadonlySet<string>, id: string, open: boolean): Set<string> {
@@ -239,186 +77,6 @@ function withId(ids: ReadonlySet<string>, id: string, open: boolean): Set<string
   if (open) next.add(id);
   else next.delete(id);
   return next;
-}
-
-function MapCurves({
-  canvasRef,
-  links,
-  layoutEpoch,
-}: {
-  canvasRef: RefObject<HTMLDivElement | null>;
-  links: Array<{ from: string; to: string }>;
-  layoutEpoch: string;
-}) {
-  const [paths, setPaths] = useState<MapCurve[]>([]);
-  const [box, setBox] = useState({ width: 0, height: 0 });
-  const linksRef = useRef(links);
-  linksRef.current = links;
-  const signature = links.map((link) => `${link.from}>${link.to}`).join("|");
-  useLayoutEffect(() => {
-    let frame = 0;
-    let attempts = 0;
-    const draw = () => {
-      const root = canvasRef.current;
-      if (!root) return;
-      let unmeasured = 0;
-      const measured = linksRef.current.flatMap((link) => {
-        const fromNode = root.querySelector(`[data-map-node="${link.from}"]`);
-        const toNode = root.querySelector(`[data-map-node="${link.to}"]`);
-        if (!(fromNode instanceof HTMLElement) || !(toNode instanceof HTMLElement)) {
-          unmeasured += 1;
-          return [];
-        }
-        const from = layoutBox(root, fromNode);
-        const to = layoutBox(root, toNode);
-        if (from.width === 0 || to.width === 0) {
-          unmeasured += 1;
-          return [];
-        }
-        const count = fromNode.querySelector("[data-map-count]");
-        const fromX = count instanceof HTMLElement ? layoutBox(root, count).right : from.right;
-        return [{ id: `${link.from}>${link.to}`, d: mapLinkPath(fromX, from.midY, to.left, to.midY) }];
-      });
-      setPaths((current) => {
-        const next = settleCurves(current, measured, unmeasured);
-        return current.length === next.length && current.every((path, index) => path.id === next[index]?.id && path.d === next[index]?.d)
-          ? current
-          : next;
-      });
-      const width = root.scrollWidth;
-      const height = root.scrollHeight;
-      if (width > 0 && height > 0) setBox((current) => (current.width === width && current.height === height ? current : { width, height }));
-      if (unmeasured > 0 && attempts < 2) {
-        attempts += 1;
-        frame = requestAnimationFrame(draw);
-      }
-    };
-    draw();
-    const root = canvasRef.current;
-    if (!root || typeof ResizeObserver === "undefined") return () => cancelAnimationFrame(frame);
-    const observer = new ResizeObserver(draw);
-    observer.observe(root);
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  }, [canvasRef, signature, layoutEpoch]);
-  return (
-    <svg
-      className="pointer-events-none absolute left-0 top-0 overflow-visible"
-      width={box.width || undefined}
-      height={box.height || undefined}
-      aria-hidden
-    >
-      {paths.map((path) => (
-        <path key={path.id} d={path.d} fill="none" stroke="#cbd5e1" strokeWidth="1.5" />
-      ))}
-    </svg>
-  );
-}
-
-function Pill({
-  nodeId,
-  tone,
-  title,
-  code,
-  fullTitle,
-  selected,
-  childCount,
-  recommended,
-  warning = false,
-  stretch = false,
-  truncateTitle = false,
-  mark,
-  accessory,
-  onClick,
-}: {
-  nodeId: string;
-  tone: PillTone;
-  title: string;
-  code?: string;
-  /** Extra words after the level, such as Lead Magnet. */
-  mark?: string;
-  fullTitle?: string;
-  selected: boolean;
-  childCount?: number;
-  recommended?: boolean;
-  warning?: boolean;
-  stretch?: boolean;
-  /** Ellipsize the title inside the shared node width. */
-  truncateTitle?: boolean;
-  accessory?: ReactNode;
-  onClick: () => void;
-}) {
-  const { t } = useAppTranslation();
-  const count = childCount ?? 0;
-  const solid = tone === "master" || tone === "bigThought";
-  const level =
-    tone === "master"
-      ? t("thinkingLab.tree.masterThought", "Master Thought")
-      : tone === "bigThought"
-        ? t("thinkingLab.tree.bigThought", "Big Thought")
-        : tone === "territory"
-          ? t("thinkingLab.tree.territory", "Territory")
-          : tone === "angle"
-            ? t("thinkingLab.tree.angle", "Angle")
-            : tone === "pillar"
-              ? t("thinkingLab.tree.pillar", "Pillar")
-              : tone === "execution"
-                ? t("thinkingLab.execution.label", "Execution")
-                : t("thinkingLab.idea.list", "Idea");
-  const badge = code?.trim();
-  const levelText = mark?.trim() ? `${level} - ${mark.trim()}` : badge ? `${level} - ${badge}` : level;
-  return (
-    <div className={cn("relative col-start-1 row-start-1 min-w-0", stretch && "w-full")} data-map-node={nodeId}>
-      <button
-        type="button"
-        onClick={onClick}
-        title={fullTitle && (truncateTitle || fullTitle.trim() !== title.trim()) ? fullTitle.trim() : undefined}
-        aria-label={title.trim() || levelText}
-        aria-current={selected ? "true" : undefined}
-        className={cn(
-          "items-stretch rounded-[4px] px-2 py-0.5 text-left text-xs font-medium",
-          tone === "master" ? "max-w-[22rem] whitespace-normal" : "whitespace-nowrap",
-          accessory && "pl-6",
-          truncateTitle ? "flex w-full min-w-0 overflow-hidden" : stretch ? "flex w-full" : "inline-flex w-max",
-          solid ? SOLID[tone] : cn("gap-1.5 pl-1", ACCENT[tone]),
-          tone === "bigThought" && selected && "border-[#16365c] bg-[#1e4a86]",
-          tone === "territory" && selected && "border-[#f0c14b]",
-          !solid && selected && tone !== "territory" && "ring-2 ring-[#16365c]",
-        )}
-      >
-        {solid ? null : <span className={cn("my-0.5 w-0.5 shrink-0 self-stretch rounded-[1px]", ACCENT_BAR[tone])} aria-hidden />}
-        <span className={cn("flex flex-col gap-0.5 py-0.5", stretch ? "min-w-0 flex-1" : "w-max")}>
-          <span className={cn("text-[10px] font-medium leading-none text-white/90", truncateTitle && "truncate")}>
-            {levelText}
-          </span>
-          {title ? (
-            <span className={truncateTitle ? "block truncate leading-none" : tone === "master" ? "whitespace-normal break-words leading-snug" : "leading-none"}>{title}</span>
-          ) : null}
-        </span>
-        {recommended ? (
-          <Star
-            className="ml-1 h-3 w-3 shrink-0 self-center fill-current"
-            aria-label={t("thinkingLab.idea.recommended", "Recommended to start")}
-          />
-        ) : null}
-        {warning ? (
-          <AlertCircle className="ml-1 h-3.5 w-3.5 shrink-0 self-center text-rose-300" aria-label={t("thinkingLab.execution.failed", "Not passed")} />
-        ) : null}
-      </button>
-      {accessory ? <div className="absolute left-0.5 top-1/2 z-10 -translate-y-1/2">{accessory}</div> : null}
-      {count > 0 ? (
-        <span
-          className="absolute -right-2.5 top-1/2 flex h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white px-1 text-[10px] font-semibold text-slate-600 shadow-sm"
-          data-map-count=""
-          aria-label={t("thinkingLab.tree.childCount", "{{count}} below", { count })}
-        >
-          +{count}
-        </span>
-      ) : null}
-    </div>
-  );
 }
 
 type MasterThoughtMapTreeProps = {
@@ -740,6 +398,7 @@ export function MasterThoughtMapTree({
                   angleLink,
                   ...(angle.ideas ?? []).flatMap((idea) => {
                     const ideaLink = { from: `an:${angle.id}`, to: `idea:${idea.id}` };
+                    if (!expanded.ideas.has(idea.id)) return [ideaLink];
                     const pillarLinks = (idea.pillars ?? []).flatMap((pillar) => [
                       { from: `idea:${idea.id}`, to: `pl:${idea.id}:${pillar.id}` },
                       ...(pillar.executions ?? []).map((execution) => ({
@@ -770,8 +429,66 @@ export function MasterThoughtMapTree({
     inspectedPillarId == null &&
     inspectedExecutionId == null;
 
+  const expandAllBranches = (): OpenBranches => {
+    const thoughts = new Set<string>();
+    const territories = new Set<string>();
+    const angles = new Set<string>();
+    const ideas = new Set<string>();
+    for (const child of children) {
+      if ((child.territories?.length ?? 0) === 0 && (child.childCount ?? 0) === 0) continue;
+      thoughts.add(child.id);
+      for (const territory of child.territories ?? []) {
+        if ((territory.angles?.length ?? 0) === 0 && (territory.childCount ?? 0) === 0) continue;
+        territories.add(territory.id);
+        for (const angle of territory.angles ?? []) {
+          if ((angle.ideas?.length ?? 0) === 0 && (angle.childCount ?? 0) === 0) continue;
+          angles.add(angle.id);
+          for (const idea of angle.ideas ?? []) {
+            const below =
+              (idea.pillars?.length ?? 0) > 0 || (idea.executions?.length ?? 0) > 0 || (idea.childCount ?? 0) > 0;
+            if (below) ideas.add(idea.id);
+          }
+        }
+      }
+    }
+    return { master: true, thoughts, territories, angles, ideas };
+  };
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {selected ? (
+        <div className="absolute right-2 top-2 z-20 flex items-center gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 rounded-md bg-background/95 px-2 text-xs shadow-sm"
+            disabled={children.length === 0}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              stopCentering();
+              setExpanded(expandAllBranches());
+            }}
+          >
+            {t("thinkingLab.tree.expandAll", "Expand all")}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 rounded-md bg-background/95 px-2 text-xs shadow-sm"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              stopCentering();
+              setExpanded(freshBranches());
+            }}
+          >
+            {t("thinkingLab.tree.collapseAll", "Collapse all")}
+          </Button>
+        </div>
+      ) : null}
       <div
         ref={viewportRef}
         className="relative min-h-[16rem] flex-1 cursor-grab touch-none overflow-hidden active:cursor-grabbing"
@@ -845,7 +562,7 @@ export function MasterThoughtMapTree({
                       onClick={() => {
                         setExpanded((current) => {
                           if (!masterSelected || !current.master) return { ...current, master: true };
-                          return { master: false, thoughts: new Set(), territories: new Set(), angles: new Set() };
+                          return freshBranches();
                         });
                         centerNode(`master:${selected.id}`);
                         if (!masterSelected) onSelect(selected.id);
@@ -901,15 +618,20 @@ export function MasterThoughtMapTree({
                                   }
                                   const territories = new Set(current.territories);
                                   const angles = new Set(current.angles);
+                                  const ideas = new Set(current.ideas);
                                   for (const territory of child.territories ?? []) {
                                     territories.delete(territory.id);
-                                    for (const angle of territory.angles ?? []) angles.delete(angle.id);
+                                    for (const angle of territory.angles ?? []) {
+                                      angles.delete(angle.id);
+                                      for (const idea of angle.ideas ?? []) ideas.delete(idea.id);
+                                    }
                                   }
                                   return {
                                     ...current,
                                     thoughts: withId(current.thoughts, child.id, false),
                                     territories,
                                     angles,
+                                    ideas,
                                   };
                                 });
                                 centerNode(`bt:${child.id}`);
@@ -945,11 +667,16 @@ export function MasterThoughtMapTree({
                                             return { ...current, territories: withId(current.territories, territory.id, true) };
                                           }
                                           const angles = new Set(current.angles);
-                                          for (const angle of territory.angles ?? []) angles.delete(angle.id);
+                                          const ideas = new Set(current.ideas);
+                                          for (const angle of territory.angles ?? []) {
+                                            angles.delete(angle.id);
+                                            for (const idea of angle.ideas ?? []) ideas.delete(idea.id);
+                                          }
                                           return {
                                             ...current,
                                             territories: withId(current.territories, territory.id, false),
                                             angles,
+                                            ideas,
                                           };
                                         });
                                         centerNode(`tr:${territory.id}`);
@@ -987,7 +714,13 @@ export function MasterThoughtMapTree({
                                                   if (!already || !current.angles.has(angle.id)) {
                                                     return { ...current, angles: withId(current.angles, angle.id, true) };
                                                   }
-                                                  return { ...current, angles: withId(current.angles, angle.id, false) };
+                                                  const ideas = new Set(current.ideas);
+                                                  for (const idea of angle.ideas ?? []) ideas.delete(idea.id);
+                                                  return {
+                                                    ...current,
+                                                    angles: withId(current.angles, angle.id, false),
+                                                    ideas,
+                                                  };
                                                 });
                                                 centerNode(`an:${angle.id}`);
                                                 if (!already) onSelectAngle(selected.id, child.id, territory.id, angle.id);
@@ -1040,8 +773,16 @@ export function MasterThoughtMapTree({
                                                     />
                                                   ) : null;
                                                 const pillars = idea.pillars ?? [];
+                                                const belowOpen =
+                                                  expanded.ideas.has(idea.id) ||
+                                                  inspectedIdeaId === idea.id ||
+                                                  (idea.pillars ?? []).some((pillar) => pillar.id === inspectedPillarId) ||
+                                                  (idea.executions ?? []).some((execution) => execution.id === inspectedExecutionId) ||
+                                                  (idea.pillars ?? []).some((pillar) =>
+                                                    (pillar.executions ?? []).some((execution) => execution.id === inspectedExecutionId),
+                                                  );
                                                 const pillarBranch =
-                                                  pillars.length > 0 ? (
+                                                  belowOpen && pillars.length > 0 ? (
                                                     <EqualBranch
                                                       levelLabel={t("thinkingLab.tree.pillar", "Pillar")}
                                                       accent
@@ -1075,7 +816,7 @@ export function MasterThoughtMapTree({
                                                       }))}
                                                     />
                                                   ) : null;
-                                                const looseExecutions = executionBranch(idea.executions ?? []);
+                                                const looseExecutions = belowOpen ? executionBranch(idea.executions ?? []) : null;
                                                 return {
                                                   key: idea.id,
                                                   pill: (
@@ -1090,8 +831,15 @@ export function MasterThoughtMapTree({
                                                       recommended={idea.recommended}
                                                       childCount={Math.max(idea.childCount ?? 0, pillars.length, idea.executions?.length ?? 0)}
                                                       onClick={() => {
+                                                        const already = inspectedIdeaId === idea.id;
+                                                        setExpanded((current) => {
+                                                          if (!already || !current.ideas.has(idea.id)) {
+                                                            return { ...current, ideas: withId(current.ideas, idea.id, true) };
+                                                          }
+                                                          return { ...current, ideas: withId(current.ideas, idea.id, false) };
+                                                        });
                                                         centerNode(`idea:${idea.id}`);
-                                                        onSelectIdea(selected.id, child.id, territory.id, angle.id, idea.id);
+                                                        if (!already) onSelectIdea(selected.id, child.id, territory.id, angle.id, idea.id);
                                                       }}
                                                     />
                                                   ),

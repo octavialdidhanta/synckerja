@@ -95,7 +95,7 @@ function storySlides(script: VoiceOverScript) {
   return script.scenes.filter((scene) => scene.purpose !== "cta" && scene.lines.some((line) => line.narration.trim()));
 }
 
-function slideLines(script: VoiceOverScript): Array<{ id: string; narration: string }> {
+export function slideLines(script: VoiceOverScript): Array<{ id: string; narration: string }> {
   return storySlides(script).flatMap((scene) =>
     scene.lines.flatMap((line) => (line.narration.trim() ? [{ id: line.id, narration: line.narration.trim() }] : [])),
   );
@@ -217,7 +217,7 @@ export function judgeImageShape(script: VoiceOverScript, settings: ImageSettings
   return count >= 2 && count <= 10 ? { pass: true } : { pass: false, reason: "A carousel decided from the Idea needs 2 to 10 slides." };
 }
 
-function judgeImagePromptShape(script: VoiceOverScript, settings: ImageSettings): { pass: true } | { pass: false; reason: string } {
+export function judgeImagePromptShape(script: VoiceOverScript, settings: ImageSettings): { pass: true } | { pass: false; reason: string } {
   const slides = storySlides(script);
   if (!settings.withImage) {
     const hasPrompt = slides.some((scene) => scene.lines.some((line) => line.shots.some((shot) => shot.prompt.trim())));
@@ -620,105 +620,4 @@ export function imageFactsFromChecks(input: {
   };
 }
 
-export async function runImageOpenChecks(input: {
-  pillar: string;
-  pillarCategory?: string | null;
-  pillarDescription?: string | null;
-  masterStatement: string;
-  ideaStatement: string;
-  ancestors?: AncestorStake[];
-  pillarDevelopment?: string | null;
-  script: VoiceOverScript;
-  image: ImageSettings;
-  masterSells: ExecutionTriState;
-  auditLessons?: ExecutionAuditLesson[];
-  prior?: readonly ImagePassCheck[];
-  ask: (prompt: string) => Promise<string | null>;
-  onStep: (checks: ImagePassCheck[]) => void;
-}): Promise<{ checks: ImagePassCheck[]; passed: boolean; facts: ExecutionSemanticFacts }> {
-  const checks = emptyImagePassChecklist().map((check) => {
-    const previous = input.prior?.find((item) => item.id === check.id);
-    if (!previous) return { ...check };
-    if (previous.enabled === false) return { id: check.id, state: "pass" as const, enabled: false };
-    return previous.state === "pass"
-      ? { id: check.id, state: "pass" as const, enabled: true }
-      : { id: check.id, state: "pending" as const, enabled: true };
-  });
-  const publish = () => input.onStep(checks.map((check) => ({ ...check })));
-  publish();
-  for (const id of IMAGE_PASS_CHECK_IDS) {
-    const index = checks.findIndex((check) => check.id === id);
-    if (checks[index]?.enabled === false || checks[index]?.state === "pass") continue;
-    checks[index] = { id, state: "running" };
-    publish();
-    if (id === "imageShape") {
-      const shape = judgeImageShape(input.script, input.image);
-      checks[index] = shape.pass ? { id, state: "pass" } : { id, state: "fail", reason: "reason" in shape ? shape.reason : "", lineIds: [] };
-      publish();
-      if (!shape.pass) break;
-      continue;
-    }
-    if (id === "imagePrompt") {
-      const shape = judgeImagePromptShape(input.script, input.image);
-      if (!shape.pass || !input.image.withImage) {
-        checks[index] = shape.pass ? { id, state: "pass" } : { id, state: "fail", reason: "reason" in shape ? shape.reason : "", lineIds: [] };
-        publish();
-        if (!shape.pass) break;
-        continue;
-      }
-    }
-    if (id === "imageCaption" && (!input.script.caption.trim() || !input.script.caption.includes("#"))) {
-      checks[index] = { id, state: "fail", reason: "The caption needs short points and hashtags.", lineIds: [] };
-      publish();
-      break;
-    }
-    const known = new Set([
-      ...slideLines(input.script).map((line) => line.id),
-      "caption",
-    ]);
-    const parsed = parseExecutionPassCheck(
-      await input.ask(
-        buildImagePassPrompt({
-          id,
-          pillar: input.pillar,
-          pillarCategory: input.pillarCategory,
-          pillarDescription: input.pillarDescription,
-          masterStatement: input.masterStatement,
-          ideaStatement: input.ideaStatement,
-          ancestors: input.ancestors,
-          pillarDevelopment: input.pillarDevelopment,
-          script: input.script,
-          image: input.image,
-        }),
-      ),
-      known,
-    );
-    if (!parsed.pass) {
-      const lineIds = parsed.lineIds;
-      const unnamedPerson = id === "emotionalTone" && (parsed.reason === UNDECIDED || lineIds.length === 0);
-      checks[index] = {
-        id,
-        state: "fail",
-        reason: parsed.reason,
-        lineIds: unnamedPerson ? [] : lineIds,
-      };
-      publish();
-      break;
-    }
-    checks[index] = { id, state: "pass" };
-    publish();
-  }
-  const facts = imageFactsFromChecks({
-    pillar: input.pillar,
-    checks,
-    masterSells: input.masterSells === "unresolved" ? "unresolved" : input.masterSells,
-    auditLessons: input.auditLessons,
-  });
-  return { checks: checks.map((check) => ({ ...check })), passed: facts.relationToParent === "VALID_EXECUTION", facts };
-}
-
-export async function runImageMeaningChecks(
-  input: Parameters<typeof runImageOpenChecks>[0],
-): Promise<{ checks: ImagePassCheck[]; passed: boolean; facts: ExecutionSemanticFacts }> {
-  return runImageOpenChecks(input);
-}
+export { runImageOpenChecks, runImageMeaningChecks } from "./imageGateRunner";

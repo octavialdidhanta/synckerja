@@ -2,7 +2,7 @@
 // The same runner serves Generate, a manual edit, Revise, Audit of cards never checked, and the MCP server.
 // Relative imports only: the MCP server loads this file.
 import { UNDECIDED_REASON, buildBatchGatePrompt, parseGateAnswer, type GateAnswer } from "../shared/batchGates";
-import { runGateChain } from "../shared/gateChain";
+import { runLevelGateChain } from "../shared/defineLevelGates";
 import { sameWording } from "../shared/distinct";
 import {
   TERRITORY_ACTIVITY_REASON,
@@ -217,7 +217,7 @@ export async function runTerritoryChecks(
   let question = input.question?.trim() ?? "";
   const known = Boolean(question);
   const context = () => ({ ...input, question });
-  const run = await runGateChain({
+  const run = await runLevelGateChain({
     ids: TERRITORY_PASS_CHECK_IDS,
     skip: input.skip,
     keep: input.keep,

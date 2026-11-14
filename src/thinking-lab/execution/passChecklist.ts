@@ -53,7 +53,7 @@ export type ExecutionPassCheck = {
 };
 
 const UNDECIDED = UNDECIDED_REASON;
-const MISSING_OPENING = "The first narration sentence is missing.";
+export const MISSING_OPENING = "The first narration sentence is missing.";
 
 /** Industry-free speech rules. The same four rules judge video lines and image slides. */
 export function everydaySpeechJudgeRules(surface: "video" | "image"): string[] {
@@ -146,7 +146,7 @@ export function emptyExecutionPassChecklist(): ExecutionPassCheck[] {
 }
 
 /** Switches already chosen stay. A missing switch uses the video default. Passed switches stay passed unless this run starts them over. */
-function checklistWithPrior(prior: readonly ExecutionPassCheck[] | undefined, rerunPassed: boolean): ExecutionPassCheck[] {
+export function checklistWithPrior(prior: readonly ExecutionPassCheck[] | undefined, rerunPassed: boolean): ExecutionPassCheck[] {
   return emptyExecutionPassChecklist().map((check) => {
     const previous = prior?.find((item) => item.id === check.id);
     if (!previous) return { ...check };
@@ -294,7 +294,7 @@ export function factsForPassChecks(previous: ExecutionSemanticFacts, checks: rea
   };
 }
 
-function knownIds(lines: Array<{ id: string }>): Set<string> {
+export function knownIds(lines: Array<{ id: string }>): Set<string> {
   return new Set(lines.map((line) => line.id));
 }
 
@@ -498,7 +498,7 @@ export function openingNarrationLine(script: VoiceOverScript): { id: string; nar
   return { id: line.id, narration: line.narration };
 }
 
-function linesFor(
+export function linesFor(
   id: ExecutionPassCheckId,
   script: VoiceOverScript,
 ): Array<{ id: string; narration: string }> {
@@ -511,7 +511,7 @@ function linesFor(
   return chainNarrationLines(script);
 }
 
-function failedCheck(
+export function failedCheck(
   id: ExecutionPassCheckId,
   parsed: { reason: string; lineIds: string[]; repeat?: boolean },
   lines: Array<{ id: string }>,
@@ -612,78 +612,10 @@ export function executionFactsFromChecks(input: {
   };
 }
 
-export async function runExecutionMeaningChecks(input: {
-  pillar: string;
-  pillarCategory?: string | null;
-  pillarDescription?: string | null;
-  masterStatement: string;
-  masterSubject?: string;
-  ideaStatement: string;
-  ancestors?: AncestorStake[];
-  pillarDevelopment?: string | null;
-  script: VoiceOverScript;
-  masterSells: true | false | "unresolved" | "unknown";
-  auditLessons?: ExecutionAuditLesson[];
-  prior?: readonly ExecutionPassCheck[];
-  ask: (prompt: string) => Promise<string | null>;
-  resolveSelling?: () => Promise<true | false | "unresolved">;
-  onStep: (checks: ExecutionPassCheck[]) => void;
-}): Promise<{ checks: ExecutionPassCheck[]; passed: boolean; facts: ExecutionSemanticFacts }> {
-  const checks = checklistWithPrior(input.prior, true);
-  const publish = () => input.onStep(checks.map((check) => ({ ...check })));
-  let masterSells: ExecutionTriState = input.masterSells === "unknown" ? "unresolved" : input.masterSells;
-  publish();
-  for (const id of EXECUTION_PASS_CHECK_IDS) {
-    const index = checks.findIndex((check) => check.id === id);
-    if (checks[index]?.enabled === false) continue;
-    checks[index] = { id, state: "running", enabled: true };
-    publish();
-    if ((id === "soundsSpoken" || id === "usesSlang") && input.script.speech === "silent") {
-      checks[index] = { id, state: "pass", enabled: true };
-      publish();
-      continue;
-    }
-    const lines = linesFor(id, input.script);
-    if (id === "hookHolds" && lines.length === 0) {
-      checks[index] = { id, state: "fail", enabled: true, reason: MISSING_OPENING, lineIds: [] };
-      publish();
-      break;
-    }
-    const known = knownIds(lines);
-    const parsed = parseExecutionPassCheck(
-      await input.ask(
-        buildExecutionPassPrompt({
-          id,
-          pillar: input.pillar,
-          pillarCategory: input.pillarCategory,
-          pillarDescription: input.pillarDescription,
-          masterStatement: input.masterStatement,
-          masterSubject: input.masterSubject,
-          ideaStatement: input.ideaStatement,
-          ancestors: input.ancestors,
-          pillarDevelopment: input.pillarDevelopment,
-          decisions: input.script.decisions,
-          lines,
-        }),
-      ),
-      known,
-    );
-    if (!parsed.pass) {
-      checks[index] = { ...failedCheck(id, parsed, lines), enabled: true };
-      publish();
-      break;
-    }
-    checks[index] = { id, state: "pass", enabled: true };
-    publish();
-  }
-  const facts = executionFactsFromChecks({
-    pillar: input.pillar,
-    checks,
-    masterSells,
-    auditLessons: input.auditLessons,
-  });
-  return { checks: checks.map((check) => ({ ...check })), passed: facts.relationToParent === "VALID_EXECUTION", facts };
-}
+export {
+  runExecutionMeaningChecks,
+  runExecutionOpenChecks,
+} from "./meaningGateRunner";
 
 /** The checks implied by a stored audit. A requirement starts switched off until this run turned it on. */
 export function executionChecksFromAudit(audit: ExecutionMeaningAudit | null | undefined): ExecutionPassCheck[] {
@@ -705,79 +637,6 @@ export function executionFailureMoved(before: ExecutionPassCheckId, checks: read
   return (EXECUTION_PASS_CHECK_IDS as readonly string[]).indexOf(next.id) > (EXECUTION_PASS_CHECK_IDS as readonly string[]).indexOf(before);
 }
 
-/** Re-ask the checks that failed or have not run. Checks that already passed stay passed. */
-export async function runExecutionOpenChecks(input: {
-  pillar: string;
-  pillarCategory?: string | null;
-  pillarDescription?: string | null;
-  masterStatement: string;
-  masterSubject?: string;
-  ideaStatement: string;
-  ancestors?: AncestorStake[];
-  pillarDevelopment?: string | null;
-  script: VoiceOverScript;
-  masterSells: true | false | "unresolved" | "unknown";
-  auditLessons?: ExecutionAuditLesson[];
-  prior: readonly ExecutionPassCheck[];
-  ask: (prompt: string) => Promise<string | null>;
-  resolveSelling?: () => Promise<true | false | "unresolved">;
-  onStep: (checks: ExecutionPassCheck[]) => void;
-}): Promise<{ checks: ExecutionPassCheck[]; passed: boolean; facts: ExecutionSemanticFacts }> {
-  const checks = checklistWithPrior(input.prior, false);
-  const publish = () => input.onStep(checks.map((check) => ({ ...check })));
-  let masterSells: ExecutionTriState = input.masterSells === "unknown" ? "unresolved" : input.masterSells;
-  publish();
-  for (const id of EXECUTION_PASS_CHECK_IDS) {
-    const index = checks.findIndex((check) => check.id === id);
-    if (checks[index]?.enabled === false || checks[index]?.state === "pass") continue;
-    checks[index] = { id, state: "running", enabled: true };
-    publish();
-    if ((id === "soundsSpoken" || id === "usesSlang") && input.script.speech === "silent") {
-      checks[index] = { id, state: "pass", enabled: true };
-      publish();
-      continue;
-    }
-    const lines = linesFor(id, input.script);
-    if (id === "hookHolds" && lines.length === 0) {
-      checks[index] = { id, state: "fail", enabled: true, reason: MISSING_OPENING, lineIds: [] };
-      publish();
-      break;
-    }
-    const known = knownIds(lines);
-    const parsed = parseExecutionPassCheck(
-      await input.ask(
-        buildExecutionPassPrompt({
-          id,
-          pillar: input.pillar,
-          pillarCategory: input.pillarCategory,
-          pillarDescription: input.pillarDescription,
-          masterStatement: input.masterStatement,
-          masterSubject: input.masterSubject,
-          ideaStatement: input.ideaStatement,
-          ancestors: input.ancestors,
-          pillarDevelopment: input.pillarDevelopment,
-          decisions: input.script.decisions,
-          lines,
-        }),
-      ),
-      known,
-    );
-    if (!parsed.pass) {
-      checks[index] = { ...failedCheck(id, parsed, lines), enabled: true };
-      publish();
-      break;
-    }
-    checks[index] = { id, state: "pass", enabled: true };
-    publish();
-  }
-  const facts = executionFactsFromChecks({
-    pillar: input.pillar,
-    checks,
-    masterSells,
-    auditLessons: input.auditLessons,
-  });
-  return { checks: checks.map((check) => ({ ...check })), passed: facts.relationToParent === "VALID_EXECUTION", facts };
-}
 
 export function mergeExecutionAuditLessons(
   existing: readonly ExecutionAuditLesson[],
@@ -1223,6 +1082,10 @@ export function switchReleaseRules(id: ExecutionPassCheckId): string[] {
   return line ? [line, shared] : [shared];
 }
 
+/**
+ * Pass-switch toggle rewrite (UI switch on/off). Distinct from meaning-line repair, which
+ * uses `FixScope` + `fixScopeLines` in `buildExecutionMeaningRepairPrompt` above.
+ */
 export function buildPassSwitchRewritePrompt(input: {
   checkId: ExecutionPassCheckId;
   enabled: boolean;

@@ -4,7 +4,7 @@
 // Relative imports only: the MCP server loads this file.
 import { bigThoughtRepeats } from "./label";
 import type { PassChecklist, PassGateCheck, PassGateId } from "./checklist";
-import { PASS_GATE_IDS } from "./checklist";
+import { PASS_GATE_IDS, gateStepToPassState } from "./checklist";
 import { UNDECIDED_REASON, buildBatchGatePrompt, parseGateAnswer, type GateAnswer } from "../shared/batchGates";
 import { runGateChain, type GateStep } from "../shared/gateChain";
 import { shownBigThoughtFacts } from "./generate";
@@ -176,7 +176,7 @@ function checklistFromSteps(steps: readonly GateStep<PassGateId>[], previous: re
   const failed = steps.some((step) => step.state === "fail");
   const items: PassGateCheck[] = steps.map((step) => ({
     id: step.id,
-    state: step.state === "running" ? "checking" : failed && step.state === "pending" ? "unchecked" : step.state,
+    state: step.state === "pending" && failed ? "unchecked" : gateStepToPassState(step.state),
     reason: step.state === "fail" ? (step.reason ?? "") : step.state === "pass" ? (step.reason ?? "") : "",
   }));
   const changed = steps.find((step, index) => step.state !== previous[index]?.state);

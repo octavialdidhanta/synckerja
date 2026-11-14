@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CreativePathPanel, type CreativePathView } from "@/thinking-lab/section/CreativePathPanel";
 
@@ -60,6 +60,38 @@ describe("CreativePathPanel lead magnet checklist", () => {
     const offer = screen.getByText("The offered material is concrete, not a generic label.");
     expect(offer.parentElement?.querySelector("svg")).toBeTruthy();
     expect(offer.parentElement?.querySelector(".animate-spin")).toBeNull();
+  });
+
+  it("locks every recommended pillar from Lock all", () => {
+    const onLockAllPillars = vi.fn();
+    const onSelectPillar = vi.fn();
+    render(
+      <CreativePathPanel
+        path={path({
+          reviews: [
+            {
+              contentPillarId: "p1",
+              pillarName: "The Iceberg Theory",
+              status: "RECOMMENDED",
+              reason: "Fits the stake.",
+              development: "In this pillar the idea becomes clear.",
+            },
+            {
+              contentPillarId: "p2",
+              pillarName: "Did You Know?",
+              status: "RECOMMENDED",
+              reason: "Opens curiosity.",
+              development: "The idea becomes a question the viewer cannot skip.",
+            },
+          ],
+          onSelectPillar,
+          onLockAllPillars,
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Lock all" }));
+    expect(onLockAllPillars).toHaveBeenCalledTimes(1);
+    expect(onSelectPillar).not.toHaveBeenCalled();
   });
 
   it("keeps the spinner on the drafting line while the model is still writing", () => {

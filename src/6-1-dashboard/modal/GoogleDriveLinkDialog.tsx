@@ -97,6 +97,8 @@ interface GoogleDriveLinkDialogProps {
   onCarouselAllRemoved?: (planId: string) => void; // Called when all carousel images are removed (to reset PIC Production)
   /** The plan already has a finished Canva design that can be exported again. */
   canRefreshFromCanva?: boolean;
+  /** Canva editor URL for the design tied to this plan. */
+  canvaDesignUrl?: string | null;
   /** Export of the same design is in progress. */
   canvaRefreshing?: boolean;
   /** Canva is editing the existing design from slide comments. */
@@ -137,6 +139,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
   onCarouselFirstUploadSuccess,
   onCarouselAllRemoved,
   canRefreshFromCanva = false,
+  canvaDesignUrl = null,
   canvaRefreshing = false,
   canvaRevising = false,
   canvaRunError = null,
@@ -1210,26 +1213,44 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
               </div>
               <CollapsibleContent>
                 <div className="px-3 pb-3 space-y-2">
-                  {canRefreshFromCanva && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-fit"
-                      disabled={productionApproved || showCanvaRefresh}
-                      onClick={() => {
-                        void handleRefreshFromCanva();
-                      }}
-                    >
-                      {showCanvaRefresh ? (
-                        <>
-                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                          Memperbarui gambar...
-                        </>
-                      ) : (
-                        'Perbarui dari Canva'
+                  {(canRefreshFromCanva || (canvaDesignUrl?.startsWith('https://') ?? false)) && (
+                    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+                      {canRefreshFromCanva && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="max-w-full shrink"
+                          disabled={productionApproved || showCanvaRefresh}
+                          onClick={() => {
+                            void handleRefreshFromCanva();
+                          }}
+                        >
+                          {showCanvaRefresh ? (
+                            <>
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 shrink-0 animate-spin" />
+                              Memperbarui gambar...
+                            </>
+                          ) : (
+                            'Perbarui dari Canva'
+                          )}
+                        </Button>
                       )}
-                    </Button>
+                      {canvaDesignUrl?.startsWith('https://') && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="max-w-full shrink"
+                          asChild
+                        >
+                          <a href={canvaDesignUrl} target="_blank" rel="noreferrer">
+                            <ExternalLink className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                            Buka di Canva
+                          </a>
+                        </Button>
+                      )}
+                    </div>
                   )}
                   {productionStatus === 'Request Revision' && carouselCount > 0 && (
                     <div className="flex flex-col gap-1.5 rounded border border-amber-200 bg-amber-50/80 p-2">

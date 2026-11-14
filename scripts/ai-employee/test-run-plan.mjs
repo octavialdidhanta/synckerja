@@ -1479,6 +1479,9 @@ test("prompt SOP1 meminta bahasa lisan dan judul dari Idea", () => {
   const draft = readFileSync(new URL("../../supabase/functions/_shared/aiEmployee/planDraft.mjs", import.meta.url), "utf8");
   assert.match(draft, /Sapa penonton dengan kamu, bukan Anda/);
   assert.match(draft, /title dan Hook headline berangkat dari Idea dan Development pilar, bukan dari klaim Product Knowledge/);
+  assert.match(draft, /Scene Visual wajib matching Hook headline/);
+  assert.match(draft, /Jangan mengunci kreativitas Canva/);
+  assert.match(draft, /ukuran standar antar slide/);
   const source = readFileSync(new URL("../../supabase/functions/ai-employee-run/index.ts", import.meta.url), "utf8");
   assert.match(source, /checkId === "usesSlang"/);
   assert.match(source, /checkId === "soundsSpoken"/);

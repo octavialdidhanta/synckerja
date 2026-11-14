@@ -936,14 +936,30 @@ export function createExecutionActions(ctx: ExecutionState & ExecutionDeps) {
       .catch(reportStepError);
   };
 
-  const onLockCreativePillar = (contentPillarId: string) => {
-    if (!focusedIdea || !masters.organizationId) return;
-    const reviews = creativeReviews ?? latestPathReviews(focusedIdea.developmentPaths);
-    const review = reviews.find((item) => item.contentPillarId === contentPillarId);
-    if (!review?.development.trim() || !review.reason.trim() || review.status !== "RECOMMENDED") return;
-    setCreativePillarId(contentPillarId);
+  const lockCreativePillarReviews = (
+    toLock: Array<{ contentPillarId: string; pillarName: string; reason: string }>,
+    reviews: ReturnType<typeof latestPathReviews>,
+  ) => {
+    if (!focusedIdea || !masters.organizationId || toLock.length === 0) return;
+    const idea = focusedIdea;
+    const organizationId = masters.organizationId;
+    const baseTime = Date.now();
+    for (let index = 0; index < toLock.length; index += 1) {
+      const review = toLock[index]!;
+      rememberCreativePath(idea.id, organizationId, {
+        contentPillarId: review.contentPillarId,
+        pillarName: review.pillarName,
+        format: null,
+        status: "RECOMMENDED",
+        reason: review.reason,
+        reviews,
+        savedAt: new Date(baseTime + index).toISOString(),
+      });
+    }
+    const last = toLock[toLock.length - 1]!;
+    setCreativePillarId(last.contentPillarId);
     setCreativeFormat(null);
-    if (focus?.kind === "idea" && focus.ideaId === focusedIdea.id) {
+    if (focus?.kind === "idea" && focus.ideaId === idea.id) {
       setFocus({
         kind: "pillar",
         masterId: focus.masterId,
@@ -951,18 +967,31 @@ export function createExecutionActions(ctx: ExecutionState & ExecutionDeps) {
         territoryId: focus.territoryId,
         angleId: focus.angleId,
         ideaId: focus.ideaId,
-        contentPillarId,
+        contentPillarId: last.contentPillarId,
       });
     }
-    rememberCreativePath(focusedIdea.id, masters.organizationId, {
-      contentPillarId,
-      pillarName: review.pillarName,
-      format: null,
-      status: "RECOMMENDED",
-      reason: review.reason,
-      reviews,
-      savedAt: new Date().toISOString(),
-    });
+  };
+
+  const onLockCreativePillar = (contentPillarId: string) => {
+    if (!focusedIdea) return;
+    const reviews = creativeReviews ?? latestPathReviews(focusedIdea.developmentPaths);
+    const review = reviews.find((item) => item.contentPillarId === contentPillarId);
+    if (!review?.development.trim() || !review.reason.trim() || review.status !== "RECOMMENDED") return;
+    lockCreativePillarReviews([review], reviews);
+  };
+
+  const onLockAllCreativePillars = () => {
+    if (!focusedIdea) return;
+    const reviews = creativeReviews ?? latestPathReviews(focusedIdea.developmentPaths);
+    const lockedIds = new Set(pillarCardsFor(focusedIdea).map((card) => card.contentPillarId));
+    const toLock = reviews.filter(
+      (item) =>
+        item.status === "RECOMMENDED" &&
+        Boolean(item.development?.trim()) &&
+        item.reason.trim() &&
+        !lockedIds.has(item.contentPillarId),
+    );
+    lockCreativePillarReviews(toLock, reviews);
   };
 
   const onOpenExecutionSettings = (format: CreativeFormat) => {
@@ -2414,5 +2443,5 @@ export function createExecutionActions(ctx: ExecutionState & ExecutionDeps) {
    * One card: a card that was never checked is checked as it is. A card that failed is rewritten from its
    * failed check (at most three times per card) and checked again. The card keeps its code either way.
    */
-  return { onStopExecution, onOpenPillarPicker, loadScriptConfirm, askScriptDiscovery, withPillarRecommendation, pillarHopStopped, onGenerateExecutions, onReviewCreativePillars, onReviewLeadMagnetPillars, rememberedDevelopment, onLockCreativePillar, onOpenExecutionSettings, onToggleExecutionPass, onAcceptPassProposal, onDeclinePassProposal, onRegenerateExecution, onRewriteExecution, onUseRecommendation, onRegenerateLine, onFixLine, onUseExecutionOffer, onRetrySelling, onRepairExecution };
+  return { onStopExecution, onOpenPillarPicker, loadScriptConfirm, askScriptDiscovery, withPillarRecommendation, pillarHopStopped, onGenerateExecutions, onReviewCreativePillars, onReviewLeadMagnetPillars, rememberedDevelopment, onLockCreativePillar, onLockAllCreativePillars, onOpenExecutionSettings, onToggleExecutionPass, onAcceptPassProposal, onDeclinePassProposal, onRegenerateExecution, onRewriteExecution, onUseRecommendation, onRegenerateLine, onFixLine, onUseExecutionOffer, onRetrySelling, onRepairExecution };
 }

@@ -20,6 +20,8 @@ export type CreativePathView = {
   onReview: () => void;
   onReviewLeadMagnet?: () => void;
   onSelectPillar: (id: string) => void;
+  /** Lock every recommended pillar still unlocked on this Idea. */
+  onLockAllPillars?: () => void;
   onSelectFormat: (format: CreativeFormat) => void;
   leadMagnetStep?: LeadMagnetReviewStep | null;
 };
@@ -117,7 +119,7 @@ export function CreativePathPanel({
         <p className="text-sm leading-relaxed text-muted-foreground">
           {t(
             "thinkingLab.creative.hint",
-            "Review pillars that can carry this idea. Each recommendation shows what the idea becomes in that pillar, and why that fit holds. Lock one pillar. The locked pillar leaves this Idea and opens as its own section in the map.",
+            "Review pillars that can carry this idea. Each recommendation shows what the idea becomes in that pillar, and why that fit holds. Lock a pillar, or lock all recommended pillars. Each locked pillar leaves this Idea and opens as its own section in the map.",
           )}
         </p>
       </div>
@@ -137,6 +139,11 @@ export function CreativePathPanel({
           >
             {pendingAction === "creative-review-lead-magnet" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
             {t("thinkingLab.creative.reviewLeadMagnet", "Review pillar Lead Magnet")}
+          </Button>
+        ) : null}
+        {path.onLockAllPillars && recommended.length > 0 ? (
+          <Button type="button" size="sm" variant="outline" onClick={path.onLockAllPillars} disabled={busy}>
+            {t("thinkingLab.creative.lockAll", "Lock all")}
           </Button>
         ) : null}
       </div>

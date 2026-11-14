@@ -22,6 +22,14 @@ export function readBigThoughtCheckId(value: unknown): BigThoughtCheckId | null 
 
 export type PassGateState = "pending" | "checking" | "pass" | "fail" | "unchecked";
 
+/** Maps gateChain step state to checklist UI state (runner lives in passChecks.ts). */
+export function gateStepToPassState(state: "pending" | "running" | "pass" | "fail"): PassGateState {
+  if (state === "running") return "checking";
+  if (state === "pending") return "pending";
+  if (state === "pass") return "pass";
+  return "fail";
+}
+
 export type PassGateCheck = {
   id: PassGateId;
   state: PassGateState;

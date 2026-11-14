@@ -924,7 +924,7 @@ async function referenceStyleLock(
                   "Answer in exactly these five labelled lines, each label once, in this order:",
                   "PHOTO: where the main picture area sits, what share of the page it fills in percent, and its crop or frame shape. Do not say what the picture shows.",
                   "HEADLINE: position, alignment, size compared to the page width, number of lines, weight, case, any tilt or overlap with the picture.",
-                  "TEXT: each smaller text block or label box, with its position and size. Call them by role only, such as small label box or button box.",
+                  "TEXT: each supporting text block or label box, with its position and size relative to the headline (supporting deskripsi uses one standard size on every page, about half to two-thirds the headline, not tiny). Call them by role only, such as supporting line or button box.",
                   "DECOR: frames, shapes, badges, dividers, shadows, textures, and where each sits, described by shape only.",
                   "TYPE: the typeface by name if you recognize it, otherwise its style, weight and case, for headline and body.",
                   "Use positions like top-left, center, bottom third, and sizes in percent of the page.",

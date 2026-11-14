@@ -1253,6 +1253,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
     onCarouselFirstUploadSuccess={onCarouselFirstUploadSuccess}
     onCarouselAllRemoved={onCarouselAllRemoved}
     canRefreshFromCanva={canvaRun?.status === 'succeeded'}
+    canvaDesignUrl={canvaRun?.design_url ?? null}
     canvaRefreshing={canvaRun?.refresh_requested === true && canvaRun?.images_ready !== true}
     canvaRevising={canvaRun?.revision_requested === true}
     canvaRunError={canvaRun?.error ?? null}

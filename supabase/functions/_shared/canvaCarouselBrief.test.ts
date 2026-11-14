@@ -67,9 +67,9 @@ Deno.test("carouselSlidesFromBrief keeps copy, hook, and other elements", () => 
     caption: "Lihat lagi #keluarga",
     slides,
   });
-  assertEquals(brief.includes("Headline (biggest text): Sibuk bukan sayang\nSmall text: Ibu mengira sibuk adalah sayang."), true);
+  assertEquals(brief.includes("Headline (biggest text): Sibuk bukan sayang\nSmall text (standard deskripsi size on every page, about half to two-thirds the headline — not tiny): Ibu mengira sibuk adalah sayang."), true);
   assertEquals(brief.includes("Real person photo. Scene: Ibu memandang kalender. Kalender menutup wajah"), true);
-  assertEquals(brief.includes("Headline (biggest text): Kontras ekspresi ibu dan anak\nSmall text: Anak butuh ibu yang hadir."), true);
+  assertEquals(brief.includes("Headline (biggest text): Kontras ekspresi ibu dan anak\nSmall text (standard deskripsi size on every page, about half to two-thirds the headline — not tiny): Anak butuh ibu yang hadir."), true);
   assertEquals(brief.includes("Visual hook:"), false);
   const locked = buildCanvaCarouselBrief({
     title: "Hadir",
@@ -90,7 +90,9 @@ Deno.test("carouselSlidesFromBrief keeps copy, hook, and other elements", () => 
   assertEquals(locked.includes("Leave the top center of every page empty."), true);
   assertEquals(locked.includes("Do not draw a logo"), false);
   assertEquals(locked.includes("Write only the headline, small text, small labels, and contact box"), true);
-  assertEquals(locked.includes("Small text: Ibu mengira sibuk adalah sayang."), true);
+  assertEquals(locked.includes("readable sample numbers, side labels, icons, or short lists"), true);
+  assertEquals(locked.includes("standard size on every page"), true);
+  assertEquals(locked.includes("Small text (standard deskripsi size on every page, about half to two-thirds the headline — not tiny): Ibu mengira sibuk adalah sayang."), true);
   const plain = buildCanvaCarouselBrief({
     title: "Hadir",
     caption: "Lihat lagi #keluarga",
@@ -148,7 +150,7 @@ Deno.test("carouselReferencePosition keeps one agreed slot", () => {
   assertEquals(directed.includes("Ilustrasi anak bingung"), false);
   assertEquals(directed.includes("Gambar ibu dan anak"), false);
   assertEquals(/(Headline|Small text|Small labels)[^\n]*Apa yang ingin kamu lakukan hari ini/.test(directed), false);
-  assertEquals(directed.includes("Headline (biggest text): Keseimbangan & Kehadiran\nSmall text: Ajarkan keseimbangan."), true);
+  assertEquals(directed.includes("Headline (biggest text): Keseimbangan & Kehadiran\nSmall text (standard deskripsi size on every page, about half to two-thirds the headline — not tiny): Ajarkan keseimbangan."), true);
   assertEquals(directed.includes("Real person photo. Scene: Anak di meja belajar. anak bingung dengan tumpukan buku"), true);
   const mixed = slides.map((slide, index) => (
     index === 1 ? { ...slide, elements: slide.elements.replace("Referensi 2", "Referensi 4") } : slide
@@ -174,7 +176,7 @@ Deno.test("buildCanvaCarouselBrief writes the required note and photographs a pe
   assertEquals(brief.includes("Write exactly this on the last page, in its contact box: 081234567890"), true);
   assertEquals(brief.includes("Cantumkan nomor telepon"), false);
   assertEquals(brief.includes("Do not write any of this: harga promo"), true);
-  assertEquals(brief.includes("Headline (biggest text): Ajakan singkat di bawah\nSmall text: Hubungi jam buka.\nContact box, separate at the bottom of this page: 081234567890"), true);
+  assertEquals(brief.includes("Headline (biggest text): Ajakan singkat di bawah\nSmall text (standard deskripsi size on every page, about half to two-thirds the headline — not tiny): Hubungi jam buka.\nContact box, separate at the bottom of this page: 081234567890"), true);
   assertEquals(brief.includes("Real food photo. Scene: Sate kambing di atas piring"), true);
   assertEquals(brief.split(FOOD_PHOTO_RULE).length - 1, 1);
   assertEquals(brief.includes("Draw: Sate kambing di atas piring"), false);
@@ -268,7 +270,7 @@ Deno.test("buildCanvaCarouselBrief gives a long shared layout the room the pages
   assertEquals(brief.includes("PHOTO: detail"), true);
   assertEquals(brief.includes("HEADLINE: detail"), true);
   assertEquals(brief.includes("Page 3"), true);
-  assertEquals(brief.includes("Headline (biggest text): A\nSmall text: Halo 3"), true);
+  assertEquals(brief.includes("Headline (biggest text): A\nSmall text (standard deskripsi size on every page, about half to two-thirds the headline — not tiny): Halo 3"), true);
 });
 
 Deno.test("slideTexts puts the headline first and trims the spoken line to about 12 words", () => {

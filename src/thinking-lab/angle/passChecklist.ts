@@ -1,5 +1,5 @@
 import { UNDECIDED_REASON, buildBatchGatePrompt, parseGateAnswer, type GateAnswer } from "../shared/batchGates";
-import { runGateChain } from "../shared/gateChain";
+import { runLevelGateChain } from "../shared/defineLevelGates";
 import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
 import { sameWording } from "../shared/distinct";
 import { angleExampleProblem } from "./example";
@@ -219,7 +219,7 @@ export async function runAngleChecks(
     onStep?: (checks: AnglePassCheck[]) => void;
   },
 ): Promise<AngleCheckRun> {
-  const run = await runGateChain({
+  const run = await runLevelGateChain({
     ids: ANGLE_PASS_CHECK_IDS,
     skip: input.skip,
     keep: input.keep,

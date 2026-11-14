@@ -1,3 +1,9 @@
+/**
+ * Scope for AI rewrite prompts: which checks must stay passed (`preserve`) and which
+ * must be repaired (`repair`). Used by execution meaning-line repair
+ * (`buildExecutionMeaningRepairPrompt` → `fixScopeLines`). Pass-switch toggle rewrite
+ * uses a separate prompt builder but must not drop this module — repair still depends on it.
+ */
 export type FixRepair = {
   id: string;
   reason?: string;

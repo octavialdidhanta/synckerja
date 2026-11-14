@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+﻿import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MasterThoughtMapTree, mapLinkPath, panToCenter, settleCurves, type MasterMapChild } from "@/thinking-lab/section/MasterThoughtMapTree";
 import type { LabMasterThought, MasterThoughtFacts } from "@/thinking-lab/master-thought/types";
@@ -97,6 +97,70 @@ describe("MasterThoughtMapTree pills", () => {
     expect(screen.getByRole("button", { name: /Uang butuh waktu untuk tumbuh/ })).toBeTruthy();
     expect(screen.getByText("+3")).toBeTruthy();
     expect(screen.queryByText("Pasar motor bekas modif")).toBeNull();
+  });
+
+  it("expands and collapses every branch from the top-right controls", () => {
+    renderMap(
+      [
+        {
+          id: "bt1",
+          code: "BT01",
+          label: "Keinginan",
+          statement: "Alasan",
+          childCount: 1,
+          territories: [
+            {
+              id: "t1",
+              code: "TR01",
+              statement: "Mantan anak motor",
+              childCount: 1,
+              angles: [
+                {
+                  id: "a1",
+                  code: "AN01",
+                  statement: "Motor kebanggaan kini nganggur",
+                  subject: "Motor kebanggaan kini nganggur",
+                  childCount: 1,
+                  ideas: [
+                    {
+                      id: "i1",
+                      code: "ID01",
+                      statement: "Buka Terpal",
+                      childCount: 1,
+                      pillars: [{ id: "p1", label: "Letter to Younger Self", executions: [{ id: "e1", label: "Video", passed: true }] }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: "bt2",
+          code: "BT02",
+          label: "Uang butuh waktu untuk tumbuh",
+          statement: "Alasan yang lain.",
+          childCount: 1,
+          territories: [{ id: "t2", code: "TR02", statement: "Pasar motor bekas modif", childCount: 0 }],
+        },
+      ],
+      { thoughtId: "bt1" },
+    );
+
+    expect(screen.queryByRole("button", { name: /Mantan anak motor/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    expect(screen.getByRole("button", { name: /Mantan anak motor/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Pasar motor bekas modif/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Motor kebanggaan kini nganggur/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Buka Terpal/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Letter to Younger Self" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Video" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse all" }));
+    expect(screen.queryByRole("button", { name: /Keinginan/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Mantan anak motor/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Letter to Younger Self" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Uang muda lebih baik ditabung" })).toBeTruthy();
   });
 
   it("stars an Idea whose cause is locked", () => {
@@ -276,6 +340,7 @@ describe("MasterThoughtMapTree pills", () => {
     fireEvent.click(screen.getByRole("button", { name: /Keinginan/ }));
     fireEvent.click(screen.getByRole("button", { name: /Mantan anak motor/ }));
     fireEvent.click(screen.getByRole("button", { name: /Motor kebanggaan kini nganggur/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Integrasi Keinginan Momen Ini/ }));
     const magnet = screen.getByRole("button", { name: "B-Roll Storytelling" });
     const ordinary = screen.getByRole("button", { name: "Checklist Harian" });
     expect(magnet.textContent).toContain("Pillar - Lead Magnet");
