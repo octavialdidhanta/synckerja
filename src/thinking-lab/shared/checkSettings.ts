@@ -24,8 +24,7 @@ export const CHECK_REGISTRY: Readonly<Record<CheckLevel, readonly CheckEntry[]>>
     { id: "explains", id_label: "Benar-benar menjelaskan", en_label: "Really explains" },
     { id: "premise", id_label: "Premis bisa diterima", en_label: "Acceptable premise" },
     { id: "showable", id_label: "Bisa ditunjukkan", en_label: "Can be shown" },
-    { id: "duplicate", id_label: "Bukan duplikat", en_label: "Not a duplicate" },
-    { id: "sibling", id_label: "Beda dari BT lain", en_label: "Distinct from other BTs" },
+    { id: "duplicate", id_label: "Beda dari BT lain", en_label: "Distinct from other BTs" },
   ],
   territory: [
     { id: "partOfBigThought", id_label: "Bagian dari Big Thought", en_label: "Part of the Big Thought" },
@@ -69,7 +68,7 @@ export function skippedChecks(settings: CheckSettings | null | undefined, level:
   return CHECK_REGISTRY[level].filter((entry) => !checkEnabled(settings, level, entry.id)).map((entry) => entry.id);
 }
 
-/** Only switches that exist. An Idea or Angle switch saved before its checks were merged turns on the check that replaced it. */
+/** Only switches that exist. An Idea, Angle, or Big Thought switch saved before its checks were merged turns on the check that replaced it. */
 export function parseCheckSettings(value: unknown): Record<string, boolean> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const on = new Set(
@@ -86,7 +85,9 @@ export function parseCheckSettings(value: unknown): Record<string, boolean> {
           ? (LEGACY_IDEA_SWITCHES[entry.id as keyof typeof LEGACY_IDEA_SWITCHES] ?? [])
           : level === "angle"
             ? (LEGACY_ANGLE_SWITCHES[entry.id as keyof typeof LEGACY_ANGLE_SWITCHES] ?? [])
-            : [];
+            : level === "bigThought" && entry.id === "duplicate"
+              ? ["sibling"]
+              : [];
       if (on.has(key) || replaced.some((id) => on.has(checkKey(level, id)))) out[key] = true;
     }
   }

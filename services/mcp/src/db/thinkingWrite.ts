@@ -4,20 +4,19 @@ import {
   confirmedBeliefFacts,
   confirmedFingerprint,
 } from "../../../../src/thinking-lab/master-thought/semantic";
-import { runBigThoughtIndividualChecks } from "../../../../src/thinking-lab/big-thought/passChecks";
-import { judgeSiblingSet } from "../../../../src/thinking-lab/big-thought/semantic";
+import { runBigThoughtChecks } from "../../../../src/thinking-lab/big-thought/passChecks";
 import {
-  auditSiblingGate,
-  emptySetRecord,
-  nextAuthoritativeSetRecord,
-  parseLabSetRecord,
-} from "../../../../src/thinking-lab/big-thought/audit";
+  bigThoughtVerdict,
+  readBigThoughtSetRecord,
+  withBigThoughtResult,
+  type BigThoughtSetRecord,
+} from "../../../../src/thinking-lab/big-thought/record";
 import { nextBigThoughtCode, shownBigThoughtFacts } from "../../../../src/thinking-lab/big-thought/generate";
-import { bigThoughtFingerprint, fingerprintsMatch, incumbentSetFingerprint } from "../../../../src/thinking-lab/shared/fingerprint";
+import { bigThoughtFingerprint, fingerprintsMatch } from "../../../../src/thinking-lab/shared/fingerprint";
 import { individualAdmission } from "../../../../src/thinking-lab/big-thought/policy";
 import { bigThoughtListed } from "../../../../src/thinking-lab/big-thought/checklist";
 import { ACTIVE_SET_CAP } from "../../../../src/thinking-lab/shared/limits";
-import type { AuditItem, BigThoughtFacts } from "../../../../src/thinking-lab/big-thought/types";
+import type { BigThoughtFacts } from "../../../../src/thinking-lab/big-thought/types";
 import { parseCheckSettings, skippedChecks, type CheckSettings } from "../../../../src/thinking-lab/shared/checkSettings";
 import type { MasterCatalogContext } from "../../../../src/thinking-lab/master-thought/types";
 import type { CatalogPick } from "../tools/thinking/treeWrite";
@@ -280,7 +279,7 @@ export async function lockThinkingBigThoughts(
   if (context.locked) return { saved: true, id: input.masterThoughtId };
   const masterStatement = context.statement.trim();
   const parentFp = confirmedFingerprint(masterStatement, context.root_belief || masterStatement);
-  const record = parseLabSetRecord(context.last_audit) ?? emptySetRecord();
+  const record = readBigThoughtSetRecord(context.last_audit);
   const auditByCode = new Map((record.audit?.items ?? []).map((item) => [item.code.toUpperCase(), item]));
   const rows = context.big_thoughts
     .filter((row) => row.status !== "rejected")
@@ -292,17 +291,13 @@ export async function lockThinkingBigThoughts(
         factsCurrent: fingerprintsMatch(row.semantic_fingerprint ?? null, fingerprint),
       });
       const item = auditByCode.get(row.code.toUpperCase());
-      const passed =
-        row.status === "locked" ||
-        (item?.verdict === "AUDIT_PASS" &&
-          Boolean(item.statementFingerprint) &&
-          fingerprintsMatch(item.statementFingerprint ?? null, fingerprint));
-      const audit = passed ? "AUDIT_PASS" : item?.verdict === "AUDIT_FAIL" ? "AUDIT_FAIL" : null;
+      const audit = bigThoughtVerdict(row, record, fingerprint);
+      const passed = audit === "AUDIT_PASS";
       const listed = bigThoughtListed({
         admission,
         audit,
         gateFailure: facts?.gateFailure ?? null,
-        auditGateFailure: item?.gateFailure ?? null,
+        auditGateFailure: item?.gateFailure ? { ...item.gateFailure, earlier: "pass" } : null,
       });
       return { row, passed, listed, reason: item?.gateFailure?.reason ?? "" };
     })
@@ -316,7 +311,7 @@ export async function lockThinkingBigThoughts(
       saved: false,
       failed: open.map((entry) => ({
         check: entry.row.code,
-        reason: entry.reason || "This Big Thought has not passed its checks for the current sentence. Fix or delete it first.",
+        reason: entry.reason || "This Big Thought has not passed its checks for the current sentence. Revise or delete it first.",
       })),
     };
   }
@@ -330,9 +325,9 @@ export async function lockThinkingBigThoughts(
 }
 
 /**
- * One Big Thought written in chat. The individual checks (batched) and the sibling check run
- * exactly as on the page; a pass is saved with the same facts, fingerprint, and audit item the
- * page writes after a successful Fix, so the page shows it as checked.
+ * One Big Thought written in chat. The page's six checks run on it ("duplicate" compares it with the
+ * Big Thoughts that passed); a pass is saved with the same facts, fingerprint, and audit item the page
+ * writes, so the page shows it as checked.
  */
 export async function addThinkingBigThought(
   admin: SupabaseClient,
@@ -356,71 +351,36 @@ export async function addThinkingBigThought(
   if (active.length >= ACTIVE_SET_CAP) {
     return { saved: false, failed: [{ check: "cap", reason: `A Master Thought holds at most ${ACTIVE_SET_CAP} Big Thoughts.` }] };
   }
-  const record = parseLabSetRecord(context.last_audit) ?? emptySetRecord();
-  const passedCodes = new Set(
-    (record.audit?.items ?? []).filter((item) => item.verdict === "AUDIT_PASS").map((item) => item.code.toUpperCase()),
-  );
-  const keepers = active
-    .filter((row) => row.status === "locked" || passedCodes.has(row.code.toUpperCase()))
-    .map((row) => ({ code: row.code, statement: row.statement, label: row.label }));
   const masterStatement = context.statement.trim();
   const becauseParent = (context.subject || masterStatement).trim();
   const parentFp = confirmedFingerprint(masterStatement, context.root_belief || masterStatement);
+  const record: BigThoughtSetRecord = readBigThoughtSetRecord(context.last_audit);
+  // Big Thoughts that passed for their current sentence (or are locked): "duplicate" compares with these.
+  const keepers = active
+    .filter(
+      (row) =>
+        bigThoughtVerdict(row, record, bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp })) ===
+        "AUDIT_PASS",
+    )
+    .map((row) => ({ code: row.code, statement: row.statement, label: row.label }));
   const code = replace?.row.code ?? nextBigThoughtCode(context.big_thoughts.map((row) => row.code));
   const ask = makeAsk(config, ctx, deps);
   const skip = skippedChecks(await loadCheckSettings(admin, ctx, deps), "bigThought");
 
-  const checked = await runBigThoughtIndividualChecks({
-    batch: true,
+  const checked = await runBigThoughtChecks({
     statement,
     parentStatement: becauseParent,
     others: keepers,
     skip,
     ask,
   });
-  if (!checked.passed) {
-    const failure = checked.failure;
-    return {
-      saved: false,
-      failed: [{ check: failure?.gate ?? "undecided", reason: failure?.reason || "This check could not be decided." }],
-    };
+  if (checked.failure) {
+    return { saved: false, failed: [{ check: checked.failure.gate, reason: checked.failure.reason }] };
   }
 
-  const siblingRows = [...keepers.map((row) => ({ code: row.code, statement: row.statement })), { code, statement }];
-  const siblingFingerprint = incumbentSetFingerprint({
-    masterThoughtFingerprint: parentFp,
-    bigThoughtFingerprints: siblingRows.map((row) =>
-      bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
-    ),
-  });
-  // One row needs no model call; the page stores this set too, so Lock sees a current sibling check.
-  // With the sibling check OFF, the stored set stays as it was.
-  const siblingOff = skip.includes("sibling") && siblingRows.length >= 2;
-  const sibling = siblingOff
-    ? record.siblingSet
-    : await judgeSiblingSet({ parentStatement: masterStatement, rows: siblingRows, fingerprint: siblingFingerprint }, ask);
-  if (!siblingOff && siblingRows.length >= 2) {
-    const gate = auditSiblingGate({
-      code,
-      siblingSet: sibling,
-      siblingSetCurrent: true,
-      activeCodes: siblingRows.map((row) => row.code),
-    });
-    if (!gate.passed) return { saved: false, failed: [{ check: "sibling", reason: gate.reason }] };
-  }
-
-  const facts: BigThoughtFacts = { ...shownBigThoughtFacts(code, statement), generatePasses: ["resolved", "relation"] };
+  const facts: BigThoughtFacts = shownBigThoughtFacts(code, statement);
   const statementFingerprint = bigThoughtFingerprint({ statement, masterThoughtFingerprint: parentFp });
-  const items: AuditItem[] = [
-    ...(record.audit?.items ?? []).filter((item) => item.code.toUpperCase() !== code.toUpperCase()),
-    { code, verdict: "AUDIT_PASS", statementFingerprint, gatesChecked: true, ...(skip.length ? { skipped: skip } : {}) },
-  ];
-  const nextRecord = nextAuthoritativeSetRecord({
-    record,
-    parentFingerprint: parentFp,
-    siblingSet: sibling,
-    audit: { setFingerprint: record.audit?.setFingerprint ?? "", items },
-  });
+  const nextRecord = withBigThoughtResult(record, { code, statement, statementFingerprint, failure: null, skipped: skip });
   if (replace) {
     return replace.persist({
       code,

@@ -6,6 +6,8 @@ import {
   setThinkingMasterCatalog,
 } from "../src/db/thinkingWrite";
 import { CHECK_REGISTRY } from "../../../src/thinking-lab/shared/checkSettings";
+import { confirmedFingerprint } from "../../../src/thinking-lab/master-thought/semantic";
+import { bigThoughtFingerprint } from "../../../src/thinking-lab/shared/fingerprint";
 
 const ALL_ON = Object.fromEntries(
   Object.entries(CHECK_REGISTRY).flatMap(([level, entries]) => entries.map((entry) => [`${level}.${entry.id}`, true])),
@@ -141,6 +143,36 @@ describe("thinking.bigthought.add", () => {
     expect(result.saved).toBe(false);
     if (!result.saved) expect(result.failed[0].check).toBe("relation");
     expect(calls.some((call) => call.fn === "mcp_add_thinking_big_thought")).toBe(false);
+  });
+
+  it("compares the sentence with the Big Thoughts that passed, on the card itself", async () => {
+    const parentFp = confirmedFingerprint(context.statement, context.root_belief);
+    const passedStatement = "dagingnya dipotong tipis sebelum dibakar";
+    const withPassed = {
+      ...context,
+      big_thoughts: [{ id: "bt-1", code: "BT01", label: "", statement: passedStatement, status: "candidate", sort_order: 1 }],
+      last_audit: {
+        schema: "thinking-lab/v1",
+        audit: {
+          setFingerprint: "",
+          items: [{ code: "BT01", verdict: "AUDIT_PASS", statementFingerprint: bigThoughtFingerprint({ statement: passedStatement, masterThoughtFingerprint: parentFp }) }],
+        },
+      },
+    };
+    const prompts: string[] = [];
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const result = await addThinkingBigThought(fakeAdmin(withPassed, calls), config, ctx, {
+      masterThoughtId: masterId, statement, label: "",
+    }, {
+      checks: ALL_ON,
+      ask: async (prompt) => {
+        prompts.push(prompt);
+        return batchAnswer(prompt, (id) => id !== "duplicate");
+      },
+    });
+    expect(result.saved).toBe(false);
+    if (!result.saved) expect(result.failed[0].check).toBe("duplicate");
+    expect(prompts.some((prompt) => prompt.includes(`BT01: ${passedStatement}`))).toBe(true);
   });
 
   it("refuses a Master Thought that is not confirmed", async () => {

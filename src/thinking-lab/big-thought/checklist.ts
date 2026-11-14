@@ -1,7 +1,8 @@
-import type { GateFailure, GeneratePassGate, PassGateId } from "./types";
+import type { GateFailure, PassGateId } from "./types";
 
 export type { GateFailure, PassGateId };
 
+/** The six Big Thought checks, in the order they run. */
 export const PASS_GATE_IDS: readonly PassGateId[] = [
   "resolved",
   "relation",
@@ -9,8 +10,15 @@ export const PASS_GATE_IDS: readonly PassGateId[] = [
   "premise",
   "showable",
   "duplicate",
-  "sibling",
 ];
+
+export type BigThoughtCheckId = PassGateId;
+
+/** A stored check id, read as a current id. The earlier set-wide "sibling" check is now "duplicate". */
+export function readBigThoughtCheckId(value: unknown): BigThoughtCheckId | null {
+  if (value === "sibling") return "duplicate";
+  return typeof value === "string" && (PASS_GATE_IDS as readonly string[]).includes(value) ? (value as BigThoughtCheckId) : null;
+}
 
 export type PassGateState = "pending" | "checking" | "pass" | "fail" | "unchecked";
 
@@ -70,28 +78,6 @@ function passedChecklist(): PassChecklist {
   };
 }
 
-/** One frame of the live checklist. Later gates stay pending until this gate is confirmed. */
-export function checklistFrame(
-  final: PassChecklist,
-  gate: PassGateId,
-  phase: "checking" | "checked",
-): PassChecklist {
-  const index = final.items.findIndex((item) => item.id === gate);
-  const current = final.items[index] ?? { id: gate, state: "pending" as const, reason: "" };
-  const outcome: GateReport["outcome"] = current.state === "fail" ? "fail" : "pass";
-  return {
-    items: final.items.map((item, itemIndex) => {
-      if (itemIndex < index) return item;
-      if (itemIndex === index) return phase === "checking" ? { ...current, state: "checking" } : current;
-      return { ...item, state: phase === "checked" && outcome === "fail" ? "unchecked" : "pending" };
-    }),
-    passed: false,
-    lesson: null,
-    failure: phase === "checked" && outcome === "fail" ? final.failure : null,
-    report: { gate, phase, outcome },
-  };
-}
-
 /**
  * A short beat so each check visibly ticks. It used to be 0.7 s + 0.9 s per check, about 10 s of
  * waiting per Big Thought on top of the model calls.
@@ -108,18 +94,6 @@ export function waitForChecklistReport(checklist: { report?: GateReport | null }
   return new Promise((resolve) => {
     window.requestAnimationFrame(() => window.setTimeout(resolve, pause));
   });
-}
-
-/** Sibling is still in flight. Earlier individual gates stay confirmed. */
-export function checkingSiblingFrame(individual: PassChecklist): PassChecklist {
-  return checklistFrame(
-    {
-      ...individual,
-      items: individual.items.map((item) => (item.id === "sibling" ? { ...item, state: "pass" } : item)),
-    },
-    "sibling",
-    "checking",
-  );
 }
 
 export function confirmedPassChecklist(): PassChecklist {
@@ -139,15 +113,6 @@ export function bigThoughtListed(row: {
   return true;
 }
 
-export function completeChecklist(
-  individual: PassChecklist,
-  sibling: { passed: boolean; reason: string },
-): PassChecklist {
-  if (individual.failure) return individual;
-  if (!sibling.passed) return stopped("sibling", sibling.reason, "pass");
-  return passedChecklist();
-}
-
 export function checklistFromFailure(failure: GateFailure): PassChecklist {
   return stopped(failure.gate, failure.reason, failure.earlier);
 }
@@ -165,22 +130,14 @@ export function attachLesson(checklist: PassChecklist, statement: string): PassC
   return { ...checklist, lesson: lessonFromFailure(statement, checklist.failure) };
 }
 
-export function readGeneratePasses(value: unknown): GeneratePassGate[] {
-  if (!Array.isArray(value)) return [];
-  const found = new Set<GeneratePassGate>();
-  for (const item of value) {
-    if (item === "resolved" || item === "relation") found.add(item);
-  }
-  return (["resolved", "relation"] as const).filter((id) => found.has(id));
-}
-
 export function readGateFailure(value: unknown): GateFailure | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as { gate?: unknown; reason?: unknown; earlier?: unknown };
-  if (typeof row.gate !== "string" || !PASS_GATE_IDS.includes(row.gate as PassGateId)) return null;
+  const gate = readBigThoughtCheckId(row.gate);
+  if (!gate) return null;
   if (typeof row.reason !== "string" || !row.reason.trim()) return null;
   return {
-    gate: row.gate as PassGateId,
+    gate,
     reason: clip(row.reason),
     earlier: row.earlier === "unchecked" ? "unchecked" : "pass",
   };

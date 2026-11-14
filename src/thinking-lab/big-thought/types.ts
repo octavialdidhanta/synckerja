@@ -15,10 +15,7 @@ export type ParentRelation =
   | "UNSUPPORTED_PREMISE"
   | "UNRESOLVED";
 
-export type PassGateId = "resolved" | "relation" | "explains" | "premise" | "showable" | "duplicate" | "sibling";
-
-/** Model checks Generate already passed for this exact sentence. */
-export type GeneratePassGate = "resolved" | "relation";
+export type PassGateId = "resolved" | "relation" | "explains" | "premise" | "showable" | "duplicate";
 
 export type GateFailure = {
   gate: PassGateId;
@@ -40,79 +37,6 @@ export type BigThoughtFacts = {
   gateFailure?: GateFailure;
   /** Set only after every pass gate was confirmed, one at a time. */
   passConfirmed?: true;
-  /** Finished-claim and relation passes for whatItSays. Audit keeps them while the sentence stays the same. */
-  generatePasses?: GeneratePassGate[];
-};
-
-export type ReasonContributionFact = {
-  code: string;
-  reasonContribution: string;
-};
-
-export type SameReasonPair = {
-  a: string;
-  b: string;
-  explanation: string;
-};
-
-export type SiblingSetFacts = {
-  fingerprint: string;
-  distinct: TriState;
-  duplicatePairs: SameReasonPair[];
-  reasonContributions: ReasonContributionFact[];
-  resolution: Resolution;
-  unresolvedReasons: string[];
-  confidence?: number;
-};
-
-export type AuditItem = {
-  code: string;
-  verdict: "AUDIT_PASS" | "AUDIT_FAIL" | "UNRESOLVED" | "STALE";
-  statementFingerprint?: string;
-  /** Set after this audit walked every pass gate and confirmed them. */
-  gatesChecked?: true;
-  gateFailure?: GateFailure;
-  /** Pass checks switched OFF when this item was saved: shown as "Tanpa cek". */
-  skipped?: string[];
-  /** An ancestor was rewritten after this item passed: shown as "Induk berubah". */
-  parentChanged?: true;
-};
-
-export type SemanticExclusion = {
-  reasonContribution: string;
-  explanation: string;
-  codes: string[];
-};
-
-export type SemanticExclusionHistory = {
-  parentFingerprint: string;
-  entries: SemanticExclusion[];
-};
-
-/** A failed Fix attempt for one Big Thought. Kept until that card passes. */
-export type BigThoughtFixLesson = {
-  code: string;
-  statement: string;
-  reason: string;
-};
-
-/** A sentence Generate rejected. The next Generate click must not repeat it. */
-export type BigThoughtGenerateLesson = {
-  gate: PassGateId;
-  statement: string;
-  reason: string;
-};
-
-export type LabSetRecord = {
-  schema: "thinking-lab/v1";
-  siblingSet: SiblingSetFacts | null;
-  audit: {
-    setFingerprint: string;
-    items: AuditItem[];
-  } | null;
-  semanticExclusions: SemanticExclusionHistory | null;
-  fixLessons?: BigThoughtFixLesson[];
-  generateLessons?: BigThoughtGenerateLesson[];
 };
 
 export type LabBigThought = {

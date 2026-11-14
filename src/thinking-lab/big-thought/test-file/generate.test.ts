@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { buildSiblingSetPrompt } from "@/thinking-lab/big-thought/semantic";
 import {
   buildGeneratePrompt,
   nextBigThoughtCode,
@@ -158,7 +157,7 @@ describe("generate planner", () => {
     expect(prompt).toContain("semantic name of that statement's meaning");
     expect(prompt).toContain("Do not shorten or rewrite the statement so that it matches the label.");
     expect(prompt).toContain("same words as an incumbent label, in any order");
-    const lower = `${prompt}\n${buildSiblingSetPrompt({ parentStatement: "A general belief", rows: [] })}`.toLowerCase();
+    const lower = prompt.toLowerCase();
     for (const word of BANNED) expect(lower).not.toContain(word);
   });
 

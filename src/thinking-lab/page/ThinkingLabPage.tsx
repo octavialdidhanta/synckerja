@@ -32,18 +32,11 @@ import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate"
 import { cn } from "@/shared/lib/utils";
 import { isGeminiBillingNoticeError, isGeminiBillingNoticeMessage } from "@/shared/ai/geminiSpendCap";
 import { askThinkingLab, parseModelJson, setThinkingAuditScope } from "@/thinking-lab/shared/ai";
-import {
-  ACTIVE_SET_CAP,
-  BT_FIX_MAX_ATTEMPTS,
-  BT_FIX_REPLACE_AFTER,
-  BT_FIX_SAME_GATE_STOP,
-  BT_FIX_STUCK_LESSONS,
-} from "@/thinking-lab/shared/limits";
+import { ACTIVE_SET_CAP } from "@/thinking-lab/shared/limits";
 import type { AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import {
   bigThoughtFingerprint,
   fingerprintsMatch,
-  incumbentSetFingerprint,
   angleFingerprint,
   ideaFingerprint,
   ideaSetFingerprint,
@@ -51,7 +44,6 @@ import {
 } from "@/thinking-lab/shared/fingerprint";
 import {
   fixAttemptCap,
-  fixScopeFromChecks,
   type FixScope,
 } from "@/thinking-lab/shared/fixScope";
 import {
@@ -75,19 +67,18 @@ import { ANSWERED_QUESTION_VERSION, resolveAnsweredQuestion } from "@/thinking-l
 import type { BeliefOption, LabMasterThought, MasterCatalogContext } from "@/thinking-lab/master-thought/types";
 import { useMasterThought } from "@/thinking-lab/master-thought/useMasterThought";
 import {
-  clearSetConclusions,
-  displayedAuditVerdict,
-  keptPassingAuditItems,
-  emptySetRecord,
-  nextAuthoritativeSetRecord,
-  parseLabSetRecord,
-  mergeFixLessons,
-  mergeGenerateLessons,
-  dropFixLessons,
-  stuckBigThoughtFixes,
-  auditSiblingGate,
-  siblingSetIsCurrent,
-} from "@/thinking-lab/big-thought/audit";
+  GENERATE_LESSON_CODE,
+  canReviseBigThought,
+  bigThoughtVerdict,
+  generateLessons,
+  mergeBigThoughtLessons,
+  readBigThoughtSetRecord,
+  withBigThoughtResult,
+  withBigThoughtRevision,
+  withoutBigThought,
+  type BigThoughtSetRecord,
+} from "@/thinking-lab/big-thought/record";
+import { buildBigThoughtRevisionPrompt, parseBigThoughtRevision } from "@/thinking-lab/big-thought/revise";
 import {
   buildGeneratePrompt,
   countGenerateValid,
@@ -95,33 +86,17 @@ import {
   nextBigThoughtCode,
   parseGeneratedBigThoughts,
   runGenerateRounds,
-  shownBigThoughtFacts,
 } from "@/thinking-lab/big-thought/generate";
 import {
-  checkingSiblingFrame,
-  checklistFrame,
   attachLesson,
   checklistFromFailure,
-  completeChecklist,
   bigThoughtListed,
-  readGateFailure,
-  readGeneratePasses,
+  readBigThoughtCheckId,
   waitForChecklistReport,
   type GateLesson,
   type PassChecklist,
 } from "@/thinking-lab/big-thought/checklist";
-import {
-  buildBigThoughtFixPrompt,
-  factsForGenerateAdmission,
-  fixPriorForNextSentence,
-  generateDuplicateFailure,
-  parseBigThoughtFixStatement,
-  runBigThoughtIndividualChecks,
-  runBigThoughtOpenChecks,
-  runGenerateAdmissionChecks,
-  bigThoughtFixMode,
-  type BigThoughtFixMode,
-} from "@/thinking-lab/big-thought/passChecks";
+import { factsForBigThoughtChecks, runBigThoughtChecks } from "@/thinking-lab/big-thought/passChecks";
 import { asBecauseClause, becauseSentence } from "@/thinking-lab/big-thought/because";
 import {
   bigThoughtLabelIsOpen,
@@ -137,7 +112,6 @@ import { evaluateLock, selectStageAction } from "@/thinking-lab/big-thought/lock
 import { individualAdmission } from "@/thinking-lab/big-thought/policy";
 import { ManualStatementForm } from "@/thinking-lab/section/ManualStatementForm";
 import { activeBigThoughts } from "@/thinking-lab/big-thought/repository";
-import { judgeSiblingSet } from "@/thinking-lab/big-thought/semantic";
 import type { BigThoughtFacts } from "@/thinking-lab/big-thought/types";
 import { useBigThoughts, useLockedLabTree } from "@/thinking-lab/big-thought/useBigThoughts";
 import { canShowGenerateAngle } from "@/thinking-lab/angle/eligibility";
@@ -566,7 +540,6 @@ export function ThinkingLabPage() {
   const [auditProgress, setAuditProgress] = useState<AuditProgress | null>(null);
   const [bigThoughtChecklists, setBigThoughtChecklists] = useState<Record<string, PassChecklist>>({});
   const fixingBigThoughtRef = useRef(new Set<string>());
-  const bigThoughtFixLessonsRef = useRef(new Map<string, Array<{ statement: string; reason: string }>>());
   const [fixingBigThoughtCodes, setFixingBigThoughtCodes] = useState<string[]>([]);
   const [generateChecklist, setGenerateChecklist] = useState<PassChecklist | null>(null);
   const [pendingDelete, setPendingDelete] = useState<
@@ -592,7 +565,7 @@ export function ThinkingLabPage() {
   const lockedTree = useLockedLabTree();
   const showContent = useDebouncedReady(!masters.hasPendingLoad && !lockedTree.isLoading, 200);
   const locked = selected?.mtStatus === "locked";
-  const setRecord = parseLabSetRecord(selected?.lastAudit);
+  const setRecord = useMemo(() => readBigThoughtSetRecord(selected?.lastAudit), [selected?.lastAudit]);
   const ready = selected ? parentIsReady(selected) : false;
   const masterSubject = selected?.canonicalSemantic?.subject?.trim() ?? "";
   const masterDescription = selected
@@ -773,25 +746,11 @@ export function ThinkingLabPage() {
         facts: row.canonicalSemantic,
         factsCurrent: Boolean(parentFp) && fingerprintsMatch(row.semanticFingerprint, current),
       });
-      const sibling = setRecord?.siblingSet ?? null;
-      const audit = parentFp
-        ? displayedAuditVerdict(
-            setRecord?.audit?.items,
-            setRecord?.audit?.setFingerprint,
-            incumbentSetFingerprint({
-              masterThoughtFingerprint: parentFp,
-              bigThoughtFingerprints: active.map((item) =>
-                bigThoughtFingerprint({ statement: item.statement, masterThoughtFingerprint: parentFp }),
-              ),
-            }),
-            row.code,
-            { siblingSet: sibling, activeCodes: active.map((item) => item.code) },
-            current,
-          )
-        : null;
-      const code = row.code.toUpperCase();
-      const reasonContribution =
-        sibling?.reasonContributions?.find((item) => item.code.toUpperCase() === code)?.reasonContribution ?? null;
+      const audit = parentFp ? bigThoughtVerdict(row, setRecord, current) : null;
+      const storedFailure =
+        audit === "AUDIT_FAIL"
+          ? setRecord.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.gateFailure ?? null
+          : null;
       return {
         id: row.id,
         code: row.code,
@@ -801,26 +760,9 @@ export function ThinkingLabPage() {
         admission,
         audit,
         facts: row.canonicalSemantic,
-        siblingDistinct: sibling?.distinct ?? null,
-        siblingPairs: sibling
-          ? sibling.duplicatePairs.filter(
-              (pair) => pair.a.toUpperCase() === code || pair.b.toUpperCase() === code,
-            )
-          : null,
-        reasonContribution,
-        siblingUnresolvedReasons: sibling?.unresolvedReasons ?? null,
         gateFailure: row.canonicalSemantic?.gateFailure ?? null,
-        auditGatesChecked:
-          audit === "AUDIT_PASS" &&
-          setRecord?.audit?.items?.some(
-            (item) => item.code.toUpperCase() === code && item.gatesChecked === true,
-          ) === true,
-        auditGateFailure:
-          audit === "AUDIT_PASS"
-            ? null
-            : readGateFailure(
-                setRecord?.audit?.items?.find((item) => item.code.toUpperCase() === code)?.gateFailure,
-              ),
+        auditGatesChecked: audit === "AUDIT_PASS",
+        auditGateFailure: storedFailure ? { ...storedFailure, earlier: "pass" as const } : null,
         canGenerateTerritory: canGenerateTerritory(
           {
             status: row.status,
@@ -1171,55 +1113,16 @@ export function ThinkingLabPage() {
     setFixingLineId(null);
   }, [focus?.kind === "execution" ? focus.executionId : null]);
 
-  const generateValidCount = countGenerateValid(shownRowViews);
-  const auditPassCount = shownRowViews.filter((row) => row.audit === "AUDIT_PASS").length;
-  const anyFail = shownRowViews.some((row) => row.audit === "AUDIT_FAIL");
-  const anyStale = shownRowViews.some((row) => row.admission === "STALE" || row.audit === "STALE");
-  const anyUnresolved = shownRowViews.some((row) => row.admission === "UNRESOLVED" || row.audit === "UNRESOLVED");
-  const setFingerprint = parentFp
-    ? incumbentSetFingerprint({
-        masterThoughtFingerprint: parentFp,
-        bigThoughtFingerprints: shownRowViews.map((row) =>
-          bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
-        ),
-      })
-    : "";
-  const siblingFingerprint = parentFp
-    ? incumbentSetFingerprint({
-        masterThoughtFingerprint: parentFp,
-        bigThoughtFingerprints: active.map((row) =>
-          bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
-        ),
-      })
-    : "";
-  const listedAllPass =
-    shownRowViews.length > 0 && shownRowViews.every((row) => row.audit === "AUDIT_PASS");
-  const siblingCurrent =
-    listedAllPass ||
-    siblingSetIsCurrent(setRecord?.siblingSet ?? null, siblingFingerprint) ||
-    siblingSetIsCurrent(setRecord?.siblingSet ?? null, setFingerprint);
-  const lockDecision = evaluateLock({
-    auditPassCount,
-    activeCount: shownRowViews.length,
-    anyFail,
-    anyStale,
-    anyUnresolved,
-    siblingCurrent,
-  });
-  const awaitingVerdict = shownRowViews.some(
-    (row) => row.audit == null || row.audit === "STALE" || row.audit === "UNRESOLVED",
-  );
-  const stageAction = selectStageAction({
-    anyFail,
-    awaitingVerdict,
-    generateValidCount,
-    activeCount: shownRowViews.length,
-    auditPassCount,
-    anyStale,
-    anyUnresolved,
-    siblingCurrent,
-    lockOk: lockDecision.ok,
-  });
+  const bigThoughtVerdicts = shownRowViews.map((row) => row.audit);
+  const lockDecision = evaluateLock({ verdicts: bigThoughtVerdicts });
+  const stageAction = selectStageAction({ verdicts: bigThoughtVerdicts });
+  /** Big Thoughts that already passed (or are locked), for the "Beda dari BT lain" check. */
+  const bigThoughtPeers = (exceptCode?: string) =>
+    shownRowViews
+      .filter((row) => row.audit === "AUDIT_PASS" && row.code.toUpperCase() !== exceptCode?.toUpperCase())
+      .map((row) => ({ code: row.code, statement: row.statement, label: row.label }));
+  const bigThoughtStatementFingerprint = (statement: string) =>
+    parentFp ? bigThoughtFingerprint({ statement, masterThoughtFingerprint: parentFp }) : "";
   const showGenerateBigThought = Boolean(
     ready && masterSubject && !locked && stageAction !== "generate",
   );
@@ -1418,15 +1321,10 @@ export function ThinkingLabPage() {
       void run(async () => {
         await thoughts.remove.mutateAsync(target.id);
         if (removed && selected) {
-          bigThoughtFixLessonsRef.current.delete(removed.code.toUpperCase());
-          const current = parseLabSetRecord(selected.lastAudit);
-          const fixLessons = dropFixLessons(current?.fixLessons, [removed.code]);
-          if (current && fixLessons.length !== (current.fixLessons ?? []).length) {
-            await masters.saveSet.mutateAsync({
-              id: selected.id,
-              lastAudit: { ...current, fixLessons },
-            });
-          }
+          await masters.saveSet.mutateAsync({
+            id: selected.id,
+            lastAudit: withoutBigThought(readBigThoughtSetRecord(selected.lastAudit), removed.code),
+          });
         }
         setFocus((current) =>
           current && current.kind !== "master" && current.thoughtId === target.id
@@ -1566,7 +1464,7 @@ export function ThinkingLabPage() {
       const known = [...(thoughts.data ?? [])];
       const codes = known.map((row) => row.code);
       let sort = known.reduce((max, row) => Math.max(max, row.sortOrder), 0);
-      let record = parseLabSetRecord(selected.lastAudit) ?? emptySetRecord();
+      let record: BigThoughtSetRecord = readBigThoughtSetRecord(selected.lastAudit);
       const pool = selected.productReasonPool;
       if (pool && pool.items.length === 0) {
         setNotice(
@@ -1579,9 +1477,14 @@ export function ThinkingLabPage() {
       }
       const started = shownRowViews.length;
       const beforeValid = countGenerateValid(shownRowViews);
-      const lessons: GateLesson[] = (record.generateLessons ?? []).map((lesson) => ({ ...lesson }));
+      const lessons: GateLesson[] = generateLessons(record).flatMap((lesson) => {
+        const gate = readBigThoughtCheckId(lesson.reason.split(":")[0]?.trim());
+        return gate ? [{ gate, statement: lesson.statement, reason: lesson.reason.slice(lesson.reason.indexOf(":") + 1).trim() }] : [];
+      });
       const seededLessonCount = lessons.length;
       let blockedKnownSentence = false;
+      // Big Thoughts that already passed; each new sentence must carry a different basic reason.
+      let runPeers = bigThoughtPeers();
       const rememberGenerateLesson = async (lesson: GateLesson) => {
         const statement = lesson.statement.trim();
         const reason = lesson.reason.trim();
@@ -1592,16 +1495,11 @@ export function ThinkingLabPage() {
         );
         if (index >= 0) lessons[index] = { gate: lesson.gate, statement, reason };
         else lessons.push({ gate: lesson.gate, statement, reason });
-        const next = mergeGenerateLessons(record.generateLessons, [{ gate: lesson.gate, statement, reason }]);
-        const previous = record.generateLessons ?? [];
-        const same =
-          next.length === previous.length &&
-          next.every((item, itemIndex) => {
-            const stored = previous[itemIndex];
-            return stored?.gate === item.gate && stored.statement === item.statement && stored.reason === item.reason;
-          });
-        if (same) return;
-        record = { ...record, generateLessons: next };
+        const next = mergeBigThoughtLessons(record.auditLessons, [
+          { code: GENERATE_LESSON_CODE, statement, reason: `${lesson.gate}: ${reason}` },
+        ]);
+        if (next.length === record.auditLessons.length) return;
+        record = { ...record, auditLessons: next };
         await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: record });
       };
       let generated: Awaited<ReturnType<typeof runGenerateRounds>> | null = null;
@@ -1644,7 +1542,7 @@ export function ThinkingLabPage() {
         },
         onRepeat: async (candidate, repeated) => {
           const checklist = attachLesson(
-            generateDuplicateFailure(`Same Big Thought as ${repeated.code}.`),
+            checklistFromFailure({ gate: "duplicate", reason: `Same Big Thought as ${repeated.code}.`, earlier: "unchecked" }),
             candidate.statement,
           );
           const reason = checklist.failure?.reason ?? "";
@@ -1652,11 +1550,11 @@ export function ThinkingLabPage() {
           await showGenerateChecklist(checklist);
         },
         judge: async (statement) => {
-          const checklist = await runGenerateAdmissionChecks({
+          const checklist = await runBigThoughtChecks({
             skip: skipFor("bigThought"),
-            batch: true,
             statement,
             parentStatement: becauseParent,
+            others: runPeers,
             ask: (prompt) => askScoped("generate", "Big Thought", prompt, 0),
             onStep: (step) => showGenerateChecklist(attachLesson(step, statement)),
           });
@@ -1667,7 +1565,7 @@ export function ThinkingLabPage() {
               reason: checklist.failure.reason,
             });
           }
-          return factsForGenerateAdmission(statement, checklist);
+          return factsForBigThoughtChecks("NEW", statement, checklist);
         },
         persist: async (candidate, facts) => {
           if (individualAdmission({ facts, factsCurrent: true }) !== "GENERATE_VALID") {
@@ -1693,20 +1591,15 @@ export function ThinkingLabPage() {
             masterFingerprint: parentFp,
           });
           if (!codes.includes(saved.code)) codes.push(saved.code);
-          const keptPasses = keptPassingAuditItems({
-            items: record?.audit?.items,
-            rows: known.map((row) => ({
-              code: row.code,
-              statementFingerprint: bigThoughtFingerprint({
-                statement: row.statement,
-                masterThoughtFingerprint: parentFp,
-              }),
-            })),
+          // Every check already passed at Generate: the card is saved with its pass mark.
+          record = withBigThoughtResult(record, {
+            code: saved.code,
+            statement: saved.statement,
+            statementFingerprint: bigThoughtStatementFingerprint(saved.statement),
+            failure: null,
+            skipped: skipFor("bigThought"),
           });
-          record = {
-            ...clearSetConclusions(record),
-            audit: keptPasses.length > 0 ? { setFingerprint: record?.audit?.setFingerprint ?? "", items: keptPasses } : null,
-          };
+          runPeers = [...runPeers, { code: saved.code, statement: saved.statement, label: saved.label }];
           await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: record });
           return {
             code: saved.code,
@@ -2433,6 +2326,7 @@ export function ThinkingLabPage() {
    * The same admission as Generate: an exact repeat of a passed Big Thought, then the switched-on
    * finished-claim and relation checks. Audit runs the remaining checks later.
    */
+  /** The six checks on a sentence written by hand, against the Big Thoughts that already passed. */
   const admitBigThought = async (input: {
     code: string;
     label: string;
@@ -2441,15 +2335,30 @@ export function ThinkingLabPage() {
   }): Promise<{ facts: BigThoughtFacts; rejection: null } | { facts: null; rejection: string }> => {
     const repeated = input.siblings.find((row) => bigThoughtRepeats({ label: input.label, statement: input.statement }, row));
     if (repeated) return { facts: null, rejection: `duplicate: Same Big Thought as ${repeated.code}.` };
-    const checklist = await runGenerateAdmissionChecks({
+    const checklist = await runBigThoughtChecks({
       skip: skipFor("bigThought"),
-      batch: true,
       statement: input.statement,
       parentStatement: becauseParent,
+      others: input.siblings,
       ask: (prompt) => askScoped("manual-big-thought", input.code, prompt, 0),
     });
     if (checklist.failure) return { facts: null, rejection: `${checklist.failure.gate}: ${checklist.failure.reason}` };
-    return { facts: { ...factsForGenerateAdmission(input.statement, checklist), code: input.code }, rejection: null };
+    return { facts: factsForBigThoughtChecks(input.code, input.statement, checklist), rejection: null };
+  };
+
+  /** Stores that this card's current sentence passed its checks. */
+  const markBigThoughtPassed = async (code: string, statement: string) => {
+    if (!selected) return;
+    await masters.saveSet.mutateAsync({
+      id: selected.id,
+      lastAudit: withBigThoughtResult(readBigThoughtSetRecord(selected.lastAudit), {
+        code,
+        statement,
+        statementFingerprint: bigThoughtStatementFingerprint(statement),
+        failure: null,
+        skipped: skipFor("bigThought"),
+      }),
+    });
   };
 
   const onManualBigThought = (raw: string) =>
@@ -2468,9 +2377,7 @@ export function ThinkingLabPage() {
       }
       const known = thoughts.data ?? [];
       const code = nextBigThoughtCode(known.map((row) => row.code));
-      const siblings = rowViews
-        .filter((row) => row.admission === "GENERATE_VALID")
-        .map((row) => ({ code: row.code, statement: row.statement, label: row.label }));
+      const siblings = bigThoughtPeers();
       const pool = selected.productReasonPool;
       if (pool && pool.items.length === 0) {
         return t(
@@ -2520,10 +2427,7 @@ export function ThinkingLabPage() {
         facts: sealed,
         masterFingerprint: parentFp,
       });
-      await masters.saveSet.mutateAsync({
-        id: selected.id,
-        lastAudit: clearSetConclusions(parseLabSetRecord(selected.lastAudit)),
-      });
+      await markBigThoughtPassed(code, statement);
       return null;
     });
 
@@ -2538,9 +2442,7 @@ export function ThinkingLabPage() {
         code: row.code,
         label: "",
         statement: clause,
-        siblings: rowViews
-          .filter((item) => item.admission === "GENERATE_VALID" && item.id !== id)
-          .map((item) => ({ code: item.code, statement: item.statement })),
+        siblings: bigThoughtPeers(row.code),
       });
       if (admitted.rejection !== null) return admitted.rejection;
       const sealed = admitted.facts;
@@ -2552,27 +2454,7 @@ export function ThinkingLabPage() {
         facts: sealed,
         masterFingerprint: parentFp,
       });
-      const kept = keptPassingAuditItems({
-        items: parseLabSetRecord(selected.lastAudit)?.audit?.items,
-        rows: active.map((item) => ({
-          code: item.code,
-          statementFingerprint: bigThoughtFingerprint({
-            statement: item.code.toUpperCase() === row.code.toUpperCase() ? clause : item.statement,
-            masterThoughtFingerprint: parentFp,
-          }),
-        })),
-        editedCode: row.code,
-      });
-      const current = clearSetConclusions(parseLabSetRecord(selected.lastAudit));
-      bigThoughtFixLessonsRef.current.delete(row.code.toUpperCase());
-      await masters.saveSet.mutateAsync({
-        id: selected.id,
-        lastAudit: {
-          ...current,
-          audit: kept.length > 0 ? { setFingerprint: "held", items: kept } : null,
-          fixLessons: dropFixLessons(current.fixLessons, [row.code]),
-        },
-      });
+      await markBigThoughtPassed(row.code, clause);
       return null;
     });
 
@@ -5417,243 +5299,94 @@ export function ThinkingLabPage() {
     await waitForChecklistReport(checklist);
   };
 
-  const repairFailedBigThought = async (code: string, force?: BigThoughtFixMode) => {
-    if (!selected || !parentFp) return;
+  /**
+   * One card: a card that was never checked is checked as it is. A card that failed is rewritten from its
+   * failed check (at most three times per card) and checked again. The card keeps its code either way.
+   */
+  const checkOrReviseBigThought = async (
+    code: string,
+    revise: boolean,
+    options: {
+      extraPeers?: ReadonlyArray<{ code: string; statement: string; label?: string }>;
+      progress?: { done: number; total: number };
+      /** The record a run over several cards has written so far; the stored one otherwise. */
+      record?: BigThoughtSetRecord;
+    } = {},
+  ): Promise<{ peer: { code: string; statement: string; label?: string } | null; record: BigThoughtSetRecord | null }> => {
+    if (!selected || !parentFp) return { peer: null, record: null };
     const row = active.find((item) => item.code.toUpperCase() === code.toUpperCase());
-    if (!row || row.status === "locked") return;
-    const key = row.code.toUpperCase();
-    const storedFailure = readGateFailure(
-      setRecord?.audit?.items?.find((item) => item.code.toUpperCase() === key)?.gateFailure,
-    );
-    let shown = bigThoughtChecklists[key] ?? (storedFailure ? checklistFromFailure(storedFailure) : null);
-    if (!shown) return;
-    const keepers = shownRowViews
-      .filter((item) => item.code.toUpperCase() !== key && (item.status === "locked" || item.audit === "AUDIT_PASS"))
-      .map((item) => ({ code: item.code, statement: item.statement, label: item.label }));
-    let record = setRecord ?? emptySetRecord();
-    const seeded = mergeFixLessons(record.fixLessons, [
-      ...(bigThoughtFixLessonsRef.current.get(key) ?? []).map((lesson) => ({ code: row.code, ...lesson })),
-      ...(shown.failure
-        ? [{ code: row.code, statement: row.statement, reason: `${shown.failure.gate}: ${shown.failure.reason}` }]
-        : []),
-    ]);
-    if (seeded.length !== (record.fixLessons ?? []).length) {
-      record = { ...record, fixLessons: seeded };
-      await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: record });
-    }
-    const learned = seeded
-      .filter((lesson) => lesson.code.toUpperCase() === key)
-      .map((lesson) => ({ statement: lesson.statement, reason: lesson.reason }));
-    bigThoughtFixLessonsRef.current.set(key, learned);
-    const remember = async (lesson: { statement: string; reason: string }) => {
-      const alreadyKnown = learned.some(
-        (item) =>
-          item.statement.trim().toLowerCase() === lesson.statement.trim().toLowerCase() && item.reason === lesson.reason,
-      );
-      if (alreadyKnown) return;
-      learned.push(lesson);
-      bigThoughtFixLessonsRef.current.set(key, [...learned]);
-      record = { ...record, fixLessons: mergeFixLessons(record.fixLessons, [{ code: row.code, ...lesson }]) };
-      await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: record });
-    };
-    const closedNotice = () =>
-      setNotice(
-        t(
-          "thinkingLab.bt.fixClosed",
-          "Fix closed for {{code}}: it failed {{count}} times. Rewrite the reason, edit it by hand, or delete it.",
-        )
-          .replace("{{code}}", row.code)
-          .replace("{{count}}", String(learned.length)),
-      );
-    if (!force && learned.length >= BT_FIX_STUCK_LESSONS) {
-      closedNotice();
-      return;
-    }
-    const refused = new Set<string>(learned.map((lesson) => lesson.statement.trim().toLowerCase()));
-    refused.add(row.statement.trim().toLowerCase());
+    if (!row || row.status !== "candidate") return { peer: null, record: null };
+    let record: BigThoughtSetRecord = options.record ?? readBigThoughtSetRecord(selected.lastAudit);
+    const progress = options.progress ?? { done: 0, total: 1 };
+    const peers = [
+      ...bigThoughtPeers(row.code),
+      ...(options.extraPeers ?? []).filter((peer) => peer.code.toUpperCase() !== row.code.toUpperCase()),
+    ];
+    const lessons = record.auditLessons.filter((lesson) => lesson.code.toUpperCase() === row.code.toUpperCase());
     let statement = row.statement;
-    let scope = fixScopeFromChecks(shown.items);
-    let replaced = false;
-    const publishFixChecklist = async (checklist: PassChecklist) => {
-      setBigThoughtChecklists((current) => ({ ...current, [key]: checklist }));
-      await waitForChecklistReport(checklist);
-    };
-    // Same check failing again and again: more rewrites only spend calls.
-    let lastGate = "";
-    let sameGateRuns = 0;
-    let stuckGate = "";
-    let stuckReason = "";
-    const noteGate = (gate: string, reason: string): boolean => {
-      sameGateRuns = gate && gate === lastGate ? sameGateRuns + 1 : 1;
-      lastGate = gate;
-      if (gate && sameGateRuns >= BT_FIX_SAME_GATE_STOP) {
-        stuckGate = gate;
-        stuckReason = reason;
-        return true;
-      }
-      return false;
-    };
-    let lastMode: BigThoughtFixMode | null = null;
-    let closed = false;
-    for (let attempt = 0; attempt < BT_FIX_MAX_ATTEMPTS && !replaced; attempt += 1) {
-      if (!force && learned.length >= BT_FIX_STUCK_LESSONS) {
-        closed = true;
-        break;
-      }
-      const mode = bigThoughtFixMode({
-        gate: shown.failure?.gate ?? "",
-        lessons: learned,
-        replaceAfter: BT_FIX_REPLACE_AFTER,
-        force,
-      });
-      // A new way of fixing gets its own tries before the same-check stop.
-      if (lastMode && mode !== lastMode) {
-        lastGate = "";
-        sameGateRuns = 0;
-      }
-      lastMode = mode;
-      const script = await askScoped(
-        "fix",
-        row.code,
-        buildBigThoughtFixPrompt({
-          parentStatement: becauseParent,
-          failed: { code: row.code, statement },
-          keepers,
-          scope,
-          lessons: learned,
-          mode,
-        }),
-        0.2,
-      );
-      const next = parseBigThoughtFixStatement(script, becauseParent);
-      if (!next || refused.has(next.trim().toLowerCase())) {
-        await remember({ statement: next || statement, reason: "No replacement came back." });
-        continue;
-      }
-      const checked = await runBigThoughtOpenChecks({
+    let label = row.label;
+    const check = (sentence: string) =>
+      runBigThoughtChecks({
         skip: skipFor("bigThought"),
-        batch: true,
-        statement: next,
+        statement: sentence,
         parentStatement: becauseParent,
-        others: keepers,
-        // A new reason is a new sentence: none of the old sentence's passes carry over.
-        prior:
-          mode === "replace"
-            ? shown.items.map((item) => ({ id: item.id, state: "pending" as const, reason: "" }))
-            : fixPriorForNextSentence(shown.items, statement, next),
-        lessons: learned,
-        ask: (prompt) => askScoped("fix", row.code, prompt, 0),
-        onStep: (checklist) => publishFixChecklist(checklist),
+        others: peers,
+        lessons,
+        ask: (prompt) => askScoped(revise ? "fix" : "audit", row.code, prompt, 0),
+        onStep: (checklist) => publishBigThoughtChecklist(row.code, sentence, checklist, progress.done, progress.total),
       });
-      if (!checked.passed) {
-        const reason = checked.failure ? `${checked.failure.gate}: ${checked.failure.reason}` : "This check could not be decided.";
-        await remember({ statement: next, reason });
-        refused.add(next.trim().toLowerCase());
-        statement = next;
-        shown = checked;
-        scope = fixScopeFromChecks(shown.items);
-        if (noteGate(checked.failure?.gate ?? "", checked.failure?.reason ?? "")) break;
-        continue;
-      }
-      const siblingRows = [
-        ...keepers.map((item) => ({ code: item.code, statement: item.statement })),
-        { code: row.code, statement: next },
-      ];
-      let siblingPass = skipFor("bigThought").includes("sibling") || siblingRows.length < 2;
-      let siblingReason = "";
-      if (!siblingPass) {
-        const fingerprint = incumbentSetFingerprint({
-          masterThoughtFingerprint: parentFp,
-          bigThoughtFingerprints: siblingRows.map((item) =>
-            bigThoughtFingerprint({ statement: item.statement, masterThoughtFingerprint: parentFp }),
-          ),
-        });
-        const checking = checkingSiblingFrame(checked);
-        await publishFixChecklist(checking);
-        const sibling = await judgeSiblingSet(
-          { parentStatement: selected.statement, rows: siblingRows, fingerprint },
-          (prompt) => askScoped("fix", row.code, prompt, 0),
-        );
-        const gate = auditSiblingGate({
-          code: row.code,
-          siblingSet: sibling,
-          siblingSetCurrent: true,
-          activeCodes: siblingRows.map((item) => item.code),
-        });
-        siblingPass = gate.passed;
-        siblingReason = gate.reason;
-        const settled = completeChecklist(checked, gate);
-        await publishFixChecklist(checklistFrame(settled, "sibling", "checked"));
-        if (!siblingPass) {
-          await remember({ statement: next, reason: `sibling: ${siblingReason}` });
-          refused.add(next.trim().toLowerCase());
-          statement = next;
-          shown = settled;
-          scope = fixScopeFromChecks(shown.items);
-          if (noteGate("sibling", siblingReason)) break;
-          continue;
-        }
+    let checked = revise ? null : await check(statement);
+    if (revise) {
+      if (!canReviseBigThought(record, row.code)) {
+        setNotice(t("thinkingLab.bt.revisionCap", "This Big Thought was revised three times. Edit it yourself or delete it."));
       } else {
-        const settled = completeChecklist(checked, { passed: true, reason: "" });
-        await publishFixChecklist(checklistFrame(settled, "sibling", "checked"));
+        const stored = record.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.gateFailure;
+        const shown =
+          bigThoughtChecklists[row.code.toUpperCase()]?.items ??
+          (stored ? checklistFromFailure({ ...stored, earlier: "pass" }).items : []);
+        record = withBigThoughtRevision(record, row.code);
+        const script = await askScoped(
+          "fix",
+          row.code,
+          buildBigThoughtRevisionPrompt({
+            parentStatement: becauseParent,
+            statement,
+            checks: shown,
+            peers,
+            lessons,
+            revision: record.revisions[row.code.toUpperCase()] ?? 1,
+          }),
+          0.2,
+        );
+        const next = parseBigThoughtRevision(script, becauseParent, statement);
+        if (next) {
+          statement = next;
+          checked = await check(statement);
+          label = (await labelFor(row.code, statement)) || label;
+          await thoughts.updateFacts.mutateAsync({
+            id: row.id,
+            statement,
+            ...(label ? { label } : {}),
+            facts: factsForBigThoughtChecks(row.code, statement, checked),
+            masterFingerprint: parentFp,
+          });
+        }
       }
-      const facts: BigThoughtFacts = {
-        ...shownBigThoughtFacts(row.code, next),
-        generatePasses: ["resolved", "relation"],
-        answeredQuestion: row.canonicalSemantic?.answeredQuestion,
-        answeredQuestionVersion: row.canonicalSemantic?.answeredQuestionVersion,
-      };
-      await thoughts.updateFacts.mutateAsync({
-        id: row.id,
-        statement: next,
-        facts,
-        masterFingerprint: parentFp,
-      });
-      const statementFingerprint = bigThoughtFingerprint({
-        statement: next,
-        masterThoughtFingerprint: parentFp,
-      });
-      const previous = record.audit?.items ?? [];
-      const items = previous.some((item) => item.code.toUpperCase() === key)
-        ? previous.map((item) =>
-            item.code.toUpperCase() === key
-              ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, gatesChecked: true as const, ...skippedMark("bigThought") }
-              : item,
-          )
-        : [...previous, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, gatesChecked: true as const, ...skippedMark("bigThought") }];
-      const nextRecord = nextAuthoritativeSetRecord({
-        record,
-        parentFingerprint: parentFp,
-        siblingSet: record.siblingSet,
-        audit: { setFingerprint: record.audit?.setFingerprint ?? "", items },
-      });
-      await masters.saveSet.mutateAsync({
-        id: selected.id,
-        lastAudit: { ...nextRecord, fixLessons: dropFixLessons(nextRecord.fixLessons, [key]) },
-      });
-      bigThoughtFixLessonsRef.current.delete(key);
-      replaced = true;
     }
-    if (!replaced && (closed || (!force && learned.length >= BT_FIX_STUCK_LESSONS))) {
-      closedNotice();
-    } else if (!replaced) {
-      setNotice(
-        stuckGate
-          ? t(
-            "thinkingLab.bt.fixStuck",
-            "Fix stopped: the {{gate}} check failed again ({{reason}}). Edit this Big Thought by hand, or change the Master Thought, before trying again.",
-          )
-            .replace("{{gate}}", stuckGate)
-            .replace("{{reason}}", stuckReason.slice(0, 160) || "-")
-          : t(
-            "thinkingLab.bt.fixStillOpen",
-            "This Big Thought is still failing. Fix stays on this card, and the failures stay as lessons for the next round.",
-          ),
-      );
+    if (checked) {
+      record = withBigThoughtResult(record, {
+        code: row.code,
+        statement,
+        statementFingerprint: bigThoughtStatementFingerprint(statement),
+        failure: checked.failure ? { gate: checked.failure.gate, reason: checked.failure.reason } : null,
+        skipped: skipFor("bigThought"),
+      });
     }
+    await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: record });
+    return { peer: checked?.passed ? { code: row.code, statement, label } : null, record };
   };
 
-  const onFixBigThought = (code: string, force?: BigThoughtFixMode) => {
+  const onFixBigThought = (code: string) => {
     const key = code.trim().toUpperCase();
     if (!key || labRunRef.current || fixingBigThoughtRef.current.has(key)) return;
     labRunRef.current = true;
@@ -5661,7 +5394,8 @@ export function ThinkingLabPage() {
     setFixingBigThoughtCodes([...fixingBigThoughtRef.current]);
     void (async () => {
       try {
-        await repairFailedBigThought(key, force);
+        const row = shownRowViews.find((item) => item.code.toUpperCase() === key);
+        await checkOrReviseBigThought(key, row?.audit === "AUDIT_FAIL");
       } catch (error) {
         reportStepError(error);
       } finally {
@@ -5673,180 +5407,22 @@ export function ThinkingLabPage() {
     })();
   };
 
+  /** Cards saved before checks ran at Generate: check each one as it is, in order. */
   const onAudit = () =>
     run(async () => {
-      if (!selected || !parentFp) return;
-      const listed = active.flatMap((row) => {
-        const fingerprint = bigThoughtFingerprint({
-          statement: row.statement,
-          masterThoughtFingerprint: parentFp,
-        });
-        const admission = individualAdmission({
-          facts: row.canonicalSemantic,
-          factsCurrent: fingerprintsMatch(row.semanticFingerprint, fingerprint),
-        });
-        if (admission !== "GENERATE_VALID" || row.canonicalSemantic?.gateFailure || row.status === "locked") return [];
-        return [{ ...row }];
-      });
-      if (listed.length === 0) return;
-      const heldPass = new Set(
-        listed.flatMap((row) => {
-          const fingerprint = bigThoughtFingerprint({
-            statement: row.statement,
-            masterThoughtFingerprint: parentFp,
-          });
-          const stored = setRecord?.audit?.items?.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
-          return stored?.verdict === "AUDIT_PASS" &&
-            stored.statementFingerprint &&
-            fingerprintsMatch(stored.statementFingerprint, fingerprint)
-            ? [row.code.toUpperCase()]
-            : [];
-        }),
-      );
-      const total = listed.length;
-      let done = heldPass.size;
-      setBigThoughtChecklists((current) => {
-        const next = { ...current };
-        for (const code of heldPass) delete next[code];
-        return next;
-      });
-      setAuditProgress({ done, total, current: null, checklist: null });
-      const failures = new Map<string, NonNullable<PassChecklist["failure"]>>();
-      const passedIndividual = new Map<string, PassChecklist>();
+      const unchecked = shownRowViews.filter((row) => row.audit == null && row.status === "candidate");
+      const passed: Array<{ code: string; statement: string; label?: string }> = [];
+      let record: BigThoughtSetRecord | undefined;
       try {
-        for (const row of listed) {
-          const codeKey = row.code.toUpperCase();
-          if (heldPass.has(codeKey)) continue;
-          const fingerprint = bigThoughtFingerprint({
-            statement: row.statement,
-            masterThoughtFingerprint: parentFp,
+        for (const [index, row] of unchecked.entries()) {
+          const result = await checkOrReviseBigThought(row.code, false, {
+            extraPeers: passed,
+            progress: { done: index, total: unchecked.length },
+            record,
           });
-          const carried = readGeneratePasses(
-            fingerprintsMatch(row.semanticFingerprint, fingerprint) ? row.canonicalSemantic?.generatePasses : undefined,
-          );
-          const others = listed
-            .filter((item) => {
-              const other = item.code.toUpperCase();
-              return other !== codeKey && (heldPass.has(other) || passedIndividual.has(other));
-            })
-            .map((item) => ({ code: item.code, statement: item.statement, label: item.label }));
-          const lessons = [
-            ...(bigThoughtFixLessonsRef.current.get(codeKey) ?? []),
-            ...(setRecord?.fixLessons ?? [])
-              .filter((lesson) => lesson.code.toUpperCase() === codeKey)
-              .map((lesson) => ({ statement: lesson.statement, reason: lesson.reason })),
-          ];
-          const checked = await runBigThoughtIndividualChecks({
-            skip: skipFor("bigThought"),
-            batch: true,
-            statement: row.statement,
-            parentStatement: becauseParent,
-            others,
-            carried,
-            lessons,
-            ask: (prompt) => askScoped("audit", row.code, prompt, 0),
-            onStep: (checklist) => publishBigThoughtChecklist(row.code, row.statement, checklist, done, total),
-          });
-          if (!checked.passed) {
-            if (checked.failure) failures.set(codeKey, checked.failure);
-            continue;
-          }
-          passedIndividual.set(codeKey, checked);
-          done += 1;
+          if (result.peer) passed.push(result.peer);
+          if (result.record) record = result.record;
         }
-        const siblingRows = listed.filter(
-          (row) => heldPass.has(row.code.toUpperCase()) || passedIndividual.has(row.code.toUpperCase()),
-        );
-        let sibling = setRecord?.siblingSet ?? null;
-        if (passedIndividual.size > 0 && siblingRows.length >= 2 && !skipFor("bigThought").includes("sibling")) {
-          const fingerprint = incumbentSetFingerprint({
-            masterThoughtFingerprint: parentFp,
-            bigThoughtFingerprints: siblingRows.map((row) =>
-              bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
-            ),
-          });
-          for (const row of listed) {
-            const prior = passedIndividual.get(row.code.toUpperCase());
-            if (!prior) continue;
-            await publishBigThoughtChecklist(row.code, row.statement, checkingSiblingFrame(prior), done, total);
-          }
-          sibling = await judgeSiblingSet(
-            {
-              parentStatement: selected.statement,
-              rows: siblingRows.map((row) => ({ code: row.code, statement: row.statement })),
-              fingerprint,
-            },
-            (prompt) => askScoped("audit", "Big Thought", prompt, 0),
-          );
-          for (const row of listed) {
-            const prior = passedIndividual.get(row.code.toUpperCase());
-            if (!prior) continue;
-            const gate = auditSiblingGate({
-              code: row.code,
-              siblingSet: sibling,
-              siblingSetCurrent: true,
-              activeCodes: siblingRows.map((item) => item.code),
-            });
-            const settled = completeChecklist(prior, gate);
-            await publishBigThoughtChecklist(row.code, row.statement, checklistFrame(settled, "sibling", "checked"), done, total);
-            if (!settled.passed && settled.failure) {
-              failures.set(row.code.toUpperCase(), settled.failure);
-              passedIndividual.delete(row.code.toUpperCase());
-            } else {
-              passedIndividual.set(row.code.toUpperCase(), settled);
-            }
-          }
-        } else {
-          for (const row of listed) {
-            const prior = passedIndividual.get(row.code.toUpperCase());
-            if (!prior) continue;
-            const settled = completeChecklist(prior, { passed: true, reason: "" });
-            await publishBigThoughtChecklist(row.code, row.statement, checklistFrame(settled, "sibling", "checked"), done, total);
-            passedIndividual.set(row.code.toUpperCase(), settled);
-          }
-        }
-        const items = listed.map((row) => {
-          const codeKey = row.code.toUpperCase();
-          const statementFingerprint = bigThoughtFingerprint({
-            statement: row.statement,
-            masterThoughtFingerprint: parentFp,
-          });
-          if (heldPass.has(codeKey) || passedIndividual.has(codeKey)) {
-            const skipped = heldPass.has(codeKey) ? [] : skipFor("bigThought");
-            return {
-              code: row.code,
-              verdict: "AUDIT_PASS" as const,
-              statementFingerprint,
-              gatesChecked: true as const,
-              ...(skipped.length ? { skipped } : {}),
-            };
-          }
-          const failure = failures.get(codeKey);
-          return {
-            code: row.code,
-            verdict: "AUDIT_FAIL" as const,
-            statementFingerprint,
-            ...(failure ? { gateFailure: failure } : {}),
-          };
-        });
-        const nextSetFingerprint = incumbentSetFingerprint({
-          masterThoughtFingerprint: parentFp,
-          bigThoughtFingerprints: listed.map((row) =>
-            bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
-          ),
-        });
-        const saved = nextAuthoritativeSetRecord({
-          record: setRecord,
-          parentFingerprint: parentFp,
-          siblingSet: sibling,
-          audit: { setFingerprint: nextSetFingerprint, items },
-        });
-        const passedCodes = items.filter((item) => item.verdict === "AUDIT_PASS").map((item) => item.code);
-        for (const code of passedCodes) bigThoughtFixLessonsRef.current.delete(code.toUpperCase());
-        await masters.saveSet.mutateAsync({
-          id: selected.id,
-          lastAudit: { ...saved, fixLessons: dropFixLessons(saved.fixLessons, passedCodes) },
-        });
       } finally {
         setAuditProgress(null);
       }
@@ -7146,8 +6722,6 @@ export function ThinkingLabPage() {
                                     setPendingDelete({ kind: "bigThought", id: bigThoughtId })
                                   }
                                       onFixBigThought={(code) => onFixBigThought(code)}
-                                      onRewriteBigThought={(code) => onFixBigThought(code, "replace")}
-                                      stuckFixes={stuckBigThoughtFixes(setRecord?.fixLessons, BT_FIX_STUCK_LESSONS)}
                                       checklists={bigThoughtChecklists}
                                       fixingCodes={fixingBigThoughtCodes}
                                     />

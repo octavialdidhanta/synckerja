@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { parseSiblingSet } from "@/thinking-lab/big-thought/semantic";
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 
 describe("parseModelJson", () => {
@@ -17,9 +16,9 @@ describe("parseModelJson", () => {
     }`;
     const parsed = parseModelJson(script) as { distinct: boolean };
     expect(parsed.distinct).toBe(true);
-    const facts = parseSiblingSet(script, "fp", ["BT03", "BT05"]);
-    expect(facts.resolution).toBe("RESOLVED");
-    expect(facts.unresolvedReasons).not.toContain("JUDGE_UNPARSEABLE");
-    expect(facts.reasonContributions.map((row) => row.code)).toEqual(["BT03", "BT05"]);
+    expect((parsed as unknown as { reasonContributions: Array<{ code: string }> }).reasonContributions.map((row) => row.code)).toEqual([
+      "BT03",
+      "BT05",
+    ]);
   });
 });

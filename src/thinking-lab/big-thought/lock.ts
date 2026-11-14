@@ -1,49 +1,27 @@
-import { TARGET_GENERATE_VALID } from "@/thinking-lab/shared/limits";
+import { TARGET_GENERATE_VALID } from "../shared/limits";
 
 export type StageAction = "generate" | "audit" | "lock";
 
-export type LockDecision =
-  | { ok: true }
-  | {
-      ok: false;
-      reason: "NEED_AUDIT_PASS" | "AUDIT_FAIL" | "STALE" | "UNRESOLVED" | "SIBLING";
-    };
+export type BigThoughtVerdict = "AUDIT_PASS" | "AUDIT_FAIL" | null;
 
-export function evaluateLock(input: {
-  auditPassCount: number;
-  activeCount: number;
-  anyFail: boolean;
-  anyStale: boolean;
-  anyUnresolved: boolean;
-  siblingCurrent: boolean;
-}): LockDecision {
-  if (input.auditPassCount < 1 || input.auditPassCount !== input.activeCount) {
-    return { ok: false, reason: "NEED_AUDIT_PASS" };
-  }
-  if (input.anyFail) return { ok: false, reason: "AUDIT_FAIL" };
-  if (input.anyStale) return { ok: false, reason: "STALE" };
-  if (input.anyUnresolved) return { ok: false, reason: "UNRESOLVED" };
-  if (!input.siblingCurrent) return { ok: false, reason: "SIBLING" };
+export type LockDecision = { ok: true } | { ok: false; reason: "NEED_AUDIT_PASS" | "AUDIT_FAIL" };
+
+/** Lock needs at least one Big Thought, and every listed Big Thought's current sentence passed its checks. */
+export function evaluateLock(input: { verdicts: readonly BigThoughtVerdict[] }): LockDecision {
+  if (input.verdicts.length === 0) return { ok: false, reason: "NEED_AUDIT_PASS" };
+  if (input.verdicts.some((verdict) => verdict === "AUDIT_FAIL")) return { ok: false, reason: "AUDIT_FAIL" };
+  if (!input.verdicts.every((verdict) => verdict === "AUDIT_PASS")) return { ok: false, reason: "NEED_AUDIT_PASS" };
   return { ok: true };
 }
 
-export function selectStageAction(input: {
-  anyFail: boolean;
-  awaitingVerdict?: boolean;
-  generateValidCount: number;
-  activeCount: number;
-  auditPassCount: number;
-  anyStale: boolean;
-  anyUnresolved: boolean;
-  siblingCurrent: boolean;
-  lockOk: boolean;
-}): StageAction | null {
-  if (input.awaitingVerdict || input.anyStale || input.anyUnresolved) return "audit";
-  const awaitingAudit =
-    input.activeCount > 0 && input.auditPassCount !== input.activeCount && !input.anyFail;
-  if (awaitingAudit) return "audit";
-  if (input.auditPassCount >= 1 && input.auditPassCount === input.activeCount && !input.siblingCurrent) return "audit";
-  if (input.lockOk) return "lock";
-  if (input.generateValidCount < TARGET_GENERATE_VALID) return "generate";
-  return null;
+/**
+ * The one set action the menu offers: "audit" checks the cards that were never checked (rows saved before
+ * checks ran at Generate), "lock" when every card passed, otherwise "generate" up to the target.
+ * A failed card is revised on the card itself.
+ */
+export function selectStageAction(input: { verdicts: readonly BigThoughtVerdict[] }): StageAction | null {
+  if (input.verdicts.some((verdict) => verdict == null)) return "audit";
+  if (evaluateLock(input).ok) return "lock";
+  const passed = input.verdicts.filter((verdict) => verdict === "AUDIT_PASS").length;
+  return passed < TARGET_GENERATE_VALID ? "generate" : null;
 }

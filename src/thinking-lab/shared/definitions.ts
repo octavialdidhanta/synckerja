@@ -88,18 +88,14 @@ function cleanRules(lines: readonly string[]): string {
     .join(" ");
 }
 
-const SIBLING_RULE: Record<"bigThought" | "territory" | "angle", string> = {
-  bigThought: "Dibandingkan dengan Big Thought lain di Master Thought ini: setiap Big Thought membawa alasan dasar yang berbeda. Dua Big Thought yang mengerjakan tugas yang sama gagal.",
+const SIBLING_RULE: Record<"territory" | "angle", string> = {
   territory: "Compared with the other Territories of this Big Thought: each one is a different area; one that repeats or contains another fails.",
   angle: "Compared with the other Angles of this Territory: each one is a different observation; one that repeats another fails.",
 };
 
 function ruleFor(level: CheckLevel, id: string): string {
   if (level === "master") return MASTER_CHECK_RULES[id as MasterCheckId] ?? "";
-  if (level === "bigThought") {
-    if (id === "sibling") return SIBLING_RULE.bigThought;
-    return cleanRules(bigThoughtGateRules(id as Parameters<typeof bigThoughtGateRules>[0]));
-  }
+  if (level === "bigThought") return cleanRules(bigThoughtGateRules(id as Parameters<typeof bigThoughtGateRules>[0]));
   if (level === "idea") return IDEA_CHECK_RULES[id as IdeaCheckId].join(" ");
   if (id === "siblingsDistinct") return SIBLING_RULE[level];
   if (level === "territory") return cleanRules(territoryGateRules(id as Parameters<typeof territoryGateRules>[0]));
