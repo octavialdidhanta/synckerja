@@ -1,15 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { confirmedFingerprint } from "../../../../src/thinking-lab/master-thought/semantic";
 import { nextAngleCode, shownAngleFacts } from "../../../../src/thinking-lab/angle/generate";
-import { ANGLE_GENERATE_PASS_IDS, runAngleIndividualChecks } from "../../../../src/thinking-lab/angle/passChecklist";
-import {
-  angleFailureLessons,
-  buildAngleSiblingPrompt,
-  parseAngleSet,
-  readAngleSetRecord,
-  type AngleAuditItem,
-} from "../../../../src/thinking-lab/angle/setAudit";
-import { angleReplacementPasses } from "../../../../src/thinking-lab/angle/fix";
+import { firstAngleFailure, runAngleChecks } from "../../../../src/thinking-lab/angle/passChecklist";
+import { readAngleSetRecord, withAngleResult, type AngleAuditItem } from "../../../../src/thinking-lab/angle/record";
 import { evaluateAngleParent } from "../../../../src/thinking-lab/angle/eligibility";
 import { angleFingerprint, angleSetFingerprint } from "../../../../src/thinking-lab/shared/fingerprint";
 import { ACTIVE_SET_CAP } from "../../../../src/thinking-lab/shared/limits";
@@ -101,8 +94,8 @@ function passedRows(context: AngleContext, territoryFp: string, items: AngleAudi
 
 /**
  * One Angle written in chat, under a locked Territory, with its short subject and one lived example.
- * Runs the page's seven Angle checks (batched) and the sibling check, then saves it as admitted with
- * an AUDIT_PASS item in the Territory's angle set, like a page audit.
+ * Runs the page's six Angle checks (the last one compares it with the Angles that already passed), then
+ * saves it as admitted with an AUDIT_PASS item in the Territory's angle set, like Generate on the page.
  */
 export async function addThinkingAngle(
   admin: SupabaseClient,
@@ -141,64 +134,27 @@ export async function addThinkingAngle(
     { label: "Big Thought", statement: context.big_thought.statement.trim() },
     { label: "Master Thought", statement: context.master.statement.trim() },
   ];
-  const run = await runAngleIndividualChecks({
-    batch: true,
+  const record = readAngleSetRecord(context.territory.angle_set);
+  const passed = passedRows(context, territoryFp, record.audit?.items ?? []);
+  const run = await runAngleChecks({
     statement,
     parentStatement: context.territory.statement,
     ancestors,
     subject,
     example,
+    peers: passed.map((row) => ({ code: row.code, statement: row.statement, subject: row.subject })),
     skip,
     ask,
-    onStep: () => undefined,
   });
-  if (!run.passed) {
-    const failed = run.checks.find((check) => check.state === "fail");
-    return {
-      saved: false,
-      failed: [{ check: failed?.id ?? "undecided", reason: failed?.reason?.trim() || "This check could not be decided." }],
-    };
-  }
+  const failure = firstAngleFailure(run.checks);
+  if (failure) return { saved: false, failed: [{ check: failure.gate, reason: failure.reason }] };
 
-  const record = readAngleSetRecord(context.territory.angle_set);
-  const items = record.audit?.items ?? [];
-  const passed = passedRows(context, territoryFp, items);
   const code = replace?.row.code ?? nextAngleCode(context.master_codes);
-  const siblingRows = [...passed.map((row) => ({ code: row.code, statement: row.statement })), { code, statement }];
-  let siblingSet = record.siblingSet;
-  if (!skip.includes("siblingsDistinct") && siblingRows.length >= 2) {
-    const fingerprint = angleSetFingerprint({
-      territoryFingerprint: territoryFp,
-      angleFingerprints: siblingRows.map((row) => angleFingerprint({ statement: row.statement, territoryFingerprint: territoryFp })),
-    });
-    const judged = parseAngleSet(
-      await ask(buildAngleSiblingPrompt({ parentStatement: context.territory.statement, rows: siblingRows })),
-      fingerprint,
-    );
-    if (!angleReplacementPasses(judged, code)) {
-      const reason =
-        angleFailureLessons({
-          rows: [{ code, statement }],
-          items: [{ code, verdict: "AUDIT_FAIL" }],
-          siblingSet: judged,
-        })[0]?.reason || "This Angle overlaps another.";
-      return { saved: false, failed: [{ check: "siblingsDistinct", reason }] };
-    }
-    if (siblingRows.length === admitted.length + 1) siblingSet = judged;
-  }
-
-  const facts: AngleSemanticFacts = {
-    ...shownAngleFacts(code, statement, subject, example),
-    generatePasses: [...ANGLE_GENERATE_PASS_IDS],
-  };
+  const facts: AngleSemanticFacts = shownAngleFacts(code, statement, subject, example);
   const statementFingerprint = angleFingerprint({ statement, territoryFingerprint: territoryFp });
-  const nextItems: AngleAuditItem[] = [
-    ...items.filter((item) => item.code.toUpperCase() !== code.toUpperCase()),
-    { code, verdict: "AUDIT_PASS", statementFingerprint, ...(skip.length ? { skipped: skip } : {}) },
-  ];
+  const marked = withAngleResult(record, { code, statement, statementFingerprint, failure: null, skipped: skip });
   const nextRecord = {
-    ...record,
-    siblingSet,
+    ...marked,
     audit: {
       fingerprint: angleSetFingerprint({
         territoryFingerprint: territoryFp,
@@ -206,7 +162,7 @@ export async function addThinkingAngle(
           angleFingerprint({ statement: text, territoryFingerprint: territoryFp }),
         ),
       }),
-      items: nextItems,
+      items: marked.audit?.items ?? [],
     },
   };
   if (replace) {

@@ -109,7 +109,7 @@ type LabNodeInspectorProps = {
     report: { gate: string; phase: "checking" | "checked"; outcome: "pass" | "fail" | "unverified" } | null;
   } | null;
   angles?: InspectorAngle[];
-  angleStage?: "fix" | "audit" | "lock" | null;
+  angleStage?: "audit" | "lock" | null;
   angleGenerateChecklist?: {
     checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
     report: { gate: string; phase: "checking" | "checked"; outcome: "pass" | "fail" } | null;
@@ -118,11 +118,7 @@ type LabNodeInspectorProps = {
   onLockAngles?: () => void;
   onFixAngle?: (code: string) => void;
   onDeleteAngle?: (id: string) => void;
-  onFixFailedAngles?: () => void;
   fixingAngleCodes?: readonly string[];
-  angleNotes?: string[];
-  angleFixOffers?: Array<{ failedCode: string; statement: string }>;
-  onPickAngleFixOffer?: (failedCode: string, statement: string) => void;
   territories?: InspectorTerritory[];
   territoryStage?: "fix" | "generate" | "audit" | "lock" | null;
   onTerritoryStage?: () => void;
@@ -240,6 +236,7 @@ function TerritoryPassChecklist({
   note,
   labelPrefix = "thinkingLab.territory.pass",
   onFix,
+  fixLabel,
   fixing = false,
   blocked = false,
   showPending = false,
@@ -249,6 +246,8 @@ function TerritoryPassChecklist({
   note?: string;
   labelPrefix?: string;
   onFix?: () => void;
+  /** Button text; "Fix" when not given. */
+  fixLabel?: string;
   fixing?: boolean;
   blocked?: boolean;
   showPending?: boolean;
@@ -312,7 +311,7 @@ function TerritoryPassChecklist({
                   onClick={onFix}
                 >
                   {fixing ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Wrench className="h-3.5 w-3.5" />}
-                  {t("thinkingLab.action.fix", "Fix")}
+                  {fixLabel ?? t("thinkingLab.action.fix", "Fix")}
                 </Button>
               ) : null}
             </li>
@@ -443,44 +442,6 @@ function TerritoryAuditNotes({
   );
 }
 
-function ideaNotesForCode(notes: string[], code: string): string[] {
-  const token = code.trim().toUpperCase();
-  return notes.flatMap((note) => {
-    const pair = note.match(/^([A-Za-z0-9]+)\s·\s([A-Za-z0-9]+):\s*([\s\S]+)$/);
-    if (pair) {
-      const left = pair[1].toUpperCase();
-      const right = pair[2].toUpperCase();
-      if (left !== token && right !== token) return [];
-      const other = left === token ? pair[2] : pair[1];
-      return [`${other}: ${pair[3]}`];
-    }
-    const single = note.match(/^([A-Za-z0-9]+):\s*([\s\S]+)$/);
-    if (single && single[1].toUpperCase() === token) return [single[2]];
-    return [];
-  });
-}
-
-function uncodedNotes(notes: string[]): string[] {
-  return notes.filter((note) => !/^([A-Za-z0-9]+)(\s·\s[A-Za-z0-9]+)?:/.test(note));
-}
-
-function angleNotesLeftOutside(notes: string[], angles: Array<{ code: string; verdict?: string | null }>): string[] {
-  const failCodes = angles.filter((angle) => angle.verdict === "AUDIT_FAIL").map((angle) => angle.code);
-  const kept = failCodes.length > 0 ? notes.filter((note) => !uncodedNotes([note]).includes(note)) : notes;
-  return ideaNotesWithoutCard(kept, failCodes);
-}
-
-function ideaNotesWithoutCard(notes: string[], codes: string[]): string[] {
-  const known = new Set(codes.map((code) => code.trim().toUpperCase()));
-  return notes.filter((note) => {
-    const pair = note.match(/^([A-Za-z0-9]+)\s·\s([A-Za-z0-9]+):/);
-    if (pair) return !known.has(pair[1].toUpperCase()) && !known.has(pair[2].toUpperCase());
-    const single = note.match(/^([A-Za-z0-9]+):/);
-    if (single) return !known.has(single[1].toUpperCase());
-    return true;
-  });
-}
-
 function UncheckedBadge() {
   const { t } = useAppTranslation();
   return (
@@ -543,11 +504,7 @@ export function LabNodeInspector({
   onLockAngles,
   onFixAngle,
   onDeleteAngle,
-  onFixFailedAngles,
   fixingAngleCodes,
-  angleNotes,
-  angleFixOffers,
-  onPickAngleFixOffer,
   territories,
   territoryStage,
   onTerritoryStage,
@@ -593,7 +550,6 @@ export function LabNodeInspector({
   const [angleEditToken, setAngleEditToken] = useState<Record<string, number>>({});
   const [ideaEditToken, setIdeaEditToken] = useState<Record<string, number>>({});
   const [ideaListFilter, setIdeaListFilter] = useState<"LOLOS" | "DITOLAK">("LOLOS");
-  const [openAngleNotes, setOpenAngleNotes] = useState<Record<string, boolean>>({});
   const [showWriteIdea, setShowWriteIdea] = useState(false);
   const [statementEditToken, setStatementEditToken] = useState(0);
   useEffect(() => {
@@ -637,15 +593,10 @@ export function LabNodeInspector({
     kind === "territory" &&
       angleStage &&
       onAngleStage &&
-      pendingAction !== "generate-angle" &&
-      !(angleStage === "fix" && onFixAngle),
+      pendingAction !== "generate-angle",
   );
   const angleActionLabel =
-    angleStage === "audit"
-      ? t("thinkingLab.action.audit", "Audit")
-      : angleStage === "fix"
-        ? t("thinkingLab.action.fix", "Fix")
-        : t("thinkingLab.action.lock", "Lock");
+    angleStage === "audit" ? t("thinkingLab.action.audit", "Audit") : t("thinkingLab.action.lock", "Lock");
   const showThoughtMenu = Boolean(
     kind === "bigThought" && (showTerritoryStageAction || showTerritoryGenerateAction || onLockTerritories || onDelete),
   );
@@ -670,13 +621,10 @@ export function LabNodeInspector({
       pendingAction !== "audit" &&
       !(angleStage === "audit" && pendingAction !== "generate-angle"),
   );
-  const showFixFailedAngles = Boolean(
-    kind === "territory" && onFixFailedAngles && (angles ?? []).some((angle) => angle.verdict === "AUDIT_FAIL"),
-  );
   const showIdeaHeaderMenu = Boolean(kind === "idea" && onDelete);
   const showTerritoryMenu = Boolean(
     kind === "territory" &&
-      (showTerritoryGenerate || onEditStatement || onDelete || showAngleStageMenu || onLockAngles || showFixFailedAngles),
+      (showTerritoryGenerate || onEditStatement || onDelete || showAngleStageMenu || onLockAngles),
   );
   const pathBlock =
     pathUp && pathUp.length > 0 ? (
@@ -918,7 +866,6 @@ export function LabNodeInspector({
                   onSelect={() => onAngleStage()}
                 >
                   {angleStage === "audit" ? <ClipboardCheck className="h-3.5 w-3.5" /> : null}
-                  {angleStage === "fix" ? <Wrench className="h-3.5 w-3.5" /> : null}
                   {angleStage === "lock" ? <Lock className="h-3.5 w-3.5" /> : null}
                   {angleActionLabel}
                 </DropdownMenuItem>
@@ -932,17 +879,6 @@ export function LabNodeInspector({
                 >
                   <Lock className="h-3.5 w-3.5" />
                   {t("thinkingLab.action.lock", "Lock")}
-                </DropdownMenuItem>
-              ) : null}
-              {showFixFailedAngles ? (
-                <DropdownMenuItem
-                  className="cursor-pointer gap-2"
-                  disabled={Boolean(pendingAction)}
-                  aria-busy={pendingAction === "fix-angles"}
-                  onSelect={() => onFixFailedAngles?.()}
-                >
-                  <Wrench className="h-3.5 w-3.5" />
-                  {t("thinkingLab.action.fix", "Fix")}
                 </DropdownMenuItem>
               ) : null}
               {onEditStatement ? (
@@ -1337,7 +1273,7 @@ export function LabNodeInspector({
                             onSelect={() => onFixAngle(angle.code)}
                           >
                             <Wrench className="h-3.5 w-3.5" />
-                            {t("thinkingLab.action.fix", "Fix")}
+                            {t("thinkingLab.idea.revise", "Revise")}
                           </DropdownMenuItem>
                         ) : null}
                         {angle.verdict === "AUDIT_PASS" && onGenerateIdea ? (
@@ -1386,89 +1322,14 @@ export function LabNodeInspector({
                   note={angle.checklistNote}
                   labelPrefix="thinkingLab.angle.pass"
                   onFix={angleNeedsFix && onFixAngle ? () => onFixAngle(angle.code) : undefined}
+                  fixLabel={t("thinkingLab.idea.revise", "Revise")}
                   fixing={angleFixing}
                   blocked={otherWorkRunning}
                 />
-                {angle.verdict === "AUDIT_FAIL" &&
-                [...ideaNotesForCode(angleNotes ?? [], angle.code), ...uncodedNotes(angleNotes ?? [])].length > 0 ? (
-                  <div className="mt-2">
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground"
-                      aria-expanded={Boolean(openAngleNotes[angle.id])}
-                      aria-label={`${t("thinkingLab.angle.note", "Note")} ${angle.code}`}
-                      onClick={() =>
-                        setOpenAngleNotes((current) => ({ ...current, [angle.id]: !current[angle.id] }))
-                      }
-                    >
-                      <ChevronRight
-                        className={cn("h-3.5 w-3.5 transition-transform", openAngleNotes[angle.id] && "rotate-90")}
-                        aria-hidden
-                      />
-                      {t("thinkingLab.angle.note", "Note")}
-                    </button>
-                    {openAngleNotes[angle.id] ? (
-                      <div className="mt-1 space-y-1 pl-5">
-                        {[...ideaNotesForCode(angleNotes ?? [], angle.code), ...uncodedNotes(angleNotes ?? [])].map((note) => (
-                          <p key={note} className="text-sm leading-relaxed text-muted-foreground">
-                            {note}
-                          </p>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-                {onPickAngleFixOffer
-                  ? (angleFixOffers ?? [])
-                      .filter((offer) => offer.failedCode.toUpperCase() === angle.code.toUpperCase())
-                      .map((offer) => (
-                        <div key={offer.statement} className="mt-2 rounded-md border border-border p-2">
-                          <p className="text-xs font-medium text-muted-foreground">
-                            {t("thinkingLab.angle.fixOffer", "Recommended repair · AUDIT_PASS")}
-                          </p>
-                          <p className="mt-1 text-sm text-foreground">{offer.statement}</p>
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="mt-2"
-                            disabled={Boolean(pendingAction)}
-                            onClick={() => onPickAngleFixOffer(angle.code, offer.statement)}
-                          >
-                            {pendingAction === "pick-angle-fix" ? (
-                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                            ) : null}
-                            {t("thinkingLab.fix.pick", "Use this repair")}
-                          </Button>
-                        </div>
-                      ))
-                  : null}
               </li>
               );
             })}
           </ul>
-          {angleNotesLeftOutside(angleNotes ?? [], angles ?? []).length > 0 ? (
-            <ul className="space-y-1 pt-2">
-              {angleNotesLeftOutside(angleNotes ?? [], angles ?? []).map((note) => (
-                <li key={note} className="text-sm text-muted-foreground">
-                  {note}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {angleStage === "fix" && onAngleStage && pendingAction !== "generate-angle" && !onFixAngle ? (
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <Button
-                type="button"
-                size="sm"
-                onClick={onAngleStage}
-                disabled={Boolean(pendingAction)}
-                aria-busy={pendingAction === angleStage}
-              >
-                {pendingAction === angleStage ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                {angleActionLabel}
-              </Button>
-            </div>
-          ) : null}
         </div>
       ) : null}
       {kind === "bigThought" && manualAdd && !childGenerateRunning ? (

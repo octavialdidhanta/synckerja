@@ -2,7 +2,7 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import type { AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import { angleFingerprint } from "@/thinking-lab/shared/fingerprint";
 import { LAB_WORKSPACE } from "@/thinking-lab/shared/verdict";
-import { emptyAngleSetRecord, readAngleSetRecord, type AngleSetRecord } from "@/thinking-lab/angle/setAudit";
+import { emptyAngleSetRecord, readAngleSetRecord, type AngleSetRecord } from "@/thinking-lab/angle/record";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 import { evaluateAngleParent, type AngleParentDenial } from "@/thinking-lab/angle/eligibility";
 import { normalizeAngleFacts } from "@/thinking-lab/angle/semantic";

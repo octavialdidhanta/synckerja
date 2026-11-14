@@ -47,7 +47,6 @@ import {
   fingerprintsMatch,
   incumbentSetFingerprint,
   angleFingerprint,
-  angleSetFingerprint,
   ideaFingerprint,
   ideaSetFingerprint,
   territoryFingerprint,
@@ -152,26 +151,13 @@ import type { BigThoughtFacts, LabSetRecord } from "@/thinking-lab/big-thought/t
 import { useBigThoughts, useLockedLabTree } from "@/thinking-lab/big-thought/useBigThoughts";
 import { canShowGenerateAngle } from "@/thinking-lab/angle/eligibility";
 import {
-  angleReplacementPasses,
-  buildAngleExamplePrompt,
-  buildAngleFixOptionsPrompt,
-  buildAngleSubjectPrompt,
-  parseAngleExampleScript,
-  parseAngleFixOptionsScript,
-  parseAngleSubjectScript,
-} from "@/thinking-lab/angle/fix";
-import {
-  angleAdmissionChecks,
   angleChecksFromStored,
-  beginAngleSiblingCheck,
-  finishAngleSiblingCheck,
-  fixPriorForNextAngleStatement,
-  readAngleGeneratePasses,
-  runAngleAdmissionChecks,
-  runAngleIndividualChecks,
-  runAngleOpenChecks,
+  firstAngleFailure,
+  runAngleChecks,
   type AnglePassCheck,
+  type AnglePeer,
 } from "@/thinking-lab/angle/passChecklist";
+import { buildAngleRevisionPrompt, parseAngleRevision } from "@/thinking-lab/angle/revise";
 import {
   nextAngleCode,
   proposeAngleStatements,
@@ -184,16 +170,15 @@ import { angleExampleProblem, normalizeAngleExample } from "@/thinking-lab/angle
 import { angleListSubject, angleSubjectProblem } from "@/thinking-lab/angle/subject";
 import { loadAngleParentGate, loadAngleSet, saveAngleSet } from "@/thinking-lab/angle/repository";
 import {
-  angleFailureLessons,
-  angleSetIsCurrent,
-  angleCodesHeldPass,
-  buildAngleSiblingPrompt,
+  angleVerdict,
+  canReviseAngle,
   emptyAngleSetRecord,
   mergeAngleAuditLessons,
-  parseAngleSet,
-  scoreAngleAudit,
-  usableAngleFixLessons,
-} from "@/thinking-lab/angle/setAudit";
+  withAngleResult,
+  withAngleRevision,
+  withoutAngle,
+  type AngleSetRecord,
+} from "@/thinking-lab/angle/record";
 import { useAngleSet, useLabAngles } from "@/thinking-lab/angle/useAngles";
 import { canShowGenerateIdea } from "@/thinking-lab/idea/eligibility";
 import { ideaLabel } from "@/thinking-lab/idea/subject";
@@ -359,7 +344,6 @@ import {
   territorySetIsCurrent,
   usableTerritoryFixLessons,
 } from "@/thinking-lab/territory/setAudit";
-import type { AngleSemanticFacts } from "@/thinking-lab/angle/types";
 import type { TerritorySemanticFacts } from "@/thinking-lab/territory/types";
 import { useLabTerritories, useTerritorySet } from "@/thinking-lab/territory/useTerritories";
 import { ThinkingLabPageSkeleton } from "@/thinking-lab/page/ThinkingLabPageSkeleton";
@@ -602,9 +586,6 @@ export function ThinkingLabPage() {
   const [territoryFixOffers, setTerritoryFixOffers] = useState<
     Array<{ thoughtId: string; failedCode: string; statement: string; facts: TerritorySemanticFacts }>
   >([]);
-  const [angleFixOffers, setAngleFixOffers] = useState<
-    Array<{ territoryId: string; failedCode: string; statement: string; facts: AngleSemanticFacts }>
-  >([]);
   const [auditProgress, setAuditProgress] = useState<AuditProgress | null>(null);
   const [bigThoughtChecklists, setBigThoughtChecklists] = useState<Record<string, PassChecklist>>({});
   const fixingBigThoughtRef = useRef(new Set<string>());
@@ -681,7 +662,6 @@ export function ThinkingLabPage() {
     setNotice(null);
     setAuditProgress(null);
     setTerritoryFixOffers([]);
-    setAngleFixOffers([]);
   }, [selected?.id]);
 
   useEffect(() => {
@@ -1052,42 +1032,17 @@ export function ThinkingLabPage() {
           bigThoughtFingerprint: focusedBigThoughtFingerprint,
         })
       : "";
-  const angleFingerprintNow = angleSetFingerprint({
-    territoryFingerprint: parentTerritoryFingerprint,
-    angleFingerprints: admittedAngles.map((row) =>
-      angleFingerprint({ statement: row.statement, territoryFingerprint: parentTerritoryFingerprint }),
-    ),
-  });
-  const storedAngleSet = angleSet.data?.siblingSet ?? null;
-  const angleAuditCurrent =
-    angleSetIsCurrent(storedAngleSet, angleFingerprintNow) &&
-    fingerprintsMatch(angleSet.data?.audit?.fingerprint, angleFingerprintNow);
-  const rescoredAngleAudit =
-    angleAuditCurrent && storedAngleSet
-      ? scoreAngleAudit({
-          codes: admittedAngles.map((row) => row.code),
-          siblingSet: storedAngleSet,
-          siblingSetCurrent: true,
-        })
-      : null;
-  const angleVerdicts = admittedAngles.map((row) => {
-    if (row.status === "locked") return "AUDIT_PASS" as const;
-    const statementFingerprint = parentTerritoryFingerprint
-      ? angleFingerprint({ statement: row.statement, territoryFingerprint: parentTerritoryFingerprint })
-      : "";
-    const stored = angleSet.data?.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
-    if (
-      stored?.statementFingerprint === statementFingerprint &&
-      (stored.verdict === "AUDIT_PASS" || stored.verdict === "AUDIT_FAIL")
-    ) {
-      return stored.verdict;
-    }
-    return rescoredAngleAudit?.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict ?? null;
-  });
-  const angleLock = evaluateAngleLock({ verdicts: angleVerdicts });
-  const angleExampleOpen = admittedAngles.some((row) =>
-    Boolean(angleExampleProblem(row.canonicalSemantic.example ?? "", row.statement)),
+  const angleStatementFingerprint = (statement: string) =>
+    parentTerritoryFingerprint ? angleFingerprint({ statement, territoryFingerprint: parentTerritoryFingerprint }) : "";
+  const angleVerdicts = admittedAngles.map((row) =>
+    angleVerdict(row, angleSet.data, angleStatementFingerprint(row.statement)),
   );
+  /** Angles of the focused Territory that already passed (or are locked), for the "Beda dari Angle lain" check. */
+  const anglePeers = (exceptCode?: string): AnglePeer[] =>
+    admittedAngles
+      .filter((row, index) => angleVerdicts[index] === "AUDIT_PASS" && row.code.toUpperCase() !== exceptCode?.toUpperCase())
+      .map((row) => ({ code: row.code, statement: row.statement, subject: row.canonicalSemantic.subject ?? "" }));
+  const angleLock = evaluateAngleLock({ verdicts: angleVerdicts });
   const angleCardView = (row: (typeof admittedAngles)[number], index: number) => {
     const territoryName = focusedTerritory?.statement ?? "";
     const storedSubject = row.canonicalSemantic.subject ?? "";
@@ -1101,7 +1056,6 @@ export function ThinkingLabPage() {
       (item) => item.code.toUpperCase() === row.code.toUpperCase(),
     );
     const storedChecks = angleChecksFromStored({
-      generatePasses: row.canonicalSemantic.generatePasses,
       gateFailure: angleVerdicts[index] === "AUDIT_FAIL" ? (storedItem?.gateFailure ?? null) : null,
       passed: angleVerdicts[index] === "AUDIT_PASS",
     });
@@ -1120,23 +1074,7 @@ export function ThinkingLabPage() {
       example: normalizeAngleExample(storedExample),
     };
   };
-  const angleStage = selectAngleStage({
-    admittedCount: admittedAngles.length,
-    verdicts: angleVerdicts,
-    repairsUsed: (angleSet.data?.repairCount ?? 0) > 0,
-    lockOk: angleLock.ok && !angleExampleOpen,
-  });
-  const angleNotes = [
-    ...(storedAngleSet && angleSetIsCurrent(storedAngleSet, angleFingerprintNow)
-      ? [
-          ...storedAngleSet.materialOverlapPairs.map((pair) => `${pair.angleCodeA} · ${pair.angleCodeB}: ${pair.explanation}`),
-          ...storedAngleSet.containmentPairs.map((pair) => `${pair.containerCode} · ${pair.containedCode}: ${pair.explanation}`),
-        ]
-      : []),
-    ...(angleVerdicts.some((verdict) => verdict === "AUDIT_FAIL") && (angleSet.data?.repairCount ?? 0) > 0
-      ? [t("thinkingLab.angle.repairStopped", "Fix already ran once. This set stays open until an audit passes.")]
-      : []),
-  ];
+  const angleStage = selectAngleStage({ verdicts: angleVerdicts });
   const angleSetLocked = admittedAngles.length > 0 && admittedAngles.every((row) => row.status === "locked");
   const territoryAlreadySealed = canShowGenerateAngle(focusedTerritory, focusedBigThoughtFingerprint || null);
   const showGenerateAngle = Boolean(
@@ -1601,7 +1539,12 @@ export function ThinkingLabPage() {
     }
     if (target.kind === "angle") {
       void run(async () => {
+        const removed = (labAngles.data ?? []).find((row) => row.id === target.id);
         await labAngles.remove.mutateAsync({ territoryId: target.territoryId, id: target.id });
+        if (removed && masters.organizationId) {
+          const stored = await loadAngleSet(masters.organizationId, target.territoryId);
+          await saveAngleSet({ organizationId: masters.organizationId, territoryId: target.territoryId, record: withoutAngle(stored, removed.code) });
+        }
         setFocus((current) =>
           current && "angleId" in current && current.angleId === target.id
             ? {
@@ -2154,6 +2097,14 @@ export function ThinkingLabPage() {
       let sort = known.reduce((max, row) => Math.max(max, row.sortOrder), 0);
       const learned = [...auditLessons];
       let setRecord = storedSet ?? emptyAngleSetRecord();
+      // Angles under this Territory that already passed; each new card must be a different observation.
+      let runPeers: AnglePeer[] = known
+        .filter((row) => {
+          if (row.admission !== "GENERATE_VALID") return false;
+          const fp = angleFingerprint({ statement: row.statement, territoryFingerprint: territoryFingerprint({ statement: territory.statement, bigThoughtFingerprint: bigThoughtFingerprint({ statement: focusedThought.statement, masterThoughtFingerprint: parentFp }) }) });
+          return angleVerdict(row, setRecord, fp) === "AUDIT_PASS";
+        })
+        .map((row) => ({ code: row.code, statement: row.statement, subject: row.canonicalSemantic.subject ?? "" }));
       const bannedNames = new Set(
         [
           ...learned.map((lesson) => lesson.statement.trim().toLowerCase()),
@@ -2247,7 +2198,8 @@ export function ThinkingLabPage() {
           });
           return drafts.filter((draft) => !bannedNames.has(draft.statement.trim().toLowerCase()));
         },
-        judge: async (parent, code, statement) => {
+        judge: async (parent, code, draft) => {
+          const statement = draft.statement;
           const failFacts = async (reason: string) => {
             await rememberGenerateLesson({ code, statement, reason });
             return { ...shownAngleFacts(code, statement), relationToParent: "BIG_THOUGHT_LIKE" as const };
@@ -2256,28 +2208,23 @@ export function ThinkingLabPage() {
             const repeated = learned.find(
               (lesson) => lesson.statement.trim().toLowerCase() === statement.trim().toLowerCase(),
             );
-            publishLive(angleAdmissionChecks({ id: "observation", reason: repeated?.reason || "This sentence already failed." }));
-            return failFacts(repeated?.reason || "observation: This sentence already failed.");
+            return failFacts(repeated?.reason || "This sentence already failed.");
           }
-          const checked = await runAngleAdmissionChecks({
+          const checked = await runAngleChecks({
             skip: skipFor("angle"),
-            batch: true,
             statement,
+            subject: draft.subject,
+            example: draft.example,
             parentStatement: parent.statement,
             ancestors: parent.ancestors,
+            peers: runPeers,
             ask: (prompt) => askThinkingLab(prompt, 0),
             onStep: publishLive,
           });
-          if (!checked.passed) {
-            const failedCheck = checked.checks.find((check) => check.state === "fail");
-            const reason = failedCheck?.reason?.trim() || "This check could not be decided.";
-            return failFacts(`observation: ${reason}`);
-          }
+          const failure = firstAngleFailure(checked.checks);
+          if (failure) return failFacts(`${failure.gate}: ${failure.reason}`);
           publishAngleChecklist(code, checked.checks);
-          return {
-            ...shownAngleFacts(code, statement),
-            generatePasses: ["observation"],
-          };
+          return shownAngleFacts(code, statement, draft.subject, draft.example);
         },
         persist: async ({ parent, code, statement, facts, admission }) => {
           if (admission !== "GENERATE_VALID") {
@@ -2296,12 +2243,19 @@ export function ThinkingLabPage() {
             code,
             statement,
             sortOrder: sort,
-            facts: {
-              ...facts,
-              generatePasses: ["observation"],
-            },
+            facts,
             admission,
           });
+          // Every check already passed at Generate: the card is saved with its pass mark.
+          setRecord = withAngleResult(setRecord, {
+            code: saved.code,
+            statement: saved.statement,
+            statementFingerprint: angleFingerprint({ statement: saved.statement, territoryFingerprint: parent.territoryFingerprint }),
+            failure: null,
+            skipped: skipFor("angle"),
+          });
+          runPeers = [...runPeers, { code: saved.code, statement: saved.statement, subject: facts.subject ?? "" }];
+          await saveAngleSet({ organizationId: masters.organizationId as string, territoryId, record: setRecord });
           return {
             code: saved.code,
             statement: saved.statement,
@@ -2735,37 +2689,41 @@ export function ThinkingLabPage() {
 
   const onEditAngle = (id: string, statement: string) =>
     runManual("manual-angle", async () => {
-      if (!focusedTerritory || !parentFp) return null;
+      if (!focusedTerritory || !parentFp || !masters.organizationId || !parentTerritoryFingerprint) return null;
       const row = (labAngles.data ?? []).find((item) => item.id === id && item.territoryId === focusedTerritory.id);
       if (!row || row.status !== "candidate") return null;
-      // Same check as Generate: the observation. The other checks run at Audit.
-      const checked = await runAngleAdmissionChecks({
+      const subject = row.canonicalSemantic.subject ?? "";
+      const example = row.canonicalSemantic.example ?? "";
+      // The same six checks as Generate.
+      const checked = await runAngleChecks({
         skip: skipFor("angle"),
-        batch: true,
         statement,
+        subject,
+        example,
         parentStatement: focusedTerritory.statement,
         ancestors: angleAncestors,
+        peers: anglePeers(row.code),
         ask: (prompt) => askThinkingLab(prompt, 0),
-        onStep: () => undefined,
       });
-      if (!checked.passed) {
-        return checked.checks.find((check) => check.state === "fail")?.reason?.trim() || "This check could not be decided.";
-      }
+      const failure = firstAngleFailure(checked.checks);
+      if (failure) return failure.reason;
       await labAngles.replace.mutateAsync({
         territoryId: focusedTerritory.id,
         id,
         statement,
-        facts: {
-          ...shownAngleFacts(row.code, statement, row.canonicalSemantic.subject ?? "", row.canonicalSemantic.example ?? ""),
-          generatePasses: ["observation"],
-        },
+        facts: shownAngleFacts(row.code, statement, subject, example),
         admission: "GENERATE_VALID",
       });
-      await angleSet.save.mutateAsync({
-        ...emptyAngleSetRecord(),
-        auditLessons: angleSet.data?.auditLessons ?? [],
-      });
-      // The card showed the checks of the old sentence; show the check the new sentence just passed.
+      const stored = await loadAngleSet(masters.organizationId, focusedTerritory.id);
+      await angleSet.save.mutateAsync(
+        withAngleResult(stored, {
+          code: row.code,
+          statement,
+          statementFingerprint: angleStatementFingerprint(statement),
+          failure: null,
+          skipped: skipFor("angle"),
+        }),
+      );
       publishAngleChecklist(row.code, checked.checks);
       return null;
     });
@@ -5250,429 +5208,77 @@ export function ThinkingLabPage() {
     });
   };
 
-  const repairFailedAngles = async (onlyCode?: string) => {
-    if (!focusedTerritory || !masters.organizationId || !parentFp || admittedAngles.length === 0) return;
-    const subjectOpen = (row: (typeof admittedAngles)[number]) =>
-      Boolean(angleSubjectProblem(row.canonicalSemantic.subject ?? "", focusedTerritory.statement));
-    const exampleOpen = (row: (typeof admittedAngles)[number]) =>
-      Boolean(angleExampleProblem(row.canonicalSemantic.example ?? "", row.statement));
-    const failed = admittedAngles.filter((row, index) => {
-      const checklistFailed = (angleChecklists[row.code.toUpperCase()]?.checks ?? []).some(
-        (check) => check.state === "fail",
-      );
-      if (angleVerdicts[index] !== "AUDIT_FAIL" && !checklistFailed && !subjectOpen(row) && !exampleOpen(row)) return false;
-      return !onlyCode || row.code.toUpperCase() === onlyCode.toUpperCase();
-    });
-    if (failed.length === 0) return;
-    const keepers = admittedAngles.filter(
-      (row, index) => angleVerdicts[index] === "AUDIT_PASS" && !subjectOpen(row) && !exampleOpen(row),
-    );
-    const applied = new Map<string, string>();
-    let setRecord = {
-      schema: "thinking-lab/angle-set/v1" as const,
-      repairCount: angleSet.data?.repairCount ?? 0,
-      siblingSet: storedAngleSet,
-      audit: angleSet.data?.audit ?? null,
-      auditLessons: [...(angleSet.data?.auditLessons ?? [])],
+  /**
+   * One card: a card that was never checked is checked as it is. A card that failed is rewritten from its
+   * failed check (at most three times per card) and checked again. The card keeps its code either way.
+   */
+  const checkOrReviseAngle = async (code: string, revise: boolean, extraPeers: readonly AnglePeer[] = []): Promise<AnglePeer | null> => {
+    if (!focusedTerritory || !masters.organizationId || !parentTerritoryFingerprint) return null;
+    const row = admittedAngles.find((item) => item.code.toUpperCase() === code.toUpperCase());
+    if (!row || row.status !== "candidate") return null;
+    let record: AngleSetRecord = await loadAngleSet(masters.organizationId, focusedTerritory.id);
+    const peers = [...anglePeers(row.code), ...extraPeers.filter((peer) => peer.code.toUpperCase() !== row.code.toUpperCase())];
+    let card = {
+      statement: row.statement,
+      subject: row.canonicalSemantic.subject ?? "",
+      example: row.canonicalSemantic.example ?? "",
     };
-    for (const row of failed) {
-      const learned = [...usableAngleFixLessons(setRecord.auditLessons, row.code)];
-      const refused = new Set(setRecord.auditLessons.map((lesson) => lesson.statement.trim().toLowerCase()));
-      refused.add(row.statement.trim().toLowerCase());
-      const storedFailure = setRecord.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
-      const alreadyPassed =
-        storedFailure?.verdict === "AUDIT_PASS" ||
-        angleVerdicts[admittedAngles.findIndex((item) => item.id === row.id)] === "AUDIT_PASS";
-      let shown = angleChecklists[row.code.toUpperCase()]?.checks ?? [];
-      if (shown.length === 0) {
-        shown = angleChecksFromStored({
-          generatePasses: row.canonicalSemantic.generatePasses,
-          gateFailure: alreadyPassed || storedFailure?.verdict !== "AUDIT_FAIL" ? null : (storedFailure.gateFailure ?? null),
-          passed: alreadyPassed,
-        });
-      }
-      let scope: FixScope = scopeFromHistory(shown, learned);
-      const rememberFixLesson = async (lesson: { code: string; statement: string; reason: string }) => {
-        learned.push(lesson);
-        refused.add(lesson.statement.trim().toLowerCase());
-        setRecord = {
-          ...setRecord,
-          auditLessons: mergeAngleAuditLessons(setRecord.auditLessons, [lesson]),
-        };
-        await angleSet.save.mutateAsync(setRecord);
-      };
-      const sealAnglePass = async (statement: string, subject: string, example: string) => {
-        await labAngles.replace.mutateAsync({
-          territoryId: focusedTerritory.id,
-          id: row.id,
-          statement,
-          facts: {
-            ...row.canonicalSemantic,
-            ...shownAngleFacts(row.code, statement, subject, example),
-            code: row.code,
-            generatePasses: ["observation"],
-          },
-          admission: "GENERATE_VALID",
-        });
-        const codeKey = row.code.toUpperCase();
-        const statementFingerprint = angleFingerprint({
-          statement,
-          territoryFingerprint: parentTerritoryFingerprint,
-        });
-        const previousItems = setRecord.audit?.items ?? [];
-        const items = previousItems.some((item) => item.code.toUpperCase() === codeKey)
-          ? previousItems.map((item) =>
-              item.code.toUpperCase() === codeKey
-                ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("angle") }
-                : item,
-            )
-          : [...previousItems, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("angle") }];
-        setRecord = {
-          ...setRecord,
-          audit: { fingerprint: setRecord.audit?.fingerprint ?? "", items },
-        };
-        await angleSet.save.mutateAsync(setRecord);
-        applied.set(codeKey, statement);
-      };
-      const judgeFixSibling = async (statement: string, checks: AnglePassCheck[]) => {
-        const siblingRows = [
-          ...keepers
-            .filter((item) => item.code.toUpperCase() !== row.code.toUpperCase())
-            .map((item) => ({ code: item.code, statement: item.statement })),
-          { code: row.code, statement },
-        ];
-        if (siblingRows.length < 2 || skipFor("angle").includes("siblingsDistinct")) {
-          return { pass: true, reason: "", settled: finishAngleSiblingCheck(checks, true, "") };
-        }
-        const siblingFingerprint = angleSetFingerprint({
-          territoryFingerprint: parentTerritoryFingerprint,
-          angleFingerprints: siblingRows.map((item) =>
-            angleFingerprint({ statement: item.statement, territoryFingerprint: parentTerritoryFingerprint }),
-          ),
-        });
-        const siblingScript = await askThinkingLab(
-          buildAngleSiblingPrompt({ parentStatement: focusedTerritory.statement, rows: siblingRows }),
-          0,
-        );
-        const siblingSet = parseAngleSet(siblingScript, siblingFingerprint);
-        const pass = angleReplacementPasses(siblingSet, row.code);
-        const reason = pass
-          ? ""
-          : (angleFailureLessons({
-              rows: [{ code: row.code, statement }],
-              items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
-              siblingSet,
-            })[0]?.reason ?? "Sibling audit failed this Angle.");
-        return { pass, reason, settled: finishAngleSiblingCheck(checks, pass, reason) };
-      };
-      const subjectProblem = angleSubjectProblem(row.canonicalSemantic.subject ?? "", focusedTerritory.statement);
-      const exampleProblem = angleExampleProblem(row.canonicalSemantic.example ?? "", row.statement);
-      const otherFail = shown.some((check) => check.state === "fail" && check.id !== "ownSubject");
-      const storedPass = alreadyPassed;
-      if (subjectProblem && !otherFail) {
-        shown = shown.some((check) => check.id === "ownSubject")
-          ? shown.map((check) =>
-              check.id === "ownSubject" ? { id: "ownSubject", state: "fail" as const, reason: subjectProblem } : check,
-            )
-          : [...shown, { id: "ownSubject", state: "fail" as const, reason: subjectProblem }];
-        const livePassed = shown.filter((check) => check.state === "pass").map((check) => check.id);
-        const passed =
-          livePassed.length > 0
-            ? livePassed
-            : storedPass
-              ? ["stakeHolds", "observation", "rightSize", "siblingsDistinct"]
-              : [];
-        scope = {
-          preserve: [...new Set([...scope.preserve, ...passed])],
-          repair: [{ id: "ownSubject", reason: subjectProblem }],
-        };
-      } else if (exampleProblem && !shown.some((check) => check.state === "fail" && check.id !== "livedExample")) {
-        shown = shown.some((check) => check.id === "livedExample")
-          ? shown.map((check) =>
-              check.id === "livedExample" ? { id: "livedExample", state: "fail" as const, reason: exampleProblem } : check,
-            )
-          : [...shown, { id: "livedExample", state: "fail" as const, reason: exampleProblem }];
-        const livePassed = shown.filter((check) => check.state === "pass").map((check) => check.id);
-        const passed =
-          livePassed.length > 0
-            ? livePassed
-            : storedPass
-              ? [
-                  "stakeHolds",
-                  "observation",
-                  "rightSize",
-                  "ownSubject",
-                  "siblingsDistinct",
-                ]
-              : [];
-        scope = {
-          preserve: [...new Set([...scope.preserve, ...passed])],
-          repair: [{ id: "livedExample", reason: exampleProblem }],
-        };
-      }
-      let currentStatement = row.statement;
-      let currentSubject = row.canonicalSemantic.subject ?? "";
-      let currentExample = row.canonicalSemantic.example ?? "";
-      let offered = false;
-      for (let attempt = 0; attempt < fixAttemptCap() && !offered; attempt += 1) {
-        if (scope.repair.length === 1 && scope.repair[0]?.id === "ownSubject") {
-          const subjectScript = await askThinkingLab(
-            buildAngleSubjectPrompt({ territory: focusedTerritory.statement, statement: currentStatement }),
-            0.2,
-          );
-          const subject = parseAngleSubjectScript(subjectScript);
-          const problem = angleSubjectProblem(subject, focusedTerritory.statement);
-          if (!subject || problem) {
-            const reason = problem || "No subject came back.";
-            await rememberFixLesson({
-              code: row.code,
-              statement: subject || currentStatement,
-              reason: `ownSubject: ${reason}`,
-            });
-            continue;
-          }
-          currentSubject = subject;
-          const prior: AnglePassCheck[] =
-            shown.length > 0
-              ? shown
-              : scope.preserve.map((id) => ({ id: id as AnglePassCheck["id"], state: "pass" as const }));
-          const checked = await runAngleOpenChecks({
-            skip: skipFor("angle"),
-            batch: true,
-            statement: currentStatement,
-            parentStatement: focusedTerritory.statement,
-            ancestors: angleAncestors,
-            subject,
-            example: currentExample,
-            prior,
-            ask: (prompt) => askThinkingLab(prompt, 0),
-            onStep: (checks) => publishAngleChecklist(row.code, checks),
-          });
-          if (!checked.passed) {
-            const failedCheck = checked.checks.find((check) => check.state === "fail");
-            const reason = failedCheck
-              ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim()
-              : "This check could not be decided.";
-            await rememberFixLesson({ code: row.code, statement: currentStatement, reason });
-            shown = checked.checks;
-            scope = fixScopeFromChecks(checked.checks);
-            continue;
-          }
-          const siblingPassed = scope.preserve.includes("siblingsDistinct");
-          if (siblingPassed) {
-            const passedChecks = checked.checks.map((check) =>
-              check.id === "siblingsDistinct" ? { id: check.id, state: "pass" as const } : check,
-            );
-            publishAngleChecklist(row.code, passedChecks);
-            await sealAnglePass(currentStatement, subject, currentExample);
-            offered = true;
-            continue;
-          }
-          publishAngleChecklist(row.code, beginAngleSiblingCheck(checked.checks));
-          const sibling = await judgeFixSibling(currentStatement, checked.checks);
-          if (!sibling.pass) {
-            await rememberFixLesson({
-              code: row.code,
-              statement: currentStatement,
-              reason: `siblingsDistinct: ${sibling.reason}`,
-            });
-            shown = sibling.settled;
-            publishAngleChecklist(row.code, sibling.settled);
-            scope = fixScopeFromChecks(sibling.settled);
-            continue;
-          }
-          publishAngleChecklist(row.code, sibling.settled);
-          await sealAnglePass(currentStatement, subject, currentExample);
-          offered = true;
-          continue;
-        }
-        if (scope.repair.length === 1 && scope.repair[0]?.id === "livedExample") {
-          const exampleScript = await askThinkingLab(
-            buildAngleExamplePrompt({
-              territory: focusedTerritory.statement,
-              statement: currentStatement,
-              refused: [...refused],
-            }),
-            0.2,
-          );
-          const example = parseAngleExampleScript(exampleScript);
-          const problem = angleExampleProblem(example, currentStatement);
-          if (!example || problem || refused.has(example.trim().toLowerCase())) {
-            const reason = problem || "No example came back.";
-            await rememberFixLesson({
-              code: row.code,
-              statement: example || currentStatement,
-              reason: `livedExample: ${reason}`,
-            });
-            continue;
-          }
-          currentExample = example;
-          const prior: AnglePassCheck[] =
-            shown.length > 0
-              ? shown
-              : scope.preserve.map((id) => ({ id: id as AnglePassCheck["id"], state: "pass" as const }));
-          const checked = await runAngleOpenChecks({
-            skip: skipFor("angle"),
-            batch: true,
-            statement: currentStatement,
-            parentStatement: focusedTerritory.statement,
-            ancestors: angleAncestors,
-            subject: currentSubject,
-            example,
-            prior,
-            ask: (prompt) => askThinkingLab(prompt, 0),
-            onStep: (checks) => publishAngleChecklist(row.code, checks),
-          });
-          if (!checked.passed) {
-            const failedCheck = checked.checks.find((check) => check.state === "fail");
-            const reason = failedCheck
-              ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim()
-              : "This check could not be decided.";
-            await rememberFixLesson({ code: row.code, statement: currentStatement, reason });
-            shown = checked.checks;
-            scope = fixScopeFromChecks(checked.checks);
-            continue;
-          }
-          const siblingPassed = scope.preserve.includes("siblingsDistinct");
-          if (siblingPassed) {
-            const passedChecks = checked.checks.map((check) =>
-              check.id === "siblingsDistinct" ? { id: check.id, state: "pass" as const } : check,
-            );
-            publishAngleChecklist(row.code, passedChecks);
-            await sealAnglePass(currentStatement, currentSubject, example);
-            offered = true;
-            continue;
-          }
-          publishAngleChecklist(row.code, beginAngleSiblingCheck(checked.checks));
-          const sibling = await judgeFixSibling(currentStatement, checked.checks);
-          if (!sibling.pass) {
-            await rememberFixLesson({
-              code: row.code,
-              statement: currentStatement,
-              reason: `siblingsDistinct: ${sibling.reason}`,
-            });
-            shown = sibling.settled;
-            publishAngleChecklist(row.code, sibling.settled);
-            scope = fixScopeFromChecks(sibling.settled);
-            continue;
-          }
-          publishAngleChecklist(row.code, sibling.settled);
-          await sealAnglePass(currentStatement, currentSubject, example);
-          offered = true;
-          continue;
-        }
+    const check = (next: typeof card) =>
+      runAngleChecks({
+        skip: skipFor("angle"),
+        ...next,
+        parentStatement: focusedTerritory.statement,
+        ancestors: angleAncestors,
+        peers,
+        ask: (prompt) => askThinkingLab(prompt, 0),
+        onStep: (checks) => publishAngleChecklist(row.code, checks),
+      });
+    let checked = revise ? null : await check(card);
+    if (revise) {
+      if (!canReviseAngle(record, row.code)) {
+        setNotice(t("thinkingLab.angle.revisionCap", "This Angle was revised three times. Edit it yourself or delete it."));
+      } else {
+        const shown =
+          checked?.checks ??
+          angleChecksFromStored({ gateFailure: record.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.gateFailure ?? null });
+        record = withAngleRevision(record, row.code);
         const script = await askThinkingLab(
-          buildAngleFixOptionsPrompt({
-            parentStatement: focusedTerritory.statement,
+          buildAngleRevisionPrompt({
+            territory: focusedTerritory.statement,
             ancestors: angleAncestors,
-            failed: { code: row.code, statement: currentStatement },
-            keepers: keepers
-              .filter((keeper) => keeper.code.toUpperCase() !== row.code.toUpperCase())
-              .map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
-            conflicts: angleNotes,
-            lessons: learned,
-            scope,
+            card,
+            checks: shown,
+            peers,
+            lessons: record.auditLessons.filter((lesson) => lesson.code.toUpperCase() === row.code.toUpperCase()),
+            revision: record.revisions[row.code.toUpperCase()] ?? 1,
           }),
           0.2,
         );
-        const candidates = parseAngleFixOptionsScript(script);
-        const namedSubject = parseAngleSubjectScript(script);
-        const namedExample = parseAngleExampleScript(script);
-        const subjectForCheck = namedSubject || currentSubject;
-        const exampleForCheck = scope.preserve.includes("livedExample") ? currentExample : namedExample;
-        const statement = candidates.find((candidate) => !refused.has(candidate.trim().toLowerCase()));
-        if (!statement) {
-          if (candidates.length === 0) {
-            await rememberFixLesson({ code: row.code, statement: row.statement, reason: "No replacement came back." });
-          } else {
-            for (const candidate of candidates) {
-              await rememberFixLesson({
-                code: row.code,
-                statement: candidate,
-                reason: "This sentence was offered again after it already failed.",
-              });
-            }
-          }
-          continue;
+        const next = parseAngleRevision(script, card);
+        if (next) {
+          card = next;
+          checked = await check(card);
+          await labAngles.replace.mutateAsync({
+            territoryId: focusedTerritory.id,
+            id: row.id,
+            statement: card.statement,
+            facts: shownAngleFacts(row.code, card.statement, card.subject, card.example),
+            admission: "GENERATE_VALID",
+          });
         }
-        const checked = await runAngleOpenChecks({
-          skip: skipFor("angle"),
-          batch: true,
-          statement,
-          parentStatement: focusedTerritory.statement,
-          ancestors: angleAncestors,
-          subject: subjectForCheck,
-          example: exampleForCheck,
-          prior: fixPriorForNextAngleStatement(shown, currentStatement, statement),
-          ask: (prompt) => askThinkingLab(prompt, 0),
-          onStep: (checks) => publishAngleChecklist(row.code, checks),
-        });
-        if (!checked.passed) {
-          const failedCheck = checked.checks.find((check) => check.state === "fail");
-          const reason = failedCheck ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim() : "This check could not be decided.";
-          await rememberFixLesson({ code: row.code, statement, reason });
-          if (exampleForCheck) refused.add(exampleForCheck.trim().toLowerCase());
-          shown = checked.checks;
-          scope = fixScopeFromChecks(checked.checks);
-          continue;
-        }
-        publishAngleChecklist(row.code, beginAngleSiblingCheck(checked.checks));
-        const sibling = await judgeFixSibling(statement, checked.checks);
-        if (!sibling.pass) {
-          await rememberFixLesson({ code: row.code, statement, reason: `siblingsDistinct: ${sibling.reason}` });
-          shown = sibling.settled;
-          publishAngleChecklist(row.code, sibling.settled);
-          scope = fixScopeFromChecks(sibling.settled);
-          continue;
-        }
-        publishAngleChecklist(row.code, sibling.settled);
-        await sealAnglePass(statement, subjectForCheck, exampleForCheck);
-        offered = true;
       }
     }
-    const replaced = new Set(failed.map((row) => row.code.toUpperCase()));
-    setAngleFixOffers((current) =>
-      current.filter(
-        (offer) => offer.territoryId !== focusedTerritory.id || !replaced.has(offer.failedCode.toUpperCase()),
-      ),
-    );
-    const covered = applied.size;
-    if (covered > 0) {
-      const items = admittedAngles.flatMap((row, index) => {
-        const code = row.code.toUpperCase();
-        const previous = setRecord.audit?.items.find((item) => item.code.toUpperCase() === code);
-        const statement = applied.get(code) ?? row.statement;
-        const verdict = applied.has(code) ? ("AUDIT_PASS" as const) : angleVerdicts[index];
-        if (verdict !== "AUDIT_PASS" && verdict !== "AUDIT_FAIL") return [];
-        return [
-          {
-            code: row.code,
-            verdict,
-            statementFingerprint: angleFingerprint({
-              statement,
-              territoryFingerprint: parentTerritoryFingerprint,
-            }),
-            ...(verdict === "AUDIT_FAIL" && previous?.gateFailure ? { gateFailure: previous.gateFailure } : {}),
-          },
-        ];
-      });
-      await angleSet.save.mutateAsync({
-        ...setRecord,
-        repairCount: setRecord.repairCount + 1,
-        siblingSet: null,
-        audit: items.length > 0 ? { fingerprint: "", items } : setRecord.audit,
+    if (checked) {
+      record = withAngleResult(record, {
+        code: row.code,
+        statement: card.statement,
+        statementFingerprint: angleStatementFingerprint(card.statement),
+        failure: firstAngleFailure(checked.checks),
+        skipped: skipFor("angle"),
       });
     }
-    if (covered < failed.length) {
-      setNotice(
-        t("thinkingLab.angle.noSafeReplacement", "NO_SAFE_REPLACEMENT {{count}}/{{failed}}", {
-          count: covered,
-          failed: failed.length,
-        }),
-      );
-    } else {
-      setNotice(null);
-    }
+    await angleSet.save.mutateAsync(record);
+    return checked?.passed ? { code: row.code, statement: card.statement, subject: card.subject } : null;
   };
 
   const onFixAngle = (code: string) => {
@@ -5680,149 +5286,26 @@ export function ThinkingLabPage() {
     if (!key || fixingAngleCodesRef.current.has(key)) return;
     fixingAngleCodesRef.current.add(key);
     setFixingAngleCodes(new Set(fixingAngleCodesRef.current));
-    void (async () => {
-      try {
-        await repairFailedAngles(code);
-      } catch (error) {
-        reportStepError(error);
-      } finally {
-        fixingAngleCodesRef.current.delete(key);
-        setFixingAngleCodes(new Set(fixingAngleCodesRef.current));
-      }
-    })();
+    void run(async () => {
+      const index = admittedAngles.findIndex((row) => row.code.toUpperCase() === key);
+      await checkOrReviseAngle(code, angleVerdicts[index] === "AUDIT_FAIL");
+    }, "fix-angles", "Angle").finally(() => {
+      fixingAngleCodesRef.current.delete(key);
+      setFixingAngleCodes(new Set(fixingAngleCodesRef.current));
+    });
   };
 
   const onAngleStage = () =>
     run(async () => {
       if (!focusedTerritory || !masters.organizationId || !parentFp || admittedAngles.length === 0) return;
-      if (angleStage === "fix") {
-        await repairFailedAngles();
-        return;
-      }
       if (angleStage === "audit") {
-        const heldPass = new Set(
-          angleCodesHeldPass(admittedAngles, angleVerdicts).map((code) => code.toUpperCase()),
-        );
-        const lessons = [...(angleSet.data?.auditLessons ?? [])];
-        const passedCodes = new Set<string>(heldPass);
-        const failedByCode = new Map<string, { gate: AnglePassCheck["id"]; reason: string }>();
-        let siblingSet = storedAngleSet;
-        let resolvedSibling: { fingerprint: string; set: NonNullable<typeof siblingSet> } | null = null;
-        // Each Angle's own checks run a few at once; the sibling check stays in order below.
-        const individualRuns = startLimited(
-          admittedAngles.filter((row) => !heldPass.has(row.code.toUpperCase())),
-          (row) => row.code.toUpperCase(),
-          THINKING_PARALLEL_CHECKS,
-          (row) => runAngleIndividualChecks({
-            skip: skipFor("angle"),
-            batch: true,
-            statement: row.statement,
-            parentStatement: focusedTerritory.statement,
-            ancestors: angleAncestors,
-            subject: row.canonicalSemantic.subject,
-            example: row.canonicalSemantic.example,
-            carried: readAngleGeneratePasses(row.canonicalSemantic.generatePasses),
-            ask: (prompt) => askThinkingLab(prompt, 0),
-            onStep: (checks) => publishAngleChecklist(row.code, checks),
-          }),
-        );
-        for (const row of admittedAngles) {
-          const codeKey = row.code.toUpperCase();
-          if (heldPass.has(codeKey)) continue;
-          const run = await individualRuns.get(codeKey)!;
-          if (!run.passed) {
-            const failedCheck = run.checks.find((check) => check.state === "fail");
-            const gate = failedCheck?.id ?? "stakeHolds";
-            const reason = failedCheck?.reason?.trim() || "This check could not be decided.";
-            failedByCode.set(codeKey, { gate, reason });
-            lessons.push({ code: row.code, statement: row.statement, reason: `${gate}: ${reason}` });
-            continue;
-          }
-          const siblingRows = [
-            ...admittedAngles
-              .filter((item) => passedCodes.has(item.code.toUpperCase()))
-              .map((item) => ({ code: item.code, statement: item.statement })),
-            { code: row.code, statement: row.statement },
-          ];
-          publishAngleChecklist(row.code, beginAngleSiblingCheck(run.checks));
-          let siblingPass = skipFor("angle").includes("siblingsDistinct") || siblingRows.length < 2;
-          let siblingReason = "";
-          if (!siblingPass) {
-            const fingerprint = angleSetFingerprint({
-              territoryFingerprint: parentTerritoryFingerprint,
-              angleFingerprints: siblingRows.map((item) =>
-                angleFingerprint({ statement: item.statement, territoryFingerprint: parentTerritoryFingerprint }),
-              ),
-            });
-            const judged =
-              resolvedSibling?.fingerprint === fingerprint &&
-              resolvedSibling.set.resolution === "RESOLVED" &&
-              resolvedSibling.set.unresolvedReasons.length === 0
-                ? resolvedSibling.set
-                : await (async () => {
-                    const siblingScript = await askThinkingLab(
-                      buildAngleSiblingPrompt({ parentStatement: focusedTerritory.statement, rows: siblingRows }),
-                      0,
-                    );
-                    const parsed = parseAngleSet(siblingScript, fingerprint);
-                    if (parsed.resolution === "RESOLVED" && parsed.unresolvedReasons.length === 0) {
-                      resolvedSibling = { fingerprint, set: parsed };
-                    }
-                    return parsed;
-                  })();
-            if (siblingRows.length === admittedAngles.length) siblingSet = judged;
-            siblingPass = angleReplacementPasses(judged, row.code);
-            siblingReason = siblingPass
-              ? ""
-              : angleFailureLessons({
-                  rows: [{ code: row.code, statement: row.statement }],
-                  items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
-                  siblingSet: judged,
-                })[0]?.reason || "Sibling audit failed this Angle.";
-          }
-          const settled = finishAngleSiblingCheck(run.checks, siblingPass, siblingReason);
-          publishAngleChecklist(row.code, settled);
-          if (!siblingPass) {
-            failedByCode.set(codeKey, { gate: "siblingsDistinct", reason: siblingReason });
-            lessons.push({ code: row.code, statement: row.statement, reason: `siblingsDistinct: ${siblingReason}` });
-            continue;
-          }
-          passedCodes.add(codeKey);
+        // Cards saved before checks ran at Generate: check each one as it is, in order.
+        const unchecked = admittedAngles.filter((_, index) => angleVerdicts[index] == null);
+        const passed: AnglePeer[] = [];
+        for (const row of unchecked) {
+          const peer = await checkOrReviseAngle(row.code, false, passed);
+          if (peer) passed.push(peer);
         }
-        const previousItems = angleSet.data?.audit?.items ?? [];
-        const items = admittedAngles.map((row) => {
-          const codeKey = row.code.toUpperCase();
-          const statementFingerprint = angleFingerprint({
-            statement: row.statement,
-            territoryFingerprint: parentTerritoryFingerprint,
-          });
-          if (heldPass.has(codeKey)) {
-            const previous = previousItems.find((item) => item.code.toUpperCase() === codeKey);
-            if (previous?.verdict === "AUDIT_PASS") {
-              return {
-                code: row.code,
-                verdict: "AUDIT_PASS" as const,
-                statementFingerprint: previous.statementFingerprint ?? statementFingerprint,
-                ...(previous.skipped ? { skipped: previous.skipped } : {}),
-              };
-            }
-          }
-          if (passedCodes.has(codeKey)) return { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("angle") };
-          const failure = failedByCode.get(codeKey);
-          return {
-            code: row.code,
-            verdict: "AUDIT_FAIL" as const,
-            statementFingerprint,
-            ...(failure ? { gateFailure: failure } : {}),
-          };
-        });
-        await angleSet.save.mutateAsync({
-          schema: "thinking-lab/angle-set/v1",
-          repairCount: failedByCode.size > 0 ? (angleSet.data?.repairCount ?? 0) : 0,
-          siblingSet,
-          audit: { fingerprint: angleFingerprintNow, items },
-          auditLessons: mergeAngleAuditLessons(angleSet.data?.auditLessons ?? [], lessons),
-        });
         return;
       }
       if (angleStage === "lock" && angleLock.ok) {
@@ -5833,55 +5316,9 @@ export function ThinkingLabPage() {
       }
     }, angleStage ?? "audit", "Angle");
 
-  const onPickAngleFixOffer = (failedCode: string, statement: string) =>
-    run(async () => {
-      if (!focusedTerritory || !masters.organizationId) return;
-      const offer = angleFixOffers.find(
-        (row) =>
-          row.territoryId === focusedTerritory.id &&
-          row.failedCode.toUpperCase() === failedCode.toUpperCase() &&
-          row.statement === statement,
-      );
-      const previous = admittedAngles.find((row) => row.code.toUpperCase() === failedCode.toUpperCase());
-      if (!offer || !previous) return;
-      await labAngles.replace.mutateAsync({
-        territoryId: focusedTerritory.id,
-        id: previous.id,
-        statement: offer.statement,
-        facts: offer.facts,
-        admission: "GENERATE_VALID",
-      });
-      const nextFingerprint = angleFingerprint({
-        statement: offer.statement,
-        territoryFingerprint: parentTerritoryFingerprint,
-      });
-      const items = (angleSet.data?.audit?.items ?? []).map((item) =>
-        item.code.toUpperCase() === failedCode.toUpperCase()
-          ? { code: item.code, verdict: "AUDIT_PASS" as const, statementFingerprint: nextFingerprint }
-          : item,
-      );
-      if (!items.some((item) => item.code.toUpperCase() === failedCode.toUpperCase())) {
-        items.push({ code: previous.code, verdict: "AUDIT_PASS", statementFingerprint: nextFingerprint });
-      }
-      await angleSet.save.mutateAsync({
-        schema: "thinking-lab/angle-set/v1",
-        repairCount: angleSet.data?.repairCount ?? 0,
-        siblingSet: null,
-        audit: { fingerprint: "", items },
-        auditLessons: angleSet.data?.auditLessons ?? [],
-      });
-      setAngleFixOffers((current) =>
-        current.filter(
-          (row) => row.territoryId !== focusedTerritory.id || row.failedCode.toUpperCase() !== failedCode.toUpperCase(),
-        ),
-      );
-      setNotice(null);
-    }, "pick-angle-fix");
-
   const onLockAngles = () =>
     run(async () => {
-      if (!focusedTerritory || admittedAngles.length === 0 || !parentTerritoryFingerprint) return;
-      if (!angleVerdicts.every((verdict) => verdict === "AUDIT_PASS") || angleExampleOpen) return;
+      if (!focusedTerritory || admittedAngles.length === 0 || !parentTerritoryFingerprint || !angleLock.ok) return;
       await angleSet.lock.mutateAsync({
         territoryFingerprint: parentTerritoryFingerprint,
         ids: admittedAngles.map((row) => row.id),
@@ -7913,8 +7350,7 @@ export function ThinkingLabPage() {
                                 angleReady={
                                   focus.kind === "territory" &&
                                   showGenerateAngle &&
-                                  admittedAngles.length < ACTIVE_SET_CAP &&
-                                  angleStage !== "fix"
+                                  admittedAngles.length < ACTIVE_SET_CAP
                                 }
                                 angles={
                                   focus.kind === "territory" && !angleSetLocked
@@ -7954,36 +7390,14 @@ export function ThinkingLabPage() {
                                         })
                                     : undefined
                                 }
-                                onFixFailedAngles={
-                                  focus.kind === "territory" &&
-                                  !angleSetLocked &&
-                                  angleVerdicts.some((verdict) => verdict === "AUDIT_FAIL")
-                                    ? () => void run(() => repairFailedAngles(), "fix-angles")
-                                    : undefined
-                                }
                                 fixingAngleCodes={
                                   focus.kind === "territory" && !angleSetLocked ? [...fixingAngleCodes] : undefined
                                 }
                                 onLockAngles={
                                   focus.kind === "territory" &&
                                   !angleSetLocked &&
-                                  admittedAngles.length > 0 &&
-                                  angleVerdicts.every((verdict) => verdict === "AUDIT_PASS") &&
-                                  !angleExampleOpen
+                                  angleLock.ok
                                     ? () => void onLockAngles()
-                                    : undefined
-                                }
-                                angleNotes={focus.kind === "territory" && !angleSetLocked ? angleNotes : undefined}
-                                angleFixOffers={
-                                  focus.kind === "territory" && !angleSetLocked
-                                    ? angleFixOffers
-                                        .filter((offer) => offer.territoryId === focusedTerritory?.id)
-                                        .map((offer) => ({ failedCode: offer.failedCode, statement: offer.statement }))
-                                    : undefined
-                                }
-                                onPickAngleFixOffer={
-                                  focus.kind === "territory" && !angleSetLocked
-                                    ? (code, statement) => void onPickAngleFixOffer(code, statement)
                                     : undefined
                                 }
                                 territories={
