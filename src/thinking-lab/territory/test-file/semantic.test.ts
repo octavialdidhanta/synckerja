@@ -284,14 +284,4 @@ describe("normalizeTerritoryFacts", () => {
     expect(unresolved.resolution).toBe("UNRESOLVED");
     expect(unresolved.unresolvedReasons).toContain("PARENT_FIT_UNRESOLVED");
   });
-
-  it("stores Generate passes only when both checks are present", () => {
-    const both = normalizeTerritoryFacts({
-      ...positive(),
-      generatePasses: ["audienceLanguage", "partOfBigThought", "questionArises"],
-    });
-    expect(both.generatePasses).toEqual(["partOfBigThought", "audienceLanguage"]);
-    const one = normalizeTerritoryFacts({ ...positive(), generatePasses: ["partOfBigThought"] });
-    expect(one.generatePasses).toBeUndefined();
-  });
 });

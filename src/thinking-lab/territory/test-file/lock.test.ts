@@ -1,33 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { evaluateTerritoryLock, selectTerritoryStage } from "@/thinking-lab/territory/lock";
 
-const stage = (input: Partial<Parameters<typeof selectTerritoryStage>[0]>) =>
-  selectTerritoryStage({
-    admittedCount: 3,
-    verdicts: ["AUDIT_PASS", "AUDIT_PASS", "AUDIT_PASS"],
-    canAdd: true,
-    repairsUsed: false,
-    lockOk: false,
-    ...input,
-  });
+const PASS = "AUDIT_PASS" as const;
 
 describe("territory lock", () => {
-  it("locks after three passing audits", () => {
-    expect(evaluateTerritoryLock({ verdicts: ["AUDIT_PASS", "AUDIT_PASS", "AUDIT_PASS"] }).ok).toBe(true);
-    expect(evaluateTerritoryLock({ verdicts: ["AUDIT_PASS", "AUDIT_PASS"] }).ok).toBe(false);
-    expect(evaluateTerritoryLock({ verdicts: ["AUDIT_PASS", "AUDIT_FAIL", "AUDIT_PASS"] })).toEqual({
-      ok: false,
-      reason: "AUDIT_FAIL",
-    });
+  it("locks after three passing cards", () => {
+    expect(evaluateTerritoryLock({ verdicts: [PASS, PASS, PASS] }).ok).toBe(true);
+    expect(evaluateTerritoryLock({ verdicts: [PASS, PASS] }).ok).toBe(false);
+    expect(evaluateTerritoryLock({ verdicts: [PASS, "AUDIT_FAIL", PASS] })).toEqual({ ok: false, reason: "AUDIT_FAIL" });
+    expect(evaluateTerritoryLock({ verdicts: [PASS, null, PASS] })).toEqual({ ok: false, reason: "NEED_AUDIT_PASS" });
   });
 
-  it("audits, fixes once, generates up to the target, then locks", () => {
-    expect(stage({ lockOk: true })).toBe("lock");
-    expect(stage({ verdicts: ["AUDIT_PASS", "AUDIT_PASS", null] })).toBe("audit");
-    expect(stage({ admittedCount: 2, verdicts: ["AUDIT_PASS", "AUDIT_PASS"] })).toBe("generate");
-    expect(stage({ admittedCount: 2, verdicts: ["AUDIT_PASS", "AUDIT_PASS"], canAdd: false })).toBeNull();
-    expect(stage({ verdicts: ["AUDIT_FAIL", "AUDIT_PASS", "AUDIT_PASS"] })).toBe("fix");
-    expect(stage({ verdicts: ["AUDIT_FAIL", "AUDIT_PASS", "AUDIT_PASS"], repairsUsed: true })).toBeNull();
-    expect(stage({ admittedCount: 0, verdicts: [] })).toBeNull();
+  it("audits cards never checked, generates up to the target, then locks", () => {
+    expect(selectTerritoryStage({ verdicts: [PASS, PASS, PASS], canAdd: true })).toBe("lock");
+    expect(selectTerritoryStage({ verdicts: [PASS, PASS, null], canAdd: true })).toBe("audit");
+    expect(selectTerritoryStage({ verdicts: [PASS, PASS], canAdd: true })).toBe("generate");
+    expect(selectTerritoryStage({ verdicts: [PASS, PASS], canAdd: false })).toBeNull();
+    // A failed card is revised on the card; the set has no action.
+    expect(selectTerritoryStage({ verdicts: ["AUDIT_FAIL", PASS, PASS], canAdd: true })).toBeNull();
+    expect(selectTerritoryStage({ verdicts: [], canAdd: true })).toBeNull();
   });
 });

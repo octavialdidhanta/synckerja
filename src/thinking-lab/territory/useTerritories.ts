@@ -12,7 +12,7 @@ import {
   saveTerritoryGloss,
   saveTerritorySet,
 } from "@/thinking-lab/territory/repository";
-import type { TerritorySetRecord } from "@/thinking-lab/territory/setAudit";
+import type { TerritorySetRecord } from "@/thinking-lab/territory/record";
 import type { TerritorySemanticFacts } from "@/thinking-lab/territory/types";
 
 export function useLabTerritories(bigThoughtIds: string[]) {

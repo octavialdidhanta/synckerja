@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, ChevronRight, Circle, ClipboardCheck, Loader2, Lock, MoreVertical, Pencil, Sparkles, Trash2, Wrench, X } from "lucide-react";
+import { Check, Circle, ClipboardCheck, Loader2, Lock, MoreVertical, Pencil, Sparkles, Trash2, Wrench, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,
@@ -49,11 +49,6 @@ type ManualAdd = {
   label: string;
   onSubmit: (statement: string) => Promise<string | null>;
 };
-
-export type TerritoryAuditNote =
-  | { kind: "overlap"; a: string; b: string; explanation: string }
-  | { kind: "containment"; container: string; contained: string; explanation: string }
-  | { kind: "notice"; text: string };
 
 type LabNodeInspectorProps = {
   kind: "master" | "bigThought" | "territory" | "angle" | "idea";
@@ -120,7 +115,7 @@ type LabNodeInspectorProps = {
   onDeleteAngle?: (id: string) => void;
   fixingAngleCodes?: readonly string[];
   territories?: InspectorTerritory[];
-  territoryStage?: "fix" | "generate" | "audit" | "lock" | null;
+  territoryStage?: "generate" | "audit" | "lock" | null;
   onTerritoryStage?: () => void;
   onFixTerritory?: (code: string) => void;
   onDeleteTerritory?: (id: string) => void;
@@ -131,7 +126,6 @@ type LabNodeInspectorProps = {
     checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
     report: { gate: string; phase: "checking" | "checked"; outcome: "pass" | "fail" } | null;
   } | null;
-  onRemoveCoveringTerritory?: (code: string) => void;
   pendingAction?: string | null;
   notice?: string | null;
   pathUp?: Array<{ label: string; title: string }>;
@@ -142,9 +136,6 @@ type LabNodeInspectorProps = {
   subject?: string | null;
   subjectNotice?: string | null;
   questionNotes?: string[];
-  territoryNotes?: TerritoryAuditNote[];
-  territoryFixOffers?: Array<{ failedCode: string; statement: string; detail?: string }>;
-  onPickTerritoryFixOffer?: (failedCode: string, statement: string) => void;
   manualAdd?: ManualAdd | null;
   onEditStatement?: (statement: string) => Promise<string | null>;
   onEditTerritory?: (id: string, statement: string) => Promise<string | null>;
@@ -322,126 +313,6 @@ function TerritoryPassChecklist({
   );
 }
 
-function TerritoryAuditNotes({
-  notes,
-  failedCodes,
-  onRemoveCoveringTerritory,
-}: {
-  notes: TerritoryAuditNote[];
-  failedCodes: Set<string>;
-  onRemoveCoveringTerritory?: (code: string) => void;
-}) {
-  const { t } = useAppTranslation();
-  const overlaps = notes.filter((note) => note.kind === "overlap");
-  const containments = notes.filter((note) => note.kind === "containment");
-  const notices = notes.filter((note) => note.kind === "notice");
-  const pairNotes = overlaps.length > 0 || containments.length > 0;
-  const removableCodes = [
-    ...new Set([
-      ...overlaps.flatMap((note) => [note.a.toUpperCase(), note.b.toUpperCase()]),
-      ...containments.flatMap((note) => [note.container.toUpperCase(), note.contained.toUpperCase()]),
-    ]),
-  ]
-    .filter((code) => failedCodes.has(code))
-    .sort();
-  return (
-    <div className="space-y-2 border-t border-border pt-3">
-      <div>
-        <p className="text-sm font-medium">{t("thinkingLab.territory.failReason.title", "Why these Territories failed")}</p>
-        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-          {onRemoveCoveringTerritory
-            ? t(
-                "thinkingLab.territory.removeCoverHint",
-                "Fix already ran. Remove one failed Territory from this conflict. The next step appears after it is gone.",
-              )
-            : t(
-                "thinkingLab.territory.failReason.purpose",
-                "Sibling audit found conflicts between Territories. Fix uses these notes when rewriting a Territory marked AUDIT_FAIL.",
-              )}
-        </p>
-      </div>
-      {pairNotes ? (
-        <div
-          className="rounded-md border border-border px-3"
-          role="region"
-          aria-label={t("thinkingLab.territory.failReason.title", "Why these Territories failed")}
-        >
-          <div className="space-y-3">
-            {overlaps.length > 0 ? (
-              <div>
-                <p className="text-sm font-medium">{t("thinkingLab.territory.failReason.overlap", "Overlap")}</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                  {t("thinkingLab.territory.failReason.overlapHint", "These two Territories would host the same angles.")}
-                </p>
-                <ul className="divide-y divide-border">
-                  {overlaps.map((note) => (
-                    <li key={`${note.a}-${note.b}-${note.explanation}`} className="py-2.5">
-                      <p className="text-sm font-medium">
-                        {note.a} · {note.b}
-                      </p>
-                      <p className="mt-1 text-sm leading-relaxed text-foreground">{note.explanation}</p>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-            {containments.length > 0 ? (
-              <div>
-                <p className="text-sm font-medium">
-                  {t("thinkingLab.territory.failReason.containment", "One space covers another")}
-                </p>
-                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                  {t(
-                    "thinkingLab.territory.failReason.containmentHint",
-                    "The first Territory already includes the space of the second.",
-                  )}
-                </p>
-                <ul className="divide-y divide-border">
-                  {containments.map((note) => (
-                    <li key={`${note.container}-${note.contained}-${note.explanation}`} className="py-2.5">
-                      <p className="text-sm font-medium">
-                        {t("thinkingLab.territory.failReason.covers", "{{container}} covers {{contained}}", {
-                          container: note.container,
-                          contained: note.contained,
-                        })}
-                      </p>
-                      <p className="mt-1 text-sm leading-relaxed text-foreground">{note.explanation}</p>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-      {onRemoveCoveringTerritory && removableCodes.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {removableCodes.map((code) => (
-            <Button
-              key={code}
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => onRemoveCoveringTerritory(code)}
-            >
-              {t("thinkingLab.territory.removeCover", "Remove {{code}}", { code })}
-            </Button>
-          ))}
-        </div>
-      ) : null}
-      {notices.length > 0 ? (
-        <ul className="space-y-1">
-          {notices.map((note) => (
-            <li key={note.text} className="text-sm text-muted-foreground">
-              {note.text}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  );
-}
-
 function UncheckedBadge() {
   const { t } = useAppTranslation();
   return (
@@ -514,7 +385,6 @@ export function LabNodeInspector({
   onLockTerritories,
   onGenerateTerritory,
   territoryGenerateChecklist = null,
-  onRemoveCoveringTerritory,
   pendingAction = null,
   notice,
   pathUp,
@@ -525,9 +395,6 @@ export function LabNodeInspector({
   subject,
   subjectNotice,
   questionNotes,
-  territoryNotes,
-  territoryFixOffers,
-  onPickTerritoryFixOffer,
   manualAdd = null,
   onEditStatement,
   onEditTerritory,
@@ -577,18 +444,15 @@ export function LabNodeInspector({
       territoryStage &&
       territoryStage !== "lock" &&
       territoryStage !== "generate" &&
-      onTerritoryStage &&
-      !(territoryStage === "fix" && onFixTerritory),
+      onTerritoryStage,
   );
   const showTerritoryGenerateAction = Boolean(kind === "bigThought" && onGenerateTerritory);
   const territoryActionLabel =
     territoryStage === "audit"
       ? t("thinkingLab.action.audit", "Audit")
-      : territoryStage === "fix"
-        ? t("thinkingLab.action.fix", "Fix")
-        : territoryStage === "generate"
-          ? t("thinkingLab.territory.generate", "Generate Territory")
-          : t("thinkingLab.action.lock", "Lock");
+      : territoryStage === "generate"
+        ? t("thinkingLab.territory.generate", "Generate Territory")
+        : t("thinkingLab.action.lock", "Lock");
   const showAngleStageMenu = Boolean(
     kind === "territory" &&
       angleStage &&
@@ -735,7 +599,6 @@ export function LabNodeInspector({
                 >
                   {territoryStage === "generate" ? <Sparkles className="h-3.5 w-3.5" /> : null}
                   {territoryStage === "audit" ? <ClipboardCheck className="h-3.5 w-3.5" /> : null}
-                  {territoryStage === "fix" ? <Wrench className="h-3.5 w-3.5" /> : null}
                   {territoryActionLabel}
                 </DropdownMenuItem>
               ) : null}
@@ -1419,7 +1282,7 @@ export function LabNodeInspector({
                             onSelect={() => onFixTerritory(territory.code)}
                           >
                             <Wrench className="h-3.5 w-3.5" />
-                            {t("thinkingLab.action.fix", "Fix")}
+                            {t("thinkingLab.idea.revise", "Revise")}
                           </DropdownMenuItem>
                         ) : null}
                         {territory.verdict === "AUDIT_PASS" && onGenerateAngle ? (
@@ -1471,51 +1334,14 @@ export function LabNodeInspector({
                   onFix={
                     territoryNeedsFix && onFixTerritory ? () => onFixTerritory(territory.code) : undefined
                   }
+                  fixLabel={t("thinkingLab.idea.revise", "Revise")}
                   fixing={territoryFixing}
                   blocked={otherWorkRunning}
                 />
-                {onPickTerritoryFixOffer
-                  ? (territoryFixOffers ?? [])
-                      .filter((offer) => offer.failedCode.toUpperCase() === territory.code.toUpperCase())
-                      .map((offer) => (
-                        <div key={offer.statement} className="mt-2 rounded-md border border-border p-2">
-                          <p className="text-xs font-medium text-muted-foreground">
-                            {t("thinkingLab.territory.fixOffer", "Recommended repair · AUDIT_PASS")}
-                          </p>
-                          <p className="mt-1 text-sm text-foreground">{offer.statement}</p>
-                          {offer.detail ? (
-                            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{offer.detail}</p>
-                          ) : null}
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="mt-2"
-                            disabled={Boolean(pendingAction)}
-                            onClick={() => onPickTerritoryFixOffer(territory.code, offer.statement)}
-                          >
-                            {pendingAction === "pick-territory-fix" ? (
-                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                            ) : null}
-                            {t("thinkingLab.fix.pick", "Use this repair")}
-                          </Button>
-                        </div>
-                      ))
-                  : null}
               </li>
               );
             })}
           </ul>
-          {territoryNotes && territoryNotes.length > 0 ? (
-            <TerritoryAuditNotes
-              notes={territoryNotes}
-              failedCodes={
-                new Set(
-                  territories.filter((row) => row.verdict === "AUDIT_FAIL").map((row) => row.code.toUpperCase()),
-                )
-              }
-              onRemoveCoveringTerritory={onRemoveCoveringTerritory}
-            />
-          ) : null}
         </div>
       ) : null}
       {kind === "territory" ? pathBlock : null}

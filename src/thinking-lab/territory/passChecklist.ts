@@ -1,6 +1,24 @@
-import { UNDECIDED_REASON, answerGate, askBatchGates, buildBatchGatePrompt, parseGateAnswer, type GateAnswer } from "../shared/batchGates";
-import type { TerritoryGeneratePass } from "./types";
+// Runs the five Territory checks on one name, in order, and stops at the first one that does not pass.
+// The same runner serves Generate, a manual edit, Revise, Audit of cards never checked, and the MCP server.
+// Relative imports only: the MCP server loads this file.
+import {
+  SWITCHED_OFF_REASON,
+  UNDECIDED_REASON,
+  answerGate,
+  askBatchGates,
+  buildBatchGatePrompt,
+  parseGateAnswer,
+  type GateAnswer,
+} from "../shared/batchGates";
+import { sameWording } from "../shared/distinct";
+import {
+  TERRITORY_ACTIVITY_REASON,
+  TERRITORY_NAME_LENGTH_REASON,
+  territoryNameIsActivity,
+  territoryNameTooLong,
+} from "./generate";
 
+/** The five Territory checks, in the order they run. */
 export const TERRITORY_PASS_CHECK_IDS = [
   "partOfBigThought",
   "audienceLanguage",
@@ -11,60 +29,11 @@ export const TERRITORY_PASS_CHECK_IDS = [
 
 export type TerritoryPassCheckId = (typeof TERRITORY_PASS_CHECK_IDS)[number];
 
-const INDIVIDUAL_PASS_CHECK_IDS = [
-  "partOfBigThought",
-  "audienceLanguage",
-  "questionArises",
-  "wideEnough",
-] as const satisfies readonly TerritoryPassCheckId[];
-
-export const TERRITORY_GENERATE_PASS_IDS = [
-  "partOfBigThought",
-  "audienceLanguage",
-] as const satisfies readonly TerritoryGeneratePass[];
-
-/** Both Generate checks, or nothing. One id alone is not a pass to carry. */
-export function readTerritoryGeneratePasses(value: unknown): TerritoryGeneratePass[] {
-  if (!Array.isArray(value)) return [];
-  const found = new Set<TerritoryGeneratePass>();
-  for (const item of value) {
-    if (item === "partOfBigThought" || item === "audienceLanguage") found.add(item);
-  }
-  return TERRITORY_GENERATE_PASS_IDS.every((id) => found.has(id)) ? [...TERRITORY_GENERATE_PASS_IDS] : [];
-}
-
-/** Checklist shown while Generate is judging a name. Later Audit checks stay off this list. */
-export function territoryAdmissionChecks(
-  failed?: { id: TerritoryGeneratePass; reason: string } | null,
-): TerritoryPassCheck[] {
-  return TERRITORY_GENERATE_PASS_IDS.map((id) => {
-    if (!failed) return { id, state: "pending" };
-    const index = TERRITORY_GENERATE_PASS_IDS.indexOf(id);
-    const failIndex = TERRITORY_GENERATE_PASS_IDS.indexOf(failed.id);
-    if (index < failIndex) return { id, state: "pass" };
-    if (id === failed.id) return { id, state: "fail", reason: failed.reason };
-    return { id, state: "pending" };
-  });
-}
-
-/** The checklist a card shows after refresh, before a live run replaces it. */
-export function territoryChecksFromStored(input: {
-  generatePasses?: unknown;
-  gateFailure?: { gate: TerritoryPassCheckId; reason: string } | null;
-  passed?: boolean;
-}): TerritoryPassCheck[] {
-  if (input.passed) return TERRITORY_PASS_CHECK_IDS.map((id) => ({ id, state: "pass" }));
-  const carried = new Set(readTerritoryGeneratePasses(input.generatePasses));
-  const failure = input.gateFailure ?? null;
-  const failIndex = failure ? TERRITORY_PASS_CHECK_IDS.indexOf(failure.gate) : -1;
-  if (!failure && carried.size === 0) return [];
-  return TERRITORY_PASS_CHECK_IDS.map((id, index) => {
-    if (failure && index === failIndex) return { id, state: "fail", reason: failure.reason };
-    if (failure && index > failIndex) return { id, state: "pending" };
-    if (failure && index < failIndex) return { id, state: "pass" };
-    if (carried.has(id as TerritoryGeneratePass)) return { id, state: "pass" };
-    return { id, state: "pending" };
-  });
+/** A stored check id, or null for anything else. */
+export function readTerritoryCheckId(value: unknown): TerritoryPassCheckId | null {
+  return typeof value === "string" && (TERRITORY_PASS_CHECK_IDS as readonly string[]).includes(value)
+    ? (value as TerritoryPassCheckId)
+    : null;
 }
 
 export type TerritoryPassCheckState = "pending" | "running" | "pass" | "fail";
@@ -75,6 +44,9 @@ export type TerritoryPassCheck = {
   reason?: string;
 };
 
+/** Another Territory of the same Big Thought that already passed (or is locked). */
+export type TerritoryPeer = { code: string; statement: string };
+
 const UNDECIDED = UNDECIDED_REASON;
 const MISSING_QUESTION = "The question this Big Thought answers did not come back.";
 
@@ -82,16 +54,41 @@ export function emptyPassChecklist(): TerritoryPassCheck[] {
   return TERRITORY_PASS_CHECK_IDS.map((id) => ({ id, state: "pending" }));
 }
 
-export function individualPassChecksCleared(checks: readonly TerritoryPassCheck[]): boolean {
-  return INDIVIDUAL_PASS_CHECK_IDS.every((id) => checks.some((check) => check.id === id && check.state === "pass"));
+/**
+ * The checklist a card shows after refresh, before a live run replaces it.
+ * Passed: every check passed. A stored failure: the checks before it passed, the rest wait. Neither: not checked yet.
+ */
+export function territoryChecksFromStored(input: {
+  gateFailure?: { gate: TerritoryPassCheckId; reason: string } | null;
+  passed?: boolean;
+}): TerritoryPassCheck[] {
+  if (input.passed) return TERRITORY_PASS_CHECK_IDS.map((id) => ({ id, state: "pass" }));
+  const gate = input.gateFailure ? readTerritoryCheckId(input.gateFailure.gate) : null;
+  if (!gate) return [];
+  const failIndex = TERRITORY_PASS_CHECK_IDS.indexOf(gate);
+  return TERRITORY_PASS_CHECK_IDS.map((id, index) => {
+    if (id === gate) return { id, state: "fail", reason: input.gateFailure?.reason ?? "" };
+    return index < failIndex ? { id, state: "pass" } : { id, state: "pending" };
+  });
+}
+
+/** The first failed check of a run, or null when every check passed. */
+export function firstTerritoryFailure(
+  checks: readonly TerritoryPassCheck[],
+): { gate: TerritoryPassCheckId; reason: string } | null {
+  const failed = checks.find((check) => check.state === "fail");
+  return failed ? { gate: failed.id, reason: failed.reason?.trim() || UNDECIDED } : null;
 }
 
 /** The rule text of one Territory check, shared by the one-check and the batched prompts. */
-export function territoryGateRules(
-  id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number],
-  audience?: string,
-  question?: string,
-): string[] {
+export function territoryGateRules(id: TerritoryPassCheckId, audience?: string, question?: string): string[] {
+  if (id === "siblingsDistinct") {
+    return [
+      "pass is true when this Territory is a different area from every other Territory listed below.",
+      "pass is false only when it names the same area as one of them in other words, or one of them already covers its area.",
+      "Areas that share a topic or a word are not a repeat while each still holds its own observations. When pass is false, the reason names the code of the Territory it repeats or that covers it.",
+    ];
+  }
   const audienceText = audience?.trim();
   const questionText = question?.trim() ?? "";
   return (
@@ -129,7 +126,7 @@ export function territoryGateRules(
   );
 }
 
-function territoryDecisionHint(id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number]): string {
+function territoryDecisionHint(id: TerritoryPassCheckId): string {
   return id === "partOfBigThought"
       ? "When the only doubt is a shared word, return pass true. When the Big Thought's reason is not actually met in that area, or you cannot decide whether it names an area at all, do not return pass true."
       : id === "wideEnough"
@@ -137,130 +134,125 @@ function territoryDecisionHint(id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number]): 
         : "When you cannot decide, do not return pass true.";
 }
 
-/** Every open Territory check of one name in one prompt. */
-export function buildTerritoryBatchPrompt(input: {
-  ids: ReadonlyArray<(typeof INDIVIDUAL_PASS_CHECK_IDS)[number]>;
+type CheckContext = {
   statement: string;
   parentStatement: string;
   audience?: string;
   question?: string;
-}): string {
+  peers?: readonly TerritoryPeer[];
+};
+
+function peerLines(peers: readonly TerritoryPeer[]): string[] {
+  return ["Other Territories of this Big Thought that already passed:", ...peers.map((peer) => `${peer.code}: ${peer.statement}`)];
+}
+
+function extraFor(id: TerritoryPassCheckId, input: CheckContext): string[] {
+  return id === "siblingsDistinct"
+    ? [territoryDecisionHint(id), ...peerLines(input.peers ?? [])]
+    : [territoryDecisionHint(id)];
+}
+
+function contextLines(input: CheckContext): string[] {
+  return [`Territory: ${input.statement.trim()}`, "Big Thought:", input.parentStatement.trim()];
+}
+
+/** Every open Territory check of one name in one prompt. */
+export function buildTerritoryBatchPrompt(input: CheckContext & { ids: readonly TerritoryPassCheckId[] }): string {
   return buildBatchGatePrompt({
     item: "Territory",
     language: "Big Thought",
     gates: input.ids.map((id) => ({
       id,
       rules: territoryGateRules(id, input.audience, input.question),
-      extra: [territoryDecisionHint(id)],
+      extra: extraFor(id, input),
     })),
-    context: [`Territory: ${input.statement.trim()}`, "Big Thought:", input.parentStatement.trim()],
+    context: contextLines(input),
   });
 }
 
-/** One model call for the open checks; questionArises joins only when its question is known. */
-async function batchedTerritoryAnswers(input: {
-  batch?: boolean;
-  open: ReadonlyArray<(typeof INDIVIDUAL_PASS_CHECK_IDS)[number]>;
-  statement: string;
-  parentStatement: string;
-  audience?: string;
-  question?: string;
-  ask: (prompt: string) => Promise<string | null>;
-}): Promise<Map<string, GateAnswer>> {
-  if (!input.batch) return new Map();
-  const ids = input.open.filter((id) => id !== "questionArises" || Boolean(input.question?.trim()));
-  if (ids.length < 2) return new Map();
-  const answers = await askBatchGates({
-    prompt: buildTerritoryBatchPrompt({ ...input, ids }),
-    ids,
-    ask: input.ask,
-  });
-  return answers ?? new Map();
-}
-
-export function buildTerritoryPassPrompt(input: {
-  id: (typeof INDIVIDUAL_PASS_CHECK_IDS)[number];
-  statement: string;
-  parentStatement: string;
-  audience?: string;
-  question?: string;
-}): string {
-  const rule = territoryGateRules(input.id, input.audience, input.question);
+export function buildTerritoryPassPrompt(input: CheckContext & { id: TerritoryPassCheckId }): string {
   return [
     "Decide one Territory pass check. Do not rewrite the name.",
-    ...rule,
+    ...territoryGateRules(input.id, input.audience, input.question),
     "When pass is false, reason says why in the same language as the Big Thought.",
-    territoryDecisionHint(input.id),
+    ...extraFor(input.id, input),
     'Return JSON only: {"pass":true,"reason":""} or {"pass":false,"reason":"..."}',
     "",
-    `Territory: ${input.statement.trim()}`,
-    "Big Thought:",
-    input.parentStatement.trim(),
+    ...contextLines(input),
   ].join("\n");
 }
 
 /** A missing or undecided answer fails the check. */
 export const parseTerritoryPassCheck = parseGateAnswer;
 
-export function beginSiblingCheck(checks: readonly TerritoryPassCheck[]): TerritoryPassCheck[] {
-  if (!individualPassChecksCleared(checks)) return checks.map((check) => ({ ...check }));
-  return checks.map((check) => (check.id === "siblingsDistinct" ? { id: check.id, state: "running" } : { ...check }));
+/**
+ * A check decided without a model: a name that is too long or an activity, the same name as a passed
+ * Territory, or no passed Territory to compare with.
+ */
+function decidedInCode(id: TerritoryPassCheckId, input: CheckContext): GateAnswer | null {
+  if (id === "partOfBigThought") {
+    if (territoryNameTooLong(input.statement)) return { pass: false, reason: TERRITORY_NAME_LENGTH_REASON };
+    if (territoryNameIsActivity(input.statement)) return { pass: false, reason: TERRITORY_ACTIVITY_REASON };
+  }
+  if (id === "siblingsDistinct") {
+    const peers = input.peers ?? [];
+    if (peers.length === 0) return { pass: true, reason: "" };
+    const repeated = peers.find((peer) => sameWording(peer.statement, input.statement));
+    if (repeated) return { pass: false, reason: `${repeated.code}: ${repeated.statement}` };
+  }
+  return null;
 }
 
-export function finishSiblingCheck(
-  checks: readonly TerritoryPassCheck[],
-  pass: boolean,
-  reason: string,
-): TerritoryPassCheck[] {
-  if (!individualPassChecksCleared(checks)) return checks.map((check) => ({ ...check }));
-  return checks.map((check) =>
-    check.id === "siblingsDistinct"
-      ? { id: check.id, state: pass ? "pass" : "fail", ...(pass ? {} : { reason: reason.trim() || UNDECIDED }) }
-      : { ...check },
-  );
-}
-
-type TerritoryRunInput = {
-  /** Ask every open check in one model call (falls back to one call per check). */
-  batch?: boolean;
-  statement: string;
-  parentStatement: string;
-  audience?: string;
-  question?: string;
-  ensureQuestion?: () => Promise<string>;
-  /** Checks switched OFF for this organization: treated as passed, never asked. */
-  skip?: readonly string[];
-  ask: (prompt: string) => Promise<string | null>;
-  onStep: (checks: TerritoryPassCheck[]) => void;
-};
-
-type TerritoryRun = { checks: TerritoryPassCheck[]; passed: boolean; question: string };
+export type TerritoryCheckRun = { checks: TerritoryPassCheck[]; passed: boolean; question: string };
 
 /**
- * Walks ids in order over a starting checklist and stops at the first check that does not pass.
- * A check already marked pass is not asked; a check switched OFF passes when its turn comes.
+ * Runs the five checks in order and stops at the first one that does not pass.
+ * A check switched OFF, or kept from an earlier pass on this card, is not asked.
+ * questionArises needs the question the Big Thought answers; ensureQuestion fetches it when it is missing.
  */
-async function runTerritoryChain(
-  input: TerritoryRunInput,
-  ids: ReadonlyArray<(typeof INDIVIDUAL_PASS_CHECK_IDS)[number]>,
-  checks: TerritoryPassCheck[],
-): Promise<TerritoryRun> {
-  const skip = new Set<string>(input.skip ?? []);
+export async function runTerritoryChecks(
+  input: CheckContext & {
+    ensureQuestion?: () => Promise<string>;
+    /** Checks switched OFF for this organization: treated as passed, never asked. */
+    skip?: readonly string[];
+    /** Checks that already passed on this exact card; they stay passed. */
+    keep?: readonly TerritoryPassCheckId[];
+    ask: (prompt: string) => Promise<string | null>;
+    onStep?: (checks: TerritoryPassCheck[]) => void;
+  },
+): Promise<TerritoryCheckRun> {
+  const skip = new Set(input.skip ?? []);
+  const keep = new Set(input.keep ?? []);
+  const checks = emptyPassChecklist();
   const snapshot = () => checks.map((check) => ({ ...check }));
   const set = (next: TerritoryPassCheck) => {
-    checks[checks.findIndex((check) => check.id === next.id)] = next;
-    input.onStep(snapshot());
+    checks[TERRITORY_PASS_CHECK_IDS.indexOf(next.id)] = next;
+    input.onStep?.(snapshot());
   };
-  input.onStep(snapshot());
+  input.onStep?.(snapshot());
   let question = input.question?.trim() ?? "";
-  const batched = await batchedTerritoryAnswers({
-    ...input,
-    question,
-    open: ids.filter((id) => !skip.has(id) && checks.find((check) => check.id === id)?.state !== "pass"),
-  });
-  for (const id of ids) {
-    if (checks.find((check) => check.id === id)?.state === "pass") continue;
+  const context = () => ({ ...input, question });
+  const open = TERRITORY_PASS_CHECK_IDS.filter((id) => !skip.has(id) && !keep.has(id));
+  // The run stops at the first check decided as a fail in code, so no check after it is asked.
+  const stop = TERRITORY_PASS_CHECK_IDS.findIndex((id) => open.includes(id) && decidedInCode(id, input)?.pass === false);
+  // questionArises joins the batch only when its question is already known.
+  const byModel = open.filter(
+    (id) =>
+      (stop < 0 || TERRITORY_PASS_CHECK_IDS.indexOf(id) < stop) &&
+      !decidedInCode(id, input) &&
+      (id !== "questionArises" || Boolean(question)),
+  );
+  const batched =
+    byModel.length > 1
+      ? ((await askBatchGates({ prompt: buildTerritoryBatchPrompt({ ...context(), ids: byModel }), ids: byModel, ask: input.ask })) ??
+        new Map<string, GateAnswer>())
+      : new Map<string, GateAnswer>();
+  for (const id of TERRITORY_PASS_CHECK_IDS) {
     if (skip.has(id)) {
+      set({ id, state: "pass", reason: SWITCHED_OFF_REASON });
+      continue;
+    }
+    if (keep.has(id)) {
       set({ id, state: "pass" });
       continue;
     }
@@ -276,56 +268,14 @@ async function runTerritoryChain(
       set({ id, state: "fail", reason: MISSING_QUESTION });
       return { checks: snapshot(), passed: false, question };
     }
-    const answer = await answerGate({
-      batched: batched.get(id),
-      prompt: () =>
-        buildTerritoryPassPrompt({
-          id,
-          statement: input.statement,
-          parentStatement: input.parentStatement,
-          audience: input.audience,
-          question,
-        }),
-      ask: input.ask,
-    });
+    const answer =
+      decidedInCode(id, input) ??
+      (await answerGate({ batched: batched.get(id), prompt: () => buildTerritoryPassPrompt({ ...context(), id }), ask: input.ask }));
     if (!answer.pass) {
-      set({ id, state: "fail", reason: answer.reason });
+      set({ id, state: "fail", reason: answer.reason || UNDECIDED });
       return { checks: snapshot(), passed: false, question };
     }
     set({ id, state: "pass" });
   }
   return { checks: snapshot(), passed: true, question };
-}
-
-/** The two Generate checks of a new name. */
-export async function runTerritoryAdmissionChecks(
-  input: Omit<TerritoryRunInput, "question" | "ensureQuestion">,
-): Promise<{ checks: TerritoryPassCheck[]; passed: boolean }> {
-  const { checks, passed } = await runTerritoryChain(input, TERRITORY_GENERATE_PASS_IDS, territoryAdmissionChecks());
-  return { checks, passed };
-}
-
-/** The four checks of one name. The two Generate passes carried for this exact name are not asked again. */
-export async function runTerritoryIndividualChecks(
-  input: TerritoryRunInput & { carried?: readonly TerritoryGeneratePass[] },
-): Promise<TerritoryRun> {
-  const carried = new Set(readTerritoryGeneratePasses(input.carried));
-  const skip = new Set<string>(input.skip ?? []);
-  const checks = emptyPassChecklist().map((check) =>
-    carried.has(check.id as TerritoryGeneratePass) || skip.has(check.id) ? { id: check.id, state: "pass" as const } : check,
-  );
-  return runTerritoryChain(input, INDIVIDUAL_PASS_CHECK_IDS, checks);
-}
-
-/** Re-ask the checks that failed or have not run. Checks that already passed stay passed. */
-export async function runTerritoryOpenChecks(
-  input: TerritoryRunInput & { prior: readonly TerritoryPassCheck[] },
-): Promise<TerritoryRun> {
-  const checks: TerritoryPassCheck[] = emptyPassChecklist().map((check) => {
-    const previous = input.prior.find((item) => item.id === check.id);
-    return previous?.state === "pass" || input.skip?.includes(check.id)
-      ? { id: check.id, state: "pass" as const }
-      : { id: check.id, state: "pending" as const };
-  });
-  return runTerritoryChain(input, INDIVIDUAL_PASS_CHECK_IDS, checks);
 }

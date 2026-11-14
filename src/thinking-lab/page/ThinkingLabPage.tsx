@@ -38,9 +38,7 @@ import {
   BT_FIX_REPLACE_AFTER,
   BT_FIX_SAME_GATE_STOP,
   BT_FIX_STUCK_LESSONS,
-  THINKING_PARALLEL_CHECKS,
 } from "@/thinking-lab/shared/limits";
-import { startLimited } from "@/thinking-lab/shared/pool";
 import type { AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import {
   bigThoughtFingerprint,
@@ -50,12 +48,10 @@ import {
   ideaFingerprint,
   ideaSetFingerprint,
   territoryFingerprint,
-  territorySetFingerprint,
 } from "@/thinking-lab/shared/fingerprint";
 import {
   fixAttemptCap,
   fixScopeFromChecks,
-  scopeFromHistory,
   type FixScope,
 } from "@/thinking-lab/shared/fixScope";
 import {
@@ -68,17 +64,13 @@ import {
 import { masterBeliefDescription } from "@/thinking-lab/master-thought/description";
 import { territoryDescriptions, writeTerritoryAreaSentence } from "@/thinking-lab/territory/description";
 import {
-  beginSiblingCheck,
-  finishSiblingCheck,
-  readTerritoryGeneratePasses,
-  runTerritoryAdmissionChecks,
-  runTerritoryIndividualChecks,
-  runTerritoryOpenChecks,
-  territoryAdmissionChecks,
+  firstTerritoryFailure,
+  runTerritoryChecks,
   territoryChecksFromStored,
   type TerritoryPassCheck,
-  type TerritoryPassCheckId,
+  type TerritoryPeer,
 } from "@/thinking-lab/territory/passChecklist";
+import { buildTerritoryRevisionPrompt, parseTerritoryRevision } from "@/thinking-lab/territory/revise";
 import { ANSWERED_QUESTION_VERSION, resolveAnsweredQuestion } from "@/thinking-lab/big-thought/answeredQuestion";
 import type { BeliefOption, LabMasterThought, MasterCatalogContext } from "@/thinking-lab/master-thought/types";
 import { useMasterThought } from "@/thinking-lab/master-thought/useMasterThought";
@@ -143,10 +135,10 @@ import {
 } from "@/thinking-lab/big-thought/label";
 import { evaluateLock, selectStageAction } from "@/thinking-lab/big-thought/lock";
 import { individualAdmission } from "@/thinking-lab/big-thought/policy";
-import { manualRejection, ManualStatementForm } from "@/thinking-lab/section/ManualStatementForm";
+import { ManualStatementForm } from "@/thinking-lab/section/ManualStatementForm";
 import { activeBigThoughts } from "@/thinking-lab/big-thought/repository";
 import { judgeSiblingSet } from "@/thinking-lab/big-thought/semantic";
-import type { BigThoughtFacts, LabSetRecord } from "@/thinking-lab/big-thought/types";
+import type { BigThoughtFacts } from "@/thinking-lab/big-thought/types";
 import { useBigThoughts, useLockedLabTree } from "@/thinking-lab/big-thought/useBigThoughts";
 import { canShowGenerateAngle } from "@/thinking-lab/angle/eligibility";
 import {
@@ -158,13 +150,12 @@ import {
 } from "@/thinking-lab/angle/passChecklist";
 import { buildAngleRevisionPrompt, parseAngleRevision } from "@/thinking-lab/angle/revise";
 import {
-  nextAngleCode,
   proposeAngleStatements,
   runAngleGenerate,
   shownAngleFacts,
 } from "@/thinking-lab/angle/generate";
 import { evaluateAngleLock, selectAngleStage } from "@/thinking-lab/angle/lock";
-import { admitAngle, visibleAngles } from "@/thinking-lab/angle/policy";
+import { visibleAngles } from "@/thinking-lab/angle/policy";
 import { angleExampleProblem, normalizeAngleExample } from "@/thinking-lab/angle/example";
 import { angleListSubject, angleSubjectProblem } from "@/thinking-lab/angle/subject";
 import { loadAngleParentGate, loadAngleSet, saveAngleSet } from "@/thinking-lab/angle/repository";
@@ -314,35 +305,25 @@ import {
 import { useLabExecutionCounts, useLabExecutions } from "@/thinking-lab/execution/useExecutions";
 import { canGenerateTerritory } from "@/thinking-lab/territory/eligibility";
 import {
-  buildTerritoryFixOptionsPrompt,
-  parseTerritoryFixOptionsScript,
-  territoryReplacementPasses,
-} from "@/thinking-lab/territory/fix";
-import {
   admittedTerritorySetChanged,
-  nextTerritoryCode,
   proposeTerritoryStatements,
   runTerritoryGenerate,
   shownTerritoryFacts,
-  TERRITORY_ACTIVITY_REASON,
-  TERRITORY_NAME_LENGTH_REASON,
-  territoryNameIsActivity,
-  territoryNameTooLong,
   territoryRejectionReason,
+  territoryRelationForGate,
 } from "@/thinking-lab/territory/generate";
 import { loadTerritoryParentGate, loadTerritorySet, saveTerritorySet } from "@/thinking-lab/territory/repository";
 import { evaluateTerritoryLock, selectTerritoryStage } from "@/thinking-lab/territory/lock";
 import {
-  buildTerritorySiblingPrompt,
+  canReviseTerritory,
   emptyTerritorySetRecord,
-  parseTerritorySet,
-  territoryCodesHeldPass,
   mergeTerritoryAuditLessons,
-  scoreTerritoryAudit,
-  territoryFailureLessons,
-  territorySetIsCurrent,
-  usableTerritoryFixLessons,
-} from "@/thinking-lab/territory/setAudit";
+  territoryVerdict,
+  withTerritoryResult,
+  withTerritoryRevision,
+  withoutTerritory,
+  type TerritorySetRecord,
+} from "@/thinking-lab/territory/record";
 import type { TerritorySemanticFacts } from "@/thinking-lab/territory/types";
 import { useLabTerritories, useTerritorySet } from "@/thinking-lab/territory/useTerritories";
 import { ThinkingLabPageSkeleton } from "@/thinking-lab/page/ThinkingLabPageSkeleton";
@@ -582,9 +563,6 @@ export function ThinkingLabPage() {
     setIdeaGenerateRun({ angleId, checks: next, report: ideaLiveReport(next, previous) });
   };
   const [notice, setNotice] = useState<string | null>(null);
-  const [territoryFixOffers, setTerritoryFixOffers] = useState<
-    Array<{ thoughtId: string; failedCode: string; statement: string; facts: TerritorySemanticFacts }>
-  >([]);
   const [auditProgress, setAuditProgress] = useState<AuditProgress | null>(null);
   const [bigThoughtChecklists, setBigThoughtChecklists] = useState<Record<string, PassChecklist>>({});
   const fixingBigThoughtRef = useRef(new Set<string>());
@@ -660,7 +638,6 @@ export function ThinkingLabPage() {
   useEffect(() => {
     setNotice(null);
     setAuditProgress(null);
-    setTerritoryFixOffers([]);
   }, [selected?.id]);
 
   useEffect(() => {
@@ -936,78 +913,21 @@ export function ThinkingLabPage() {
     focusedThought && parentFp
       ? bigThoughtFingerprint({ statement: focusedThought.statement, masterThoughtFingerprint: parentFp })
       : "";
-  const territoryFingerprintNow = territorySetFingerprint({
-    bigThoughtFingerprint: focusedBigThoughtFingerprint,
-    territoryFingerprints: admittedTerritories.map((row) =>
-      territoryFingerprint({ statement: row.statement, bigThoughtFingerprint: focusedBigThoughtFingerprint }),
-    ),
-  });
-  const storedTerritorySet = territorySet.data?.siblingSet ?? null;
-  const territoryAuditCurrent =
-    territorySetIsCurrent(storedTerritorySet, territoryFingerprintNow) &&
-    fingerprintsMatch(territorySet.data?.audit?.fingerprint, territoryFingerprintNow);
-  const rescoredTerritoryAudit =
-    territoryAuditCurrent && storedTerritorySet
-      ? scoreTerritoryAudit({
-          codes: admittedTerritories.map((row) => row.code),
-          siblingSet: storedTerritorySet,
-          siblingSetCurrent: true,
-        })
-      : null;
-  const territoryVerdicts = admittedTerritories.map((row) => {
-    const statementFingerprint = focusedBigThoughtFingerprint
-      ? territoryFingerprint({ statement: row.statement, bigThoughtFingerprint: focusedBigThoughtFingerprint })
-      : "";
-    const stored = territorySet.data?.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
-    if (
-      stored?.statementFingerprint === statementFingerprint &&
-      (stored.verdict === "AUDIT_PASS" || stored.verdict === "AUDIT_FAIL")
-    ) {
-      return stored.verdict;
-    }
-    return rescoredTerritoryAudit?.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict ?? null;
-  });
+  const territoryStatementFingerprint = (statement: string) =>
+    focusedBigThoughtFingerprint ? territoryFingerprint({ statement, bigThoughtFingerprint: focusedBigThoughtFingerprint }) : "";
+  const territoryVerdicts = admittedTerritories.map((row) =>
+    territoryVerdict(row, territorySet.data, territoryStatementFingerprint(row.statement)),
+  );
+  /** Territories of the focused Big Thought that already passed (or are locked), for the "Beda dari Territory lain" check. */
+  const territoryPeers = (exceptCode?: string): TerritoryPeer[] =>
+    admittedTerritories
+      .filter((row, index) => territoryVerdicts[index] === "AUDIT_PASS" && row.code.toUpperCase() !== exceptCode?.toUpperCase())
+      .map((row) => ({ code: row.code, statement: row.statement }));
   const territoryLock = evaluateTerritoryLock({ verdicts: territoryVerdicts });
-  const territoryStoredCount = admittedTerritories.length;
   const territoryStage = selectTerritoryStage({
-    admittedCount: admittedTerritories.length,
     verdicts: territoryVerdicts,
-    canAdd: territoryStoredCount < ACTIVE_SET_CAP,
-    repairsUsed: (territorySet.data?.repairCount ?? 0) > 0,
-    lockOk: territoryLock.ok,
+    canAdd: admittedTerritories.length < ACTIVE_SET_CAP,
   });
-  const territoryNotes = [
-    ...(storedTerritorySet && territorySetIsCurrent(storedTerritorySet, territoryFingerprintNow)
-      ? [
-          ...storedTerritorySet.materialOverlapPairs.map((pair) => ({
-            kind: "overlap" as const,
-            a: pair.territoryCodeA,
-            b: pair.territoryCodeB,
-            explanation: pair.explanation,
-          })),
-          ...storedTerritorySet.containmentPairs.map((pair) => ({
-            kind: "containment" as const,
-            container: pair.containerCode,
-            contained: pair.containedCode,
-            explanation: pair.explanation,
-          })),
-        ]
-      : []),
-    ...(territoryVerdicts.some((verdict) => verdict === "AUDIT_FAIL") &&
-    (territorySet.data?.repairCount ?? 0) > 0 &&
-    !(
-      storedTerritorySet &&
-      territorySetIsCurrent(storedTerritorySet, territoryFingerprintNow) &&
-      (storedTerritorySet.containmentPairs.length > 0 || storedTerritorySet.materialOverlapPairs.length > 0)
-    )
-      ? [
-          {
-            kind: "notice" as const,
-            text: t("thinkingLab.territory.repairStopped", "Fix already ran once. This set stays open until an audit passes."),
-          },
-        ]
-      : []),
-  ];
   const admittedSetLocked =
     admittedTerritories.length >= 3 && admittedTerritories.every((row) => row.status === "locked");
   const territoriesPanelClosed =
@@ -1017,7 +937,6 @@ export function ThinkingLabPage() {
     focusedThought?.canGenerateTerritory &&
     admittedTerritories.length === 0 &&
     !admittedSetLocked &&
-    territoryStage !== "fix" &&
     territoryStage !== "generate"
       ? focusedThought.id
       : null;
@@ -1575,7 +1494,16 @@ export function ThinkingLabPage() {
       return;
     }
     void run(async () => {
+      const removed = (labTerritories.data ?? []).find((row) => row.id === target.id);
       await labTerritories.remove.mutateAsync({ bigThoughtId: target.bigThoughtId, id: target.id });
+      if (removed && masters.organizationId) {
+        const stored = await loadTerritorySet(masters.organizationId, target.bigThoughtId);
+        await saveTerritorySet({
+          organizationId: masters.organizationId,
+          bigThoughtId: target.bigThoughtId,
+          record: withoutTerritory(stored, removed.code),
+        });
+      }
       setFocus((current) =>
         current?.kind === "territory" && current.territoryId === target.id
           ? { kind: "bigThought", masterId: current.masterId, thoughtId: current.thoughtId }
@@ -1828,7 +1756,23 @@ export function ThinkingLabPage() {
           ? storedFacts.answeredQuestion?.trim() ?? ""
           : "";
       const learned = [...auditLessons];
-      let setRecord = storedSet ?? emptyTerritorySetRecord();
+      let setRecord: TerritorySetRecord = storedSet ?? emptyTerritorySetRecord();
+      const thoughtFingerprint = bigThoughtFingerprint({
+        statement: source?.statement ?? "",
+        masterThoughtFingerprint: parentFp,
+      });
+      // Territories under this Big Thought that already passed; each new name must be a different area.
+      let runPeers: TerritoryPeer[] = known
+        .filter(
+          (row) =>
+            row.admission === "GENERATE_VALID" &&
+            territoryVerdict(
+              row,
+              setRecord,
+              territoryFingerprint({ statement: row.statement, bigThoughtFingerprint: thoughtFingerprint }),
+            ) === "AUDIT_PASS",
+        )
+        .map((row) => ({ code: row.code, statement: row.statement }));
       const bannedNames = new Set(
         [
           ...learned.map((lesson) => lesson.statement.trim().toLowerCase()),
@@ -1950,49 +1894,25 @@ export function ThinkingLabPage() {
           };
           if (bannedNames.has(statement.trim().toLowerCase())) {
             const repeated = learned.find((lesson) => lesson.statement.trim().toLowerCase() === statement.trim().toLowerCase());
-            const gate = repeated?.reason.split(":")[0]?.trim();
-            publishLive(
-              territoryAdmissionChecks(
-                gate === "audienceLanguage"
-                  ? { id: "audienceLanguage", reason: repeated?.reason ?? "" }
-                  : { id: "partOfBigThought", reason: repeated?.reason || "This name already failed." },
-              ),
-            );
-            const relation = gate === "audienceLanguage" ? "INTERNAL_LANGUAGE" : "OUT_OF_PARENT_SCOPE";
-            return failFacts(relation, repeated?.reason || "partOfBigThought: This name already failed.");
+            const reason = repeated?.reason || "partOfBigThought: This name already failed.";
+            return failFacts(territoryRelationForGate(reason.split(":")[0]?.trim() ?? ""), reason);
           }
-          if (territoryNameTooLong(statement) || territoryNameIsActivity(statement)) {
-            const reason = territoryNameTooLong(statement) ? TERRITORY_NAME_LENGTH_REASON : TERRITORY_ACTIVITY_REASON;
-            publishLive(territoryAdmissionChecks({ id: "partOfBigThought", reason }));
-            return failFacts(
-              territoryNameTooLong(statement) ? "UNBOUNDED_SPACE" : "OUT_OF_PARENT_SCOPE",
-              `partOfBigThought: ${reason}`,
-            );
-          }
-          const checked = await runTerritoryAdmissionChecks({
+          const checked = await runTerritoryChecks({
             skip: skipFor("territory"),
-            batch: true,
             statement,
             parentStatement: parent.statement,
             audience: parent.audience || selected?.audience,
+            question: answered,
+            ensureQuestion: () => (source ? ensureAnsweredQuestion(source) : Promise.resolve("")),
+            peers: runPeers,
             ask: (prompt) => askScoped("generate", code, prompt, 0),
             onStep: publishLive,
           });
-          if (!checked.passed) {
-            const failedCheck = checked.checks.find((check) => check.state === "fail");
-            const gate = failedCheck?.id === "audienceLanguage" ? "audienceLanguage" : "partOfBigThought";
-            const reason = failedCheck?.reason?.trim() || "This check could not be decided.";
-            return failFacts(
-              gate === "audienceLanguage" ? "INTERNAL_LANGUAGE" : "OUT_OF_PARENT_SCOPE",
-              `${gate}: ${reason}`,
-            );
-          }
-          const passed: TerritorySemanticFacts = {
-            ...shownTerritoryFacts(code, statement),
-            generatePasses: ["partOfBigThought", "audienceLanguage"],
-          };
+          if (checked.question) answered = checked.question;
+          const failure = firstTerritoryFailure(checked.checks);
+          if (failure) return failFacts(territoryRelationForGate(failure.gate), `${failure.gate}: ${failure.reason}`);
           publishTerritoryChecklist(code, checked.checks);
-          return passed;
+          return shownTerritoryFacts(code, statement);
         },
         persist: async ({ parent, code, statement, facts, admission }) => {
           if (admission !== "GENERATE_VALID") {
@@ -2011,12 +1931,19 @@ export function ThinkingLabPage() {
             code,
             statement,
             sortOrder: sort,
-            facts: {
-              ...facts,
-              generatePasses: ["partOfBigThought", "audienceLanguage"],
-            },
+            facts,
             admission,
           });
+          // Every check already passed at Generate: the card is saved with its pass mark.
+          setRecord = withTerritoryResult(setRecord, {
+            code: saved.code,
+            statement: saved.statement,
+            statementFingerprint: territoryFingerprint({ statement: saved.statement, bigThoughtFingerprint: thoughtFingerprint }),
+            failure: null,
+            skipped: skipFor("territory"),
+          });
+          runPeers = [...runPeers, { code: saved.code, statement: saved.statement }];
+          await saveTerritorySet({ organizationId: masters.organizationId as string, bigThoughtId, record: setRecord });
           return {
             code: saved.code,
             statement: saved.statement,
@@ -2651,35 +2578,39 @@ export function ThinkingLabPage() {
 
   const onEditTerritory = (id: string, statement: string) =>
     runManual("manual-territory", async () => {
-      if (!focusedThought || !parentFp) return null;
+      if (!focusedThought || !parentFp || !masters.organizationId || !focusedBigThoughtFingerprint) return null;
       const row = (labTerritories.data ?? []).find((item) => item.id === id && item.bigThoughtId === focusedThought.id);
       if (!row || row.status !== "candidate") return null;
-      if (territoryNameTooLong(statement)) return TERRITORY_NAME_LENGTH_REASON;
-      if (territoryNameIsActivity(statement)) return TERRITORY_ACTIVITY_REASON;
-      // Same checks as Generate. The other checks run at Audit.
-      const checked = await runTerritoryAdmissionChecks({
+      // The same five checks as Generate.
+      const checked = await runTerritoryChecks({
         skip: skipFor("territory"),
-        batch: true,
         statement,
         parentStatement: focusedThought.statement,
         audience: selected?.audience,
+        question: answeredQuestion,
+        ensureQuestion: () => ensureAnsweredQuestion(focusedThought),
+        peers: territoryPeers(row.code),
         ask: (prompt) => askThinkingLab(prompt, 0),
-        onStep: () => undefined,
       });
-      if (!checked.passed) {
-        return checked.checks.find((check) => check.state === "fail")?.reason?.trim() || "This check could not be decided.";
-      }
+      const failure = firstTerritoryFailure(checked.checks);
+      if (failure) return failure.reason;
       await labTerritories.replace.mutateAsync({
         bigThoughtId: focusedThought.id,
         id,
         statement,
-        facts: { ...shownTerritoryFacts(row.code, statement), generatePasses: ["partOfBigThought", "audienceLanguage"] },
+        facts: shownTerritoryFacts(row.code, statement),
         admission: "GENERATE_VALID",
       });
-      await territorySet.save.mutateAsync({
-        ...emptyTerritorySetRecord(),
-        auditLessons: territorySet.data?.auditLessons ?? [],
-      });
+      const stored = await loadTerritorySet(masters.organizationId, focusedThought.id);
+      await territorySet.save.mutateAsync(
+        withTerritoryResult(stored, {
+          code: row.code,
+          statement,
+          statementFingerprint: territoryStatementFingerprint(statement),
+          failure: null,
+          skipped: skipFor("territory"),
+        }),
+      );
       publishTerritoryChecklist(row.code, checked.checks);
       // The area description and question belonged to the old name; let them be written again.
       descriptionFlight.current.delete(row.id);
@@ -5324,7 +5255,7 @@ export function ThinkingLabPage() {
       });
     }, "lock");
 
-  const ensureAnsweredQuestion = async (thought: NonNullable<typeof focusedThought>) => {
+  const ensureAnsweredQuestion = async (thought: { id: string; statement: string }) => {
     // Stored on the Big Thought row; not part of this view model's type.
     const semantic = (thought as {
       canonicalSemantic?: { answeredQuestionVersion?: unknown; answeredQuestion?: string | null } | null;
@@ -5345,258 +5276,90 @@ export function ThinkingLabPage() {
     return question;
   };
 
-  const repairFailedTerritories = async (onlyCode?: string) => {
-    if (!focusedThought || !masters.organizationId || !parentFp || admittedTerritories.length === 0) return;
-    const questionForCheck = await ensureAnsweredQuestion(focusedThought);
-    const failed = admittedTerritories.filter((row, index) => {
-      const checklistFailed = (territoryChecklists[row.code.toUpperCase()]?.checks ?? []).some(
-        (check) => check.state === "fail",
-      );
-      if (territoryVerdicts[index] !== "AUDIT_FAIL" && !checklistFailed) return false;
-      return !onlyCode || row.code.toUpperCase() === onlyCode.toUpperCase();
-    });
-    if (failed.length === 0) return;
-    const keepers = admittedTerritories.filter(
-      (item, index) => item.status === "locked" || territoryVerdicts[index] === "AUDIT_PASS",
-    );
-    const conflicts = territoryNotes.flatMap((note) =>
-      note.kind === "overlap"
-        ? [`${note.a} · ${note.b}: ${note.explanation}`]
-        : note.kind === "containment"
-          ? [`${note.container} · ${note.contained}: ${note.explanation}`]
-          : [],
-    );
-    const applied = new Map<string, string>();
-    let setRecord = {
-      schema: "thinking-lab/territory-set/v1" as const,
-      repairCount: territorySet.data?.repairCount ?? 0,
-      siblingSet: storedTerritorySet,
-      audit: territorySet.data?.audit ?? null,
-      auditLessons: [...(territorySet.data?.auditLessons ?? [])],
-    };
-    for (const row of failed) {
-      const learned = [...usableTerritoryFixLessons(setRecord.auditLessons, row.code)];
-      const refused = new Set(setRecord.auditLessons.map((lesson) => lesson.statement.trim().toLowerCase()));
-      refused.add(row.statement.trim().toLowerCase());
-      const storedFailure = setRecord.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
-      let shown = territoryChecklists[row.code.toUpperCase()]?.checks ?? [];
-      if (shown.length === 0) {
-        shown = territoryChecksFromStored({
-          generatePasses: row.canonicalSemantic.generatePasses,
-          gateFailure: storedFailure?.verdict === "AUDIT_FAIL" ? storedFailure.gateFailure ?? null : null,
-        });
-      }
-      const checklistAtStart = shown.map((check) => ({ ...check }));
-      const liveScope = fixScopeFromChecks(shown);
-      let scope: FixScope =
-        liveScope.preserve.length > 0 || liveScope.repair.length > 0 ? liveScope : scopeFromHistory(shown, learned);
-      const rememberFixLesson = async (lesson: { code: string; statement: string; reason: string }) => {
-        learned.push(lesson);
-        refused.add(lesson.statement.trim().toLowerCase());
-        setRecord = {
-          ...setRecord,
-          auditLessons: mergeTerritoryAuditLessons(setRecord.auditLessons, [lesson]),
-        };
-        await territorySet.save.mutateAsync(setRecord);
-      };
-      let draft = row.statement;
-      let offered = false;
-      for (let attempt = 0; attempt < fixAttemptCap() && !offered; attempt += 1) {
+  /**
+   * One card: a card that was never checked is checked as it is. A card that failed is rewritten from its
+   * failed check (at most three times per card) and checked again. The card keeps its code either way.
+   */
+  const checkOrReviseTerritory = async (
+    code: string,
+    revise: boolean,
+    extraPeers: readonly TerritoryPeer[] = [],
+  ): Promise<TerritoryPeer | null> => {
+    if (!focusedThought || !masters.organizationId || !focusedBigThoughtFingerprint) return null;
+    const row = admittedTerritories.find((item) => item.code.toUpperCase() === code.toUpperCase());
+    if (!row || row.status !== "candidate") return null;
+    let record: TerritorySetRecord = await loadTerritorySet(masters.organizationId, focusedThought.id);
+    const peers = [
+      ...territoryPeers(row.code),
+      ...extraPeers.filter((peer) => peer.code.toUpperCase() !== row.code.toUpperCase()),
+    ];
+    let question = answeredQuestion;
+    let statement = row.statement;
+    const check = (name: string) =>
+      runTerritoryChecks({
+        skip: skipFor("territory"),
+        statement: name,
+        parentStatement: focusedThought.statement,
+        audience: selected?.audience,
+        question,
+        ensureQuestion: () => ensureAnsweredQuestion(focusedThought),
+        peers,
+        ask: (prompt) => askThinkingLab(prompt, 0),
+        onStep: (checks) => publishTerritoryChecklist(row.code, checks),
+      });
+    let checked = revise ? null : await check(statement);
+    if (revise) {
+      if (!canReviseTerritory(record, row.code)) {
+        setNotice(t("thinkingLab.territory.revisionCap", "This Territory was revised three times. Edit it yourself or delete it."));
+      } else {
+        const shown =
+          territoryChecklists[row.code.toUpperCase()]?.checks ??
+          territoryChecksFromStored({
+            gateFailure: record.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.gateFailure ?? null,
+          });
+        record = withTerritoryRevision(record, row.code);
         const script = await askThinkingLab(
-          buildTerritoryFixOptionsPrompt({
-            parentStatement: focusedThought.statement,
+          buildTerritoryRevisionPrompt({
+            bigThought: focusedThought.statement,
             ancestors: territoryAncestors,
             audience: selected?.audience,
-            answeredQuestion,
-            failed: { code: row.code, statement: draft },
-            keepers: keepers
-              .filter((keeper) => keeper.code.toUpperCase() !== row.code.toUpperCase())
-              .map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
-            conflicts,
-            lessons: learned,
-            scope,
+            answeredQuestion: question,
+            statement,
+            checks: shown,
+            peers,
+            lessons: record.auditLessons.filter((lesson) => lesson.code.toUpperCase() === row.code.toUpperCase()),
+            revision: record.revisions[row.code.toUpperCase()] ?? 1,
           }),
           0.2,
         );
-        const candidates = parseTerritoryFixOptionsScript(script);
-        const statement = candidates.find((candidate) => !refused.has(candidate.trim().toLowerCase()));
-        if (!statement) {
-          if (candidates.length === 0) {
-            await rememberFixLesson({ code: row.code, statement: draft, reason: "No replacement came back." });
-          } else {
-            for (const candidate of candidates) {
-              await rememberFixLesson({
-                code: row.code,
-                statement: candidate,
-                reason: "This name was offered again after it already failed.",
-              });
-            }
-          }
-          continue;
-        }
-        if (territoryNameTooLong(statement) || territoryNameIsActivity(statement)) {
-          const reason = territoryNameTooLong(statement) ? TERRITORY_NAME_LENGTH_REASON : TERRITORY_ACTIVITY_REASON;
-          await rememberFixLesson({ code: row.code, statement, reason: `partOfBigThought: ${reason}` });
-          continue;
-        }
-        const checked = await runTerritoryOpenChecks({
-          skip: skipFor("territory"),
-          batch: true,
-          statement,
-          parentStatement: focusedThought.statement,
-          audience: selected?.audience,
-          question: questionForCheck,
-          prior: shown,
-          ask: (prompt) => askThinkingLab(prompt, 0),
-          onStep: (checks) => publishTerritoryChecklist(row.code, checks),
-        });
-        if (!checked.passed) {
-          const failedCheck = checked.checks.find((check) => check.state === "fail");
-          const reason = failedCheck ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim() : "This check could not be decided.";
-          await rememberFixLesson({ code: row.code, statement, reason });
-          shown = checked.checks;
-          draft = statement;
-          scope = fixScopeFromChecks(shown);
-          continue;
-        }
-        const siblingAlreadyPassed = checked.checks.some(
-          (check) => check.id === "siblingsDistinct" && check.state === "pass",
-        );
-        const siblingRows = [
-          ...keepers
-            .filter((item) => item.code.toUpperCase() !== row.code.toUpperCase())
-            .map((item) => ({ code: item.code, statement: item.statement })),
-          { code: row.code, statement },
-        ];
-        let siblingPass = skipFor("territory").includes("siblingsDistinct") || siblingAlreadyPassed || siblingRows.length < 2;
-        let siblingReason = "";
-        if (!siblingPass) {
-          publishTerritoryChecklist(row.code, beginSiblingCheck(checked.checks));
-          const fingerprint = territorySetFingerprint({
-            bigThoughtFingerprint: focusedBigThoughtFingerprint,
-            territoryFingerprints: siblingRows.map((item) =>
-              territoryFingerprint({ statement: item.statement, bigThoughtFingerprint: focusedBigThoughtFingerprint }),
-            ),
+        const next = parseTerritoryRevision(script, statement);
+        if (next) {
+          statement = next;
+          checked = await check(statement);
+          if (checked.question) question = checked.question;
+          await labTerritories.replace.mutateAsync({
+            bigThoughtId: focusedThought.id,
+            id: row.id,
+            statement,
+            facts: shownTerritoryFacts(row.code, statement),
+            admission: "GENERATE_VALID",
           });
-          const siblingScript = await askThinkingLab(
-            buildTerritorySiblingPrompt({ parentStatement: focusedThought.statement, rows: siblingRows }),
-            0,
-          );
-          const siblingSet = parseTerritorySet(siblingScript, fingerprint);
-          siblingPass = territoryReplacementPasses(siblingSet, row.code);
-          siblingReason = siblingPass
-            ? ""
-            : territoryFailureLessons({
-                rows: [{ code: row.code, statement }],
-                items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
-                siblingSet,
-              })[0]?.reason ?? "Sibling audit failed this Territory.";
+          // The area description and question belonged to the old name; let them be written again.
+          descriptionFlight.current.delete(row.id);
         }
-        if (!siblingPass) {
-          await rememberFixLesson({ code: row.code, statement, reason: `siblingsDistinct: ${siblingReason}` });
-          const failedSibling = finishSiblingCheck(checked.checks, false, siblingReason);
-          shown = failedSibling;
-          draft = statement;
-          publishTerritoryChecklist(row.code, failedSibling);
-          scope = fixScopeFromChecks(shown);
-          continue;
-        }
-        const passedChecks = finishSiblingCheck(checked.checks, true, "");
-        publishTerritoryChecklist(row.code, passedChecks);
-        const sameArea =
-          scope.preserve.includes("questionArises") && scope.repair.every((item) => item.id === "audienceLanguage");
-        const written = await writeTerritoryAreaSentence({
-          territory: statement,
-          parentStatement: focusedThought.statement,
-          masterStatement: selected?.statement,
-          audience: selected?.audience,
-          answeredQuestion: questionForCheck || answeredQuestion,
-          siblings: keepers
-            .filter((item) => item.code.toUpperCase() !== row.code.toUpperCase())
-            .map((item) => item.statement),
-          ask: (prompt) => askThinkingLab(prompt, 0.2),
-        });
-        const areaQuestion = sameArea
-          ? row.canonicalSemantic.areaQuestion || written.question || checked.question
-          : written.question || checked.question || row.canonicalSemantic.areaQuestion;
-        await labTerritories.replace.mutateAsync({
-          bigThoughtId: focusedThought.id,
-          id: row.id,
-          statement,
-          facts: {
-            ...row.canonicalSemantic,
-            ...shownTerritoryFacts(row.code, statement),
-            generatePasses: ["partOfBigThought", "audienceLanguage"],
-            areaQuestion,
-            whatItSays: written.sentence.trim() || (sameArea ? row.canonicalSemantic.whatItSays : statement),
-          },
-          admission: "GENERATE_VALID",
-        });
-        const codeKey = row.code.toUpperCase();
-        const statementFingerprint = territoryFingerprint({
-          statement,
-          bigThoughtFingerprint: focusedBigThoughtFingerprint,
-        });
-        const previousItems = setRecord.audit?.items ?? [];
-        const items = previousItems.some((item) => item.code.toUpperCase() === codeKey)
-          ? previousItems.map((item) =>
-              item.code.toUpperCase() === codeKey
-                ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("territory") }
-                : item,
-            )
-          : [...previousItems, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("territory") }];
-        setRecord = {
-          ...setRecord,
-          audit: { fingerprint: setRecord.audit?.fingerprint ?? "", items },
-        };
-        await territorySet.save.mutateAsync(setRecord);
-        applied.set(codeKey, statement);
-        offered = true;
       }
-      if (!offered && checklistAtStart.length > 0) publishTerritoryChecklist(row.code, checklistAtStart);
     }
-    const replaced = new Set(failed.map((row) => row.code.toUpperCase()));
-    setTerritoryFixOffers((current) =>
-      current.filter((offer) => offer.thoughtId !== focusedThought.id || !replaced.has(offer.failedCode.toUpperCase())),
-    );
-    const covered = applied.size;
-    if (covered > 0) {
-      const items = admittedTerritories.flatMap((row, index) => {
-        const code = row.code.toUpperCase();
-        const previous = setRecord.audit?.items.find((item) => item.code.toUpperCase() === code);
-        const statement = applied.get(code) ?? row.statement;
-        const verdict = applied.has(code) ? ("AUDIT_PASS" as const) : territoryVerdicts[index];
-        if (verdict !== "AUDIT_PASS" && verdict !== "AUDIT_FAIL") return [];
-        return [
-          {
-            code: row.code,
-            verdict,
-            statementFingerprint: territoryFingerprint({
-              statement,
-              bigThoughtFingerprint: focusedBigThoughtFingerprint,
-            }),
-            ...(verdict === "AUDIT_FAIL" && previous?.gateFailure ? { gateFailure: previous.gateFailure } : {}),
-          },
-        ];
+    if (checked) {
+      record = withTerritoryResult(record, {
+        code: row.code,
+        statement,
+        statementFingerprint: territoryStatementFingerprint(statement),
+        failure: firstTerritoryFailure(checked.checks),
+        skipped: skipFor("territory"),
       });
-      setRecord = {
-        ...setRecord,
-        repairCount: setRecord.repairCount + 1,
-        siblingSet: null,
-        audit: items.length > 0 ? { fingerprint: "", items } : null,
-      };
-      await territorySet.save.mutateAsync(setRecord);
     }
-    if (covered < failed.length) {
-      setNotice(
-        t("thinkingLab.territory.noSafeReplacement", "NO_SAFE_REPLACEMENT {{count}}/{{failed}}", {
-          count: covered,
-          failed: failed.length,
-        }),
-      );
-    } else {
-      setNotice(null);
-    }
+    await territorySet.save.mutateAsync(record);
+    return checked?.passed ? { code: row.code, statement } : null;
   };
 
   const onFixTerritory = (code: string) => {
@@ -5604,16 +5367,13 @@ export function ThinkingLabPage() {
     if (!key || fixingTerritoryCodesRef.current.has(key)) return;
     fixingTerritoryCodesRef.current.add(key);
     setFixingTerritoryCodes(new Set(fixingTerritoryCodesRef.current));
-    void (async () => {
-      try {
-        await repairFailedTerritories(code);
-      } catch (error) {
-        reportStepError(error);
-      } finally {
-        fixingTerritoryCodesRef.current.delete(key);
-        setFixingTerritoryCodes(new Set(fixingTerritoryCodesRef.current));
-      }
-    })();
+    void run(async () => {
+      const index = admittedTerritories.findIndex((row) => row.code.toUpperCase() === key);
+      await checkOrReviseTerritory(code, territoryVerdicts[index] === "AUDIT_FAIL");
+    }, "fix-territories", "Territory").finally(() => {
+      fixingTerritoryCodesRef.current.delete(key);
+      setFixingTerritoryCodes(new Set(fixingTerritoryCodesRef.current));
+    });
   };
 
   const onTerritoryStage = () => {
@@ -5623,208 +5383,15 @@ export function ThinkingLabPage() {
     }
     return run(async () => {
       if (!focusedThought || !masters.organizationId || !parentFp || admittedTerritories.length === 0) return;
-      if (territoryStage === "fix") {
-        await repairFailedTerritories();
-        return;
-      }
       if (territoryStage === "audit") {
-        const questionForAudit = await ensureAnsweredQuestion(focusedThought);
-        const heldPass = new Set(
-          territoryCodesHeldPass(admittedTerritories, territoryVerdicts).map((code) => code.toUpperCase()),
-        );
-        const lessons = [...(territorySet.data?.auditLessons ?? [])];
-        const passedCodes = new Set<string>(heldPass);
-        const failedByCode = new Map<string, { gate: TerritoryPassCheckId; reason: string }>();
-        let siblingSet = storedTerritorySet;
-        let resolvedSibling: { fingerprint: string; set: NonNullable<typeof siblingSet> } | null = null;
-        let shownAuditChecks: TerritoryPassCheck[] = [];
-        const publishAudit = (code: string, checks: TerritoryPassCheck[]) => {
-          const previous = shownAuditChecks;
-          shownAuditChecks = checks.map((check) => ({ ...check }));
-          const changed = checks.find((check, index) => check.state !== previous[index]?.state);
-          const report =
-            changed?.state === "running" || changed?.state === "pass" || changed?.state === "fail"
-              ? {
-                  gate: changed.id,
-                  phase: changed.state === "running" ? ("checking" as const) : ("checked" as const),
-                  outcome: changed.state === "fail" ? ("fail" as const) : ("pass" as const),
-                }
-              : null;
-          setTerritoryGenerateRun({ thoughtId: focusedThought.id, checks: shownAuditChecks, report });
-          publishTerritoryChecklist(code, checks);
-        };
-        // The checks of each name do not depend on the others: run a few at once. The sibling
-        // check below still goes name by name, against the names that passed before it.
-        const glossByCode = new Map<string, { sentence: string; question: string }>();
-        const individualRuns = startLimited(
-          admittedTerritories.filter((row) => !heldPass.has(row.code.toUpperCase())),
-          (row) => row.code.toUpperCase(),
-          THINKING_PARALLEL_CHECKS,
-          (row) => {
-            const passedSiblings = () =>
-              admittedTerritories
-                .filter((item) => item.id !== row.id && passedCodes.has(item.code.toUpperCase()))
-                .map((item) => item.statement);
-            return runTerritoryIndividualChecks({
-            skip: skipFor("territory"),
-            batch: true,
-            statement: row.statement,
-            parentStatement: focusedThought.statement,
-            audience: selected?.audience,
-            question: questionForAudit || row.canonicalSemantic.areaQuestion,
-            carried: readTerritoryGeneratePasses(row.canonicalSemantic.generatePasses),
-            ensureQuestion: async () => {
-              if (questionForAudit) return questionForAudit;
-              const written = await writeTerritoryAreaSentence({
-                territory: row.statement,
-                parentStatement: focusedThought.statement,
-                masterStatement: selected?.statement,
-                audience: selected?.audience,
-                answeredQuestion: questionForAudit || answeredQuestion,
-                siblings: passedSiblings(),
-                ask: (prompt) => askThinkingLab(prompt, 0.2),
-              });
-              if (written.sentence && written.question) glossByCode.set(row.code.toUpperCase(), written);
-              return written.question;
-            },
-            ask: (prompt) => askThinkingLab(prompt, 0),
-            onStep: (checks) => publishTerritoryChecklist(row.code, checks),
-          });
-          },
-        );
-        for (const row of admittedTerritories) {
-          const codeKey = row.code.toUpperCase();
-          if (heldPass.has(codeKey)) continue;
-          shownAuditChecks = [];
-          const run = await individualRuns.get(codeKey)!;
-          let gloss: { sentence: string; question: string } | null = glossByCode.get(codeKey) ?? null;
-          const passedSiblings = () =>
-            admittedTerritories
-              .filter((item) => item.id !== row.id && passedCodes.has(item.code.toUpperCase()))
-              .map((item) => item.statement);
-          publishAudit(row.code, run.checks);
-          if (!run.passed) {
-            const failedCheck = run.checks.find((check) => check.state === "fail");
-            const gate = failedCheck?.id ?? "partOfBigThought";
-            const reason = failedCheck?.reason?.trim() || "This check could not be decided.";
-            failedByCode.set(codeKey, { gate, reason });
-            lessons.push({ code: row.code, statement: row.statement, reason: `${gate}: ${reason}` });
-            continue;
-          }
-          const siblingRows = [
-            ...admittedTerritories
-              .filter((item) => passedCodes.has(item.code.toUpperCase()))
-              .map((item) => ({ code: item.code, statement: item.statement })),
-            { code: row.code, statement: row.statement },
-          ];
-          publishAudit(row.code, beginSiblingCheck(run.checks));
-          let siblingPass = skipFor("territory").includes("siblingsDistinct") || siblingRows.length < 2;
-          let siblingReason = "";
-          if (!siblingPass) {
-            const fingerprint = territorySetFingerprint({
-              bigThoughtFingerprint: focusedBigThoughtFingerprint,
-              territoryFingerprints: siblingRows.map((item) =>
-                territoryFingerprint({ statement: item.statement, bigThoughtFingerprint: focusedBigThoughtFingerprint }),
-              ),
-            });
-            const judged =
-              resolvedSibling?.fingerprint === fingerprint &&
-              resolvedSibling.set.resolution === "RESOLVED" &&
-              resolvedSibling.set.unresolvedReasons.length === 0
-                ? resolvedSibling.set
-                : await (async () => {
-                    const siblingScript = await askThinkingLab(
-                      buildTerritorySiblingPrompt({ parentStatement: focusedThought.statement, rows: siblingRows }),
-                      0,
-                    );
-                    const parsed = parseTerritorySet(siblingScript, fingerprint);
-                    if (parsed.resolution === "RESOLVED" && parsed.unresolvedReasons.length === 0) {
-                      resolvedSibling = { fingerprint, set: parsed };
-                    }
-                    return parsed;
-                  })();
-            if (siblingRows.length === admittedTerritories.length) siblingSet = judged;
-            siblingPass = territoryReplacementPasses(judged, row.code);
-            siblingReason = siblingPass
-              ? ""
-              : territoryFailureLessons({
-                  rows: [{ code: row.code, statement: row.statement }],
-                  items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
-                  siblingSet: judged,
-                })[0]?.reason || "This Territory overlaps another.";
-          }
-          const settled = finishSiblingCheck(run.checks, siblingPass, siblingReason);
-          publishAudit(row.code, settled);
-          if (!siblingPass) {
-            failedByCode.set(codeKey, { gate: "siblingsDistinct", reason: siblingReason });
-            lessons.push({ code: row.code, statement: row.statement, reason: `siblingsDistinct: ${siblingReason}` });
-            continue;
-          }
-          const hasGloss =
-            Boolean(row.canonicalSemantic.areaQuestion?.trim()) &&
-            row.canonicalSemantic.whatItSays.trim().toLowerCase() !== row.statement.trim().toLowerCase();
-          if (gloss || !hasGloss) {
-            const written =
-              gloss ??
-              (await writeTerritoryAreaSentence({
-                territory: row.statement,
-                parentStatement: focusedThought.statement,
-                masterStatement: selected?.statement,
-                audience: selected?.audience,
-                answeredQuestion: questionForAudit || answeredQuestion,
-                siblings: passedSiblings(),
-                ask: (prompt) => askThinkingLab(prompt, 0.2),
-              }));
-            if (written.sentence && written.question) {
-              await labTerritories.saveGloss.mutateAsync({
-                bigThoughtId: row.bigThoughtId,
-                id: row.id,
-                facts: { ...row.canonicalSemantic, whatItSays: written.sentence, areaQuestion: written.question },
-              });
-            }
-          }
-          passedCodes.add(codeKey);
+        // Cards saved before checks ran at Generate: check each one as it is, in order.
+        const unchecked = admittedTerritories.filter((_, index) => territoryVerdicts[index] == null);
+        const passed: TerritoryPeer[] = [];
+        for (const row of unchecked) {
+          const peer = await checkOrReviseTerritory(row.code, false, passed);
+          if (peer) passed.push(peer);
         }
-        const previousItems = territorySet.data?.audit?.items ?? [];
-        const items = admittedTerritories.map((row) => {
-          const codeKey = row.code.toUpperCase();
-          const statementFingerprint = territoryFingerprint({
-            statement: row.statement,
-            bigThoughtFingerprint: focusedBigThoughtFingerprint,
-          });
-          if (heldPass.has(codeKey)) {
-            const previous = previousItems.find((item) => item.code.toUpperCase() === codeKey);
-            if (previous?.verdict === "AUDIT_PASS") {
-              return {
-                code: row.code,
-                verdict: "AUDIT_PASS" as const,
-                statementFingerprint: previous.statementFingerprint ?? statementFingerprint,
-                ...(previous.skipped ? { skipped: previous.skipped } : {}),
-              };
-            }
-          }
-          if (passedCodes.has(codeKey)) return { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, ...skippedMark("territory") };
-          const failure = failedByCode.get(codeKey);
-          return {
-            code: row.code,
-            verdict: "AUDIT_FAIL" as const,
-            statementFingerprint,
-            ...(failure ? { gateFailure: failure } : {}),
-          };
-        });
-        await territorySet.save.mutateAsync({
-          schema: "thinking-lab/territory-set/v1",
-          repairCount: failedByCode.size > 0 ? (territorySet.data?.repairCount ?? 0) : 0,
-          siblingSet,
-          audit: { fingerprint: territoryFingerprintNow, items },
-          auditLessons: mergeTerritoryAuditLessons(territorySet.data?.auditLessons ?? [], lessons),
-        });
-        setTerritoryGenerateRun((current) => {
-          if (!current || current.thoughtId !== focusedThought.id) return current;
-          return current.checks.some((check) => check.state === "fail") ? current : null;
-        });
         return;
-
       }
       if (territoryStage === "lock" && territoryLock.ok) {
         await territorySet.lock.mutateAsync({
@@ -5837,58 +5404,12 @@ export function ThinkingLabPage() {
 
   const onLockTerritories = () =>
     run(async () => {
-      if (!focusedThought || !focusedBigThoughtFingerprint || admittedTerritories.length === 0) return;
-      if (!territoryVerdicts.every((verdict) => verdict === "AUDIT_PASS")) return;
+      if (!focusedThought || !focusedBigThoughtFingerprint || !territoryLock.ok) return;
       await territorySet.lock.mutateAsync({
         bigThoughtFingerprint: focusedBigThoughtFingerprint,
         ids: admittedTerritories.map((row) => row.id),
       });
     }, "lock");
-
-  const onPickTerritoryFixOffer = (failedCode: string, statement: string) =>
-    run(async () => {
-      if (!focusedThought || !masters.organizationId) return;
-      const offer = territoryFixOffers.find(
-        (row) =>
-          row.thoughtId === focusedThought.id &&
-          row.failedCode.toUpperCase() === failedCode.toUpperCase() &&
-          row.statement === statement,
-      );
-      const previous = admittedTerritories.find((row) => row.code.toUpperCase() === failedCode.toUpperCase());
-      if (!offer || !previous) return;
-      await labTerritories.replace.mutateAsync({
-        bigThoughtId: focusedThought.id,
-        id: previous.id,
-        statement: offer.statement,
-        facts: offer.facts,
-        admission: "GENERATE_VALID",
-      });
-      const nextFingerprint = territoryFingerprint({
-        statement: offer.statement,
-        bigThoughtFingerprint: focusedBigThoughtFingerprint,
-      });
-      const items = (territorySet.data?.audit?.items ?? []).map((item) =>
-        item.code.toUpperCase() === failedCode.toUpperCase()
-          ? { code: item.code, verdict: "AUDIT_PASS" as const, statementFingerprint: nextFingerprint }
-          : item,
-      );
-      if (!items.some((item) => item.code.toUpperCase() === failedCode.toUpperCase())) {
-        items.push({ code: previous.code, verdict: "AUDIT_PASS", statementFingerprint: nextFingerprint });
-      }
-      await territorySet.save.mutateAsync({
-        schema: "thinking-lab/territory-set/v1",
-        repairCount: territorySet.data?.repairCount ?? 0,
-        siblingSet: null,
-        audit: { fingerprint: "", items },
-        auditLessons: territorySet.data?.auditLessons ?? [],
-      });
-      setTerritoryFixOffers((current) =>
-        current.filter(
-          (row) => row.thoughtId !== focusedThought.id || row.failedCode.toUpperCase() !== failedCode.toUpperCase(),
-        ),
-      );
-      setNotice(null);
-    }, "pick-territory-fix");
 
   const publishBigThoughtChecklist = async (code: string, statement: string, checklist: PassChecklist, done: number, total: number) => {
     setBigThoughtChecklists((current) => ({ ...current, [code.toUpperCase()]: checklist }));
@@ -7402,7 +6923,6 @@ export function ThinkingLabPage() {
                                   focus.kind === "bigThought" && !territoriesPanelClosed
                                     ? (focusedThought?.territories ?? []).map((row) => {
                                         const liveChecks = territoryChecklists[row.code.toUpperCase()]?.checks;
-                                        const storedRow = (labTerritories.data ?? []).find((item) => item.id === row.id);
                                         const verdictIndex = admittedTerritories.findIndex((item) => item.id === row.id);
                                         const verdict = territoryVerdicts[verdictIndex] ?? null;
                                         const storedItem = territorySet.data?.audit?.items.find(
@@ -7415,7 +6935,6 @@ export function ThinkingLabPage() {
                                             liveChecks && liveChecks.length > 0
                                               ? liveChecks
                                               : territoryChecksFromStored({
-                                                  generatePasses: storedRow?.canonicalSemantic.generatePasses,
                                                   gateFailure:
                                                     verdict === "AUDIT_FAIL" ? storedItem?.gateFailure ?? null : null,
                                                   passed: verdict === "AUDIT_PASS",
@@ -7449,9 +6968,7 @@ export function ThinkingLabPage() {
                                 onLockTerritories={
                                   focus.kind === "bigThought" &&
                                   !territoriesPanelClosed &&
-                                  admittedTerritories.length > 0 &&
-                                  territoryVerdicts.length === admittedTerritories.length &&
-                                  territoryVerdicts.every((verdict) => verdict === "AUDIT_PASS")
+                                  territoryLock.ok
                                     ? () => void onLockTerritories()
                                     : undefined
                                 }
@@ -7467,27 +6984,6 @@ export function ThinkingLabPage() {
                                     ? { checks: territoryGenerateRun.checks, report: territoryGenerateRun.report }
                                     : null
                                 }
-                                onRemoveCoveringTerritory={
-                                  focus.kind === "bigThought" &&
-                                  !territoriesPanelClosed &&
-                                  (territorySet.data?.repairCount ?? 0) > 0 &&
-                                  storedTerritorySet &&
-                                  territorySetIsCurrent(storedTerritorySet, territoryFingerprintNow) &&
-                                  (storedTerritorySet.containmentPairs.length > 0 ||
-                                    storedTerritorySet.materialOverlapPairs.length > 0)
-                                    ? (code) => {
-                                        const row = admittedTerritories.find(
-                                          (item) => item.code.toUpperCase() === code.toUpperCase(),
-                                        );
-                                        if (!row || !focusedThought) return;
-                                        setPendingDelete({
-                                          kind: "territory",
-                                          id: row.id,
-                                          bigThoughtId: focusedThought.id,
-                                        });
-                                      }
-                                    : undefined
-                                }
                                 pathUp={pathUp}
                                 subject={focus.kind === "master" ? masterSubject || null : undefined}
                                 subjectNotice={
@@ -7497,22 +6993,6 @@ export function ThinkingLabPage() {
                                         "This locked Master Thought has no subject yet. Unlock it, then save it again so the subject is stored.",
                                       )
                                     : null
-                                }
-                                territoryNotes={focus.kind === "bigThought" && !territoriesPanelClosed ? territoryNotes : undefined}
-                                territoryFixOffers={
-                                  focus.kind === "bigThought" && !territoriesPanelClosed
-                                    ? territoryFixOffers
-                                        .filter((offer) => offer.thoughtId === focusedThought?.id)
-                                        .map((offer) => ({
-                                          failedCode: offer.failedCode,
-                                          statement: offer.statement,
-                                        }))
-                                    : undefined
-                                }
-                                onPickTerritoryFixOffer={
-                                  focus.kind === "bigThought" && !territoriesPanelClosed
-                                    ? (code, statement) => void onPickTerritoryFixOffer(code, statement)
-                                    : undefined
                                 }
                               />
                             ) : null
