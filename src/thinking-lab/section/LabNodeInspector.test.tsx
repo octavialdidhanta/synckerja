@@ -836,27 +836,6 @@ describe("LabNodeInspector territory entry", () => {
     expect(onLockIdeas).toHaveBeenCalledTimes(1);
   });
 
-  it("fixes every failed Angle from the territory menu", () => {
-    const onFixFailedAngles = vi.fn();
-    render(
-      <LabNodeInspector
-        kind="territory"
-        code="TR04"
-        statement="Perpindahan dari tangan"
-        onDelete={vi.fn()}
-        onFixFailedAngles={onFixFailedAngles}
-        angles={[
-          { id: "a1", code: "AN01", statement: "Fail one", verdict: "AUDIT_FAIL" },
-          { id: "a2", code: "AN02", statement: "Pass", verdict: "AUDIT_PASS" },
-          { id: "a3", code: "AN03", statement: "Fail two", verdict: "AUDIT_FAIL" },
-        ]}
-      />,
-    );
-    openActionMenu();
-    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
-    expect(onFixFailedAngles).toHaveBeenCalledOnce();
-  });
-
   it("shows angle pass checks up to the one that failed", () => {
     render(
       <LabNodeInspector
@@ -909,22 +888,7 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.queryByText("What becomes true follows from the mechanism, not explained in words")).toBeNull();
   });
 
-  it("hides the territory Fix when every Angle passed", () => {
-    render(
-      <LabNodeInspector
-        kind="territory"
-        code="TR04"
-        statement="Perpindahan dari tangan"
-        onDelete={vi.fn()}
-        onFixFailedAngles={vi.fn()}
-        angles={[{ id: "a2", code: "AN02", statement: "Pass", verdict: "AUDIT_PASS" }]}
-      />,
-    );
-    openActionMenu();
-    expect(screen.queryByRole("menuitem", { name: "Fix" })).toBeNull();
-  });
-
-  it("puts a Fix button on each failed Angle card", () => {
+  it("puts a Revise button on each failed Angle card", () => {
     const onFixAngle = vi.fn();
     render(
       <LabNodeInspector
@@ -935,18 +899,17 @@ describe("LabNodeInspector territory entry", () => {
           { id: "a2", code: "AN02", statement: "Strategi sederhana terasa rumit", verdict: "AUDIT_PASS" },
           { id: "a3", code: "AN03", statement: "Pendekatan pasif tetap butuh intervensi", verdict: "AUDIT_FAIL" },
         ]}
-        angleStage="fix"
         onAngleStage={vi.fn()}
         onFixAngle={onFixAngle}
       />,
     );
     expect(screen.getAllByRole("button", { name: /More actions AN0/ })).toHaveLength(2);
     openActionMenu(/More actions AN03/);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Revise" }));
     expect(onFixAngle).toHaveBeenCalledWith("AN03");
   });
 
-  it("keeps the other Angle Fix buttons clickable while one fix is running", () => {
+  it("keeps the other Angle Revise buttons clickable while one revision is running", () => {
     const onFixAngle = vi.fn();
     render(
       <LabNodeInspector
@@ -956,7 +919,6 @@ describe("LabNodeInspector territory entry", () => {
           { id: "a1", code: "AN01", statement: "Pemula mencari hasil cepat", verdict: "AUDIT_FAIL" },
           { id: "a3", code: "AN03", statement: "Pendekatan pasif tetap butuh intervensi", verdict: "AUDIT_FAIL" },
         ]}
-        angleStage="fix"
         onFixAngle={onFixAngle}
         fixingAngleCodes={["AN01"]}
         pendingAction="fix-angle:AN01"
@@ -969,32 +931,8 @@ describe("LabNodeInspector territory entry", () => {
     expect((running as HTMLButtonElement).disabled).toBe(true);
     expect((waiting as HTMLButtonElement).disabled).toBe(false);
     openActionMenu(/More actions AN03/);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Revise" }));
     expect(onFixAngle).toHaveBeenCalledWith("AN03");
-  });
-
-  it("keeps each angle explanation on its card until the arrow expands it", () => {
-    render(
-      <LabNodeInspector
-        kind="territory"
-        statement="Investasi jangka panjang"
-        angles={[
-          { id: "a1", code: "AN01", statement: "Pemula mencari hasil cepat", verdict: "AUDIT_FAIL" },
-          { id: "a2", code: "AN02", statement: "Strategi sederhana terasa rumit", verdict: "AUDIT_PASS" },
-          { id: "a3", code: "AN03", statement: "Pendekatan pasif tetap butuh intervensi", verdict: "AUDIT_FAIL" },
-        ]}
-        angleNotes={[
-          "AN01 · AN03: Poin pandang tentang kesabaran mencakup pendekatan pasif.",
-          "Fix already ran once. This set stays open until an audit passes.",
-        ]}
-      />,
-    );
-    expect(screen.queryByText(/pendekatan pasif/)).toBeNull();
-    expect(screen.queryByText("Fix already ran once. This set stays open until an audit passes.")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Note AN02" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Note AN01" }));
-    expect(screen.getByText(/pendekatan pasif/)).toBeTruthy();
-    expect(screen.getByText("Fix already ran once. This set stays open until an audit passes.")).toBeTruthy();
   });
 
   it("offers an Idea branch from one passing Angle", () => {

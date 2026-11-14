@@ -144,7 +144,7 @@ export type AngleGenerateResult<T> = {
   parent: AngleGenerateParent | null;
 };
 
-/** Sentence shown immediately. The pass checklist stays off this path. */
+/** The facts stored with an Angle sentence. The checks run separately (passChecklist). */
 export function shownAngleFacts(code: string, statement: string, subject = "", example = ""): AngleSemanticFacts {
   return {
     code,
@@ -175,7 +175,8 @@ export async function runAngleGenerate<
     parent: AngleGenerateParent,
     incumbents: T[],
   ) => Promise<Array<string | AngleDraft>>;
-  judge: (parent: AngleGenerateParent, code: string, statement: string) => Promise<AngleSemanticFacts>;
+  /** Runs the checks on one draft, with its subject and example. */
+  judge: (parent: AngleGenerateParent, code: string, draft: AngleDraft) => Promise<AngleSemanticFacts>;
   /** Propose one sentence, judge it, then propose the next sentence with that failure available. */
   carryLessons?: boolean;
   persist: (input: {
@@ -230,7 +231,7 @@ export async function runAngleGenerate<
       );
       if (repeatedStatement || repeatedSubject) continue;
       const code = nextAngleCode([...(input.reservedCodes ?? []), ...incumbents.map((row) => row.code)]);
-      const facts = await input.judge(gate.parent, code, draft.statement);
+      const facts = await input.judge(gate.parent, code, draft);
       const admission = admitAngle(facts);
       const saved = await input.persist({
         parent: gate.parent,

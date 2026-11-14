@@ -160,8 +160,8 @@ describe("runAngleGenerate", () => {
       }),
       incumbents,
       propose,
-      judge: async (_parent, code, statement) =>
-        statement === "Bad sentence" ? rejectedFacts(code) : validFacts(code),
+      judge: async (_parent, code, draft) =>
+        draft.statement === "Bad sentence" ? rejectedFacts(code) : validFacts(code),
       persist: async (input) => ({
         code: input.code,
         statement: input.statement,
@@ -218,7 +218,7 @@ describe("runAngleGenerate", () => {
         parentCode: input.parent.code,
       }),
     });
-    expect(judge.mock.calls.map((call) => call[2])).toEqual([drafts[0]?.statement, drafts[2]?.statement]);
+    expect(judge.mock.calls.map((call) => (call as unknown[])[2])).toEqual([drafts[0], drafts[2]]);
     expect(result.incumbents.map((row) => row.statement)).toEqual([drafts[0]?.statement, drafts[2]?.statement]);
   });
 });

@@ -184,14 +184,4 @@ describe("normalizeAngleFacts", () => {
     expect(contradictory.relationToParent).toBe("UNRESOLVED");
     expect(contradictory.unresolvedReasons).toEqual(["CONTRADICTORY_CANONICAL_FACTS"]);
   });
-
-  it("reads Generate passes saved with both earlier checks as the observation pass", () => {
-    const both = normalizeAngleFacts({
-      ...positive(),
-      generatePasses: ["observationShape", "observationJob", "stakeHolds"],
-    });
-    expect(both.generatePasses).toEqual(["observation"]);
-    const one = normalizeAngleFacts({ ...positive(), generatePasses: ["observationJob"] });
-    expect(one.generatePasses).toBeUndefined();
-  });
 });

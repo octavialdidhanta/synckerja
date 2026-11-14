@@ -11,7 +11,7 @@ import {
   replaceLabAngle,
   saveAngleSet,
 } from "@/thinking-lab/angle/repository";
-import type { AngleSetRecord } from "@/thinking-lab/angle/setAudit";
+import type { AngleSetRecord } from "@/thinking-lab/angle/record";
 import type { AngleSemanticFacts } from "@/thinking-lab/angle/types";
 
 export function useLabAngles(territoryIds: string[]) {

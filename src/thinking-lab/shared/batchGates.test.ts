@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runBigThoughtOpenChecks, runGenerateAdmissionChecks } from "@/thinking-lab/big-thought/passChecks";
 import { runTerritoryIndividualChecks } from "@/thinking-lab/territory/passChecklist";
-import { runAngleIndividualChecks } from "@/thinking-lab/angle/passChecklist";
+import { runAngleChecks } from "@/thinking-lab/angle/passChecklist";
 import { runIdeaChecks } from "@/thinking-lab/idea/check/run";
 import { askBatchGates, buildBatchGatePrompt, isUndecided, parseBatchGates } from "@/thinking-lab/shared/batchGates";
 
@@ -107,8 +107,7 @@ describe("runners with batch on", () => {
 
   it("checks an Angle in one call, keeping the subject and example checks that need no model", async () => {
     const model = batchModel({ rightSize: "Terlalu luas." });
-    const result = await runAngleIndividualChecks({
-      batch: true,
+    const result = await runAngleChecks({
       statement: "Orang bayar mahal buat suasana steakhouse, padahal yang diingat rasa dagingnya.",
       parentStatement: "Steakhouse",
       subject: "rasa daging yang diingat",

@@ -2,26 +2,35 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ANGLE_PASS_CHECK_IDS,
   angleChecksFromStored,
+  buildAngleBatchPrompt,
   buildAnglePassPrompt,
-  finishAngleSiblingCheck,
-  fixPriorForNextAngleStatement,
+  firstAngleFailure,
   parseAnglePassCheck,
   readAngleCheckId,
-  readAngleGeneratePasses,
-  runAngleAdmissionChecks,
-  runAngleIndividualChecks,
-  runAngleOpenChecks,
+  runAngleChecks,
 } from "@/thinking-lab/angle/passChecklist";
 import { parseCheckSettings } from "@/thinking-lab/shared/checkSettings";
-
-/** vi.fn() mocks declared without params record calls as `[]`; read them with the real arg types. */
-const callsOf = <T extends unknown[]>(fn: { mock: { calls: unknown[] } }) => fn.mock.calls as unknown as T[];
 
 const parent = "Pilihan makan siang";
 const statement = "Menu kantor terlihat murah karena porsinya kecil";
 const subject = "Porsi kecil yang terasa murah";
 const example = "Karyawan pesan dua bungkus nasi kantor karena satu porsi tidak cukup.";
-const pass = '{"pass":true,"reason":""}';
+
+/** Answers a batched prompt with one verdict per listed id, and a single check with pass unless listed in fail. */
+function model(fail: Record<string, string> = {}) {
+  const prompts: string[] = [];
+  const ask = vi.fn(async (prompt: string) => {
+    prompts.push(prompt);
+    const listed = /check id: ([^\n]+)\./.exec(prompt);
+    if (listed) {
+      const ids = listed[1].split(", ");
+      return JSON.stringify({ checks: ids.map((id) => ({ id, pass: !fail[id], reason: fail[id] ?? "" })) });
+    }
+    const single = Object.keys(fail).find((id) => prompt.startsWith("Decide one Angle pass check") && prompt.includes(`"${id}"`));
+    return single ? JSON.stringify({ pass: false, reason: fail[single] }) : '{"pass":true,"reason":""}';
+  });
+  return { ask, prompts };
+}
 
 describe("angle pass checklist", () => {
   it("has six checks in the order they run", () => {
@@ -37,15 +46,22 @@ describe("angle pass checklist", () => {
         ancestors: [{ label: "Big Thought", statement: "Penyedia membeli bahan dalam jumlah besar." }],
         subject,
         example,
+        peers: [{ code: "AN01", statement: "Antrean panjang dianggap tanda enak" }],
       });
     expect(prompt("stakeHolds")).toContain("distinctive stake of this Territory");
     expect(prompt("stakeHolds")).toContain("Big Thought: Penyedia membeli bahan dalam jumlah besar.");
     expect(prompt("observation")).toContain("rarely noticed, a contradiction, or a tension");
-    expect(prompt("observation")).toContain("because-reason");
-    expect(prompt("rightSize")).toContain("narrower than the Territory");
     expect(prompt("rightSize")).toContain("several semantically distinct Ideas");
     expect(prompt("ownSubject")).toContain(`Subject: ${subject}`);
     expect(prompt("livedExample")).toContain(`Example: ${example}`);
+    expect(prompt("siblingsDistinct")).toContain("different observation from every other Angle");
+    expect(prompt("siblingsDistinct")).toContain("AN01: Antrean panjang dianggap tanda enak");
+    expect(prompt("observation")).not.toContain("AN01:");
+  });
+
+  it("lists every asked check id in the batch prompt", () => {
+    const prompt = buildAngleBatchPrompt({ statement, parentStatement: parent, ids: ["stakeHolds", "rightSize"] });
+    expect(prompt).toContain("exactly one entry for each check id: stakeHolds, rightSize.");
   });
 
   it("reads the eight earlier check ids as the six", () => {
@@ -55,9 +71,6 @@ describe("angle pass checklist", () => {
     expect(readAngleCheckId("severalIdeas")).toBe("rightSize");
     expect(readAngleCheckId("ownSubject")).toBe("ownSubject");
     expect(readAngleCheckId("nope")).toBeNull();
-    expect(readAngleGeneratePasses(["observationJob", "observationShape"])).toEqual(["observation"]);
-    expect(readAngleGeneratePasses(["observationJob"])).toEqual([]);
-    expect(readAngleGeneratePasses(["observation"])).toEqual(["observation"]);
   });
 
   it("turns a new check ON when any switch it replaced was ON", () => {
@@ -68,16 +81,14 @@ describe("angle pass checklist", () => {
     expect(parseCheckSettings({ "angle.observationShape": false })).toEqual({});
   });
 
-  it("shows a stored result saved under an old id on the check that replaced it", () => {
-    const checks = angleChecksFromStored({
-      generatePasses: ["observationJob", "observationShape"],
-      gateFailure: { gate: "clearBoundary", reason: "Terlalu luas." },
-    });
+  it("shows a stored result, also one saved under an old id", () => {
+    const checks = angleChecksFromStored({ gateFailure: { gate: "clearBoundary", reason: "Terlalu luas." } });
     expect(checks.find((check) => check.id === "stakeHolds")?.state).toBe("pass");
     expect(checks.find((check) => check.id === "observation")?.state).toBe("pass");
     expect(checks.find((check) => check.id === "rightSize")).toMatchObject({ state: "fail", reason: "Terlalu luas." });
     expect(checks.find((check) => check.id === "ownSubject")?.state).toBe("pending");
     expect(angleChecksFromStored({ passed: true }).every((check) => check.state === "pass")).toBe(true);
+    expect(angleChecksFromStored({})).toEqual([]);
   });
 
   it("treats an undecided answer as a failure", () => {
@@ -89,107 +100,83 @@ describe("angle pass checklist", () => {
     });
   });
 
-  it("Generate asks only the observation check, and asks again once when undecided", async () => {
-    const ask = vi.fn().mockResolvedValueOnce("not json").mockResolvedValueOnce(pass);
-    const result = await runAngleAdmissionChecks({ statement, parentStatement: parent, ask, onStep: () => undefined });
-    expect(result).toEqual({ checks: [{ id: "observation", state: "pass" }], passed: true });
-    expect(ask).toHaveBeenCalledTimes(2);
-    expect(callsOf<[string]>(ask)[0]?.[0]).toContain("rarely noticed");
-  });
-
-  it("stops at the first failed check and does not ask the later ones", async () => {
-    const ask = vi.fn(async (prompt: string) =>
-      prompt.includes("narrower than the Territory") ? '{"pass":false,"reason":"Sudah satu Idea."}' : pass,
-    );
+  it("asks every open check in one call and stops at the first failure", async () => {
+    const { ask } = model({ rightSize: "Sudah satu Idea." });
     const seen: string[] = [];
-    const result = await runAngleIndividualChecks({
+    const result = await runAngleChecks({
       statement,
       parentStatement: parent,
       subject,
       example,
       ask,
       onStep: (checks) => {
-        const current = checks.find((check) => check.state === "running" || check.state === "fail");
+        const current = checks.find((check) => check.state === "fail");
         if (current) seen.push(`${current.id}:${current.state}`);
       },
     });
-    expect(ask).toHaveBeenCalledTimes(3);
+    expect(ask).toHaveBeenCalledTimes(1);
     expect(result.passed).toBe(false);
     expect(result.checks.find((check) => check.id === "rightSize")).toMatchObject({ state: "fail", reason: "Sudah satu Idea." });
     expect(result.checks.find((check) => check.id === "ownSubject")?.state).toBe("pending");
+    expect(firstAngleFailure(result.checks)).toEqual({ gate: "rightSize", reason: "Sudah satu Idea." });
     expect(seen).toContain("rightSize:fail");
-    expect(finishAngleSiblingCheck(result.checks, true, "").find((check) => check.id === "siblingsDistinct")?.state).toBe("pending");
   });
 
-  it("does not ask the carried Generate pass again, nor a check switched OFF", async () => {
-    const ask = vi.fn(async () => pass);
-    const result = await runAngleIndividualChecks({
+  it("does not ask a check switched OFF or kept from an earlier pass", async () => {
+    const { ask, prompts } = model();
+    const result = await runAngleChecks({
       statement,
       parentStatement: parent,
       subject,
       example,
-      carried: ["observation"],
       skip: ["stakeHolds"],
+      keep: ["observation"],
       ask,
-      onStep: () => undefined,
     });
     expect(result.passed).toBe(true);
-    const prompts = callsOf<[string]>(ask).map(([prompt]) => prompt);
-    expect(prompts.some((prompt) => prompt.includes("rarely noticed"))).toBe(false);
-    expect(prompts.some((prompt) => prompt.includes("distinctive stake"))).toBe(false);
-    expect(prompts).toHaveLength(3);
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain("check id: rightSize, ownSubject, livedExample.");
   });
 
-  it("re-asks only the failed check when the others already passed", async () => {
-    const ask = vi.fn(async () => pass);
-    const result = await runAngleOpenChecks({
+  it("fails an empty subject without asking the checks after it", async () => {
+    const { ask, prompts } = model();
+    const result = await runAngleChecks({ statement, parentStatement: parent, subject: "", example, ask });
+    expect(result.checks.find((check) => check.id === "ownSubject")?.state).toBe("fail");
+    expect(result.checks.find((check) => check.id === "livedExample")?.state).toBe("pending");
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain("check id: stakeHolds, observation, rightSize.");
+  });
+
+  it("passes the sibling check with no other Angle, and fails a repeat of one without asking", async () => {
+    const first = model();
+    const alone = await runAngleChecks({ statement, parentStatement: parent, subject, example, ask: first.ask });
+    expect(alone.passed).toBe(true);
+    expect(first.prompts.some((prompt) => prompt.includes("siblingsDistinct"))).toBe(false);
+
+    const second = model();
+    const repeat = await runAngleChecks({
       statement,
       parentStatement: parent,
       subject,
       example,
-      prior: [
-        { id: "stakeHolds", state: "pass" },
-        { id: "observation", state: "fail", reason: "Ini alasan karena." },
-        { id: "rightSize", state: "pass" },
-        { id: "ownSubject", state: "pass" },
-        { id: "livedExample", state: "pass" },
-      ],
-      ask,
-      onStep: () => undefined,
+      peers: [{ code: "AN01", statement }],
+      ask: second.ask,
     });
-    expect(ask).toHaveBeenCalledTimes(1);
-    expect(callsOf<[string]>(ask)[0]?.[0]).toContain("rarely noticed");
-    expect(result.passed).toBe(true);
+    expect(repeat.checks.find((check) => check.id === "siblingsDistinct")).toMatchObject({ state: "fail" });
+    expect(second.prompts.some((prompt) => prompt.includes("siblingsDistinct"))).toBe(false);
   });
 
-  it("fails an empty subject without asking the model", async () => {
-    const ask = vi.fn(async () => pass);
-    const result = await runAngleOpenChecks({
+  it("asks the sibling check with the other Angles listed", async () => {
+    const { ask, prompts } = model({ siblingsDistinct: "Sama dengan AN01." });
+    const result = await runAngleChecks({
       statement,
       parentStatement: parent,
-      subject: "",
+      subject,
       example,
-      prior: [
-        { id: "stakeHolds", state: "pass" },
-        { id: "observation", state: "pass" },
-        { id: "rightSize", state: "pass" },
-      ],
+      peers: [{ code: "AN01", statement: "Harga murah membuat orang ragu soal rasa" }],
       ask,
-      onStep: () => undefined,
     });
-    expect(ask).not.toHaveBeenCalled();
-    expect(result.checks.find((check) => check.id === "ownSubject")?.state).toBe("fail");
-  });
-
-  it("a new sentence loses the Generate pass only", () => {
-    const prior = [
-      { id: "observation" as const, state: "pass" as const },
-      { id: "stakeHolds" as const, state: "pass" as const },
-    ];
-    expect(fixPriorForNextAngleStatement(prior, "a", "b")).toEqual([
-      { id: "observation", state: "pending" },
-      { id: "stakeHolds", state: "pass" },
-    ]);
-    expect(fixPriorForNextAngleStatement(prior, "a", "A")).toEqual(prior);
+    expect(result.checks.find((check) => check.id === "siblingsDistinct")).toMatchObject({ state: "fail", reason: "Sama dengan AN01." });
+    expect(prompts[0]).toContain("AN01: Harga murah membuat orang ragu soal rasa");
   });
 });

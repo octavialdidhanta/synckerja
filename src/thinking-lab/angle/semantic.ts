@@ -1,4 +1,3 @@
-import { readAngleGeneratePasses } from "./passChecklist";
 import { normalizeAngleExample } from "./example";
 import { normalizeAngleSubject } from "./subject";
 import type {
@@ -213,7 +212,5 @@ export function normalizeAngleFacts(raw: unknown, fallbackCode = ""): AngleSeman
     example: normalizeAngleExample(asText(row.example)),
   };
   if (confidence !== undefined) facts.confidence = confidence;
-  const generatePasses = readAngleGeneratePasses(row.generatePasses);
-  if (generatePasses.length > 0) facts.generatePasses = generatePasses;
   return facts;
 }

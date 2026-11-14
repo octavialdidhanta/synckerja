@@ -25,8 +25,6 @@ export type AngleBoundedness = "BOUNDED" | "UNBOUNDED" | "UNRESOLVED";
 
 export type AngleJobForm = "OBSERVATION" | "REASON" | "TERRITORY_SUMMARY" | "UNRESOLVED";
 
-export type AngleGeneratePass = "observation";
-
 export type AngleResolution = "RESOLVED" | "UNRESOLVED";
 
 export type AngleSemanticFacts = {
@@ -41,37 +39,10 @@ export type AngleSemanticFacts = {
   resolution: AngleResolution;
   unresolvedReasons: string[];
   confidence?: number;
-  /** Present only when this exact sentence passed both Generate checks. */
-  generatePasses?: AngleGeneratePass[];
   /** Short name for the list. It is not the Territory's name. */
   subject?: string;
   /** One concrete situation that shows the observation. */
   example?: string;
-};
-
-export type AngleCoverage = "SUFFICIENT" | "MATERIAL_GAP" | "UNRESOLVED";
-
-export type AnglePair = {
-  angleCodeA: string;
-  angleCodeB: string;
-  explanation: string;
-};
-
-export type AngleContainment = {
-  containerCode: string;
-  containedCode: string;
-  explanation: string;
-};
-
-export type AngleSetFacts = {
-  fingerprint: string;
-  coreDistinct: AngleTriState;
-  materialOverlapPairs: AnglePair[];
-  containmentPairs: AngleContainment[];
-  coverage: AngleCoverage;
-  resolution: AngleResolution;
-  unresolvedReasons: string[];
-  confidence?: number;
 };
 
 export type AngleCandidate = {

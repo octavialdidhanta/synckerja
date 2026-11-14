@@ -74,13 +74,35 @@ describe("thinking.angle.add", () => {
     expect(result.saved).toBe(false);
     if (!result.saved) expect(result.failed[0].check).toBe("observation");
   });
+
+  it("compares the new Angle with the Angles that already passed", async () => {
+    const other = "Orang mengira bumbu tebal menutupi bau, padahal bau tetap ada di lemaknya.";
+    const rows = [{ id: "a1", code: "AN01", statement: other, status: "candidate", admission: "GENERATE_VALID", sort_order: 1, subject: "bumbu tebal" }];
+    const set = {
+      schema: "thinking-lab/angle-set/v1", auditLessons: [],
+      audit: { fingerprint: "", items: [{ code: "AN01", verdict: "AUDIT_PASS", statementFingerprint: angleFingerprint({ statement: other, territoryFingerprint: trFp }) }] },
+    };
+    const prompts: string[] = [];
+    const ask = answer((id) => id !== "siblingsDistinct");
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const result = await addThinkingAngle(fakeAdmin(context("locked", rows, set), calls), config, ctx, { territoryId: trId, ...angle }, {
+      checks: ALL_ON,
+      ask: async (prompt: string) => {
+        prompts.push(prompt);
+        return ask(prompt);
+      },
+    });
+    expect(result.saved).toBe(false);
+    if (!result.saved) expect(result.failed[0].check).toBe("siblingsDistinct");
+    expect(prompts.some((prompt) => prompt.includes(`AN01: ${other}`))).toBe(true);
+  });
 });
 
 describe("thinking.angle.lock", () => {
   it("locks passed Angles", async () => {
     const rows = [{ id: "a1", code: "AN01", statement: angle.statement, status: "candidate", admission: "GENERATE_VALID", sort_order: 1, subject: angle.subject }];
     const set = {
-      schema: "thinking-lab/angle-set/v1", repairCount: 0, siblingSet: null, auditLessons: [],
+      schema: "thinking-lab/angle-set/v1", auditLessons: [],
       audit: { fingerprint: "", items: [{ code: "AN01", verdict: "AUDIT_PASS", statementFingerprint: angleFingerprint({ statement: angle.statement, territoryFingerprint: trFp }) }] },
     };
     const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
