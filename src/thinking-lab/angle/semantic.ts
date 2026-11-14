@@ -1,8 +1,6 @@
 import { readAngleGeneratePasses } from "./passChecklist";
 import { normalizeAngleExample } from "./example";
 import { normalizeAngleSubject } from "./subject";
-import { parseModelJson } from "../shared/parseModelJson";
-import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
 import type {
   AngleBoundedness,
   AngleConceptualForm,
@@ -218,74 +216,4 @@ export function normalizeAngleFacts(raw: unknown, fallbackCode = ""): AngleSeman
   const generatePasses = readAngleGeneratePasses(row.generatePasses);
   if (generatePasses.length > 0) facts.generatePasses = generatePasses;
   return facts;
-}
-
-export function parseAngleJudge(script: string | null, code: string): AngleSemanticFacts {
-  if (!script?.trim()) return unresolvedAngle(code, "JUDGE_UNAVAILABLE");
-  const parsed = parseModelJson(script);
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return unresolvedAngle(code, "JUDGE_UNPARSEABLE");
-  return normalizeAngleFacts(parsed, code);
-}
-
-export function buildAngleJudgePrompt(input: {
-  parentStatement: string;
-  ancestors?: AncestorStake[];
-  candidate: { code: string; statement: string };
-}): string {
-  return [
-    "You are the canonical semantic judge for one Angle under one direct Territory.",
-    "An Angle raises an observation inside one Territory: something rarely noticed, a contradiction, or a tension that can make an audience think the observation is true.",
-    "The generative question is: what is rarely noticed about this Territory?",
-    "An Angle is not a reason. If the sentence fits smoothly into 'because ...', it is doing a Big Thought's job.",
-    "It is not yet the concrete concept used to make that observation happen.",
-    "Judge only this candidate against this direct Territory. Do not compare sibling Angles. Do not judge overlap, containment, set distinctness, coverage, or challenger completeness.",
-    "Judge semantic fit, not keyword overlap.",
-    "Return facts only. Do not decide relationToParent. Any relation you include is ignored.",
-    "parentFit is false when the candidate would still be coherent after the distinctive stake of this Territory or an ancestor is removed, even if it would be a coherent Angle elsewhere. Otherwise true, or unresolved when fit cannot be decided.",
-    "A new framing is allowed. Do not copy the Territory or the ancestors.",
-    "conceptualForm is ANGLE_PROPOSITION when the candidate is an observation, contradiction, or tension inside the Territory. ANGLE_PROPOSITION here means that observation, not an argumentative proposition. It must be narrower than the Territory and broader than an Idea.",
-    "conceptualForm is TERRITORY_LIKE when it is a topic, domain, label, category, or broad conceptual conversation space.",
-    "conceptualForm is BIG_THOUGHT_LIKE when its primary role is a belief or strategic support proposition that belongs higher in the hierarchy.",
-    "conceptualForm is IDEA_LIKE when it already defines a concrete creative concept or concept mechanism.",
-    "conceptualForm is EXECUTION_LIKE when it already defines a format, scene, channel, shot, medium, production form, or realization.",
-    "conceptualForm is UNRESOLVED when the role cannot be decided.",
-    "ideaGenerativity is a preliminary note only. A later review owns the final idea-generativity status. Return SUFFICIENT, INSUFFICIENT, or UNRESOLVED.",
-    "boundedness is BOUNDED when the observation keeps a useful boundary. UNBOUNDED means it is too vague or broad. UNRESOLVED means that cannot be decided.",
-    "jobForm is OBSERVATION when the candidate is something rarely noticed, a contradiction, or a tension. REASON when it fits smoothly as a because-clause that supports a belief. TERRITORY_SUMMARY when it only restates the Territory. UNRESOLVED when the job cannot be decided.",
-    "If the observation is true, part of the parent Big Thought's reason should become felt. That is parentFit, not a second belief.",
-    "confidence is optional debug metadata. It does not decide any fact.",
-    "Write whatItSays in the same language as the Territory.",
-    "Use unresolvedReasons only when a required fact cannot be decided. Do not explain a clear rejection there.",
-    "Return JSON only:",
-    JSON.stringify({
-      code: input.candidate.code,
-      whatItSays: "",
-      parentFit: "unresolved",
-      conceptualForm: "UNRESOLVED",
-      ideaGenerativity: "UNRESOLVED",
-      boundedness: "UNRESOLVED",
-      jobForm: "UNRESOLVED",
-      unresolvedReasons: [],
-      confidence: 0,
-    }),
-    "",
-    "Direct Territory:",
-    input.parentStatement.trim(),
-    ...ancestorStakeBlock(input.ancestors),
-    "",
-    "Candidate Angle:",
-    `${input.candidate.code}: ${input.candidate.statement.trim()}`,
-  ].join("\n");
-}
-
-export async function judgeAngle(
-  input: {
-    parentStatement: string;
-    ancestors?: AncestorStake[];
-    candidate: { code: string; statement: string };
-  },
-  ask: (prompt: string) => Promise<string | null>,
-): Promise<AngleSemanticFacts> {
-  const script = await ask(buildAngleJudgePrompt(input));
-  return parseAngleJudge(script, input.candidate.code);
 }

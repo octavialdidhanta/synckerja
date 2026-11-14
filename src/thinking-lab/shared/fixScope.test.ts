@@ -61,11 +61,11 @@ describe("fix scope", () => {
 
   it("tells an observation failure to keep the observation and drop the because-reason", () => {
     const lines = fixScopeLines({
-      preserve: ["stakeHolds", "observationShape", "severalIdeas", "clearBoundary"],
-      repair: [{ id: "observationJob", reason: "the sentence explains why eating out feels cheaper" }],
+      preserve: ["stakeHolds", "rightSize"],
+      repair: [{ id: "observation", reason: "the sentence explains why eating out feels cheaper" }],
     }).join("\n");
-    expect(lines).toContain("Remove only the because-reason or the restatement of the parent.");
-    expect(lines).toContain("observationJob: the sentence explains why eating out feels cheaper");
+    expect(lines).toContain("Turn only the because-reason, the label, or the restatement of the parent into an observation");
+    expect(lines).toContain("observation: the sentence explains why eating out feels cheaper");
   });
 
   it("tells a stake failure to replace the scene and depend on that stake", () => {

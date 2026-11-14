@@ -91,6 +91,8 @@ describe("master thought belief options", () => {
     expect(prompt).toContain("Every belief must meet each of these rules:");
     expect(prompt).toContain("tepat satu klaim");
     expect(prompt).toContain("nama merek, toko, atau penyedia");
+    expect(prompt).toContain('"disini"');
+    expect(prompt).toContain("bukan nama");
     expect(prompt).toContain("Ternyata is optional");
     expect(prompt).toContain("Stay inside the shift");
     expect(prompt).toContain(planted);

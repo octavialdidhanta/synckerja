@@ -157,7 +157,6 @@ import { judgeSiblingSet } from "@/thinking-lab/big-thought/semantic";
 import type { BigThoughtFacts, LabSetRecord } from "@/thinking-lab/big-thought/types";
 import { useBigThoughts, useLockedLabTree } from "@/thinking-lab/big-thought/useBigThoughts";
 import { canShowGenerateAngle } from "@/thinking-lab/angle/eligibility";
-import { angleChallengerCanRun, buildAngleChallengerPrompt, coverageFromAngleChallenger, parseAngleChallenger } from "@/thinking-lab/angle/challenger";
 import {
   angleReplacementPasses,
   buildAngleExamplePrompt,
@@ -180,10 +179,7 @@ import {
   type AnglePassCheck,
 } from "@/thinking-lab/angle/passChecklist";
 import {
-  buildAngleGapPrompt,
-  judgeAndSealAngle,
   nextAngleCode,
-  parseGeneratedAngleDrafts,
   proposeAngleStatements,
   runAngleGenerate,
   shownAngleFacts,
@@ -196,7 +192,6 @@ import { loadAngleParentGate, loadAngleSet, saveAngleSet } from "@/thinking-lab/
 import {
   angleFailureLessons,
   angleSetIsCurrent,
-  applyAngleChallengerCoverage,
   angleCodesHeldPass,
   buildAngleSiblingPrompt,
   emptyAngleSetRecord,
@@ -1121,16 +1116,7 @@ export function ThinkingLabPage() {
     }
     return rescoredAngleAudit?.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict ?? null;
   });
-  const angleChallengerCurrent = fingerprintsMatch(angleSet.data?.challenger?.fingerprint, angleFingerprintNow);
-  const angleChallenger = angleChallengerCurrent ? (angleSet.data?.challenger?.result ?? null) : null;
-  const angleLock = evaluateAngleLock({
-    verdicts: angleVerdicts,
-    challenger: angleChallenger,
-    challengerCurrent: angleChallengerCurrent && angleChallenger?.status === "COMPLETE",
-  });
-  const angleMaterialGap = Boolean(
-    angleChallenger?.status === "MATERIAL_GAP" && angleChallenger.materialGapDescription?.trim(),
-  );
+  const angleLock = evaluateAngleLock({ verdicts: angleVerdicts });
   const angleExampleOpen = admittedAngles.some((row) =>
     Boolean(angleExampleProblem(row.canonicalSemantic.example ?? "", row.statement)),
   );
@@ -1169,11 +1155,6 @@ export function ThinkingLabPage() {
   const angleStage = selectAngleStage({
     admittedCount: admittedAngles.length,
     verdicts: angleVerdicts,
-    challengerComplete: Boolean(
-      angleChallenger && angleChallenger.status === "COMPLETE" && angleChallenger.unresolvedReasons.length === 0,
-    ),
-    materialGap: angleMaterialGap,
-    canAdd: admittedAngles.length < ACTIVE_SET_CAP,
     repairsUsed: (angleSet.data?.repairCount ?? 0) > 0,
     lockOk: angleLock.ok && !angleExampleOpen,
   });
@@ -1183,9 +1164,6 @@ export function ThinkingLabPage() {
           ...storedAngleSet.materialOverlapPairs.map((pair) => `${pair.angleCodeA} · ${pair.angleCodeB}: ${pair.explanation}`),
           ...storedAngleSet.containmentPairs.map((pair) => `${pair.containerCode} · ${pair.containedCode}: ${pair.explanation}`),
         ]
-      : []),
-    ...(angleChallenger?.status === "MATERIAL_GAP" && angleChallenger.materialGapDescription
-      ? [angleChallenger.materialGapDescription]
       : []),
     ...(angleVerdicts.some((verdict) => verdict === "AUDIT_FAIL") && (angleSet.data?.repairCount ?? 0) > 0
       ? [t("thinkingLab.angle.repairStopped", "Fix already ran once. This set stays open until an audit passes.")]
@@ -2315,7 +2293,7 @@ export function ThinkingLabPage() {
                 .map((row) => ({
                   code: row.code,
                   statement: row.statement,
-                  reason: "observationJob: This sentence already failed.",
+                  reason: "observation: This sentence already failed.",
                 })),
             ],
             needed: plan.needed,
@@ -2324,26 +2302,16 @@ export function ThinkingLabPage() {
           return drafts.filter((draft) => !bannedNames.has(draft.statement.trim().toLowerCase()));
         },
         judge: async (parent, code, statement) => {
-          const failFacts = async (relation: "BIG_THOUGHT_LIKE" | "IDEA_LIKE", reason: string) => {
+          const failFacts = async (reason: string) => {
             await rememberGenerateLesson({ code, statement, reason });
-            return { ...shownAngleFacts(code, statement), relationToParent: relation };
+            return { ...shownAngleFacts(code, statement), relationToParent: "BIG_THOUGHT_LIKE" as const };
           };
           if (bannedNames.has(statement.trim().toLowerCase())) {
             const repeated = learned.find(
               (lesson) => lesson.statement.trim().toLowerCase() === statement.trim().toLowerCase(),
             );
-            const gate = repeated?.reason.split(":")[0]?.trim();
-            publishLive(
-              angleAdmissionChecks(
-                gate === "observationShape"
-                  ? { id: "observationShape", reason: repeated?.reason ?? "" }
-                  : { id: "observationJob", reason: repeated?.reason || "This sentence already failed." },
-              ),
-            );
-            return failFacts(
-              gate === "observationShape" ? "IDEA_LIKE" : "BIG_THOUGHT_LIKE",
-              repeated?.reason || "observationJob: This sentence already failed.",
-            );
+            publishLive(angleAdmissionChecks({ id: "observation", reason: repeated?.reason || "This sentence already failed." }));
+            return failFacts(repeated?.reason || "observation: This sentence already failed.");
           }
           const checked = await runAngleAdmissionChecks({
             skip: skipFor("angle"),
@@ -2356,14 +2324,13 @@ export function ThinkingLabPage() {
           });
           if (!checked.passed) {
             const failedCheck = checked.checks.find((check) => check.state === "fail");
-            const gate = failedCheck?.id === "observationShape" ? "observationShape" : "observationJob";
             const reason = failedCheck?.reason?.trim() || "This check could not be decided.";
-            return failFacts(gate === "observationShape" ? "IDEA_LIKE" : "BIG_THOUGHT_LIKE", `${gate}: ${reason}`);
+            return failFacts(`observation: ${reason}`);
           }
           publishAngleChecklist(code, checked.checks);
           return {
             ...shownAngleFacts(code, statement),
-            generatePasses: ["observationJob", "observationShape"],
+            generatePasses: ["observation"],
           };
         },
         persist: async ({ parent, code, statement, facts, admission }) => {
@@ -2385,7 +2352,7 @@ export function ThinkingLabPage() {
             sortOrder: sort,
             facts: {
               ...facts,
-              generatePasses: ["observationJob", "observationShape"],
+              generatePasses: ["observation"],
             },
             admission,
           });
@@ -2823,26 +2790,28 @@ export function ThinkingLabPage() {
       if (!focusedTerritory || !parentFp) return null;
       const row = (labAngles.data ?? []).find((item) => item.id === id && item.territoryId === focusedTerritory.id);
       if (!row || row.status !== "candidate") return null;
-      const facts = await judgeAndSealAngle({
+      // Same check as Generate: the observation. The other checks run at Audit.
+      const checked = await runAngleAdmissionChecks({
+        skip: skipFor("angle"),
+        batch: true,
+        statement,
         parentStatement: focusedTerritory.statement,
         ancestors: angleAncestors,
-        code: row.code,
-        statement,
         ask: (prompt) => askThinkingLab(prompt, 0),
+        onStep: () => undefined,
       });
-      const admission = admitAngle(facts);
-      const rejection = manualRejection({
-        admission,
-        relation: facts.relationToParent,
-        reasons: facts.unresolvedReasons,
-      });
-      if (rejection) return rejection;
+      if (!checked.passed) {
+        return checked.checks.find((check) => check.state === "fail")?.reason?.trim() || "This check could not be decided.";
+      }
       await labAngles.replace.mutateAsync({
         territoryId: focusedTerritory.id,
         id,
         statement,
-        facts,
-        admission,
+        facts: {
+          ...shownAngleFacts(row.code, statement, row.canonicalSemantic.subject ?? "", row.canonicalSemantic.example ?? ""),
+          generatePasses: ["observation"],
+        },
+        admission: "GENERATE_VALID",
       });
       await angleSet.save.mutateAsync({
         ...emptyAngleSetRecord(),
@@ -5392,7 +5361,7 @@ export function ThinkingLabPage() {
             ...row.canonicalSemantic,
             ...shownAngleFacts(row.code, statement, subject, example),
             code: row.code,
-            generatePasses: ["observationJob", "observationShape"],
+            generatePasses: ["observation"],
           },
           admission: "GENERATE_VALID",
         });
@@ -5462,7 +5431,7 @@ export function ThinkingLabPage() {
           livePassed.length > 0
             ? livePassed
             : storedPass
-              ? ["stakeHolds", "observationShape", "severalIdeas", "clearBoundary", "observationJob", "siblingsDistinct"]
+              ? ["stakeHolds", "observation", "rightSize", "siblingsDistinct"]
               : [];
         scope = {
           preserve: [...new Set([...scope.preserve, ...passed])],
@@ -5481,10 +5450,8 @@ export function ThinkingLabPage() {
             : storedPass
               ? [
                   "stakeHolds",
-                  "observationShape",
-                  "severalIdeas",
-                  "clearBoundary",
-                  "observationJob",
+                  "observation",
+                  "rightSize",
                   "ownSubject",
                   "siblingsDistinct",
                 ]
@@ -5780,99 +5747,6 @@ export function ThinkingLabPage() {
   const onAngleStage = () =>
     run(async () => {
       if (!focusedTerritory || !masters.organizationId || !parentFp || admittedAngles.length === 0) return;
-      if (angleStage === "generate" && angleChallenger?.materialGapDescription) {
-        const known = (labAngles.data ?? []).filter((row) => row.territoryId === focusedTerritory.id);
-        if (admittedAngles.length >= ACTIVE_SET_CAP) return;
-        const setRecord = angleSet.data ?? emptyAngleSetRecord();
-        const learned = [...setRecord.auditLessons];
-        const bannedNames = new Set(
-          [
-            ...learned.map((lesson) => lesson.statement.trim().toLowerCase()),
-            ...known
-              .filter((row) => row.admission === "GENERATE_REJECT")
-              .map((row) => row.statement.trim().toLowerCase()),
-          ].filter(Boolean),
-        );
-        const script = await askThinkingLab(
-          buildAngleGapPrompt({
-            parentStatement: focusedTerritory.statement,
-            ancestors: angleAncestors,
-            incumbents: known
-              .filter((row) => row.admission === "GENERATE_VALID")
-              .map((row) => ({ code: row.code, statement: row.statement })),
-            lessons: [
-              ...learned,
-              ...known
-                .filter(
-                  (row) =>
-                    row.admission === "GENERATE_REJECT" &&
-                    !learned.some((lesson) => lesson.statement.trim().toLowerCase() === row.statement.trim().toLowerCase()),
-                )
-                .map((row) => ({
-                  code: row.code,
-                  statement: row.statement,
-                  reason: "observationJob: This sentence already failed.",
-                })),
-            ],
-            gap: angleChallenger.materialGapDescription,
-          }),
-          0.2,
-        );
-        const draft = parseGeneratedAngleDrafts(parseModelJson(script))[0];
-        if (!draft?.statement || bannedNames.has(draft.statement.trim().toLowerCase())) return;
-        const code = nextAngleCode((labAngles.data ?? []).map((row) => row.code));
-        const checked = await runAngleAdmissionChecks({
-          skip: skipFor("angle"),
-          batch: true,
-          statement: draft.statement,
-          parentStatement: focusedTerritory.statement,
-          ancestors: angleAncestors,
-          ask: (prompt) => askThinkingLab(prompt, 0),
-          onStep: (checks) =>
-            setAngleGenerateRun({
-              territoryId: focusedTerritory.id,
-              checks,
-              report: null,
-            }),
-        });
-        if (!checked.passed) {
-          const failedCheck = checked.checks.find((check) => check.state === "fail");
-          const gate = failedCheck?.id === "observationShape" ? "observationShape" : "observationJob";
-          const reason = failedCheck?.reason?.trim() || "This check could not be decided.";
-          await saveAngleSet({
-            organizationId: masters.organizationId,
-            territoryId: focusedTerritory.id,
-            record: {
-              ...setRecord,
-              auditLessons: mergeAngleAuditLessons(setRecord.auditLessons, [
-                { code, statement: draft.statement, reason: `${gate}: ${reason}` },
-              ]),
-            },
-          });
-          await queryClient.invalidateQueries({
-            queryKey: ["thinking-lab-angle-set", masters.organizationId, focusedTerritory.id],
-          });
-          return;
-        }
-        const facts: AngleSemanticFacts = {
-          ...shownAngleFacts(code, draft.statement, draft.subject, draft.example),
-          generatePasses: ["observationJob", "observationShape"],
-        };
-        const sort = known.reduce((max, row) => Math.max(max, row.sortOrder), 0) + 1;
-        await labAngles.insert.mutateAsync({
-          territoryId: focusedTerritory.id,
-          expectedBigThoughtId: focusedTerritory.bigThoughtId,
-          masterThoughtFingerprint: parentFp,
-          code,
-          statement: draft.statement,
-          sortOrder: sort,
-          facts,
-          admission: admitAngle(facts),
-        });
-        publishAngleChecklist(code, checked.checks);
-        setAngleGenerateRun(null);
-        return;
-      }
       if (angleStage === "fix") {
         await repairFailedAngles();
         return;
@@ -6001,27 +5875,6 @@ export function ThinkingLabPage() {
           audit: { fingerprint: angleFingerprintNow, items },
           challenger: null,
           auditLessons: mergeAngleAuditLessons(angleSet.data?.auditLessons ?? [], lessons),
-        });
-        return;
-      }
-      if (angleStage === "challenger") {
-        if (!angleChallengerCanRun(angleVerdicts.flatMap((verdict) => (verdict ? [verdict] : [])))) return;
-        const script = await askThinkingLab(
-          buildAngleChallengerPrompt({
-            parentStatement: focusedTerritory.statement,
-            rows: admittedAngles.map((row) => ({ code: row.code, statement: row.statement })),
-          }),
-          0,
-        );
-        const result = parseAngleChallenger(script);
-        const siblingSet = storedAngleSet ? applyAngleChallengerCoverage(storedAngleSet, coverageFromAngleChallenger(result)) : null;
-        await angleSet.save.mutateAsync({
-          schema: "thinking-lab/angle-set/v1",
-          repairCount: angleSet.data?.repairCount ?? 0,
-          siblingSet,
-          audit: angleSet.data?.audit ?? null,
-          challenger: { fingerprint: angleFingerprintNow, result },
-          auditLessons: angleSet.data?.auditLessons ?? [],
         });
         return;
       }
@@ -7423,6 +7276,119 @@ export function ThinkingLabPage() {
     navigate(`/digital-marketing/social-media/${newTab}`);
   };
 
+  const composerForm = (
+    <div
+      className={cn(
+        "scrollbar-hide flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+      )}
+    >
+    <div className="shrink-0">
+      <h2 className="text-2xl font-bold leading-tight tracking-tight text-foreground">
+        {t("thinkingLab.composer.headline", "Master Thought baru")}
+      </h2>
+      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        {t(
+          "thinkingLab.composer.lead",
+          "Pilih kategori, lalu tulis keyakinan lama dan keyakinan barunya.",
+        )}
+      </p>
+    </div>
+    <div className="shrink-0 space-y-1 text-sm font-medium text-foreground">
+      {t("thinkingLab.catalog.label", "Kategori")}
+      <MasterCatalogPicker
+        value={newCatalog}
+        catalogs={catalogs.data ?? []}
+        disabled={busy}
+        onChange={setNewCatalog}
+      />
+      <ProductBeliefSource
+        link={newCatalog}
+        catalogs={catalogs.data ?? []}
+        disabled={busy}
+        onPoolChange={setReasonPool}
+        onApply={(draft) => {
+          setNewPrior(draft.priorBelief);
+          setNewPlanted(draft.plantedBelief);
+          setNewAudience(draft.audience);
+        }}
+      />
+    </div>
+    <label className="shrink-0 space-y-1 text-sm font-medium text-foreground">
+      {t("thinkingLab.master.prior", "Old belief (false belief)")}
+    <Textarea
+        value={newPrior}
+        onChange={(event) => setNewPrior(event.target.value)}
+        rows={2}
+        className="mt-1 font-normal"
+        placeholder={t(
+          "thinkingLab.master.priorPlaceholder",
+          "Example: the fastest bike is the most important thing to chase right now",
+        )}
+      />
+    </label>
+    <label className="shrink-0 space-y-1 text-sm font-medium text-foreground">
+      {t("thinkingLab.master.planted", "New belief (belief shift)")}
+      <Textarea
+        value={newPlanted}
+        onChange={(event) => setNewPlanted(event.target.value)}
+        rows={2}
+        className="mt-1 font-normal"
+        placeholder={t(
+          "thinkingLab.master.plantedPlaceholder",
+          "Example: money while young is more valuable when saved",
+        )}
+      />
+    </label>
+    <label className="shrink-0 space-y-1 text-sm font-medium text-foreground">
+      {t("thinkingLab.master.audience", "Target audience (optional)")}
+      <Textarea
+        value={newAudience}
+        onChange={(event) => setNewAudience(event.target.value)}
+        rows={2}
+        className="mt-1 font-normal"
+        placeholder={t(
+          "thinkingLab.master.audiencePlaceholder",
+          "Example: teenage boys who love motorbikes",
+        )}
+      />
+    </label>
+    <Button
+      type="button"
+      className="shrink-0"
+      onClick={onCreate}
+      disabled={
+        busy ||
+        !newCatalog.serviceId ||
+        !newPrior.trim() ||
+        !newPlanted.trim() ||
+        beliefsMatch(newPrior, newPlanted)
+      }
+      aria-busy={busyAction === "save-master" || undefined}
+    >
+      {busyAction === "save-master" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+      {t("thinkingLab.action.saveMaster", "Simpan Master Thought")}
+    </Button>
+    </div>
+  );
+  const savedMasterList = (
+    <SavedMasterThoughtList
+      masters={masters.data ?? []}
+      catalogs={catalogs.data ?? []}
+      catalogPending={masters.saveCatalog.isPending}
+      onSaveCatalog={(id, catalog) => {
+        void masters.saveCatalog.mutateAsync({ id, catalog });
+      }}
+      onOpen={(id) => {
+        const row = masters.data?.find((item) => item.id === id);
+        closeComposer();
+        skipAutoSelect.current = false;
+        setSelectedId(id);
+        setFocus(row?.mtStatus === "locked" ? { kind: "master", masterId: id } : null);
+      }}
+      onDelete={(id) => setPendingDelete({ kind: "master", id })}
+    />
+  );
+
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
       <div className={cn("flex min-h-0 min-w-0 w-full flex-1", !showContent && "pointer-events-none invisible select-none")} aria-hidden={!showContent}>
@@ -7498,92 +7464,7 @@ export function ThinkingLabPage() {
                             </div>
                           ) : null}
                           {showComposer ? (
-                          <div className="scrollbar-hide flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                          <div className="shrink-0">
-                            <h2 className="text-3xl font-bold leading-tight tracking-tight text-foreground">
-                              {t("thinkingLab.composer.headline", "Dari keyakinan lama ke peta ide konten")}
-                            </h2>
-                            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                              {t(
-                                "thinkingLab.composer.lead",
-                                "Tulis keyakinan yang mau digeser dan keyakinan yang mau ditanamkan. Mulai dari Master Thought, lalu turunkan level demi level sampai Idea, mengikuti Framework MT sampai Execution v1.0.",
-                              )}
-                            </p>
-                          </div>
-                          <ProductBeliefSource
-                            disabled={busy}
-                            onPoolChange={setReasonPool}
-                            onApply={(draft) => {
-                              setNewPrior(draft.priorBelief);
-                              setNewPlanted(draft.plantedBelief);
-                              setNewAudience(draft.audience);
-                            }}
-                          />
-                          <div className="shrink-0 space-y-1 text-sm font-medium text-foreground">
-                            {t("thinkingLab.catalog.label", "Kategori katalog")}
-                            <MasterCatalogPicker
-                              value={newCatalog}
-                              catalogs={catalogs.data ?? []}
-                              disabled={busy}
-                              onChange={setNewCatalog}
-                            />
-                          </div>
-                          <label className="shrink-0 space-y-1 text-sm font-medium text-foreground">
-                            {t("thinkingLab.master.prior", "Old belief (false belief)")}
-                          <Textarea
-                              value={newPrior}
-                              onChange={(event) => setNewPrior(event.target.value)}
-                              rows={2}
-                              className="mt-1 font-normal"
-                              placeholder={t(
-                                "thinkingLab.master.priorPlaceholder",
-                                "Example: the fastest bike is the most important thing to chase right now",
-                              )}
-                            />
-                          </label>
-                          <label className="shrink-0 space-y-1 text-sm font-medium text-foreground">
-                            {t("thinkingLab.master.planted", "New belief (belief shift)")}
-                            <Textarea
-                              value={newPlanted}
-                              onChange={(event) => setNewPlanted(event.target.value)}
-                              rows={2}
-                              className="mt-1 font-normal"
-                              placeholder={t(
-                                "thinkingLab.master.plantedPlaceholder",
-                                "Example: money while young is more valuable when saved",
-                              )}
-                            />
-                          </label>
-                          <label className="shrink-0 space-y-1 text-sm font-medium text-foreground">
-                            {t("thinkingLab.master.audience", "Target audience (optional)")}
-                            <Textarea
-                              value={newAudience}
-                              onChange={(event) => setNewAudience(event.target.value)}
-                              rows={2}
-                              className="mt-1 font-normal"
-                              placeholder={t(
-                                "thinkingLab.master.audiencePlaceholder",
-                                "Example: teenage boys who love motorbikes",
-                              )}
-                            />
-                          </label>
-                          <Button
-                            type="button"
-                            className="shrink-0"
-                            onClick={onCreate}
-                            disabled={
-                              busy ||
-                              !newCatalog.serviceId ||
-                              !newPrior.trim() ||
-                              !newPlanted.trim() ||
-                              beliefsMatch(newPrior, newPlanted)
-                            }
-                            aria-busy={busyAction === "save-master" || undefined}
-                          >
-                            {busyAction === "save-master" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                            {t("thinkingLab.action.saveMaster", "Simpan Master Thought")}
-                          </Button>
-                          </div>
+                            savedMasterList
                           ) : null}
                           {!showComposer ? (
                           <div className="flex min-h-0 flex-1 flex-col p-4">
@@ -7805,23 +7686,8 @@ export function ThinkingLabPage() {
                     <div className={LAB_RIGHT_COL}>
                       <div className={LAB_SECTION}>
                         <div className={cn(LAB_RIGHT_CARD, showBeliefField && "overflow-hidden")}>
-                          {showComposer && hasMasters ? (
-                            <SavedMasterThoughtList
-                              masters={masters.data ?? []}
-                              catalogs={catalogs.data ?? []}
-                              catalogPending={masters.saveCatalog.isPending}
-                              onSaveCatalog={(id, catalog) => {
-                                void masters.saveCatalog.mutateAsync({ id, catalog });
-                              }}
-                              onOpen={(id) => {
-                                const row = masters.data?.find((item) => item.id === id);
-                                closeComposer();
-                                skipAutoSelect.current = false;
-                                setSelectedId(id);
-                                setFocus(row?.mtStatus === "locked" ? { kind: "master", masterId: id } : null);
-                              }}
-                              onDelete={(id) => setPendingDelete({ kind: "master", id })}
-                            />
+                          {showComposer ? (
+                            composerForm
                           ) : selected && locked && focus?.masterId === selected.id && focus.kind === "execution" ? (
                             focusedExecution ? (
                               <ExecutionScriptPanel
@@ -8200,8 +8066,7 @@ export function ThinkingLabPage() {
                                   focus.kind === "territory" &&
                                   showGenerateAngle &&
                                   admittedAngles.length < ACTIVE_SET_CAP &&
-                                  angleStage !== "fix" &&
-                                  angleStage !== "generate"
+                                  angleStage !== "fix"
                                 }
                                 angles={
                                   focus.kind === "territory" && !angleSetLocked

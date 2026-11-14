@@ -6,9 +6,7 @@ import { normalizeAngleSubject } from "./subject";
 import { ACTIVE_SET_CAP, MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "../shared/limits";
 import type { IndividualAdmission } from "../shared/verdict";
 import type { AngleParentDenial } from "./eligibility";
-import { reviewAngleGenerativity, sealAngleFacts } from "./generativity";
 import { admitAngle } from "./policy";
-import { judgeAngle } from "./semantic";
 import type { AngleSemanticFacts } from "./types";
 
 export type AngleGenerateStop = null | "ENOUGH" | "CAP" | "ROUNDS";
@@ -99,50 +97,6 @@ export function buildAngleGeneratePrompt(input: {
   ].join("\n");
 }
 
-export function buildAngleGapPrompt(input: {
-  parentStatement: string;
-  ancestors?: AncestorStake[];
-  incumbents: Array<{ code: string; statement: string }>;
-  lessons?: Array<{ code: string; statement: string; reason: string }>;
-  gap: string;
-}): string {
-  const kept =
-    input.incumbents.length === 0
-      ? "(none)"
-      : input.incumbents.map((row) => `${row.code}: ${row.statement}`).join("\n");
-  const lessons = input.lessons ?? [];
-  const lessonLines =
-    lessons.length === 0
-      ? "(none)"
-      : lessons.map((lesson) => `${lesson.code}: ${lesson.statement}\nWhy it failed: ${lesson.reason}`).join("\n");
-  return [
-    "Write one Angle that fills a named gap under one direct Territory.",
-    "An Angle is an observation, contradiction, or tension inside one Territory. It must not fit smoothly as a because-clause.",
-    "It must cover the missing observation and must not restate the Territory, repeat an incumbent, or sit inside an incumbent.",
-    ...ANCESTOR_STAKE_RULES,
-    "It must be able to generate several substantively different Ideas.",
-    "Write in the same language as the Territory.",
-    "Also write a subject of one to six words that carries the rarely noticed fact, not the name of the place, and one concrete situation a person could point at.",
-    "The statement stays the observation. Do not place that situation inside the statement.",
-    "Do not use examples from any specific industry, belief system, or brand.",
-    "Read the earlier failures. Do not return a sentence listed there.",
-    "Return JSON only: {\"angles\":[{\"subject\":\"...\",\"statement\":\"...\",\"example\":\"...\"}]}",
-    "",
-    "Direct Territory:",
-    input.parentStatement.trim(),
-    ...ancestorStakeBlock(input.ancestors),
-    "",
-    "Missing point of view:",
-    input.gap.trim(),
-    "",
-    "Incumbent Angles:",
-    kept,
-    "",
-    "Earlier failures. Do not repeat these sentences:",
-    lessonLines,
-  ].join("\n");
-}
-
 export type AngleDraft = { statement: string; subject: string; example: string };
 
 export function parseGeneratedAngleDrafts(raw: unknown): AngleDraft[] {
@@ -206,28 +160,6 @@ export function shownAngleFacts(code: string, statement: string, subject = "", e
     subject: normalizeAngleSubject(subject),
     example: normalizeAngleExample(example),
   };
-}
-
-export async function judgeAndSealAngle(input: {
-  parentStatement: string;
-  ancestors?: AncestorStake[];
-  code: string;
-  statement: string;
-  ask: (prompt: string) => Promise<string | null>;
-}): Promise<AngleSemanticFacts> {
-  const provisional = await judgeAngle(
-    {
-      parentStatement: input.parentStatement,
-      ancestors: input.ancestors,
-      candidate: { code: input.code, statement: input.statement },
-    },
-    input.ask,
-  );
-  const review = await reviewAngleGenerativity(
-    { parentStatement: input.parentStatement, statement: input.statement },
-    input.ask,
-  );
-  return sealAngleFacts(provisional, review);
 }
 
 export async function runAngleGenerate<

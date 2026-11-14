@@ -1,14 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useProductKnowledge, type ProductKnowledge } from "@/6-1-product-knowledge/hooks/useProductKnowledge";
 import { isGeminiBillingNoticeError } from "@/shared/ai/geminiSpendCap";
@@ -20,8 +12,11 @@ import {
   type ProductBeliefSourceRow,
 } from "@/thinking-lab/master-thought/productBrief";
 import { buildProductReasonPool, type ProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
+import type { LabCatalog, MasterCatalogLink } from "@/thinking-lab/master-thought/catalog";
 
 type Props = {
+  link: MasterCatalogLink;
+  catalogs: LabCatalog[];
   disabled?: boolean;
   onApply: (draft: ProductBeliefDraft) => void;
   onPoolChange?: (pool: ProductReasonPool | null) => void;
@@ -55,37 +50,33 @@ function sourceRow(row: ProductKnowledge): ProductBeliefSourceRow {
   };
 }
 
-export function ProductBeliefSource({ disabled, onApply, onPoolChange }: Props) {
+/**
+ * Reads the Product Knowledge behind the catalog features picked above: freezes them as the reason pool
+ * for Big Thought and can fill the beliefs from them. No feature picked → Big Thought looks for general reasons.
+ */
+export function ProductBeliefSource({ link, catalogs, disabled, onApply, onPoolChange }: Props) {
   const { t } = useAppTranslation();
   const knowledge = useProductKnowledge();
-  const [serviceId, setServiceId] = useState("");
-  const [featureIds, setFeatureIds] = useState<string[]>([]);
   const [pending, setPending] = useState(false);
-  const rows = useMemo(
-    () => (knowledge.data ?? []).filter((row) => row.service_id && row.service_name),
-    [knowledge.data],
+  const catalog = catalogs.find((item) => item.id === link.serviceId);
+  const selected = useMemo(() => {
+    if (!catalog || link.featureIds.length === 0) return [];
+    const names = new Set(
+      catalog.features
+        .filter((feature) => link.featureIds.includes(feature.id))
+        .map((feature) => feature.name.trim().toLowerCase()),
+    );
+    return (knowledge.data ?? []).filter(
+      (row) =>
+        row.service_id === catalog.id &&
+        ((row.feature_id && link.featureIds.includes(row.feature_id)) ||
+          names.has(plain(row.feature_name).toLowerCase())),
+    );
+  }, [catalog, knowledge.data, link.featureIds]);
+  const pool = useMemo(
+    () => (catalog && link.featureIds.length > 0 ? buildProductReasonPool(catalog.name, selected.map(sourceRow)) : null),
+    [catalog, link.featureIds.length, selected],
   );
-  const services = useMemo(() => {
-    const byId = new Map<string, string>();
-    for (const row of rows) {
-      if (row.service_id && row.service_name && !byId.has(row.service_id)) byId.set(row.service_id, row.service_name);
-    }
-    return [...byId.entries()]
-      .map(([id, name]) => ({ id, name }))
-      .sort((left, right) => left.name.localeCompare(right.name));
-  }, [rows]);
-  const features = useMemo(
-    () => rows.filter((row) => row.service_id === serviceId),
-    [rows, serviceId],
-  );
-  const selected = features.filter((row) => featureIds.includes(row.id));
-  const allChecked = features.length > 0 && selected.length === features.length;
-  const pool = useMemo(() => {
-    if (!serviceId) return null;
-    const name = services.find((service) => service.id === serviceId)?.name ?? "";
-    const chosen = features.filter((row) => featureIds.includes(row.id));
-    return buildProductReasonPool(name, chosen.map(sourceRow));
-  }, [featureIds, features, serviceId, services]);
 
   useEffect(() => {
     onPoolChange?.(pool);
@@ -93,18 +84,7 @@ export function ProductBeliefSource({ disabled, onApply, onPoolChange }: Props) 
 
   useEffect(() => () => onPoolChange?.(null), [onPoolChange]);
 
-  const toggle = (id: string, checked: boolean) => {
-    setFeatureIds((current) => {
-      if (checked) return current.includes(id) ? current : [...current, id];
-      return current.filter((item) => item !== id);
-    });
-  };
-
   const onAnalyze = async () => {
-    if (selected.length === 0) {
-      toast.error(t("thinkingLab.product.needFeature", "Select at least one feature."));
-      return;
-    }
     setPending(true);
     try {
       const script = await askThinkingLab(buildProductBeliefPrompt(selected.map(sourceRow)), 0.2);
@@ -128,107 +108,36 @@ export function ProductBeliefSource({ disabled, onApply, onPoolChange }: Props) 
     }
   };
 
+  if (!catalog) return null;
+
   return (
-    <div className="shrink-0 space-y-2 rounded-md border border-border bg-muted/30 p-3">
-      <label className="block space-y-1 text-sm font-medium text-foreground">
-        {t("thinkingLab.product.source", "Product or service to sell")}
-        <Select
-          value={serviceId || undefined}
-          onValueChange={(id) => {
-            setServiceId(id);
-            setFeatureIds([]);
-          }}
-          disabled={disabled || pending || services.length === 0}
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p className="text-xs font-normal text-muted-foreground">
+        {pool && pool.items.length > 0
+          ? t("thinkingLab.product.poolCount", "{{name}}: {{count}} alasan akan dibekukan untuk Big Thought.", {
+              name: pool.serviceName,
+              count: pool.items.length,
+            })
+          : pool
+            ? t(
+                "thinkingLab.product.poolEmpty",
+                "{{name}} belum punya alasan tersimpan. Generate Big Thought akan berhenti.",
+                { name: pool.serviceName },
+              )
+            : t("thinkingLab.product.poolGeneral", "Belum ada fitur dipilih. Generate Big Thought mencari alasan umum.")}
+      </p>
+      {selected.length > 0 ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={disabled || pending}
+          onClick={() => void onAnalyze()}
         >
-          <SelectTrigger className="mt-1 bg-background font-normal">
-            <SelectValue placeholder={t("thinkingLab.product.sourcePlaceholder", "Choose from Product Knowledge")} />
-          </SelectTrigger>
-          <SelectContent>
-            {services.map((service) => (
-              <SelectItem key={service.id} value={service.id}>
-                {service.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-          </Select>
-        </label>
-        <p className="text-xs text-muted-foreground">
-          {pool && pool.items.length > 0
-            ? t("thinkingLab.product.poolCount", "{{name}}: {{count}} alasan akan dibekukan untuk Big Thought.", {
-                name: pool.serviceName,
-                count: pool.items.length,
-              })
-            : pool
-              ? t(
-                  "thinkingLab.product.poolEmpty",
-                  "{{name}} belum punya alasan tersimpan. Generate Big Thought akan berhenti.",
-                  { name: pool.serviceName },
-                )
-              : t("thinkingLab.product.poolGeneral", "Tanpa produk, Generate Big Thought mencari alasan umum.")}
-        </p>
-        {serviceId ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-xs"
-            disabled={disabled || pending}
-            onClick={() => {
-              setServiceId("");
-              setFeatureIds([]);
-            }}
-          >
-            {t("thinkingLab.product.clear", "Cari alasan umum")}
-          </Button>
-        ) : null}
-      {services.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          {t("thinkingLab.product.empty", "No product knowledge yet. Add it on the Product Knowledge page first.")}
-        </p>
-      ) : null}
-      {serviceId ? (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium text-foreground">{t("thinkingLab.product.features", "Features to analyze")}</p>
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Checkbox
-                checked={allChecked}
-                onCheckedChange={(checked) => setFeatureIds(checked ? features.map((row) => row.id) : [])}
-                disabled={disabled || pending}
-              />
-              {t("thinkingLab.product.selectAll", "Select all")}
-            </label>
-          </div>
-          <ul className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border bg-background p-2">
-            {features.map((row) => {
-              const title = plain(row.feature_name) || plain(row.sub_service_name) || plain(row.service_name);
-              const detail = [plain(row.sub_service_name), plain(row.false_belief)].filter(Boolean).join(" · ");
-              return (
-                <li key={row.id}>
-                  <label className="flex cursor-pointer items-start gap-2 rounded px-1 py-1 hover:bg-muted/60">
-                    <Checkbox
-                      className="mt-0.5"
-                      checked={featureIds.includes(row.id)}
-                      onCheckedChange={(checked) => toggle(row.id, checked === true)}
-                      disabled={disabled || pending}
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-sm text-foreground">{title}</span>
-                      {detail && detail !== title ? (
-                        <span className="block truncate text-xs text-muted-foreground">{detail}</span>
-                      ) : null}
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-          <Button type="button" variant="secondary" disabled={disabled || pending || selected.length === 0} onClick={() => void onAnalyze()}>
-            {pending
-              ? t("thinkingLab.product.analyzing", "Analyzing…")
-              : t("thinkingLab.product.analyze", "Analyze selected features")}
-          </Button>
-        </div>
+          {pending
+            ? t("thinkingLab.product.analyzing", "Analyzing…")
+            : t("thinkingLab.product.analyze", "Isi otomatis dari fitur")}
+        </Button>
       ) : null}
     </div>
   );

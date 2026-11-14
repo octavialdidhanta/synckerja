@@ -109,7 +109,7 @@ type LabNodeInspectorProps = {
     report: { gate: string; phase: "checking" | "checked"; outcome: "pass" | "fail" | "unverified" } | null;
   } | null;
   angles?: InspectorAngle[];
-  angleStage?: "fix" | "generate" | "audit" | "challenger" | "lock" | null;
+  angleStage?: "fix" | "audit" | "lock" | null;
   angleGenerateChecklist?: {
     checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
     report: { gate: string; phase: "checking" | "checked"; outcome: "pass" | "fail" } | null;
@@ -213,10 +213,8 @@ const PASS_CHECK_LABELS: Record<string, string> = {
 
 const ANGLE_PASS_CHECK_LABELS: Record<string, string> = {
   stakeHolds: "Still depends on the Territory, Big Thought, and Master Thought",
-  observationShape: "An observation, narrower than the Territory and broader than an Idea",
-  severalIdeas: "Enough for several Ideas",
-  clearBoundary: "The boundary is clear",
-  observationJob: "Not a because-reason and not a restatement of the Territory",
+  observation: "An observation: rarely noticed, a contradiction, or a tension; not a reason or a restatement of the Territory",
+  rightSize: "Narrower than the Territory with a clear boundary, yet room for several Ideas",
   ownSubject: "A short subject of its own, not the Territory's name",
   livedExample: "A concrete example of the observation",
   siblingsDistinct: "Does not overlap a sibling Angle",
@@ -646,19 +644,14 @@ export function LabNodeInspector({
       angleStage &&
       onAngleStage &&
       pendingAction !== "generate-angle" &&
-      !(angleStage === "generate" && manualRunning) &&
       !(angleStage === "fix" && onFixAngle),
   );
   const angleActionLabel =
     angleStage === "audit"
       ? t("thinkingLab.action.audit", "Audit")
-      : angleStage === "challenger"
-        ? t("thinkingLab.action.challenger", "Challenger")
-        : angleStage === "fix"
-          ? t("thinkingLab.action.fix", "Fix")
-          : angleStage === "generate"
-            ? t("thinkingLab.angle.generate", "Generate Angle")
-            : t("thinkingLab.action.lock", "Lock");
+      : angleStage === "fix"
+        ? t("thinkingLab.action.fix", "Fix")
+        : t("thinkingLab.action.lock", "Lock");
   const showThoughtMenu = Boolean(
     kind === "bigThought" && (showTerritoryStageAction || showTerritoryGenerateAction || onLockTerritories || onDelete),
   );
@@ -930,14 +923,13 @@ export function LabNodeInspector({
                   aria-busy={pendingAction === angleStage}
                   onSelect={() => onAngleStage()}
                 >
-                  {angleStage === "generate" ? <Sparkles className="h-3.5 w-3.5" /> : null}
                   {angleStage === "audit" ? <ClipboardCheck className="h-3.5 w-3.5" /> : null}
                   {angleStage === "fix" ? <Wrench className="h-3.5 w-3.5" /> : null}
                   {angleStage === "lock" ? <Lock className="h-3.5 w-3.5" /> : null}
                   {angleActionLabel}
                 </DropdownMenuItem>
               ) : null}
-              {onLockAngles && angleStage !== "lock" && angleStage !== "challenger" ? (
+              {onLockAngles && angleStage !== "lock" ? (
                 <DropdownMenuItem
                   className="cursor-pointer gap-2"
                   disabled={Boolean(pendingAction)}
@@ -1469,33 +1461,18 @@ export function LabNodeInspector({
               ))}
             </ul>
           ) : null}
-          {(angleStage &&
-            angleStage !== "lock" &&
-            angleStage !== "audit" &&
-            onAngleStage &&
-            pendingAction !== "generate-angle" &&
-            !(angleStage === "generate" && manualRunning) &&
-            !(angleStage === "fix" && onFixAngle)) ? (
+          {angleStage === "fix" && onAngleStage && pendingAction !== "generate-angle" && !onFixAngle ? (
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              {angleStage &&
-              (angleStage as string) !== "lock" &&
-              (angleStage as string) !== "audit" &&
-              onAngleStage &&
-              pendingAction !== "generate-angle" &&
-              !(angleStage === "generate" && manualRunning) &&
-              !(angleStage === "fix" && onFixAngle) ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={onAngleStage}
-                  disabled={Boolean(pendingAction)}
-                  aria-busy={pendingAction === angleStage}
-                >
-                  {pendingAction === angleStage ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                  {angleStage === "generate" ? <Sparkles className="h-3.5 w-3.5" /> : null}
-                  {angleActionLabel}
-                </Button>
-              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                onClick={onAngleStage}
+                disabled={Boolean(pendingAction)}
+                aria-busy={pendingAction === angleStage}
+              >
+                {pendingAction === angleStage ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                {angleActionLabel}
+              </Button>
             </div>
           ) : null}
         </div>

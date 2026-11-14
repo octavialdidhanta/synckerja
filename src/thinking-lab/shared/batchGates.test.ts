@@ -106,7 +106,7 @@ describe("runners with batch on", () => {
   });
 
   it("checks an Angle in one call, keeping the subject and example checks that need no model", async () => {
-    const model = batchModel({ clearBoundary: "Terlalu luas." });
+    const model = batchModel({ rightSize: "Terlalu luas." });
     const result = await runAngleIndividualChecks({
       batch: true,
       statement: "Orang bayar mahal buat suasana steakhouse, padahal yang diingat rasa dagingnya.",
@@ -118,7 +118,7 @@ describe("runners with batch on", () => {
     });
     expect(model.count()).toBe(1);
     expect(result.passed).toBe(false);
-    expect(result.checks.find((check) => check.id === "clearBoundary")?.state).toBe("fail");
+    expect(result.checks.find((check) => check.id === "rightSize")?.state).toBe("fail");
   });
 
   it("checks an Idea in one call", async () => {

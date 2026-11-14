@@ -39,6 +39,32 @@ describe("Master Thought checks", () => {
     expect(parseWrittenBeliefCheck({ checks: [{ id: "singleClaim", pass: true }] }, ids)).toBeNull();
   });
 
+  it("ignores a brand fail that quotes a name the belief does not contain", async () => {
+    const belief = "nasi uduk disini lebih enak pakai sop sum sum kambing";
+    const answer = (reason: string) =>
+      JSON.stringify({
+        checks: MASTER_CHECK_IDS.map((id) => ({ id, pass: id !== "noPromoOrBrand", reason: id === "noPromoOrBrand" ? reason : "" })),
+      });
+    const sultan = { category: "Sate Sultan PIK", subCategories: [], features: [] };
+    expect(
+      await checkWrittenBelief({ belief, priorBelief: prior, catalog: sultan }, async () =>
+        answer("Kalimat menyebut nama merek: 'Sate Sultan PIK'."),
+      ),
+    ).toEqual({ pass: true, reasons: [] });
+    expect(
+      await checkWrittenBelief({ belief, priorBelief: prior, catalog: sultan }, async () =>
+        answer("Kalimat menyebut nama toko: 'disini'."),
+      ),
+    ).toEqual({ pass: false, reasons: ["Kalimat menyebut nama toko: 'disini'."] });
+    expect(
+      await checkWrittenBelief({ belief: promo, priorBelief: prior, catalog }, async () =>
+        answer("Kalimat menyebut nama toko: 'Warung Contoh'."),
+      ),
+    ).toEqual({ pass: false, reasons: ["Kalimat menyebut nama toko: 'Warung Contoh'."] });
+    const prompt = buildWrittenBeliefCheckPrompt({ belief, priorBelief: prior, catalog: sultan });
+    expect(prompt).toContain("Judge only the words written under Belief.");
+  });
+
   it("needs a category, an old belief, and a real shift before any model call, even with every check OFF", async () => {
     let calls = 0;
     const ask = async () => {

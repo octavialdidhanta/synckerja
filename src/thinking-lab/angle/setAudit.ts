@@ -1,6 +1,6 @@
 import { parseModelJson } from "../shared/parseModelJson";
 import { fingerprintsMatch } from "../shared/fingerprint";
-import { ANGLE_PASS_CHECK_IDS, type AnglePassCheckId } from "./passChecklist";
+import { readAngleCheckId, type AnglePassCheckId } from "./passChecklist";
 import type { AuditVerdict } from "../shared/verdict";
 import type {
   AngleChallengerResult,
@@ -286,10 +286,6 @@ export function angleSetIsCurrent(stored: AngleSetFacts | null, fingerprint: str
   return fingerprintsMatch(stored.fingerprint, fingerprint);
 }
 
-export function applyAngleChallengerCoverage(set: AngleSetFacts, coverage: AngleCoverage): AngleSetFacts {
-  return { ...set, coverage };
-}
-
 export function buildAngleSiblingPrompt(input: {
   parentStatement: string;
   rows: Array<{ code: string; statement: string }>;
@@ -337,10 +333,10 @@ const AUDIT_VERDICTS = new Set<AuditVerdict>(["AUDIT_PASS", "AUDIT_FAIL", "UNRES
 export function readAngleGateFailure(value: unknown): AngleGateFailure | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as { gate?: unknown; reason?: unknown };
-  const gate = asText(row.gate);
+  const gate: AnglePassCheckId | null = readAngleCheckId(asText(row.gate));
   const reason = asText(row.reason);
-  if (!ANGLE_PASS_CHECK_IDS.includes(gate as AnglePassCheckId) || !reason) return null;
-  return { gate: gate as AnglePassCheckId, reason };
+  if (!gate || !reason) return null;
+  return { gate, reason };
 }
 
 function readAngleAuditItems(value: unknown): AngleAuditItem[] {

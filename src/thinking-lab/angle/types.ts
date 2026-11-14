@@ -25,7 +25,7 @@ export type AngleBoundedness = "BOUNDED" | "UNBOUNDED" | "UNRESOLVED";
 
 export type AngleJobForm = "OBSERVATION" | "REASON" | "TERRITORY_SUMMARY" | "UNRESOLVED";
 
-export type AngleGeneratePass = "observationJob" | "observationShape";
+export type AngleGeneratePass = "observation";
 
 export type AngleResolution = "RESOLVED" | "UNRESOLVED";
 

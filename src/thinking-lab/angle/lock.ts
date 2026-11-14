@@ -1,17 +1,12 @@
-import type { AngleChallengerResult } from "./types";
 import type { AuditVerdict } from "../shared/verdict";
 
-export type AngleStageAction = "fix" | "generate" | "audit" | "challenger" | "lock";
+export type AngleStageAction = "fix" | "audit" | "lock";
 
 export type AngleLockDecision =
   | { ok: true }
-  | { ok: false; reason: "NEED_AUDIT_PASS" | "AUDIT_FAIL" | "STALE" | "UNRESOLVED" | "CHALLENGER" };
+  | { ok: false; reason: "NEED_AUDIT_PASS" | "AUDIT_FAIL" | "STALE" | "UNRESOLVED" };
 
-export function evaluateAngleLock(input: {
-  verdicts: Array<AuditVerdict | null>;
-  challenger: AngleChallengerResult | null;
-  challengerCurrent: boolean;
-}): AngleLockDecision {
+export function evaluateAngleLock(input: { verdicts: Array<AuditVerdict | null> }): AngleLockDecision {
   if (input.verdicts.length === 0) return { ok: false, reason: "NEED_AUDIT_PASS" };
   if (input.verdicts.some((verdict) => verdict == null)) return { ok: false, reason: "NEED_AUDIT_PASS" };
   if (input.verdicts.some((verdict) => verdict === "AUDIT_FAIL")) return { ok: false, reason: "AUDIT_FAIL" };
@@ -21,12 +16,10 @@ export function evaluateAngleLock(input: {
   return { ok: true };
 }
 
+/** Audit until every Angle has a verdict, Fix once after a fail, then Lock. */
 export function selectAngleStage(input: {
   admittedCount: number;
   verdicts: Array<AuditVerdict | null>;
-  challengerComplete: boolean;
-  materialGap: boolean;
-  canAdd: boolean;
   repairsUsed: boolean;
   lockOk: boolean;
 }): AngleStageAction | null {
@@ -36,7 +29,6 @@ export function selectAngleStage(input: {
     input.verdicts.some((verdict) => verdict == null || verdict === "STALE" || verdict === "UNRESOLVED");
   if (awaitingAudit) return "audit";
   if (input.verdicts.some((verdict) => verdict === "AUDIT_FAIL")) return input.repairsUsed ? null : "fix";
-  if (input.materialGap && input.canAdd) return "generate";
   if (input.lockOk) return "lock";
   return null;
 }

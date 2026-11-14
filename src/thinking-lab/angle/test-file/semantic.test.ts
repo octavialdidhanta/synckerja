@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { admitAngle } from "@/thinking-lab/angle/policy";
-import { deriveAngleRelation, judgeAngle, normalizeAngleFacts, parseAngleJudge } from "@/thinking-lab/angle/semantic";
+import { deriveAngleRelation, normalizeAngleFacts } from "@/thinking-lab/angle/semantic";
 import type { AngleSemanticFacts } from "@/thinking-lab/angle/types";
-
-const APPLE_ANGLE =
-  "Innovation does not always mean adding something; sometimes innovation means removing what is unnecessary.";
 
 function positive(overrides: Partial<AngleSemanticFacts> = {}): AngleSemanticFacts {
   return {
@@ -177,8 +174,7 @@ describe("normalizeAngleFacts", () => {
   });
 
   it("fails closed on malformed and contradictory canonical facts", () => {
-    expect(parseAngleJudge(null, "AN09").unresolvedReasons).toEqual(["JUDGE_UNAVAILABLE"]);
-    expect(parseAngleJudge("not json", "AN09").relationToParent).toBe("UNRESOLVED");
+    expect(normalizeAngleFacts(null, "AN09").relationToParent).toBe("UNRESOLVED");
     const contradictory = normalizeAngleFacts({
       parentFit: [true, false],
       conceptualForm: "ANGLE_PROPOSITION",
@@ -189,39 +185,12 @@ describe("normalizeAngleFacts", () => {
     expect(contradictory.unresolvedReasons).toEqual(["CONTRADICTORY_CANONICAL_FACTS"]);
   });
 
-  it("does not special-case the Apple anchor string", async () => {
-    const idea = await judgeAngle(
-      { parentStatement: "Innovation", candidate: { code: "AN01", statement: APPLE_ANGLE } },
-      async () =>
-        JSON.stringify({
-          whatItSays: "A concrete concept",
-          parentFit: true,
-          conceptualForm: "IDEA_LIKE",
-          ideaGenerativity: "SUFFICIENT",
-          boundedness: "BOUNDED",
-        }),
-    );
-    expect(idea.relationToParent).toBe("IDEA_LIKE");
-    const narrow = await judgeAngle(
-      { parentStatement: "Innovation", candidate: { code: "AN01", statement: APPLE_ANGLE } },
-      async () =>
-        JSON.stringify({
-          whatItSays: "Removal can be the innovation",
-          parentFit: true,
-          conceptualForm: "ANGLE_PROPOSITION",
-          ideaGenerativity: "INSUFFICIENT",
-          boundedness: "UNBOUNDED",
-        }),
-    );
-    expect(narrow.relationToParent).toBe("INSUFFICIENT_IDEA_GENERATIVITY");
-  });
-
-  it("stores Generate passes only when both checks are present", () => {
+  it("reads Generate passes saved with both earlier checks as the observation pass", () => {
     const both = normalizeAngleFacts({
       ...positive(),
       generatePasses: ["observationShape", "observationJob", "stakeHolds"],
     });
-    expect(both.generatePasses).toEqual(["observationJob", "observationShape"]);
+    expect(both.generatePasses).toEqual(["observation"]);
     const one = normalizeAngleFacts({ ...positive(), generatePasses: ["observationJob"] });
     expect(one.generatePasses).toBeUndefined();
   });
