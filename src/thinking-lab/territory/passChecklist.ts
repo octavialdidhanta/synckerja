@@ -1,15 +1,8 @@
 // Runs the five Territory checks on one name, in order, and stops at the first one that does not pass.
 // The same runner serves Generate, a manual edit, Revise, Audit of cards never checked, and the MCP server.
 // Relative imports only: the MCP server loads this file.
-import {
-  SWITCHED_OFF_REASON,
-  UNDECIDED_REASON,
-  answerGate,
-  askBatchGates,
-  buildBatchGatePrompt,
-  parseGateAnswer,
-  type GateAnswer,
-} from "../shared/batchGates";
+import { UNDECIDED_REASON, buildBatchGatePrompt, parseGateAnswer, type GateAnswer } from "../shared/batchGates";
+import { runGateChain } from "../shared/gateChain";
 import { sameWording } from "../shared/distinct";
 import {
   TERRITORY_ACTIVITY_REASON,
@@ -221,61 +214,31 @@ export async function runTerritoryChecks(
     onStep?: (checks: TerritoryPassCheck[]) => void;
   },
 ): Promise<TerritoryCheckRun> {
-  const skip = new Set(input.skip ?? []);
-  const keep = new Set(input.keep ?? []);
-  const checks = emptyPassChecklist();
-  const snapshot = () => checks.map((check) => ({ ...check }));
-  const set = (next: TerritoryPassCheck) => {
-    checks[TERRITORY_PASS_CHECK_IDS.indexOf(next.id)] = next;
-    input.onStep?.(snapshot());
-  };
-  input.onStep?.(snapshot());
   let question = input.question?.trim() ?? "";
+  const known = Boolean(question);
   const context = () => ({ ...input, question });
-  const open = TERRITORY_PASS_CHECK_IDS.filter((id) => !skip.has(id) && !keep.has(id));
-  // The run stops at the first check decided as a fail in code, so no check after it is asked.
-  const stop = TERRITORY_PASS_CHECK_IDS.findIndex((id) => open.includes(id) && decidedInCode(id, input)?.pass === false);
-  // questionArises joins the batch only when its question is already known.
-  const byModel = open.filter(
-    (id) =>
-      (stop < 0 || TERRITORY_PASS_CHECK_IDS.indexOf(id) < stop) &&
-      !decidedInCode(id, input) &&
-      (id !== "questionArises" || Boolean(question)),
-  );
-  const batched =
-    byModel.length > 1
-      ? ((await askBatchGates({ prompt: buildTerritoryBatchPrompt({ ...context(), ids: byModel }), ids: byModel, ask: input.ask })) ??
-        new Map<string, GateAnswer>())
-      : new Map<string, GateAnswer>();
-  for (const id of TERRITORY_PASS_CHECK_IDS) {
-    if (skip.has(id)) {
-      set({ id, state: "pass", reason: SWITCHED_OFF_REASON });
-      continue;
-    }
-    if (keep.has(id)) {
-      set({ id, state: "pass" });
-      continue;
-    }
-    set({ id, state: "running" });
-    if (id === "questionArises" && !question && input.ensureQuestion) {
-      try {
-        question = (await input.ensureQuestion()).trim();
-      } catch {
-        question = "";
+  const run = await runGateChain({
+    ids: TERRITORY_PASS_CHECK_IDS,
+    skip: input.skip,
+    keep: input.keep,
+    decided: (id) => decidedInCode(id, input),
+    // questionArises joins the batch only when its question is already known.
+    batchable: (id) => id !== "questionArises" || known,
+    before: async (id) => {
+      if (id !== "questionArises") return null;
+      if (!question && input.ensureQuestion) {
+        try {
+          question = (await input.ensureQuestion()).trim();
+        } catch {
+          question = "";
+        }
       }
-    }
-    if (id === "questionArises" && !question) {
-      set({ id, state: "fail", reason: MISSING_QUESTION });
-      return { checks: snapshot(), passed: false, question };
-    }
-    const answer =
-      decidedInCode(id, input) ??
-      (await answerGate({ batched: batched.get(id), prompt: () => buildTerritoryPassPrompt({ ...context(), id }), ask: input.ask }));
-    if (!answer.pass) {
-      set({ id, state: "fail", reason: answer.reason || UNDECIDED });
-      return { checks: snapshot(), passed: false, question };
-    }
-    set({ id, state: "pass" });
-  }
-  return { checks: snapshot(), passed: true, question };
+      return question ? null : { pass: false, reason: MISSING_QUESTION };
+    },
+    batchPrompt: (ids) => buildTerritoryBatchPrompt({ ...context(), ids }),
+    prompt: (id) => buildTerritoryPassPrompt({ ...context(), id }),
+    ask: input.ask,
+    onStep: input.onStep,
+  });
+  return { checks: run.checks, passed: run.passed, question };
 }

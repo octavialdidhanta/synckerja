@@ -1,12 +1,5 @@
-import {
-  SWITCHED_OFF_REASON,
-  UNDECIDED_REASON,
-  answerGate,
-  askBatchGates,
-  buildBatchGatePrompt,
-  parseGateAnswer,
-  type GateAnswer,
-} from "../shared/batchGates";
+import { UNDECIDED_REASON, buildBatchGatePrompt, parseGateAnswer, type GateAnswer } from "../shared/batchGates";
+import { runGateChain } from "../shared/gateChain";
 import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
 import { sameWording } from "../shared/distinct";
 import { angleExampleProblem } from "./example";
@@ -61,7 +54,6 @@ export type AnglePassCheck = {
 export type AnglePeer = { code: string; statement: string; subject?: string };
 
 const UNDECIDED = UNDECIDED_REASON;
-const SWITCHED_OFF = SWITCHED_OFF_REASON;
 
 export function emptyAnglePassChecklist(): AnglePassCheck[] {
   return ANGLE_PASS_CHECK_IDS.map((id) => ({ id, state: "pending" }));
@@ -227,42 +219,15 @@ export async function runAngleChecks(
     onStep?: (checks: AnglePassCheck[]) => void;
   },
 ): Promise<AngleCheckRun> {
-  const skip = new Set(input.skip ?? []);
-  const keep = new Set(input.keep ?? []);
-  const checks = emptyAnglePassChecklist();
-  const snapshot = () => checks.map((check) => ({ ...check }));
-  const set = (next: AnglePassCheck) => {
-    checks[ANGLE_PASS_CHECK_IDS.indexOf(next.id)] = next;
-    input.onStep?.(snapshot());
-  };
-  input.onStep?.(snapshot());
-  const open = ANGLE_PASS_CHECK_IDS.filter((id) => !skip.has(id) && !keep.has(id));
-  // The run stops at the first check decided as a fail in code, so no check after it is asked.
-  const stop = ANGLE_PASS_CHECK_IDS.findIndex((id) => open.includes(id) && decidedInCode(id, input)?.pass === false);
-  const byModel = open.filter((id) => (stop < 0 || ANGLE_PASS_CHECK_IDS.indexOf(id) < stop) && !decidedInCode(id, input));
-  const batched =
-    byModel.length > 1
-      ? ((await askBatchGates({ prompt: buildAngleBatchPrompt({ ...input, ids: byModel }), ids: byModel, ask: input.ask })) ??
-        new Map<string, GateAnswer>())
-      : new Map<string, GateAnswer>();
-  for (const id of ANGLE_PASS_CHECK_IDS) {
-    if (skip.has(id)) {
-      set({ id, state: "pass", reason: SWITCHED_OFF });
-      continue;
-    }
-    if (keep.has(id)) {
-      set({ id, state: "pass" });
-      continue;
-    }
-    set({ id, state: "running" });
-    const answer =
-      decidedInCode(id, input) ??
-      (await answerGate({ batched: batched.get(id), prompt: () => buildAnglePassPrompt({ ...input, id }), ask: input.ask }));
-    if (!answer.pass) {
-      set({ id, state: "fail", reason: answer.reason || UNDECIDED });
-      return { checks: snapshot(), passed: false };
-    }
-    set({ id, state: "pass" });
-  }
-  return { checks: snapshot(), passed: true };
+  const run = await runGateChain({
+    ids: ANGLE_PASS_CHECK_IDS,
+    skip: input.skip,
+    keep: input.keep,
+    decided: (id) => decidedInCode(id, input),
+    batchPrompt: (ids) => buildAngleBatchPrompt({ ...input, ids }),
+    prompt: (id) => buildAnglePassPrompt({ ...input, id }),
+    ask: input.ask,
+    onStep: input.onStep,
+  });
+  return { checks: run.checks, passed: run.passed };
 }

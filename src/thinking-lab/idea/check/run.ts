@@ -1,15 +1,8 @@
 // Runs the seven Idea checks on one sentence, in order, and stops at the first one that does not pass.
 // A check switched OFF for the organization passes without a model call.
 // Relative imports only: the MCP server loads this file.
-import {
-  SWITCHED_OFF_REASON,
-  UNDECIDED_REASON,
-  answerGate,
-  askBatchGates,
-  buildBatchGatePrompt,
-  isUndecided,
-  type GateAnswer,
-} from "../../shared/batchGates";
+import { SWITCHED_OFF_REASON, UNDECIDED_REASON, buildBatchGatePrompt, isUndecided, type GateAnswer } from "../../shared/batchGates";
+import { runGateChain } from "../../shared/gateChain";
 import type { IdeaMechanismKey } from "../facts";
 import {
   announcedConclusionReason,
@@ -171,72 +164,49 @@ function storedFailure(input: IdeaCheckInput, open: ReadonlySet<IdeaCheckId>): I
 export async function runIdeaChecks(input: IdeaCheckInput): Promise<IdeaValidation> {
   const validatedAt = new Date().toISOString();
   const skip = new Set(input.skip ?? []);
-  const kept = new Set((input.keptPasses ?? []).filter((row) => row.status === "PASS").map((row) => row.id));
-  const criteria: IdeaCriterion[] = [];
-  const steps: IdeaCheckStep[] = IDEA_CHECK_IDS.map((id) => ({ id, state: "pending" }));
-  const publish = () => input.onStep?.(steps.map((step) => ({ ...step })));
-  const settle = (criterion: IdeaCriterion) => {
-    criteria.push(criterion);
-    const index = IDEA_CHECK_IDS.indexOf(criterion.id);
-    steps[index] = {
-      id: criterion.id,
-      state: criterion.status === "PASS" ? "pass" : "fail",
-      ...(criterion.reason && criterion.status !== "PASS" ? { reason: criterion.reason } : {}),
-    };
-    publish();
-  };
-  const seal = () =>
-    sealValidation(
-      { criteria, statement: input.statement, title: input.title, concept: input.concept, mechanism: input.mechanism, value: input.value },
-      validatedAt,
-    );
-  publish();
-
+  const keptRows = (input.keptPasses ?? []).filter((row) => row.status === "PASS");
+  const kept = new Set(keptRows.map((row) => row.id));
   const open = new Set(IDEA_CHECK_IDS.filter((id) => !skip.has(id) && !kept.has(id)));
   const repeated = storedFailure(input, open);
-  // The run stops at the first check that fails without a model call, so nothing after it is asked.
-  const stop = IDEA_CHECK_IDS.findIndex(
-    (id) => open.has(id) && (repeated?.id === id || (decidedInCode(id, input)?.status ?? "PASS") !== "PASS"),
-  );
-  const byModel = IDEA_CHECK_IDS.filter(
-    (id, index) => open.has(id) && (stop < 0 || index < stop) && !decidedInCode(id, input),
-  );
-  const batched =
-    byModel.length > 1
-      ? ((await askBatchGates({ prompt: buildIdeaChecksBatchPrompt(byModel, input), ids: byModel, ask: input.ask })) ?? new Map<string, GateAnswer>())
-      : new Map<string, GateAnswer>();
-
-  for (const id of IDEA_CHECK_IDS) {
-    if (skip.has(id)) {
-      settle(blankCriterion(id, "PASS", SWITCHED_OFF));
-      continue;
-    }
-    if (kept.has(id)) {
-      settle(input.keptPasses?.find((row) => row.id === id) ?? blankCriterion(id, "PASS"));
-      continue;
-    }
-    steps[IDEA_CHECK_IDS.indexOf(id)] = { id, state: "running" };
-    publish();
-    if (repeated?.id === id) {
-      settle(repeated);
-      return seal();
-    }
+  // A check decided in code as "not verified" stops the run like a fail, but is stored as BELUM_TERVERIFIKASI.
+  const unverified = new Map<IdeaCheckId, string>();
+  const decided = (id: IdeaCheckId): GateAnswer | null => {
+    if (repeated?.id === id) return { pass: false, reason: repeated.reason };
     const coded = decidedInCode(id, input);
-    if (coded) {
-      settle(coded);
-      if (coded.status !== "PASS") return seal();
-      continue;
+    if (!coded) return null;
+    if (coded.status === "BELUM_TERVERIFIKASI") unverified.set(id, coded.reason);
+    return { pass: coded.status === "PASS", reason: coded.reason };
+  };
+  const run = await runGateChain({
+    ids: IDEA_CHECK_IDS,
+    skip: input.skip,
+    keep: [...kept],
+    decided,
+    batchPrompt: (ids) => buildIdeaChecksBatchPrompt(ids, input),
+    prompt: (id) => buildIdeaCheckPrompt(id, input),
+    settle: (id, answer) =>
+      answer.pass || isUndecided(answer) || failCounts(id, answer.reason, input) ? answer : { pass: true, reason: "" },
+    ask: input.ask,
+    onStep: (steps) =>
+      input.onStep?.(
+        steps.map((step) => (step.state === "pass" ? { id: step.id, state: step.state } : { ...step })),
+      ),
+  });
+  const criteria: IdeaCriterion[] = run.checks.flatMap((step): IdeaCriterion[] => {
+    if (step.state === "pass") {
+      if (skip.has(step.id)) return [blankCriterion(step.id, "PASS", SWITCHED_OFF)];
+      if (kept.has(step.id)) return [keptRows.find((row) => row.id === step.id) ?? blankCriterion(step.id, "PASS")];
+      const coded = repeated?.id === step.id ? null : decidedInCode(step.id, input);
+      return [coded ?? blankCriterion(step.id, "PASS")];
     }
-    const answer = await answerGate({ batched: batched.get(id), prompt: () => buildIdeaCheckPrompt(id, input), ask: input.ask });
-    if (isUndecided(answer)) {
-      settle(blankCriterion(id, "BELUM_TERVERIFIKASI", UNDECIDED));
-      return seal();
-    }
-    if (!answer.pass && failCounts(id, answer.reason, input)) {
-      settle(blankCriterion(id, "FAIL", answer.reason));
-      return seal();
-    }
-    settle(blankCriterion(id, "PASS"));
-  }
-  return seal();
+    if (step.state !== "fail") return [];
+    if (repeated?.id === step.id) return [repeated];
+    const reason = step.reason ?? UNDECIDED;
+    const notVerified = unverified.has(step.id) || reason === UNDECIDED;
+    return [blankCriterion(step.id, notVerified ? "BELUM_TERVERIFIKASI" : "FAIL", notVerified ? unverified.get(step.id) ?? UNDECIDED : reason)];
+  });
+  return sealValidation(
+    { criteria, statement: input.statement, title: input.title, concept: input.concept, mechanism: input.mechanism, value: input.value },
+    validatedAt,
+  );
 }
