@@ -65,6 +65,14 @@ export type TerritoryGenerateLesson = {
   reason: string;
 };
 
+/** The relation stored on a name that failed this check at Generate, so it is admitted as a reject. */
+export function territoryRelationForGate(gate: string): TerritoryRelation {
+  if (gate === "audienceLanguage") return "INTERNAL_LANGUAGE";
+  if (gate === "questionArises") return "QUESTION_NOT_LIVED";
+  if (gate === "wideEnough") return "INSUFFICIENT_GENERATIVITY";
+  return "OUT_OF_PARENT_SCOPE";
+}
+
 export function territoryRejectionReason(relation: TerritoryRelation): string | null {
   switch (relation) {
     case "OUT_OF_PARENT_SCOPE":

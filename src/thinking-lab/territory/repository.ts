@@ -5,7 +5,7 @@ import { LAB_WORKSPACE } from "@/thinking-lab/shared/verdict";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 import { evaluateTerritoryParent, type TerritoryParentDenial } from "@/thinking-lab/territory/eligibility";
 import { normalizeTerritoryFacts } from "@/thinking-lab/territory/semantic";
-import { emptyTerritorySetRecord, readTerritorySetRecord, type TerritorySetRecord } from "@/thinking-lab/territory/setAudit";
+import { emptyTerritorySetRecord, readTerritorySetRecord, type TerritorySetRecord } from "@/thinking-lab/territory/record";
 import type { TerritorySemanticFacts } from "@/thinking-lab/territory/types";
 
 export type LabTerritory = {

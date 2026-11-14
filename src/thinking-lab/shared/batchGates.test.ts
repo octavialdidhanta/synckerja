@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { runBigThoughtOpenChecks, runGenerateAdmissionChecks } from "@/thinking-lab/big-thought/passChecks";
-import { runTerritoryIndividualChecks } from "@/thinking-lab/territory/passChecklist";
+import { runTerritoryChecks } from "@/thinking-lab/territory/passChecklist";
 import { runAngleChecks } from "@/thinking-lab/angle/passChecklist";
 import { runIdeaChecks } from "@/thinking-lab/idea/check/run";
 import {
@@ -131,8 +131,7 @@ describe("runners with batch on", () => {
 
   it("checks a Territory in one call when its question is known", async () => {
     const model = batchModel();
-    const result = await runTerritoryIndividualChecks({
-      batch: true,
+    const result = await runTerritoryChecks({
       statement: "Steakhouse",
       parentStatement: "BT",
       question: "Kenapa daging bisa juicy?",

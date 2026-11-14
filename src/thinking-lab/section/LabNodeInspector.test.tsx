@@ -121,19 +121,10 @@ describe("LabNodeInspector territory entry", () => {
             verdict: "AUDIT_FAIL",
           },
         ]}
-        territoryFixOffers={[
-          {
-            failedCode: "TR03",
-            statement: "Layanan pelanggan",
-            detail: "Pelanggan menunggu jawaban yang sama berulang kali.",
-          },
-        ]}
-        onPickTerritoryFixOffer={vi.fn()}
       />,
     );
     expect(screen.getByText("Di wilayah ini, orang membuka ulang catatan yang sama sebelum bisa melanjutkan pekerjaan.")).toBeTruthy();
     expect(screen.getByText("Kenapa catatan yang sama harus dibuka ulang sebelum pekerjaan bisa lanjut?")).toBeTruthy();
-    expect(screen.getByText("Pelanggan menunggu jawaban yang sama berulang kali.")).toBeTruthy();
   });
 
   it("shows pass checks up to the one that failed", () => {
@@ -177,118 +168,6 @@ describe("LabNodeInspector territory entry", () => {
     openActionMenu();
     expect(screen.getByRole("menuitem", { name: "Audit" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Generate Angle" })).toBeNull();
-  });
-
-  it("groups sibling conflicts so each pair can be read on its own", () => {
-    render(
-      <LabNodeInspector
-        kind="bigThought"
-        code="BT01"
-        statement="A locked big thought"
-        territories={[
-          { id: "t2", code: "TR02", statement: "Symbolic and functional giving.", verdict: "AUDIT_FAIL" },
-          { id: "t3", code: "TR03", statement: "Duty versus trust.", verdict: "AUDIT_FAIL" },
-        ]}
-        territoryNotes={[
-          { kind: "overlap", a: "TR01", b: "TR02", explanation: "Both host the same functional angle." },
-          { kind: "containment", container: "TR02", contained: "TR01", explanation: "TR02 already includes TR01." },
-        ]}
-        territoryStage="fix"
-        onTerritoryStage={vi.fn()}
-      />,
-    );
-    expect(screen.getByRole("region", { name: "Why these Territories failed" })).toBeTruthy();
-    expect(screen.getByText("Why these Territories failed")).toBeTruthy();
-    expect(screen.getByText("Overlap")).toBeTruthy();
-    expect(screen.getByText("TR01 · TR02")).toBeTruthy();
-    expect(screen.getByText("Both host the same functional angle.")).toBeTruthy();
-    expect(screen.getByText("One space covers another")).toBeTruthy();
-    expect(screen.getByText("TR02 already includes TR01.")).toBeTruthy();
-    openActionMenu();
-    expect(screen.getByRole("menuitem", { name: "Fix" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Remove TR02" })).toBeNull();
-  });
-
-  it("lets the user remove either failed side of a pairwise containment", () => {
-    const onRemoveCoveringTerritory = vi.fn();
-    render(
-      <LabNodeInspector
-        kind="bigThought"
-        code="BT01"
-        statement="A locked big thought"
-        territories={[
-          { id: "t1", code: "TR01", statement: "The narrower space.", verdict: "AUDIT_FAIL" },
-          { id: "t2", code: "TR02", statement: "The covering space.", verdict: "AUDIT_FAIL" },
-          { id: "t3", code: "TR03", statement: "A distinct space.", verdict: "AUDIT_PASS" },
-        ]}
-        territoryNotes={[
-          {
-            kind: "containment",
-            container: "TR02",
-            contained: "TR01",
-            explanation: "TR02 already includes TR01.",
-          },
-        ]}
-        onRemoveCoveringTerritory={onRemoveCoveringTerritory}
-      />,
-    );
-    expect(screen.queryByRole("button", { name: "Fix" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Remove TR03" })).toBeNull();
-    expect(
-      screen.getByText("Fix already ran. Remove one failed Territory from this conflict. The next step appears after it is gone."),
-    ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Remove TR01" }));
-    fireEvent.click(screen.getByRole("button", { name: "Remove TR02" }));
-    expect(onRemoveCoveringTerritory.mock.calls).toEqual([["TR01"], ["TR02"]]);
-  });
-
-  it("offers removal only for the broad Territory when the spaces it covers still pass", () => {
-    render(
-      <LabNodeInspector
-        kind="bigThought"
-        code="BT01"
-        statement="A locked big thought"
-        territories={[
-          { id: "t1", code: "TR01", statement: "A distinct space.", verdict: "AUDIT_PASS" },
-          { id: "t3", code: "TR03", statement: "Another distinct space.", verdict: "AUDIT_PASS" },
-          { id: "t5", code: "TR05", statement: "The space that swallows both.", verdict: "AUDIT_FAIL" },
-        ]}
-        territoryNotes={[
-          { kind: "containment", container: "TR05", contained: "TR01", explanation: "TR05 covers TR01." },
-          { kind: "containment", container: "TR05", contained: "TR03", explanation: "TR05 covers TR03." },
-        ]}
-        onRemoveCoveringTerritory={vi.fn()}
-      />,
-    );
-    expect(screen.getByRole("button", { name: "Remove TR05" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Remove TR01" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Remove TR03" })).toBeNull();
-  });
-
-  it("offers removal only for the failed side of an overlap with territories that still pass", () => {
-    const onRemoveCoveringTerritory = vi.fn();
-    render(
-      <LabNodeInspector
-        kind="bigThought"
-        code="BT01"
-        statement="A locked big thought"
-        territories={[
-          { id: "t2", code: "TR02", statement: "Symbolic and functional giving.", verdict: "AUDIT_PASS" },
-          { id: "t3", code: "TR03", statement: "Genuine giving versus implied pressure.", verdict: "AUDIT_PASS" },
-          { id: "t4", code: "TR04", statement: "The overlapping motivation spectrum.", verdict: "AUDIT_FAIL" },
-        ]}
-        territoryNotes={[
-          { kind: "overlap", a: "TR02", b: "TR04", explanation: "TR04 repeats the functional dimension of TR02." },
-          { kind: "overlap", a: "TR03", b: "TR04", explanation: "TR04 repeats the private-motive space of TR03." },
-        ]}
-        onRemoveCoveringTerritory={onRemoveCoveringTerritory}
-      />,
-    );
-    expect(screen.queryByRole("button", { name: "Remove TR02" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Remove TR03" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Remove TR04" }));
-    expect(onRemoveCoveringTerritory.mock.calls).toEqual([["TR04"]]);
-    expect(screen.queryByText("Fix already ran once. This set stays open until an audit passes.")).toBeNull();
   });
 
   it("keeps Audit visible while Generate Territory is still running", () => {
@@ -628,7 +507,7 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
   });
 
-  it("puts Fix on the failed Territory check", () => {
+  it("puts Revise on the failed Territory check", () => {
     const onFixTerritory = vi.fn();
     render(
       <LabNodeInspector
@@ -650,11 +529,11 @@ describe("LabNodeInspector territory entry", () => {
         onFixTerritory={onFixTerritory}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Fix" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revise" }));
     expect(onFixTerritory).toHaveBeenCalledWith("TR03");
   });
 
-  it("puts Fix on a failed check before the card is marked FAIL", () => {
+  it("puts Revise on a failed check before the card is marked FAIL", () => {
     const onFixTerritory = vi.fn();
     render(
       <LabNodeInspector
@@ -680,11 +559,11 @@ describe("LabNodeInspector territory entry", () => {
         onFixTerritory={onFixTerritory}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Fix" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revise" }));
     expect(onFixTerritory).toHaveBeenCalledWith("TR04");
   });
 
-  it("puts a Fix button on each failed Territory card", () => {
+  it("puts a Revise button on each failed Territory card", () => {
     const onFixTerritory = vi.fn();
     render(
       <LabNodeInspector
@@ -701,7 +580,7 @@ describe("LabNodeInspector territory entry", () => {
     );
     expect(screen.getAllByRole("button", { name: /More actions TR0/ })).toHaveLength(2);
     openActionMenu(/More actions TR01/);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Revise" }));
     expect(onFixTerritory).toHaveBeenCalledWith("TR01");
   });
 
@@ -745,7 +624,7 @@ describe("LabNodeInspector territory entry", () => {
     expect(onDeleteAngle).toHaveBeenCalledWith("a2");
   });
 
-  it("keeps the other Territory Fix buttons clickable while one fix is running", () => {
+  it("keeps the other Territory Revise buttons clickable while one revision is running", () => {
     const onFixTerritory = vi.fn();
     render(
       <LabNodeInspector
@@ -767,7 +646,7 @@ describe("LabNodeInspector territory entry", () => {
     expect((running as HTMLButtonElement).disabled).toBe(true);
     expect((waiting as HTMLButtonElement).disabled).toBe(false);
     openActionMenu(/More actions TR01/);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Revise" }));
     expect(onFixTerritory).toHaveBeenCalledWith("TR01");
   });
 

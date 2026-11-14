@@ -1,24 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { confirmedFingerprint } from "../../../../src/thinking-lab/master-thought/semantic";
 import { ANSWERED_QUESTION_VERSION, resolveAnsweredQuestion } from "../../../../src/thinking-lab/big-thought/answeredQuestion";
-import {
-  nextTerritoryCode,
-  shownTerritoryFacts,
-  TERRITORY_ACTIVITY_REASON,
-  TERRITORY_NAME_LENGTH_REASON,
-  territoryNameIsActivity,
-  territoryNameTooLong,
-} from "../../../../src/thinking-lab/territory/generate";
-import { runTerritoryIndividualChecks } from "../../../../src/thinking-lab/territory/passChecklist";
+import { nextTerritoryCode, shownTerritoryFacts } from "../../../../src/thinking-lab/territory/generate";
+import { firstTerritoryFailure, runTerritoryChecks } from "../../../../src/thinking-lab/territory/passChecklist";
 import { writeTerritoryAreaSentence } from "../../../../src/thinking-lab/territory/description";
-import {
-  buildTerritorySiblingPrompt,
-  parseTerritorySet,
-  readTerritorySetRecord,
-  territoryFailureLessons,
-  type TerritoryAuditItem,
-} from "../../../../src/thinking-lab/territory/setAudit";
-import { territoryReplacementPasses } from "../../../../src/thinking-lab/territory/fix";
+import { readTerritorySetRecord, withTerritoryResult, type TerritoryAuditItem } from "../../../../src/thinking-lab/territory/record";
 import { evaluateTerritoryParent } from "../../../../src/thinking-lab/territory/eligibility";
 import {
   bigThoughtFingerprint,
@@ -95,9 +81,9 @@ function passedRows(context: TerritoryContext, bigThoughtFp: string, items: Terr
 }
 
 /**
- * One Territory written in chat, under a locked Big Thought. Runs the page's name checks, the four
- * Territory checks (batched), the sibling check against the Territories that passed, and the area
- * sentence; a pass is saved as admitted with an AUDIT_PASS audit item, like a page audit.
+ * One Territory written in chat, under a locked Big Thought. Runs the page's five Territory checks (the
+ * "beda dari Territory lain" check compares it with the Territories that passed) and writes the area
+ * sentence; a pass is saved as admitted with an AUDIT_PASS item, like the page.
  */
 export async function addThinkingTerritory(
   admin: SupabaseClient,
@@ -134,15 +120,6 @@ export async function addThinkingTerritory(
   if (admitted.some((row) => row.statement.trim().toLowerCase() === statement.toLowerCase())) {
     return { saved: false, failed: [{ check: "duplicate", reason: "This Territory is already in this Big Thought." }] };
   }
-  if (territoryNameTooLong(statement) || territoryNameIsActivity(statement)) {
-    return {
-      saved: false,
-      failed: [{
-        check: "partOfBigThought",
-        reason: territoryNameTooLong(statement) ? TERRITORY_NAME_LENGTH_REASON : TERRITORY_ACTIVITY_REASON,
-      }],
-    };
-  }
 
   const ask = makeAsk(config, ctx, deps);
   const skip = skippedChecks(await loadCheckSettings(admin, ctx, deps), "territory");
@@ -162,8 +139,7 @@ export async function addThinkingTerritory(
   }
 
   const record = readTerritorySetRecord(context.big_thought.territory_set);
-  const items = record.audit?.items ?? [];
-  const passed = passedRows(context, bigThoughtFp, items);
+  const passed = passedRows(context, bigThoughtFp, record.audit?.items ?? []);
   let gloss: { sentence: string; question: string } | null = null;
   const writeGloss = async () =>
     writeTerritoryAreaSentence({
@@ -176,8 +152,7 @@ export async function addThinkingTerritory(
       ask,
     });
 
-  const run = await runTerritoryIndividualChecks({
-    batch: true,
+  const run = await runTerritoryChecks({
     statement,
     parentStatement: context.big_thought.statement,
     audience,
@@ -186,65 +161,32 @@ export async function addThinkingTerritory(
       gloss = await writeGloss();
       return gloss.question;
     },
+    peers: passed.map((row) => ({ code: row.code, statement: row.statement })),
     skip,
     ask,
-    onStep: () => undefined,
   });
-  if (!run.passed) {
-    const failed = run.checks.find((check) => check.state === "fail");
-    return {
-      saved: false,
-      failed: [{ check: failed?.id ?? "undecided", reason: failed?.reason?.trim() || "This check could not be decided." }],
-    };
-  }
+  const failure = firstTerritoryFailure(run.checks);
+  if (failure) return { saved: false, failed: [{ check: failure.gate, reason: failure.reason }] };
 
   const code = replace?.row.code ?? nextTerritoryCode(context.master_codes);
-  const siblingRows = [...passed.map((row) => ({ code: row.code, statement: row.statement })), { code, statement }];
-  let siblingSet = record.siblingSet;
-  if (!skip.includes("siblingsDistinct") && siblingRows.length >= 2) {
-    const fingerprint = territorySetFingerprint({
-      bigThoughtFingerprint: bigThoughtFp,
-      territoryFingerprints: siblingRows.map((row) =>
-        territoryFingerprint({ statement: row.statement, bigThoughtFingerprint: bigThoughtFp }),
-      ),
-    });
-    const judged = parseTerritorySet(
-      await ask(buildTerritorySiblingPrompt({ parentStatement: context.big_thought.statement, rows: siblingRows })),
-      fingerprint,
-    );
-    if (!territoryReplacementPasses(judged, code)) {
-      const reason =
-        territoryFailureLessons({
-          rows: [{ code, statement }],
-          items: [{ code, verdict: "AUDIT_FAIL" }],
-          siblingSet: judged,
-        })[0]?.reason || "This Territory overlaps another.";
-      return { saved: false, failed: [{ check: "siblingsDistinct", reason }] };
-    }
-    if (siblingRows.length === admitted.length + 1) siblingSet = judged;
-  }
-
   const area = gloss ?? (await writeGloss());
   const facts: TerritorySemanticFacts = {
     ...shownTerritoryFacts(code, statement),
-    generatePasses: ["partOfBigThought", "audienceLanguage"],
     ...(area.sentence && area.question ? { whatItSays: area.sentence, areaQuestion: area.question } : {}),
   };
   const statementFingerprint = territoryFingerprint({ statement, bigThoughtFingerprint: bigThoughtFp });
-  const nextItems: TerritoryAuditItem[] = [
-    ...items.filter((item) => item.code.toUpperCase() !== code.toUpperCase()),
-    { code, verdict: "AUDIT_PASS", statementFingerprint, ...(skip.length ? { skipped: skip } : {}) },
-  ];
-  const setFingerprint = territorySetFingerprint({
-    bigThoughtFingerprint: bigThoughtFp,
-    territoryFingerprints: [...admitted.map((row) => row.statement), statement].map((name) =>
-      territoryFingerprint({ statement: name, bigThoughtFingerprint: bigThoughtFp }),
-    ),
-  });
+  const marked = withTerritoryResult(record, { code, statement, statementFingerprint, failure: null, skipped: skip });
   const nextRecord = {
-    ...record,
-    siblingSet,
-    audit: { fingerprint: setFingerprint, items: nextItems },
+    ...marked,
+    audit: {
+      fingerprint: territorySetFingerprint({
+        bigThoughtFingerprint: bigThoughtFp,
+        territoryFingerprints: [...admitted.map((row) => row.statement), statement].map((name) =>
+          territoryFingerprint({ statement: name, bigThoughtFingerprint: bigThoughtFp }),
+        ),
+      }),
+      items: marked.audit?.items ?? [],
+    },
   };
   if (replace) {
     return replace.persist({ code, statement, facts, setRecord: nextRecord, fingerprint: statementFingerprint });
@@ -289,7 +231,7 @@ export async function lockThinkingTerritories(
       saved: false,
       failed: open.map((row) => ({
         check: row.code,
-        reason: "This Territory has not passed its checks for its current name. Fix or delete it first.",
+        reason: "This Territory has not passed its checks for its current name. Revise or delete it first.",
       })),
     };
   }

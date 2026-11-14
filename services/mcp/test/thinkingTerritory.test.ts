@@ -76,13 +76,31 @@ describe("thinking.territory.add", () => {
     if (!result.saved) expect(result.failed[0].check).toBe("partOfBigThought");
     expect(calls.some((call) => call.fn === "mcp_add_thinking_territory")).toBe(false);
   });
+
+  it("compares the name with the Territories that already passed, on the card itself", async () => {
+    const passed = { id: "t1", code: "TR01", statement: "Pilih daging di pasar", status: "candidate", admission: "GENERATE_VALID", sort_order: 1 };
+    const set = {
+      schema: "thinking-lab/territory-set/v1", auditLessons: [], revisions: {},
+      audit: { fingerprint: "", items: [{ code: "TR01", verdict: "AUDIT_PASS", statementFingerprint: territoryFingerprint({ statement: passed.statement, bigThoughtFingerprint: btFp }) }] },
+    };
+    const prompts: string[] = [];
+    const ask = async (prompt: string) => {
+      prompts.push(prompt);
+      return answer((id) => id !== "siblingsDistinct")(prompt);
+    };
+    const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const result = await addThinkingTerritory(fakeAdmin(context({}, [passed], set), calls), config, ctx, { bigThoughtId: btId, statement: "Bau prengus kambing" }, { checks: ALL_ON, ask });
+    expect(result.saved).toBe(false);
+    if (!result.saved) expect(result.failed[0].check).toBe("siblingsDistinct");
+    expect(prompts.some((prompt) => prompt.includes("TR01: Pilih daging di pasar"))).toBe(true);
+  });
 });
 
 describe("thinking.territory.lock", () => {
   const names = ["Bau prengus kambing", "Pilih daging di pasar", "Makan malam keluarga"];
   const rows = names.map((statement, index) => ({ id: `t${index}`, code: `TR0${index + 1}`, statement, status: "candidate", admission: "GENERATE_VALID", sort_order: index }));
   const set = {
-    schema: "thinking-lab/territory-set/v1", repairCount: 0, siblingSet: null, auditLessons: [],
+    schema: "thinking-lab/territory-set/v1", auditLessons: [], revisions: {},
     audit: { fingerprint: "", items: rows.map((row) => ({ code: row.code, verdict: "AUDIT_PASS", statementFingerprint: territoryFingerprint({ statement: row.statement, bigThoughtFingerprint: btFp }) })) },
   };
 

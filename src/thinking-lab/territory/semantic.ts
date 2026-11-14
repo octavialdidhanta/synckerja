@@ -1,4 +1,3 @@
-import { readTerritoryGeneratePasses } from "./passChecklist";
 import type {
   TerritoryAudienceLanguage,
   TerritoryBoundedness,
@@ -245,8 +244,6 @@ export function normalizeTerritoryFacts(raw: unknown, fallbackCode = ""): Territ
           : [...new Set([...asReasons(row.unresolvedReasons), ...unresolvedFactReasons(canonical)])],
   };
   if (confidence !== undefined) facts.confidence = confidence;
-  const generatePasses = readTerritoryGeneratePasses(row.generatePasses);
-  if (generatePasses.length > 0) facts.generatePasses = generatePasses;
   return facts;
 }
 

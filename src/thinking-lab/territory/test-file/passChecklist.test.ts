@@ -1,13 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildTerritoryPassPrompt,
-  finishSiblingCheck,
+  firstTerritoryFailure,
   parseTerritoryPassCheck,
-  readTerritoryGeneratePasses,
-  runTerritoryAdmissionChecks,
-  runTerritoryIndividualChecks,
-  runTerritoryOpenChecks,
+  runTerritoryChecks,
+  territoryChecksFromStored,
 } from "@/thinking-lab/territory/passChecklist";
+import { TERRITORY_NAME_LENGTH_REASON } from "@/thinking-lab/territory/generate";
+
+/** Answers a batched prompt from a map of check id to answer; every other check passes. */
+function batchAnswer(prompt: string, fails: Record<string, string> = {}): string {
+  const ids = [...prompt.matchAll(/^Check (\w+):$/gm)].map((match) => match[1]);
+  return JSON.stringify({
+    checks: ids.map((id) => (fails[id] ? { id, pass: false, reason: fails[id] } : { id, pass: true, reason: "" })),
+  });
+}
+
+const isBatch = (prompt: string) => prompt.includes('"checks"');
 
 const parent = "Makan di luar hemat dan menawarkan lauk yang lebih variatif, karena penyedia membeli bahan dalam jumlah besar.";
 
@@ -91,29 +100,26 @@ describe("territory pass checklist", () => {
     });
   });
 
-  it("asks an unreadable check once more before failing it", async () => {
-    const ask = vi.fn(async () => '{"pass":true,"reason":""}');
-    ask.mockImplementationOnce(async () => "not json");
-    const result = await runTerritoryIndividualChecks({
+  it("asks an unreadable batch once more, then each check alone", async () => {
+    const ask = vi.fn(async (prompt: string) => (isBatch(prompt) ? "not json" : '{"pass":true,"reason":""}'));
+    const result = await runTerritoryChecks({
       statement: "Makan siang kantor",
       parentStatement: parent,
       question: "Kenapa makan di luar bisa lebih hemat?",
       ask,
-      onStep: () => undefined,
     });
-    expect(ask).toHaveBeenCalledTimes(5);
+    // Two batch tries, then the four model checks one by one. No peers: siblingsDistinct passes in code.
+    expect(ask).toHaveBeenCalledTimes(6);
     expect(result.passed).toBe(true);
-    expect(result.checks.find((check) => check.id === "partOfBigThought")?.state).toBe("pass");
+    expect(result.checks.every((check) => check.state === "pass")).toBe(true);
   });
 
-  it("stops at the first failed check and does not ask the later ones", async () => {
-    const ask = vi.fn(async (prompt: string) => {
-      if (prompt.includes("not a keyword")) return '{"pass":true,"reason":""}';
-      if (prompt.includes("how the audience would name")) return '{"pass":false,"reason":"Istilah internal."}';
-      return '{"pass":true,"reason":""}';
-    });
+  it("stops at the first failed check and leaves the later ones pending", async () => {
+    const ask = vi.fn(async (prompt: string) =>
+      isBatch(prompt) ? batchAnswer(prompt, { audienceLanguage: "Istilah internal." }) : '{"pass":true,"reason":""}',
+    );
     const seen: string[] = [];
-    const result = await runTerritoryIndividualChecks({
+    const result = await runTerritoryChecks({
       statement: "Skala ekonomi",
       parentStatement: parent,
       audience: "orang kantoran",
@@ -124,134 +130,102 @@ describe("territory pass checklist", () => {
         if (current) seen.push(`${current.id}:${current.state}`);
       },
     });
-    expect(ask).toHaveBeenCalledTimes(2);
+    expect(ask).toHaveBeenCalledTimes(1);
     expect(result.passed).toBe(false);
+    expect(firstTerritoryFailure(result.checks)).toEqual({ gate: "audienceLanguage", reason: "Istilah internal." });
     expect(result.checks.find((check) => check.id === "partOfBigThought")?.state).toBe("pass");
-    expect(result.checks.find((check) => check.id === "audienceLanguage")).toMatchObject({
-      state: "fail",
-      reason: "Istilah internal.",
-    });
     expect(result.checks.find((check) => check.id === "questionArises")?.state).toBe("pending");
-    expect(result.checks.find((check) => check.id === "wideEnough")?.state).toBe("pending");
     expect(result.checks.find((check) => check.id === "siblingsDistinct")?.state).toBe("pending");
     expect(seen).toContain("audienceLanguage:fail");
-    expect(finishSiblingCheck(result.checks, true, "").find((check) => check.id === "siblingsDistinct")?.state).toBe(
-      "pending",
-    );
   });
 
-  it("re-asks only the failed name check and the checks that have not run", async () => {
-    const ask = vi.fn(async (prompt: string) => {
-      if (prompt.includes("how the audience would name")) return '{"pass":true,"reason":""}';
-      if (prompt.includes("question the Big Thought answers")) return '{"pass":true,"reason":""}';
-      if (prompt.includes("Name them in your reasoning before you decide.")) return '{"pass":true,"reason":""}';
-      return '{"pass":false,"reason":"should not be asked"}';
-    });
-    const ensureQuestion = vi.fn(async () => "Pertanyaan baru");
-    const result = await runTerritoryOpenChecks({
-      statement: "Bekal kantor",
-      parentStatement: parent,
-      audience: "orang kantoran",
-      question: "Kenapa makan di luar bisa lebih hemat?",
-      prior: [
-        { id: "partOfBigThought", state: "pass" },
-        { id: "audienceLanguage", state: "fail", reason: "Istilah internal." },
-        { id: "questionArises", state: "pending" },
-        { id: "wideEnough", state: "pending" },
-        { id: "siblingsDistinct", state: "pending" },
-      ],
-      ensureQuestion,
-      ask,
-      onStep: () => undefined,
-    });
-    expect(ask).toHaveBeenCalledTimes(3);
-    expect(ask.mock.calls.some(([prompt]) => String(prompt).includes("not a keyword"))).toBe(false);
-    expect(ensureQuestion).not.toHaveBeenCalled();
-    expect(result.passed).toBe(true);
-    expect(result.question).toBe("Kenapa makan di luar bisa lebih hemat?");
-    expect(result.checks.find((check) => check.id === "audienceLanguage")?.state).toBe("pass");
-    expect(result.checks.find((check) => check.id === "siblingsDistinct")?.state).toBe("pending");
-  });
-
-  it("keeps a passed question and does not ask for another one", async () => {
+  it("fails a name that is too long without asking the model", async () => {
     const ask = vi.fn(async () => '{"pass":true,"reason":""}');
-    const ensureQuestion = vi.fn(async () => "Pertanyaan baru");
-    const result = await runTerritoryOpenChecks({
-      statement: "Bekal kantor",
+    const result = await runTerritoryChecks({
+      statement: "Makan siang kantor yang hemat sekali",
       parentStatement: parent,
-      audience: "orang kantoran",
       question: "Kenapa makan di luar bisa lebih hemat?",
-      prior: [
-        { id: "partOfBigThought", state: "pass" },
-        { id: "audienceLanguage", state: "fail", reason: "Istilah internal." },
-        { id: "questionArises", state: "pass" },
-        { id: "wideEnough", state: "pass" },
-        { id: "siblingsDistinct", state: "pending" },
-      ],
-      ensureQuestion,
       ask,
-      onStep: () => undefined,
     });
-    expect(ask).toHaveBeenCalledTimes(1);
-    expect(ensureQuestion).not.toHaveBeenCalled();
-    expect(result.passed).toBe(true);
-    expect(result.question).toBe("Kenapa makan di luar bisa lebih hemat?");
+    expect(ask).not.toHaveBeenCalled();
+    expect(firstTerritoryFailure(result.checks)).toEqual({ gate: "partOfBigThought", reason: TERRITORY_NAME_LENGTH_REASON });
   });
 
-  it("asks only the two Generate checks", async () => {
+  it("compares the name with the Territories that already passed", async () => {
     const ask = vi.fn(async (prompt: string) =>
-      prompt.includes("how the audience would name")
-        ? '{"pass":false,"reason":"Istilah internal."}'
-        : '{"pass":true,"reason":""}',
+      isBatch(prompt) ? batchAnswer(prompt, { siblingsDistinct: "TR01: wilayah yang sama." }) : '{"pass":true,"reason":""}',
     );
-    const result = await runTerritoryAdmissionChecks({
-      statement: "Skala ekonomi",
+    const result = await runTerritoryChecks({
+      statement: "Bekal kantor",
       parentStatement: parent,
-      audience: "orang kantoran",
+      question: "Kenapa makan di luar bisa lebih hemat?",
+      peers: [{ code: "TR01", statement: "Makan siang kantor" }],
       ask,
-      onStep: () => undefined,
     });
-    expect(ask).toHaveBeenCalledTimes(2);
-    expect(result.passed).toBe(false);
-    expect(result.checks.map((check) => check.id)).toEqual(["partOfBigThought", "audienceLanguage"]);
-    expect(result.checks.find((check) => check.id === "audienceLanguage")?.state).toBe("fail");
+    expect(String(ask.mock.calls[0]?.[0])).toContain("TR01: Makan siang kantor");
+    expect(firstTerritoryFailure(result.checks)).toEqual({ gate: "siblingsDistinct", reason: "TR01: wilayah yang sama." });
   });
 
-  it("does not ask Generate checks again when that name already passed them", async () => {
-    const ask = vi.fn(async (prompt: string) => {
-      if (prompt.includes("not a keyword") || prompt.includes("how the audience would name")) {
-        return '{"pass":false,"reason":"should not be asked"}';
-      }
-      return '{"pass":true,"reason":""}';
-    });
-    const result = await runTerritoryIndividualChecks({
+  it("fails the same name as a passed Territory in code", async () => {
+    const ask = vi.fn(async (prompt: string) => (isBatch(prompt) ? batchAnswer(prompt) : '{"pass":true,"reason":""}'));
+    const result = await runTerritoryChecks({
       statement: "Makan siang kantor",
       parentStatement: parent,
       question: "Kenapa makan di luar bisa lebih hemat?",
-      carried: readTerritoryGeneratePasses(["partOfBigThought", "audienceLanguage"]),
+      peers: [{ code: "TR01", statement: "makan siang  kantor" }],
       ask,
-      onStep: () => undefined,
     });
+    expect(String(ask.mock.calls[0]?.[0])).not.toContain("Check siblingsDistinct:");
+    expect(firstTerritoryFailure(result.checks)?.gate).toBe("siblingsDistinct");
+  });
+
+  it("does not ask the checks it keeps or the ones switched off", async () => {
+    const ask = vi.fn(async (prompt: string) => (isBatch(prompt) ? batchAnswer(prompt) : '{"pass":true,"reason":""}'));
+    const result = await runTerritoryChecks({
+      statement: "Makan siang kantor",
+      parentStatement: parent,
+      question: "Kenapa makan di luar bisa lebih hemat?",
+      keep: ["partOfBigThought", "audienceLanguage"],
+      skip: ["wideEnough"],
+      ask,
+    });
+    // Only questionArises is left for the model, so it is asked alone.
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(String(ask.mock.calls[0]?.[0])).toContain("Judge the supplied question only.");
     expect(result.passed).toBe(true);
-    expect(ask).toHaveBeenCalledTimes(2);
-    expect(result.checks.find((check) => check.id === "partOfBigThought")?.state).toBe("pass");
-    expect(result.checks.find((check) => check.id === "audienceLanguage")?.state).toBe("pass");
-    expect(result.checks.find((check) => check.id === "questionArises")?.state).toBe("pass");
-    expect(result.checks.find((check) => check.id === "wideEnough")?.state).toBe("pass");
+    expect(result.checks.find((check) => check.id === "wideEnough")?.reason).toBe("Dimatikan untuk organisasi ini.");
   });
 
-  it("starts from the first check when the name has no Generate passes", async () => {
-    const ask = vi.fn(async () => '{"pass":true,"reason":""}');
-    const result = await runTerritoryIndividualChecks({
+  it("fetches the question only when it is missing, and keeps it out of the batch until then", async () => {
+    const ask = vi.fn(async (prompt: string) => (isBatch(prompt) ? batchAnswer(prompt) : '{"pass":true,"reason":""}'));
+    const ensureQuestion = vi.fn(async () => "Kenapa makan di luar bisa lebih hemat?");
+    const result = await runTerritoryChecks({
       statement: "Makan siang kantor",
       parentStatement: parent,
-      question: "Kenapa makan di luar bisa lebih hemat?",
-      carried: readTerritoryGeneratePasses(["partOfBigThought"]),
+      ensureQuestion,
       ask,
-      onStep: () => undefined,
     });
-    expect(readTerritoryGeneratePasses(["partOfBigThought"])).toEqual([]);
-    expect(ask).toHaveBeenCalledTimes(4);
-    expect(result.checks.find((check) => check.id === "partOfBigThought")?.state).toBe("pass");
+    expect(String(ask.mock.calls[0]?.[0])).not.toContain("Check questionArises:");
+    expect(ensureQuestion).toHaveBeenCalledTimes(1);
+    expect(result.question).toBe("Kenapa makan di luar bisa lebih hemat?");
+    expect(result.passed).toBe(true);
+  });
+
+  it("fails questionArises when no question comes back", async () => {
+    const ask = vi.fn(async (prompt: string) => (isBatch(prompt) ? batchAnswer(prompt) : '{"pass":true,"reason":""}'));
+    const result = await runTerritoryChecks({ statement: "Makan siang kantor", parentStatement: parent, ask });
+    expect(firstTerritoryFailure(result.checks)?.gate).toBe("questionArises");
+  });
+
+  it("shows a stored result after refresh", () => {
+    expect(territoryChecksFromStored({ passed: true }).every((check) => check.state === "pass")).toBe(true);
+    expect(territoryChecksFromStored({})).toEqual([]);
+    expect(territoryChecksFromStored({ gateFailure: { gate: "questionArises", reason: "Lain." } }).map((check) => check.state)).toEqual([
+      "pass",
+      "pass",
+      "fail",
+      "pending",
+      "pending",
+    ]);
   });
 });
