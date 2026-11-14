@@ -4,16 +4,8 @@ import { ACTIVE_SET_CAP, MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "../s
 import { parseModelJson } from "../shared/parseModelJson";
 import { sameWording } from "../shared/distinct";
 import type { TerritoryParentDenial } from "./eligibility";
-import { reviewTerritoryGenerativity, sealTerritoryFacts } from "./generativity";
-import {
-  buildTerritoryLivedFitPrompt,
-  buildTerritoryPlacePrompt,
-  parseTerritoryLivedFit,
-  parseTerritoryPlace,
-  territoryScreenRejection,
-} from "./checks";
 import { admitTerritory } from "./policy";
-import { judgeTerritory, TERRITORY_STAKE_LINES, territoryPassLines } from "./semantic";
+import { TERRITORY_STAKE_LINES, territoryPassLines } from "./semantic";
 import type { TerritoryRelation, TerritorySemanticFacts } from "./types";
 import type { IndividualAdmission } from "../shared/verdict";
 
@@ -229,44 +221,6 @@ export function buildTerritoryGeneratePrompt(input: {
   ].join("\n");
 }
 
-export function buildTerritoryGapPrompt(input: {
-  parentStatement: string;
-  ancestors?: AncestorStake[];
-  audience?: string;
-  answeredQuestion?: string;
-  incumbents: Array<{ code: string; statement: string }>;
-  gap: string;
-}): string {
-  const kept =
-    input.incumbents.length === 0
-      ? "(none)"
-      : input.incumbents.map((row) => `${row.code}: ${row.statement}`).join("\n");
-  return [
-    "Write one Territory that fills a named gap under one direct Big Thought.",
-    "A Territory is a noun or noun phrase naming an audience area where several Angles could live. It must not contain a claim.",
-    territoryLinkInstruction(input.answeredQuestion ?? "", territoryLanguageSample(input.parentStatement, input.ancestors)),
-    ...territoryPassLines(input.audience),
-    "Do not name an impact, a requirement, or an evaluation. Those are claims even when the grammar is still a noun phrase.",
-    "It must cover the missing area and must not restate the Big Thought, repeat an incumbent, or sit inside an incumbent.",
-    ...ANCESTOR_STAKE_RULES,
-    ...TERRITORY_STAKE_LINES,
-    "Do not return a slogan or a single claim.",
-    "Write in the same language as the Big Thought.",
-    "Do not use examples from any specific industry, belief system, or brand.",
-    "Return JSON only: {\"statements\":[\"...\"]}",
-    "",
-    "Direct Big Thought:",
-    input.parentStatement.trim(),
-    ...ancestorStakeBlock(input.ancestors),
-    "",
-    "Missing space:",
-    input.gap.trim(),
-    "",
-    "Incumbent Territories:",
-    kept,
-  ].join("\n");
-}
-
 export function parseGeneratedTerritoryStatements(raw: unknown): string[] {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
   const statements = (raw as { statements?: unknown }).statements;
@@ -310,51 +264,6 @@ export function shownTerritoryFacts(code: string, statement: string): TerritoryS
     resolution: "RESOLVED",
     unresolvedReasons: [],
   };
-}
-
-export async function judgeAndSealTerritory(input: {
-  parentStatement: string;
-  ancestors?: AncestorStake[];
-  audience?: string;
-  answeredQuestion?: string;
-  code: string;
-  statement: string;
-  ask: (prompt: string) => Promise<string | null>;
-}): Promise<TerritorySemanticFacts> {
-  const question = input.answeredQuestion?.trim() ?? "";
-  const [placeScript, livedScript] = await Promise.all([
-    input.ask(
-      buildTerritoryPlacePrompt({
-        statement: input.statement,
-        parentStatement: input.parentStatement,
-        audience: input.audience,
-      }),
-    ),
-    question
-      ? input.ask(buildTerritoryLivedFitPrompt({ statement: input.statement, question }))
-      : Promise.resolve(null),
-  ]);
-  if (parseTerritoryPlace(placeScript) !== true) {
-    return territoryScreenRejection(input.code, "OUT_OF_PARENT_SCOPE");
-  }
-  if (!question || parseTerritoryLivedFit(livedScript) !== true) {
-    return territoryScreenRejection(input.code, "QUESTION_NOT_LIVED");
-  }
-  const provisional = await judgeTerritory(
-    {
-      parentStatement: input.parentStatement,
-      ancestors: input.ancestors,
-      audience: input.audience,
-      answeredQuestion: input.answeredQuestion,
-      candidate: { code: input.code, statement: input.statement },
-    },
-    input.ask,
-  );
-  const review = await reviewTerritoryGenerativity(
-    { parentStatement: input.parentStatement, statement: input.statement },
-    input.ask,
-  );
-  return sealTerritoryFacts(provisional, review);
 }
 
 export async function runTerritoryGenerate<

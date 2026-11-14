@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildTerritoryJudgePrompt,
-  deriveTerritoryRelation,
-  judgeTerritory,
-  normalizeTerritoryFacts,
-  parseTerritoryJudge,
-} from "@/thinking-lab/territory/semantic";
+import { deriveTerritoryRelation, normalizeTerritoryFacts } from "@/thinking-lab/territory/semantic";
 import type { TerritorySemanticFacts } from "@/thinking-lab/territory/types";
 
 function positive(overrides: Partial<TerritorySemanticFacts> = {}): TerritorySemanticFacts {
@@ -176,9 +170,8 @@ describe("normalizeTerritoryFacts", () => {
   });
 
   it("fails closed on malformed and contradictory canonical facts", () => {
-    expect(parseTerritoryJudge(null, "TR09").unresolvedReasons).toEqual(["JUDGE_UNAVAILABLE"]);
-    expect(parseTerritoryJudge("not json", "TR09").relationToParent).toBe("UNRESOLVED");
-    expect(parseTerritoryJudge("not json", "TR09").resolution).toBe("UNRESOLVED");
+    expect(normalizeTerritoryFacts(null, "TR09").relationToParent).toBe("UNRESOLVED");
+    expect(normalizeTerritoryFacts(null, "TR09").resolution).toBe("UNRESOLVED");
     const contradictory = normalizeTerritoryFacts({
       conceptualForm: ["ANGLE_LIKE", "BIG_THOUGHT_LIKE"],
       parentFit: [true, false],
@@ -199,96 +192,6 @@ describe("normalizeTerritoryFacts", () => {
     expect(unknown.parentFit).toBe("unresolved");
     expect(unknown.conceptualForm).toBe("UNRESOLVED");
     expect(unknown.resolution).toBe("UNRESOLVED");
-  });
-
-  it("keeps the framework shape, the four pass conditions, and the Master Thought stake test", () => {
-    const prompt = buildTerritoryJudgePrompt({
-      parentStatement: "Waktu untuk pertumbuhan investasi lebih panjang.",
-      ancestors: [{ label: "Master Thought", statement: "Uang di usia muda lebih berharga ditabung." }],
-      answeredQuestion: "di mana waktu itu terasa lebih panjang?",
-      candidate: { code: "TR01", statement: "Pensiun Dini" },
-    });
-    expect(prompt).toContain("a phenomenon, habit, life moment, culture, or everyday problem");
-    expect(prompt).toContain("It is a noun or a noun phrase. It does not yet contain a claim.");
-    expect(prompt).toContain("It is part of the Big Thought, not a keyword of the Big Thought.");
-    expect(prompt).toContain("how the audience would name that area");
-    expect(prompt).toContain("The question answered by the Big Thought must actually show up");
-    expect(prompt).toContain("The question this Big Thought answers is: \"di mana waktu itu terasa lebih panjang?\"");
-    expect(prompt).toContain("livedQuestion is true when that question actually shows up in this area");
-    expect(prompt).toContain("Kurir paket is the shape of a name");
-    expect(prompt).toContain("wide enough for several different Angles");
-    expect(prompt).toContain("its main job is an impact, a requirement, or an evaluation");
-    expect(prompt).toContain("after the distinctive stake of the direct Big Thought or an ancestor is removed, including the Master Thought");
-    expect(prompt).toContain("the part of that belief that is not in the subject");
-    expect(prompt).toContain("Putting that stake into the name does not make parentFit true.");
-    expect(prompt).toContain("Writing the reason as a shorter noun is not a child space.");
-    expect(prompt).toContain("when it states the parent's reason or the lack the parent already asserts");
-    expect(prompt).toContain("Do not state the parent's reason, lack, or conclusion.");
-    expect(prompt).toContain("not rejected only because that name can still be said");
-    expect(prompt).toContain("The name is at most three words.");
-    expect(prompt).not.toContain("Audience:");
-    expect(prompt).not.toContain("orang");
-  });
-
-  it("judges lived life and words for the named audience", () => {
-    const prompt = buildTerritoryJudgePrompt({
-      parentStatement: "Nilai barang konsumtif cepat tergerus.",
-      ancestors: [
-        {
-          label: "Master Thought",
-          statement: "Uang di usia muda lebih berharga ditabung daripada dihabiskan untuk mengejar motor paling kencang.",
-        },
-      ],
-      audience: "anak muda hobi motor",
-      answeredQuestion: "uangnya habis ke mana?",
-      candidate: { code: "TR01", statement: "Pakaian tren musiman" },
-    });
-    expect(prompt).toContain("It is part of the Big Thought, not a keyword of the Big Thought.");
-    expect(prompt).toContain("This is a test of words, not of topic.");
-    expect(prompt).toContain("how the audience would name that area");
-    expect(prompt).toContain("this audience's real life");
-    expect(prompt).toContain('The question this Big Thought answers is: "uangnya habis ke mana?"');
-    expect(prompt).toContain("shows up in this area of this audience's real life");
-    expect(prompt).toContain("the question only restates the Big Thought");
-    expect(prompt).toContain("can still be discussed stays true when that question shows up");
-    expect(prompt).not.toContain("only fits a different audience");
-    expect(prompt).toContain("wide enough for several different Angles");
-    expect(prompt).toContain("Audience: anak muda hobi motor");
-    expect(prompt).toContain("including the Master Thought and the part of that belief that is not in the subject");
-  });
-
-  it("does not special-case a candidate string", async () => {
-    const parent = "Innovation should challenge the way things are normally done.";
-    const duplicated = await judgeTerritory(
-      { parentStatement: parent, candidate: { code: "TR01", statement: "Innovation" } },
-      async () =>
-        JSON.stringify({
-          whatItSays: "The same scope as the parent",
-          parentFit: true,
-          conceptualForm: "TERRITORY_SPACE",
-          parentScopeDuplication: true,
-          generativity: "SUFFICIENT",
-          boundedness: "BOUNDED",
-        }),
-    );
-    expect(duplicated.relationToParent).toBe("PARENT_SCOPE_DUPLICATION");
-    const valid = await judgeTerritory(
-      { parentStatement: parent, candidate: { code: "TR01", statement: "Innovation" } },
-      async () =>
-        JSON.stringify({
-          whatItSays: "A bounded child space",
-          parentFit: true,
-          conceptualForm: "TERRITORY_SPACE",
-          parentScopeDuplication: false,
-          generativity: "SUFFICIENT",
-          boundedness: "BOUNDED",
-          nominalForm: "NOMINAL",
-          audienceLanguage: "AUDIENCE",
-          livedQuestion: true,
-        }),
-    );
-    expect(valid.relationToParent).toBe("VALID_TERRITORY");
-    expect(valid.resolution).toBe("RESOLVED");
   });
 
   it("keeps OUT_OF_PARENT_SCOPE when a lower generativity fact contradicts", () => {

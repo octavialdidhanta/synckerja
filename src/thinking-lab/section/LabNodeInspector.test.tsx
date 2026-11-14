@@ -265,26 +265,6 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.queryByRole("button", { name: "Remove TR03" })).toBeNull();
   });
 
-  it("shows Challenger alone while three passing territories still need a challenger", () => {
-    render(
-      <LabNodeInspector
-        kind="bigThought"
-        code="BT01"
-        statement="A locked big thought"
-        territories={[
-          { id: "t2", code: "TR02", statement: "Symbolic and functional giving.", verdict: "AUDIT_PASS" },
-          { id: "t3", code: "TR03", statement: "Genuine giving versus implied pressure.", verdict: "AUDIT_PASS" },
-          { id: "t4", code: "TR04", statement: "Altruism versus expected return.", verdict: "AUDIT_PASS" },
-        ]}
-        territoryStage="challenger"
-        onTerritoryStage={vi.fn()}
-      />,
-    );
-    openActionMenu();
-    expect(screen.getByRole("menuitem", { name: "Challenger" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Lock" })).toBeNull();
-  });
-
   it("offers removal only for the failed side of an overlap with territories that still pass", () => {
     const onRemoveCoveringTerritory = vi.fn();
     render(

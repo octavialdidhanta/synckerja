@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { buildIdeaGeneratePrompt } from "@/thinking-lab/idea/generate";
 import { buildIdeaCheckPrompt } from "@/thinking-lab/idea/check/run";
 import { buildTerritoryGeneratePrompt } from "@/thinking-lab/territory/generate";
-import { buildTerritoryJudgePrompt } from "@/thinking-lab/territory/semantic";
 
 const ancestors = [
   { label: "Territory", statement: "What still counts as trusted giving." },
@@ -18,17 +17,9 @@ describe("ancestor stake prompts", () => {
       incumbents: [],
       needed: 1,
     });
-    const judge = buildTerritoryJudgePrompt({
-      parentStatement: "A direct parent.",
-      ancestors: [{ label: "Master Thought", statement: "The giver may redirect when trust fails." }],
-      candidate: { code: "TR01", statement: "A drifted space." },
-    });
     expect(generate).toContain("would still be coherent after that stake is removed");
-    expect(judge).toContain("after the distinctive stake of the direct Big Thought or an ancestor is removed");
-    for (const prompt of [generate, judge]) {
-      expect(prompt).toContain("Master Thought: The giver may redirect when trust fails.");
-      expect(prompt).not.toContain("Do not judge it by whether it materially supports the parent.");
-    }
+    expect(generate).toContain("Master Thought: The giver may redirect when trust fails.");
+    expect(generate).not.toContain("Do not judge it by whether it materially supports the parent.");
   });
 
   it("asks an Idea to keep the Angle and the ancestors above it", () => {

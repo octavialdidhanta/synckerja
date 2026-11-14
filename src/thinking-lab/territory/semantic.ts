@@ -1,5 +1,3 @@
-import { parseModelJson } from "../shared/parseModelJson";
-import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
 import { readTerritoryGeneratePasses } from "./passChecklist";
 import type {
   TerritoryAudienceLanguage,
@@ -252,13 +250,6 @@ export function normalizeTerritoryFacts(raw: unknown, fallbackCode = ""): Territ
   return facts;
 }
 
-export function parseTerritoryJudge(script: string | null, code: string): TerritorySemanticFacts {
-  if (!script?.trim()) return unresolvedTerritory(code, "JUDGE_UNAVAILABLE");
-  const parsed = parseModelJson(script);
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return unresolvedTerritory(code, "JUDGE_UNPARSEABLE");
-  return normalizeTerritoryFacts(parsed, code);
-}
-
 export const TERRITORY_STAKE_LINES = [
   "Name an area in the audience's world: a phenomenon, a habit, a life moment, a culture, or an everyday problem. The name is a noun or a noun phrase with no claim, no lack, and no evaluation. Kurir paket is this kind of name.",
   "Do not put the Big Thought's reason into the name. A name that would stop making sense once the Master Thought stake is removed, including the part of the belief that is not in the subject, has copied that stake.",
@@ -278,86 +269,4 @@ export function territoryPassLines(audience?: string): string[] {
     "It must be wide enough for several different Angles. A narrow place still passes. The Big Thought's own answer is one future Angle, not proof that the place holds only one observation. This fails only when the name itself is already one observation, claim, or method.",
     ...(named ? [`Audience: ${named}`] : []),
   ];
-}
-
-export function buildTerritoryJudgePrompt(input: {
-  parentStatement: string;
-  ancestors?: AncestorStake[];
-  audience?: string;
-  answeredQuestion?: string;
-  candidate: { code: string; statement: string };
-}): string {
-  const named = input.audience?.trim() ?? "";
-  const question = input.answeredQuestion?.trim() ?? "";
-  return [
-    "You are the canonical semantic judge for one Territory under one direct Big Thought.",
-    "A Territory names an area in the audience's world: a phenomenon, habit, life moment, culture, or everyday problem where the Big Thought's reason can be discussed.",
-    "It is a noun or a noun phrase. It does not yet contain a claim.",
-    "The name is at most three words. A requirement is a claim, not an area. Kurir paket is the shape of a name.",
-    ...territoryPassLines(named),
-    "It is specific enough that its boundary is recognizable.",
-    "Judge only this candidate against this direct parent. Do not compare sibling Territories. Do not judge overlap, containment, set distinctness, coverage, or challenger completeness.",
-    "Judge semantic fit, not keyword overlap. A child Territory may introduce a new framing that the parent sentence does not already say.",
-    "parentFit is false when the name is not an area in the audience's world where this Big Thought can be discussed, or when the name is only a keyword copied from the Big Thought: its title, its reason, or a short restatement of its words. A word that also appears in the Big Thought does not make parentFit false when the name still names a different area. Being able to discuss other subjects in that area does not make parentFit false. A wide area stays true when this Big Thought can be discussed there. Putting that stake into the name does not make parentFit true. A name that would stop making sense after the distinctive stake of the direct Big Thought or an ancestor is removed, including the Master Thought and the part of that belief that is not in the subject, has copied that stake and parentFit is false. A noun the audience would use is not rejected only because that name can still be said. Otherwise true, or unresolved when that cannot be decided.",
-    "Do not copy the parent or the ancestors.",
-    "Return facts only. Do not decide relationToParent. Any relation you include is ignored.",
-    "conceptualForm is TERRITORY_SPACE when the candidate names an area where several Angles could live.",
-    "conceptualForm is BIG_THOUGHT_LIKE when its primary role is a belief, proposition, principle, premise, reason, normative claim, or broad assertion. Judge role, not grammar.",
-    "conceptualForm is ANGLE_LIKE when it closes exploration around one contestable point of view, interpretation, claim, or conclusion. A sentence is not automatically an Angle.",
-    "conceptualForm is DOWNSTREAM_EXECUTION_LIKE when its primary role is an action, medium, content format, scene, mechanism, implementation, experiment, or production technique.",
-    "conceptualForm is UNRESOLVED when the role cannot be decided.",
-    "parentScopeDuplication is true when the candidate is space-like but substantially repeats the parent's conceptual scope instead of opening a meaningful child space. It is also true when the noun restates the parent's reason, lack, evaluation, or conclusion. Writing the reason as a shorter noun is not a child space. It is false for a real child space, or unresolved when that cannot be decided.",
-    "generativity is SUFFICIENT when the space can hold several substantively different Angles, not paraphrases. A narrow space can still be sufficient. INSUFFICIENT means it cannot. UNRESOLVED means that cannot be decided.",
-    "boundedness is BOUNDED when it is reasonably clear what belongs inside and what does not. A wide area that can hold several Angles stays BOUNDED. UNBOUNDED means the boundary is vague, diffuse, or unstable. Width alone does not make it UNBOUNDED. UNRESOLVED means that cannot be decided.",
-    "nominalForm is NOMINAL when the candidate is a noun or a noun phrase that names an area without asserting a belief. CLAIM when it asserts a belief, reason, evaluation, or proposition, when it states the parent's reason or the lack the parent already asserts, and also when its main job is an impact, a requirement, or an evaluation, even when the grammar is still a noun phrase. UNRESOLVED when that cannot be decided. A one-word or short noun phrase can be NOMINAL.",
-    named
-      ? "audienceLanguage is AUDIENCE when the words are how the audience would name that area. INTERNAL when the words are an internal strategy term, a brand framework, or jargon the audience would not use. Judge the words of the named audience. This is a test of words, not of topic. UNRESOLVED when that cannot be decided."
-      : "audienceLanguage is AUDIENCE when the words are how the audience would name that area. INTERNAL when the words are an internal strategy term, a brand framework, or jargon the audience would not use. This is a test of words, not of topic. UNRESOLVED when that cannot be decided.",
-    question
-      ? `The question this Big Thought answers is: "${question}".`
-      : "The question is the one this Big Thought answers.",
-    named
-      ? "livedQuestion is true when that question actually shows up in this area of this audience's real life. false when a different question comes up there, or when the question only restates the Big Thought. Other questions coming up in that area do not make it false. An area where this Big Thought can still be discussed stays true when that question shows up. unresolved when that cannot be decided."
-      : "livedQuestion is true when that question actually shows up in this area of real life. false when a different question comes up there, or when the question only restates the Big Thought. Other questions coming up in that area do not make it false. unresolved when that cannot be decided.",
-    "Judge whether the candidate names a claim-free audience area where the question this Big Thought answers comes up. The name does not become fit by repeating the parent's reason.",
-    "confidence is optional debug metadata. It does not decide any fact.",
-    "whatItSays repeats the Territory name. Do not write a situation. Do not state the parent's reason, lack, or conclusion.",
-    "Use unresolvedReasons only when a required fact cannot be decided. Do not explain a clear rejection there.",
-    "Return JSON only:",
-    JSON.stringify({
-      code: input.candidate.code,
-      whatItSays: "",
-      parentFit: "unresolved",
-      conceptualForm: "UNRESOLVED",
-      parentScopeDuplication: "unresolved",
-      generativity: "UNRESOLVED",
-      boundedness: "UNRESOLVED",
-      nominalForm: "UNRESOLVED",
-      audienceLanguage: "UNRESOLVED",
-      livedQuestion: "unresolved",
-      unresolvedReasons: [],
-      confidence: 0,
-    }),
-    "",
-    "Direct Big Thought:",
-    input.parentStatement.trim(),
-    ...ancestorStakeBlock(input.ancestors),
-    "",
-    "Candidate Territory:",
-    `${input.candidate.code}: ${input.candidate.statement.trim()}`,
-  ].join("\n");
-}
-
-export async function judgeTerritory(
-  input: {
-    parentStatement: string;
-    ancestors?: AncestorStake[];
-    audience?: string;
-    answeredQuestion?: string;
-    candidate: { code: string; statement: string };
-  },
-  ask: (prompt: string) => Promise<string | null>,
-): Promise<TerritorySemanticFacts> {
-  const script = await ask(buildTerritoryJudgePrompt(input));
-  return parseTerritoryJudge(script, input.candidate.code);
 }

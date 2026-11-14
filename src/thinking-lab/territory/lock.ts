@@ -1,18 +1,13 @@
 import { TARGET_GENERATE_VALID } from "../shared/limits";
-import type { TerritoryChallengerResult } from "./types";
 import type { AuditVerdict } from "../shared/verdict";
 
-export type TerritoryStageAction = "fix" | "generate" | "audit" | "challenger" | "lock";
+export type TerritoryStageAction = "fix" | "generate" | "audit" | "lock";
 
 export type TerritoryLockDecision =
   | { ok: true }
-  | { ok: false; reason: "NEED_AUDIT_PASS" | "AUDIT_FAIL" | "STALE" | "UNRESOLVED" | "CHALLENGER" };
+  | { ok: false; reason: "NEED_AUDIT_PASS" | "AUDIT_FAIL" | "STALE" | "UNRESOLVED" };
 
-export function evaluateTerritoryLock(input: {
-  verdicts: Array<AuditVerdict | null>;
-  challenger: TerritoryChallengerResult | null;
-  challengerCurrent: boolean;
-}): TerritoryLockDecision {
+export function evaluateTerritoryLock(input: { verdicts: Array<AuditVerdict | null> }): TerritoryLockDecision {
   if (input.verdicts.length < TARGET_GENERATE_VALID) return { ok: false, reason: "NEED_AUDIT_PASS" };
   if (input.verdicts.some((verdict) => verdict == null)) return { ok: false, reason: "NEED_AUDIT_PASS" };
   if (input.verdicts.some((verdict) => verdict === "AUDIT_FAIL")) return { ok: false, reason: "AUDIT_FAIL" };
@@ -22,11 +17,10 @@ export function evaluateTerritoryLock(input: {
   return { ok: true };
 }
 
+/** Audit until every Territory has a verdict, Fix once after a fail, Generate up to the target, then Lock. */
 export function selectTerritoryStage(input: {
   admittedCount: number;
   verdicts: Array<AuditVerdict | null>;
-  challengerComplete: boolean;
-  materialGap: boolean;
   canAdd: boolean;
   repairsUsed: boolean;
   lockOk: boolean;
@@ -38,7 +32,6 @@ export function selectTerritoryStage(input: {
   if (awaitingAudit) return "audit";
   if (input.verdicts.some((verdict) => verdict === "AUDIT_FAIL")) return input.repairsUsed ? null : "fix";
   if (input.admittedCount < TARGET_GENERATE_VALID) return input.canAdd ? "generate" : null;
-  if (input.materialGap && input.canAdd) return null;
   if (input.lockOk) return "lock";
   return null;
 }

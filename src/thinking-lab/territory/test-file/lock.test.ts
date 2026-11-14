@@ -1,96 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { coverageFromChallenger, normalizeTerritoryChallenger } from "@/thinking-lab/territory/challenger";
 import { evaluateTerritoryLock, selectTerritoryStage } from "@/thinking-lab/territory/lock";
 
-describe("territory challenger and lock", () => {
-  it("requires a description for a material gap", () => {
-    expect(normalizeTerritoryChallenger({ status: "MATERIAL_GAP", unresolvedReasons: [] }).status).toBe("UNRESOLVED");
-    const gap = normalizeTerritoryChallenger({
-      status: "MATERIAL_GAP",
-      materialGapDescription: "A missing space",
-      unresolvedReasons: [],
-    });
-    expect(coverageFromChallenger(gap)).toBe("MATERIAL_GAP");
+const stage = (input: Partial<Parameters<typeof selectTerritoryStage>[0]>) =>
+  selectTerritoryStage({
+    admittedCount: 3,
+    verdicts: ["AUDIT_PASS", "AUDIT_PASS", "AUDIT_PASS"],
+    canAdd: true,
+    repairsUsed: false,
+    lockOk: false,
+    ...input,
   });
 
-  it("locks after three passing audits without a challenger", () => {
-    const allowedWithoutChallenger = evaluateTerritoryLock({
-      verdicts: ["AUDIT_PASS", "AUDIT_PASS", "AUDIT_PASS"],
-      challenger: null,
-      challengerCurrent: false,
+describe("territory lock", () => {
+  it("locks after three passing audits", () => {
+    expect(evaluateTerritoryLock({ verdicts: ["AUDIT_PASS", "AUDIT_PASS", "AUDIT_PASS"] }).ok).toBe(true);
+    expect(evaluateTerritoryLock({ verdicts: ["AUDIT_PASS", "AUDIT_PASS"] }).ok).toBe(false);
+    expect(evaluateTerritoryLock({ verdicts: ["AUDIT_PASS", "AUDIT_FAIL", "AUDIT_PASS"] })).toEqual({
+      ok: false,
+      reason: "AUDIT_FAIL",
     });
-    expect(allowedWithoutChallenger.ok).toBe(true);
-    const allowed = evaluateTerritoryLock({
-      verdicts: ["AUDIT_PASS", "AUDIT_PASS", "AUDIT_PASS"],
-      challenger: { status: "COMPLETE", unresolvedReasons: [] },
-      challengerCurrent: true,
-    });
-    expect(allowed.ok).toBe(true);
-    expect(
-      selectTerritoryStage({
-        admittedCount: 3,
-        verdicts: ["AUDIT_PASS", "AUDIT_PASS", "AUDIT_PASS"],
-        challengerComplete: true,
-        materialGap: false,
-        canAdd: true,
-        repairsUsed: false,
-        lockOk: true,
-      }),
-    ).toBe("lock");
-    expect(
-      selectTerritoryStage({
-        admittedCount: 2,
-        verdicts: ["AUDIT_PASS", "AUDIT_PASS"],
-        challengerComplete: false,
-        materialGap: false,
-        canAdd: true,
-        repairsUsed: false,
-        lockOk: false,
-      }),
-    ).toBe("generate");
-    expect(
-      selectTerritoryStage({
-        admittedCount: 2,
-        verdicts: ["AUDIT_PASS", "AUDIT_PASS"],
-        challengerComplete: false,
-        materialGap: false,
-        canAdd: false,
-        repairsUsed: false,
-        lockOk: false,
-      }),
-    ).toBeNull();
-    expect(
-      selectTerritoryStage({
-        admittedCount: 3,
-        verdicts: ["AUDIT_FAIL", "AUDIT_PASS", "AUDIT_PASS"],
-        challengerComplete: false,
-        materialGap: false,
-        canAdd: true,
-        repairsUsed: false,
-        lockOk: false,
-      }),
-    ).toBe("fix");
-    expect(
-      selectTerritoryStage({
-        admittedCount: 3,
-        verdicts: ["AUDIT_PASS", "AUDIT_PASS", "AUDIT_PASS"],
-        challengerComplete: false,
-        materialGap: true,
-        canAdd: true,
-        repairsUsed: false,
-        lockOk: false,
-      }),
-    ).toBeNull();
-    expect(
-      selectTerritoryStage({
-        admittedCount: 3,
-        verdicts: ["AUDIT_FAIL", "AUDIT_PASS", "AUDIT_PASS"],
-        challengerComplete: false,
-        materialGap: false,
-        canAdd: true,
-        repairsUsed: true,
-        lockOk: false,
-      }),
-    ).toBeNull();
+  });
+
+  it("audits, fixes once, generates up to the target, then locks", () => {
+    expect(stage({ lockOk: true })).toBe("lock");
+    expect(stage({ verdicts: ["AUDIT_PASS", "AUDIT_PASS", null] })).toBe("audit");
+    expect(stage({ admittedCount: 2, verdicts: ["AUDIT_PASS", "AUDIT_PASS"] })).toBe("generate");
+    expect(stage({ admittedCount: 2, verdicts: ["AUDIT_PASS", "AUDIT_PASS"], canAdd: false })).toBeNull();
+    expect(stage({ verdicts: ["AUDIT_FAIL", "AUDIT_PASS", "AUDIT_PASS"] })).toBe("fix");
+    expect(stage({ verdicts: ["AUDIT_FAIL", "AUDIT_PASS", "AUDIT_PASS"], repairsUsed: true })).toBeNull();
+    expect(stage({ admittedCount: 0, verdicts: [] })).toBeNull();
   });
 });
