@@ -166,7 +166,6 @@ export function emptySetRecord(): LabSetRecord {
     schema: "thinking-lab/v1",
     siblingSet: null,
     audit: null,
-    challenger: null,
     semanticExclusions: null,
     fixLessons: [],
     generateLessons: [],
@@ -178,7 +177,6 @@ export function clearSetConclusions(record: LabSetRecord | null): LabSetRecord {
     schema: "thinking-lab/v1",
     siblingSet: record?.siblingSet ?? null,
     audit: null,
-    challenger: null,
     semanticExclusions: record?.semanticExclusions ?? null,
     fixLessons: record?.fixLessons ?? [],
     generateLessons: record?.generateLessons ?? [],
@@ -262,7 +260,6 @@ export function nextAuthoritativeSetRecord(input: {
   parentFingerprint: string;
   siblingSet: SiblingSetFacts | null;
   audit: LabSetRecord["audit"];
-  challenger: LabSetRecord["challenger"];
 }): LabSetRecord {
   const outgoing = siblingSetBelongsToParent(input.record?.siblingSet ?? null, input.parentFingerprint)
     ? input.record?.siblingSet ?? null
@@ -271,7 +268,6 @@ export function nextAuthoritativeSetRecord(input: {
     schema: "thinking-lab/v1",
     siblingSet: input.siblingSet,
     audit: input.audit,
-    challenger: input.challenger,
     semanticExclusions: mergeExclusionHistory(
       input.record?.semanticExclusions,
       exclusionsFromSiblingSet(outgoing),
@@ -376,7 +372,6 @@ export function parseLabSetRecord(raw: unknown): LabSetRecord | null {
     schema: "thinking-lab/v1",
     siblingSet: row.siblingSet ?? null,
     audit: row.audit ?? null,
-    challenger: row.challenger ?? null,
     semanticExclusions: parseSemanticExclusions(row.semanticExclusions),
     fixLessons: readFixLessons(row.fixLessons),
     generateLessons: readGenerateLessons(row.generateLessons),

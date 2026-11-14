@@ -84,7 +84,6 @@ describe("angle audit lessons", () => {
       repairCount: 0,
       siblingSet: null,
       audit: null,
-      challenger: null,
     });
     expect(stored.auditLessons).toEqual([]);
     const lesson = {
@@ -149,7 +148,6 @@ describe("angle audit lessons", () => {
           { code: "AN03", verdict: "AUDIT_FAIL", gateFailure: { gate: "clearBoundary" } },
         ],
       },
-      challenger: null,
       auditLessons: [
         {
           code: "AN01",

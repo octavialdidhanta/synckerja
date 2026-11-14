@@ -162,7 +162,6 @@ describe("territory sibling audit", () => {
       repairCount: 0,
       siblingSet: null,
       audit: null,
-      challenger: null,
       auditLessons: mergeTerritoryAuditLessons([], lessons),
     });
     expect(stored.auditLessons).toEqual(lessons);
@@ -203,7 +202,6 @@ describe("territory sibling audit", () => {
           { code: "TR03", verdict: "AUDIT_FAIL", gateFailure: { gate: "wideEnough" } },
         ],
       },
-      challenger: null,
       auditLessons: [{ code: "TR01", statement: "Old name", reason: "questionArises: The question does not come up." }],
     });
     expect(stored.audit?.fingerprint).toBe("fp");

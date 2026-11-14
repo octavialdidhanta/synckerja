@@ -3,7 +3,6 @@ import { fingerprintsMatch } from "../shared/fingerprint";
 import { readAngleCheckId, type AnglePassCheckId } from "./passChecklist";
 import type { AuditVerdict } from "../shared/verdict";
 import type {
-  AngleChallengerResult,
   AngleContainment,
   AngleCoverage,
   AnglePair,
@@ -55,7 +54,6 @@ export type AngleSetRecord = {
   repairCount: number;
   siblingSet: AngleSetFacts | null;
   audit: { fingerprint: string; items: AngleAuditItem[] } | null;
-  challenger: { fingerprint: string; result: AngleChallengerResult } | null;
   auditLessons: AngleAuditLesson[];
 };
 
@@ -122,7 +120,6 @@ export function emptyAngleSetRecord(): AngleSetRecord {
     repairCount: 0,
     siblingSet: null,
     audit: null,
-    challenger: null,
     auditLessons: [],
   };
 }
@@ -306,7 +303,7 @@ export function buildAngleSiblingPrompt(input: {
     "coreDistinct is false only when at least one pair explains the conflict.",
     "Every pair needs an explanation of the shared or containing point of view.",
     "Use exactly the keys angleCodeA, angleCodeB, containerCode, and containedCode. Do not rename them.",
-    "Do not decide whether another Angle is still missing. Coverage belongs to the challenger.",
+    "Do not decide whether another Angle is still missing.",
     "Mark resolution RESOLVED only when distinctness is fully decided. Otherwise use UNRESOLVED.",
     "Write explanations in the same language as the Territory.",
     "Do not use examples from any specific industry, belief system, or brand.",
@@ -382,17 +379,6 @@ export function readAngleSetRecord(raw: unknown): AngleSetRecord {
           items: readAngleAuditItems((auditRaw as { items?: unknown }).items),
         }
       : null;
-  const challengerRaw = row.challenger;
-  const challenger =
-    challengerRaw && typeof challengerRaw === "object" && !Array.isArray(challengerRaw)
-      ? {
-          fingerprint: asText((challengerRaw as { fingerprint?: unknown }).fingerprint),
-          result: (challengerRaw as { result?: AngleChallengerResult }).result ?? {
-            status: "UNRESOLVED" as const,
-            unresolvedReasons: ["JUDGE_UNPARSEABLE"],
-          },
-        }
-      : null;
   const auditLessons = Array.isArray(row.auditLessons)
     ? row.auditLessons.flatMap((lesson) => {
         if (!lesson || typeof lesson !== "object" || Array.isArray(lesson)) return [];
@@ -409,7 +395,6 @@ export function readAngleSetRecord(raw: unknown): AngleSetRecord {
     repairCount: repairCount(row.repairCount),
     siblingSet,
     audit,
-    challenger,
     auditLessons,
   };
 }

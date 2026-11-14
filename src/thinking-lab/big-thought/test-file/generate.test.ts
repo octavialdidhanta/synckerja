@@ -38,9 +38,9 @@ describe("big thought codes", () => {
 
 describe("generate planner", () => {
   it("asks only for the missing GENERATE_VALID count", () => {
-    expect(planGenerate({ activeCount: 0, generateValidCount: 0, round: 1, missingWhy: null }).needed).toBe(3);
-    expect(planGenerate({ activeCount: 1, generateValidCount: 1, round: 1, missingWhy: null }).needed).toBe(2);
-    expect(planGenerate({ activeCount: 2, generateValidCount: 2, round: 1, missingWhy: null }).needed).toBe(1);
+    expect(planGenerate({ activeCount: 0, generateValidCount: 0, round: 1 }).needed).toBe(3);
+    expect(planGenerate({ activeCount: 1, generateValidCount: 1, round: 1 }).needed).toBe(2);
+    expect(planGenerate({ activeCount: 2, generateValidCount: 2, round: 1 }).needed).toBe(1);
   });
 
   it("counts a GENERATE_VALID row that has no audit score", async () => {
@@ -49,7 +49,6 @@ describe("generate planner", () => {
       parentStatement: "A general belief",
       incumbents: [incumbent("BT01")],
       activeCount: 1,
-      missingWhy: null,
       propose: async (plan) => {
         requested.push(plan.needed);
         return [
@@ -76,7 +75,6 @@ describe("generate planner", () => {
       parentStatement: "A general belief",
       incumbents: [incumbent("BT01")],
       activeCount: 1,
-      missingWhy: null,
       propose: async () => {
         calls += 1;
         return calls === 1
@@ -111,7 +109,6 @@ describe("generate planner", () => {
       parentStatement: "A general belief",
       incumbents: [{ code: "BT01", statement: "People return because the experience is clear.", label: "Pengalaman Pengguna", admission: "GENERATE_VALID" }],
       activeCount: 1,
-      missingWhy: null,
       topUp: true,
       propose: async () => [
         { label: "Pengalaman Pengguna", statement: "A later clause about the same experience." },
@@ -129,40 +126,31 @@ describe("generate planner", () => {
   });
 
   it("stops after two rounds and still plans more after six Big Thoughts", () => {
-    expect(planGenerate({ activeCount: 0, generateValidCount: 0, round: 3, missingWhy: null }).stop).toBe("ROUNDS");
-    expect(planGenerate({ activeCount: 6, generateValidCount: 2, round: 1, missingWhy: null })).toEqual({
+    expect(planGenerate({ activeCount: 0, generateValidCount: 0, round: 3 }).stop).toBe("ROUNDS");
+    expect(planGenerate({ activeCount: 6, generateValidCount: 2, round: 1 })).toEqual({
       needed: 1,
       mode: "fill",
       stop: null,
-      missingWhy: null,
     });
   });
 
   it("adds another batch when the user asks for more after three valid Big Thoughts", () => {
-    expect(planGenerate({ activeCount: 3, generateValidCount: 3, round: 1, missingWhy: null }).stop).toBe("ENOUGH");
-    expect(planGenerate({ activeCount: 3, generateValidCount: 3, round: 1, missingWhy: null, topUp: true })).toEqual({
+    expect(planGenerate({ activeCount: 3, generateValidCount: 3, round: 1 }).stop).toBe("ENOUGH");
+    expect(planGenerate({ activeCount: 3, generateValidCount: 3, round: 1, topUp: true })).toEqual({
       needed: 3,
       mode: "fill",
       stop: null,
-      missingWhy: null,
     });
-    expect(planGenerate({ activeCount: 5, generateValidCount: 5, round: 1, missingWhy: null, topUp: true }).needed).toBe(3);
+    expect(planGenerate({ activeCount: 5, generateValidCount: 5, round: 1, topUp: true }).needed).toBe(3);
   });
 
-  it("passes the stored missing WHY into the request", () => {
-    const missingWhy = { description: "The absent cause", boundary: "Only that cause, not a method" };
-    const plan = planGenerate({ activeCount: 3, generateValidCount: 3, round: 1, missingWhy });
-    expect(plan.needed).toBe(1);
-    expect(plan.mode).toBe("gap");
+  it("asks for a because-clause that is not already listed", () => {
     const prompt = buildGeneratePrompt({
       parentStatement: "A general belief",
       incumbents: [incumbent("BT01")],
-      needed: plan.needed,
-      missingWhy: plan.missingWhy,
+      needed: 1,
     });
-    expect(prompt).toContain("The absent cause");
-    expect(prompt).toContain("Only that cause, not a method");
-    expect(prompt).toContain("The candidate must not restate the Master Thought or an incumbent Big Thought.");
+    expect(prompt).toContain("Search for a because-clause that is not already in the incumbent list.");
     expect(prompt).toContain("Inserting the word because between the Master Thought and the candidate must already make one sentence.");
     expect(prompt).toContain("It does not open a new claim.");
     expect(prompt).toContain("A Big Thought does not need sehingga or so that.");
@@ -179,7 +167,6 @@ describe("generate planner", () => {
       parentStatement: "A general belief",
       incumbents: [incumbent("BT01")],
       needed: 1,
-      missingWhy: null,
       lessons: [{ gate: "relation", reason: "ELABORATION", statement: "Only a weaker quality." }],
     });
     expect(prompt).toContain("Failed gate: relation. Cause: ELABORATION Failed clause: Only a weaker quality.");

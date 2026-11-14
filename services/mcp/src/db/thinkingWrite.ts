@@ -420,7 +420,6 @@ export async function addThinkingBigThought(
     parentFingerprint: parentFp,
     siblingSet: sibling,
     audit: { setFingerprint: record.audit?.setFingerprint ?? "", items },
-    challenger: record.challenger,
   });
   if (replace) {
     return replace.persist({

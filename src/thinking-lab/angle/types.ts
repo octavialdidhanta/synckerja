@@ -51,8 +51,6 @@ export type AngleSemanticFacts = {
 
 export type AngleCoverage = "SUFFICIENT" | "MATERIAL_GAP" | "UNRESOLVED";
 
-export type AngleChallengerStatus = "COMPLETE" | "MATERIAL_GAP" | "UNRESOLVED";
-
 export type AnglePair = {
   angleCodeA: string;
   angleCodeB: string;
@@ -73,13 +71,6 @@ export type AngleSetFacts = {
   coverage: AngleCoverage;
   resolution: AngleResolution;
   unresolvedReasons: string[];
-  confidence?: number;
-};
-
-export type AngleChallengerResult = {
-  status: AngleChallengerStatus;
-  unresolvedReasons: string[];
-  materialGapDescription?: string;
   confidence?: number;
 };
 

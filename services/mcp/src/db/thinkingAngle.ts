@@ -208,7 +208,6 @@ export async function addThinkingAngle(
       }),
       items: nextItems,
     },
-    challenger: null,
   };
   if (replace) {
     return replace.persist({ code, statement, facts, setRecord: nextRecord, fingerprint: statementFingerprint });

@@ -1,17 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { evaluateLock, selectStageAction } from "@/thinking-lab/big-thought/lock";
-import type { ChallengerFacts } from "@/thinking-lab/big-thought/types";
-
-function challenger(): ChallengerFacts {
-  return {
-    setFingerprint: "set",
-    status: "COMPLETE",
-    missingWhyDescription: "",
-    missingWhyBoundary: "",
-    resolution: "RESOLVED",
-    unresolvedReasons: [],
-  };
-}
 
 function ready() {
   return {
@@ -21,8 +9,6 @@ function ready() {
     anyStale: false,
     anyUnresolved: false,
     siblingCurrent: true,
-    challenger: challenger(),
-    challengerCurrent: true,
   };
 }
 
@@ -41,7 +27,6 @@ describe("lock decision", () => {
     expect(evaluateLock({ ...ready(), anyUnresolved: true })).toMatchObject({ reason: "UNRESOLVED" });
     expect(evaluateLock({ ...ready(), siblingCurrent: false })).toMatchObject({ reason: "SIBLING" });
     expect(evaluateLock({ ...ready(), anyFail: true })).toMatchObject({ reason: "AUDIT_FAIL" });
-    expect(evaluateLock({ ...ready(), challenger: null }).ok).toBe(true);
   });
 
   it("allows lock when every gate is current", () => {
@@ -60,12 +45,10 @@ describe("stage action priority", () => {
     anyFail: false,
     generateValidCount: 3,
     activeCount: 3,
-    missingWhy: false,
     auditPassCount: 3,
     anyStale: false,
     anyUnresolved: false,
     siblingCurrent: true,
-    challengerComplete: false,
     lockOk: false,
   };
 
@@ -75,11 +58,9 @@ describe("stage action priority", () => {
     expect(selectStageAction({ ...base, generateValidCount: 2, activeCount: 2, auditPassCount: 0 })).toBe("audit");
     expect(selectStageAction({ ...base, generateValidCount: 2, activeCount: 2, auditPassCount: 2 })).toBe("generate");
     expect(selectStageAction({ ...base, generateValidCount: 0, activeCount: 0, auditPassCount: 0 })).toBe("generate");
-    expect(selectStageAction({ ...base, missingWhy: true, activeCount: 3 })).toBe("generate");
-    expect(selectStageAction({ ...base, missingWhy: true, activeCount: 6, auditPassCount: 6, lockOk: true })).toBe("generate");
     expect(selectStageAction({ ...base, auditPassCount: 2 })).toBe("audit");
     expect(selectStageAction(base)).toBeNull();
-    expect(selectStageAction({ ...base, challengerComplete: false, lockOk: true })).toBe("lock");
+    expect(selectStageAction({ ...base, lockOk: true })).toBe("lock");
     expect(
       selectStageAction({
         ...base,

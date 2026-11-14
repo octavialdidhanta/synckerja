@@ -4,7 +4,7 @@ import { bigThoughtRepeats, normalizeBigThoughtLabel } from "./label";
 import { productReasonLines, statementUsesReason, type ProductReasonPool } from "../master-thought/productReasonPool";
 import { MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "../shared/limits";
 import { individualAdmission } from "./policy";
-import type { BigThoughtFacts, GenerateMode, MissingWhy, SemanticExclusion } from "./types";
+import type { BigThoughtFacts, GenerateMode, SemanticExclusion } from "./types";
 import type { IndividualAdmission } from "../shared/verdict";
 
 export type GeneratedBigThought = {
@@ -17,30 +17,25 @@ export type PlannedGenerate = {
   needed: number;
   mode: GenerateMode | null;
   stop: null | "ENOUGH" | "CAP" | "ROUNDS";
-  missingWhy: MissingWhy | null;
 };
 
 export function planGenerate(input: {
   activeCount: number;
   generateValidCount: number;
   round: number;
-  missingWhy: MissingWhy | null;
   topUp?: boolean;
 }): PlannedGenerate {
   if (input.round > MAX_GENERATE_ROUNDS) {
-    return { needed: 0, mode: null, stop: "ROUNDS", missingWhy: input.missingWhy };
-  }
-  if (input.missingWhy) {
-    return { needed: 1, mode: "gap", stop: null, missingWhy: input.missingWhy };
+    return { needed: 0, mode: null, stop: "ROUNDS" };
   }
   const missing = TARGET_GENERATE_VALID - input.generateValidCount;
   if (missing <= 0) {
     if (!input.topUp) {
-      return { needed: 0, mode: null, stop: "ENOUGH", missingWhy: null };
+      return { needed: 0, mode: null, stop: "ENOUGH" };
     }
-    return { needed: TARGET_GENERATE_VALID, mode: "fill", stop: null, missingWhy: null };
+    return { needed: TARGET_GENERATE_VALID, mode: "fill", stop: null };
   }
-  return { needed: missing, mode: "fill", stop: null, missingWhy: null };
+  return { needed: missing, mode: "fill", stop: null };
 }
 
 export function countGenerateValid(rows: Array<{ admission: IndividualAdmission }>): number {
@@ -104,7 +99,6 @@ export function buildGeneratePrompt(input: {
   parentStatement: string;
   incumbents: Array<{ code: string; statement: string; label?: string; reasonContribution?: string | null }>;
   needed: number;
-  missingWhy: MissingWhy | null;
   exclusions?: SemanticExclusion[];
   failed?: { code: string; statement: string; reasonContribution?: string | null } | null;
   lessons?: GateLesson[];
@@ -112,15 +106,7 @@ export function buildGeneratePrompt(input: {
 }): string {
   const kept = incumbentLines(input.incumbents);
   const pool = input.reasonPool ?? null;
-  const gap = input.missingWhy
-    ? [
-        "Search only for this missing because-clause.",
-        `Description: ${input.missingWhy.description}`,
-        `Boundary: ${input.missingWhy.boundary}`,
-        "Do not search for a different support.",
-        "The candidate must not restate the Master Thought or an incumbent Big Thought.",
-      ].join("\n")
-    : "Search for a because-clause that is not already in the incumbent list.";
+  const gap = "Search for a because-clause that is not already in the incumbent list.";
   const exclusionSearch =
     input.exclusions === undefined
       ? []
@@ -262,7 +248,6 @@ export async function runGenerateRounds<
   parentStatement: string;
   incumbents: T[];
   activeCount: number;
-  missingWhy: MissingWhy | null;
   topUp?: boolean;
   propose: (plan: PlannedGenerate, incumbents: T[]) => Promise<GeneratedBigThought[]>;
   onRepeat?: (
@@ -282,14 +267,12 @@ export async function runGenerateRounds<
       activeCount,
       generateValidCount: countGenerateValid(incumbents),
       round,
-      missingWhy: input.missingWhy,
       topUp: input.topUp,
     });
     if (plan.needed === 0) break;
     const validBefore = countGenerateValid(incumbents);
     const proposed = await input.propose(plan, incumbents);
-    const batch = plan.mode === "gap" ? proposed.slice(0, 1) : proposed.slice(0, plan.needed);
-    let addedGap = false;
+    const batch = proposed.slice(0, plan.needed);
     for (const candidate of batch) {
       const repeated = incumbents.find(
         (row) => row.admission === "GENERATE_VALID" && bigThoughtRepeats(candidate, row),
@@ -306,18 +289,16 @@ export async function runGenerateRounds<
       const saved = await input.persist(candidate, facts);
       incumbents = [...incumbents, { ...saved, admission, label: saved.label || candidate.label }];
       activeCount += 1;
-      addedGap = plan.mode === "gap" && admission === "GENERATE_VALID";
     }
-    if (addedGap) break;
     const added = countGenerateValid(incumbents) - validBefore;
-    if (!input.missingWhy && countGenerateValid(incumbents) >= TARGET_GENERATE_VALID && (!input.topUp || added > 0)) break;
+    if (countGenerateValid(incumbents) >= TARGET_GENERATE_VALID && (!input.topUp || added > 0)) break;
   }
   const generateValid = countGenerateValid(incumbents);
-  const filled = input.missingWhy ? generateValid > countGenerateValid(input.incumbents) : generateValid >= TARGET_GENERATE_VALID;
+  const filled = generateValid >= TARGET_GENERATE_VALID;
   return {
     outcome: filled ? "READY" : "INSUFFICIENT_VALID_BIG_THOUGHTS",
     generateValid,
-    target: input.missingWhy ? countGenerateValid(input.incumbents) + 1 : TARGET_GENERATE_VALID,
+    target: TARGET_GENERATE_VALID,
     incumbents,
   };
 }

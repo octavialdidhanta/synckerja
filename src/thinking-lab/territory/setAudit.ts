@@ -3,7 +3,6 @@ import { fingerprintsMatch } from "../shared/fingerprint";
 import type { AuditVerdict } from "../shared/verdict";
 import { TERRITORY_PASS_CHECK_IDS, type TerritoryPassCheckId } from "./passChecklist";
 import type {
-  TerritoryChallengerResult,
   TerritoryContainment,
   TerritoryCoverage,
   TerritoryPair,
@@ -58,7 +57,6 @@ export type TerritorySetRecord = {
   repairCount: number;
   siblingSet: TerritorySetFacts | null;
   audit: { fingerprint: string; items: TerritoryAuditItem[] } | null;
-  challenger: { fingerprint: string; result: TerritoryChallengerResult } | null;
   auditLessons: TerritoryAuditLesson[];
 };
 
@@ -125,7 +123,6 @@ export function emptyTerritorySetRecord(): TerritorySetRecord {
     repairCount: 0,
     siblingSet: null,
     audit: null,
-    challenger: null,
     auditLessons: [],
   };
 }
@@ -313,7 +310,7 @@ export function buildTerritorySiblingPrompt(input: {
     "coreDistinct is false only when at least one pair explains the conflict.",
     "Every pair needs an explanation of the shared or containing space.",
     "Use exactly the keys territoryCodeA, territoryCodeB, containerCode, and containedCode. Do not rename them.",
-    "Do not decide whether another Territory is still missing. Coverage belongs to the challenger.",
+    "Do not decide whether another Territory is still missing.",
     "Mark resolution RESOLVED only when distinctness is fully decided. Otherwise use UNRESOLVED.",
     "Write explanations in the same language as the Big Thought.",
     "Do not use examples from any specific industry, belief system, or brand.",
@@ -388,17 +385,6 @@ export function readTerritorySetRecord(raw: unknown): TerritorySetRecord {
           items: readTerritoryAuditItems((auditRaw as { items?: unknown }).items),
         }
       : null;
-  const challengerRaw = row.challenger;
-  const challenger =
-    challengerRaw && typeof challengerRaw === "object" && !Array.isArray(challengerRaw)
-      ? {
-          fingerprint: asText((challengerRaw as { fingerprint?: unknown }).fingerprint),
-          result: (challengerRaw as { result?: TerritoryChallengerResult }).result ?? {
-            status: "UNRESOLVED" as const,
-            unresolvedReasons: ["JUDGE_UNPARSEABLE"],
-          },
-        }
-      : null;
   const auditLessons = Array.isArray(row.auditLessons)
     ? row.auditLessons.flatMap((lesson) => {
         if (!lesson || typeof lesson !== "object" || Array.isArray(lesson)) return [];
@@ -415,7 +401,6 @@ export function readTerritorySetRecord(raw: unknown): TerritorySetRecord {
     repairCount: repairCount(row.repairCount),
     siblingSet,
     audit,
-    challenger,
     auditLessons,
   };
 }

@@ -36,8 +36,6 @@ export type TerritoryResolution = "RESOLVED" | "UNRESOLVED";
 
 export type TerritoryCoverage = "SUFFICIENT" | "MATERIAL_GAP" | "UNRESOLVED";
 
-export type TerritoryChallengerStatus = "COMPLETE" | "MATERIAL_GAP" | "UNRESOLVED";
-
 export type TerritorySemanticFacts = {
   code: string;
   whatItSays: string;
@@ -79,13 +77,6 @@ export type TerritorySetFacts = {
   coverage: TerritoryCoverage;
   resolution: TerritoryResolution;
   unresolvedReasons: string[];
-  confidence?: number;
-};
-
-export type TerritoryChallengerResult = {
-  status: TerritoryChallengerStatus;
-  unresolvedReasons: string[];
-  materialGapDescription?: string;
   confidence?: number;
 };
 
