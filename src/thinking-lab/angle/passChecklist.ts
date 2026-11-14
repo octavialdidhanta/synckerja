@@ -1,5 +1,12 @@
-import { parseModelJson } from "../shared/parseModelJson";
-import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "../shared/batchGates";
+import {
+  SWITCHED_OFF_REASON,
+  UNDECIDED_REASON,
+  answerGate,
+  askBatchGates,
+  buildBatchGatePrompt,
+  parseGateAnswer,
+  type GateAnswer,
+} from "../shared/batchGates";
 import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
 import { sameWording } from "../shared/distinct";
 import { angleExampleProblem } from "./example";
@@ -53,8 +60,8 @@ export type AnglePassCheck = {
 /** Another Angle of the same Territory that already passed (or is locked). */
 export type AnglePeer = { code: string; statement: string; subject?: string };
 
-const UNDECIDED = "This check could not be decided.";
-const SWITCHED_OFF = "Dimatikan untuk organisasi ini.";
+const UNDECIDED = UNDECIDED_REASON;
+const SWITCHED_OFF = SWITCHED_OFF_REASON;
 
 export function emptyAnglePassChecklist(): AnglePassCheck[] {
   return ANGLE_PASS_CHECK_IDS.map((id) => ({ id, state: "pending" }));
@@ -178,16 +185,7 @@ export function buildAnglePassPrompt(input: CheckContext & { id: AnglePassCheckI
 }
 
 /** A missing or undecided answer fails the check. */
-export function parseAnglePassCheck(script: string | null): { pass: boolean; reason: string } {
-  if (!script?.trim()) return { pass: false, reason: UNDECIDED };
-  const parsed = parseModelJson(script);
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { pass: false, reason: UNDECIDED };
-  const row = parsed as { pass?: unknown; reason?: unknown };
-  const reason = typeof row.reason === "string" ? row.reason.trim() : "";
-  if (row.pass === true) return { pass: true, reason: "" };
-  if (row.pass === false) return { pass: false, reason: reason || UNDECIDED };
-  return { pass: false, reason: UNDECIDED };
-}
+export const parseAnglePassCheck = parseGateAnswer;
 
 /**
  * A check decided without a model: an empty or copied subject, an empty or restated example,
@@ -257,9 +255,9 @@ export async function runAngleChecks(
       continue;
     }
     set({ id, state: "running" });
-    let answer = decidedInCode(id, input) ?? batched.get(id) ?? null;
-    if (!answer || isUndecided(answer)) answer = parseAnglePassCheck(await input.ask(buildAnglePassPrompt({ ...input, id })));
-    if (isUndecided(answer)) answer = parseAnglePassCheck(await input.ask(buildAnglePassPrompt({ ...input, id })));
+    const answer =
+      decidedInCode(id, input) ??
+      (await answerGate({ batched: batched.get(id), prompt: () => buildAnglePassPrompt({ ...input, id }), ask: input.ask }));
     if (!answer.pass) {
       set({ id, state: "fail", reason: answer.reason || UNDECIDED });
       return { checks: snapshot(), passed: false };

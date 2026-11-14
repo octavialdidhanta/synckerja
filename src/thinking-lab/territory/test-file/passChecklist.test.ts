@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildTerritoryPassPrompt,
   finishSiblingCheck,
-  fixPriorForNextTerritoryName,
   parseTerritoryPassCheck,
   readTerritoryGeneratePasses,
   runTerritoryAdmissionChecks,
@@ -254,24 +253,5 @@ describe("territory pass checklist", () => {
     expect(readTerritoryGeneratePasses(["partOfBigThought"])).toEqual([]);
     expect(ask).toHaveBeenCalledTimes(4);
     expect(result.checks.find((check) => check.id === "partOfBigThought")?.state).toBe("pass");
-  });
-
-  it("keeps checks that already passed when the name changes", () => {
-    const next = fixPriorForNextTerritoryName(
-      [
-        { id: "partOfBigThought", state: "pass" },
-        { id: "audienceLanguage", state: "pass" },
-        { id: "questionArises", state: "fail", reason: "A different question." },
-        { id: "wideEnough", state: "pass" },
-        { id: "siblingsDistinct", state: "pending" },
-      ],
-      "Makan siang kantor",
-      "Bekal kantor",
-    );
-    expect(next.find((check) => check.id === "partOfBigThought")?.state).toBe("pass");
-    expect(next.find((check) => check.id === "audienceLanguage")?.state).toBe("pass");
-    expect(next.find((check) => check.id === "questionArises")?.state).toBe("fail");
-    expect(next.find((check) => check.id === "wideEnough")?.state).toBe("pass");
-    expect(next.find((check) => check.id === "siblingsDistinct")?.state).toBe("pending");
   });
 });

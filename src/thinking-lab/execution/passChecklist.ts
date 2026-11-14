@@ -1,3 +1,4 @@
+import { UNDECIDED_REASON } from "../shared/batchGates";
 import { parseModelJson } from "../shared/parseModelJson";
 import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
 import { fixScopeLines, type FixScope } from "../shared/fixScope";
@@ -30,11 +31,6 @@ export const EXECUTION_PASS_CHECK_IDS = [
 
 const LINE_CHECK_IDS = ["soundsSpoken", "usesSlang", "messageStays", "causeChain", "viewerClimb", "emotionalTone"] as const satisfies readonly ExecutionPassCheckId[];
 
-/** A new video starts with every requirement switched off. */
-function videoCheckOnByDefault(_id: ExecutionPassCheckId): boolean {
-  return false;
-}
-
 export const EXECUTION_LINE_REPAIR_IDS = [
   "hookHolds",
   "soundsSpoken",
@@ -56,7 +52,7 @@ export type ExecutionPassCheck = {
   lineIds?: string[];
 };
 
-const UNDECIDED = "This check could not be decided.";
+const UNDECIDED = UNDECIDED_REASON;
 const MISSING_OPENING = "The first narration sentence is missing.";
 
 /** Industry-free speech rules. The same four rules judge video lines and image slides. */
@@ -144,10 +140,9 @@ const RELATIONS: Record<ExecutionPassCheckId, ExecutionRelation> = {
   imageCaption: "FORMAT_MISSED",
 };
 
+/** A new video starts with every requirement switched off. */
 export function emptyExecutionPassChecklist(): ExecutionPassCheck[] {
-  return EXECUTION_PASS_CHECK_IDS.map((id) =>
-    videoCheckOnByDefault(id) ? { id, state: "pending", enabled: true } : { id, state: "pass", enabled: false },
-  );
+  return EXECUTION_PASS_CHECK_IDS.map((id) => ({ id, state: "pass", enabled: false }));
 }
 
 /** Switches already chosen stay. A missing switch uses the video default. Passed switches stay passed unless this run starts them over. */
@@ -693,18 +688,14 @@ export async function runExecutionMeaningChecks(input: {
 /** The checks implied by a stored audit. A requirement starts switched off until this run turned it on. */
 export function executionChecksFromAudit(audit: ExecutionMeaningAudit | null | undefined): ExecutionPassCheck[] {
   if (audit && "cleared" in audit) {
-    return EXECUTION_PASS_CHECK_IDS.map((id) =>
-      videoCheckOnByDefault(id) ? { id, state: "pass" as const, enabled: true } : { id, state: "pass" as const, enabled: false },
-    );
+    return EXECUTION_PASS_CHECK_IDS.map((id) => ({ id, state: "pass" as const, enabled: false }));
   }
   if (!isFailedMeaningAudit(audit)) return emptyExecutionPassChecklist();
-  const failedAt = (EXECUTION_PASS_CHECK_IDS as readonly string[]).indexOf(audit.id);
-  return EXECUTION_PASS_CHECK_IDS.map((id, index) => {
-    if (id === audit.id) return { id, state: "fail", enabled: true, reason: audit.reason, lineIds: audit.lineIds };
-    if (!videoCheckOnByDefault(id)) return { id, state: "pass", enabled: false };
-    if (failedAt >= 0 && index < failedAt) return { id, state: "pass", enabled: true };
-    return { id, state: "pending", enabled: true };
-  });
+  return EXECUTION_PASS_CHECK_IDS.map((id) =>
+    id === audit.id
+      ? { id, state: "fail", enabled: true, reason: audit.reason, lineIds: audit.lineIds }
+      : { id, state: "pass", enabled: false },
+  );
 }
 
 /** The red check moved later, so the rewritten lines cleared the check that started this click. */

@@ -1,3 +1,4 @@
+import { UNDECIDED_REASON } from "../shared/batchGates";
 import { claimMaterialLines } from "./confirm";
 import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
 import { everydaySpeechJudgeRules, everydaySpeechWriterRules, parseExecutionPassCheck, storedPassChecks } from "./passChecklist";
@@ -41,7 +42,7 @@ const RETIRED_IMAGE_RESUME = {
   imageCopy: "imagePrompt",
 } as const satisfies Record<string, (typeof IMAGE_PASS_CHECK_IDS)[number]>;
 
-const UNDECIDED = "This check could not be decided.";
+const UNDECIDED = UNDECIDED_REASON;
 
 const RELATIONS: Record<(typeof IMAGE_PASS_CHECK_IDS)[number], ExecutionRelation> = {
   imageShape: "FORMAT_MISSED",

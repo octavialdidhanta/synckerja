@@ -2,7 +2,7 @@ import { bigThoughtRepeats } from "./label";
 import type { PassChecklist, PassGateCheck, PassGateId } from "./checklist";
 import { PASS_GATE_IDS } from "./checklist";
 import { parseModelJson } from "../shared/parseModelJson";
-import { askBatchGates, buildBatchGatePrompt, isUndecided, type GateAnswer } from "../shared/batchGates";
+import { UNDECIDED_REASON, answerGate, askBatchGates, buildBatchGatePrompt, parseGateAnswer, type GateAnswer } from "../shared/batchGates";
 import { fixScopeLines, openMistakeLines, type FixScope } from "../shared/fixScope";
 import { parseGeneratedBigThoughts, shownBigThoughtFacts } from "./generate";
 import type { BigThoughtFacts, GeneratePassGate } from "./types";
@@ -52,7 +52,7 @@ const BIG_THOUGHT_GATE_RULES: Readonly<Record<IndividualGateId, readonly string[
   ],
 };
 
-const UNDECIDED = "This check could not be decided.";
+const UNDECIDED = UNDECIDED_REASON;
 
 export function emptyBigThoughtChecks(): PassGateCheck[] {
   return PASS_GATE_IDS.map((id) => ({ id, state: "pending", reason: "" }));
@@ -195,16 +195,7 @@ export function buildBigThoughtPassPrompt(input: {
   ].join("\n");
 }
 
-export function parseBigThoughtPassCheck(script: string | null): { pass: boolean; reason: string } {
-  if (!script?.trim()) return { pass: false, reason: UNDECIDED };
-  const parsed = parseModelJson(script);
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { pass: false, reason: UNDECIDED };
-  const row = parsed as { pass?: unknown; reason?: unknown };
-  const reason = typeof row.reason === "string" ? row.reason.trim() : "";
-  if (row.pass === true) return { pass: true, reason: "" };
-  if (row.pass === false) return { pass: false, reason: reason || UNDECIDED };
-  return { pass: false, reason: UNDECIDED };
-}
+export const parseBigThoughtPassCheck = parseGateAnswer;
 
 /** Checks that judge what kind of statement it is. Patching a part cannot change the kind. */
 export const BT_KIND_GATES = ["relation", "explains"] as const;
@@ -335,21 +326,18 @@ async function askGate(input: {
     if (repeated) return { pass: false, reason: `Same Big Thought as ${repeated.code}.` };
     if (input.others.length === 0) return { pass: true, reason: "" };
   }
-  if (input.answer && !isUndecided(input.answer)) return input.answer;
-  const prompt = buildBigThoughtPassPrompt({
-    id: input.id,
-    statement: input.statement,
-    parentStatement: input.parentStatement,
-    others: input.others,
-    lessons: input.lessons,
+  return answerGate({
+    batched: input.answer,
+    prompt: () =>
+      buildBigThoughtPassPrompt({
+        id: input.id,
+        statement: input.statement,
+        parentStatement: input.parentStatement,
+        others: input.others,
+        lessons: input.lessons,
+      }),
+    ask: input.ask,
   });
-  const script = await input.ask(prompt);
-  const parsed = parseBigThoughtPassCheck(script);
-  if (!parsed.pass && parsed.reason === UNDECIDED) {
-    const again = await input.ask(prompt);
-    return parseBigThoughtPassCheck(again);
-  }
-  return parsed;
 }
 
 function admissionItems(duplicate: PassGateCheck): PassGateCheck[] {

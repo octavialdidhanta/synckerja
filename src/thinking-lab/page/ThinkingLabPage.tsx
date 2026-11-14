@@ -70,7 +70,6 @@ import { territoryDescriptions, writeTerritoryAreaSentence } from "@/thinking-la
 import {
   beginSiblingCheck,
   finishSiblingCheck,
-  fixPriorForNextTerritoryName,
   readTerritoryGeneratePasses,
   runTerritoryAdmissionChecks,
   runTerritoryIndividualChecks,
@@ -5440,7 +5439,6 @@ export function ThinkingLabPage() {
           await rememberFixLesson({ code: row.code, statement, reason: `partOfBigThought: ${reason}` });
           continue;
         }
-        const prior = fixPriorForNextTerritoryName(shown, draft, statement);
         const checked = await runTerritoryOpenChecks({
           skip: skipFor("territory"),
           batch: true,
@@ -5448,7 +5446,7 @@ export function ThinkingLabPage() {
           parentStatement: focusedThought.statement,
           audience: selected?.audience,
           question: questionForCheck,
-          prior,
+          prior: shown,
           ask: (prompt) => askThinkingLab(prompt, 0),
           onStep: (checks) => publishTerritoryChecklist(row.code, checks),
         });
