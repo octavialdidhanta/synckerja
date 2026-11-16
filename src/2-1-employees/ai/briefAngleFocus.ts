@@ -57,6 +57,7 @@ export function briefPayloadFromDraft(draft: BriefDraft) {
     sub_service_ids: draft.subServiceIds,
     content_plan_auto_approve: draft.contentPlanAutoApprove,
     use_system_hooks: draft.useSystemHooks !== false,
+    execution_check_enabled: draft.executionCheckEnabled !== false,
   };
 }
 

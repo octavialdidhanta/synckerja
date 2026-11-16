@@ -1,21 +1,26 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/shared/components/ui/avatar';
 import { Badge } from '@/shared/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/shared/components/ui/dialog';
-import { Trash2, Edit, Save, X, MessageSquare, Loader2, Image as ImageIcon, Camera } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
+import { Trash2, Edit, Save, X, MessageSquare, Loader2, Image as ImageIcon, Camera, FileText } from 'lucide-react';
 import { useLinkComments, type LinkComment } from '../hook/useLinkComments';
 import { useSnippingImages } from '../hook/useSnippingImages';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { devLog } from '@/shared/lib/logger';
+import { carouselSlideBriefFields } from './carouselSlideBriefFields';
+
 interface OptimizedCommentPanelProps {
   socialMediaPlanId: string;
   linkUrl: string;
   carouselSlideNumber?: number | null;
+  /** Plan brief markdown — used to show Scene Visual / Teks / Element for the current carousel slide. */
+  briefMarkdown?: string | null;
 }
 
 function decodeHtmlEntities(text: string): string {
@@ -365,14 +370,29 @@ const CommentImages = React.memo<{
     </div>;
 });
 CommentImages.displayName = 'CommentImages';
+function BriefFieldBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border bg-muted/30 px-2.5 py-2">
+      <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+        {value.trim() ? value : '—'}
+      </p>
+    </div>
+  );
+}
+
 export const OptimizedCommentPanel: React.FC<OptimizedCommentPanelProps> = React.memo(({
   socialMediaPlanId,
   linkUrl,
   carouselSlideNumber = null,
+  briefMarkdown = null,
 }) => {
   const [newComment, setNewComment] = useState('');
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
+  const [panelTab, setPanelTab] = useState<'brief' | 'comments'>('brief');
 
   // Image preview modal state
   const [previewImage, setPreviewImage] = useState<{
@@ -381,6 +401,17 @@ export const OptimizedCommentPanel: React.FC<OptimizedCommentPanelProps> = React
     createdAt: string;
     creatorName?: string;
   } | null>(null);
+
+  const showBriefTab = Boolean(carouselSlideNumber && carouselSlideNumber > 0);
+  const slideBrief = useMemo(
+    () => (showBriefTab ? carouselSlideBriefFields(briefMarkdown, Number(carouselSlideNumber)) : null),
+    [showBriefTab, briefMarkdown, carouselSlideNumber],
+  );
+
+  // Default to Brief whenever the user moves to another carousel slide.
+  useEffect(() => {
+    if (showBriefTab) setPanelTab('brief');
+  }, [carouselSlideNumber, showBriefTab]);
   const {
     comments,
     isLoading,
@@ -673,10 +704,8 @@ export const OptimizedCommentPanel: React.FC<OptimizedCommentPanelProps> = React
         </div>
       </div>;
   }
-  return <div className="flex h-full min-h-0 flex-1 flex-col bg-white">
-      {/* Image Preview Modal */}
-      {previewImage && <ImagePreviewModal isOpen={!!previewImage} onClose={() => setPreviewImage(null)} imageUrl={previewImage.url} imageName={previewImage.name} createdAt={previewImage.createdAt} creatorName={previewImage.creatorName} />}
-
+  const commentsPane = (
+    <>
       {/* Comments List */}
       <div className="flex-1 overflow-hidden shadow-inner">
         <ScrollArea className="h-full p-4">
@@ -770,6 +799,69 @@ export const OptimizedCommentPanel: React.FC<OptimizedCommentPanelProps> = React
           </div>
         </div>
       </div>
+    </>
+  );
+
+  const briefPane = (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <ScrollArea className="h-full p-3">
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <FileText className="h-3.5 w-3.5" aria-hidden />
+            Brief slide {carouselSlideNumber}
+            {slideBrief?.timing ? ` · ${slideBrief.timing}` : null}
+          </div>
+          {slideBrief ? (
+            <>
+              <BriefFieldBlock label="Scene Visual" value={slideBrief.sceneVisual} />
+              <BriefFieldBlock label="Element Lainnya" value={slideBrief.elementLainnya} />
+              <BriefFieldBlock label="Teks" value={slideBrief.teks} />
+            </>
+          ) : (
+            <div className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+              Brief slide ini belum tersedia di storyboard plan.
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+
+  return <div className="flex h-full min-h-0 flex-1 flex-col bg-white">
+      {/* Image Preview Modal */}
+      {previewImage && <ImagePreviewModal isOpen={!!previewImage} onClose={() => setPreviewImage(null)} imageUrl={previewImage.url} imageName={previewImage.name} createdAt={previewImage.createdAt} creatorName={previewImage.creatorName} />}
+
+      {showBriefTab ? (
+        <Tabs
+          value={panelTab}
+          onValueChange={(value) => setPanelTab(value === 'comments' ? 'comments' : 'brief')}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div className="flex-shrink-0 border-b border-border px-3 pb-2.5 pt-3">
+            <TabsList className="h-8 w-auto gap-0.5 rounded-md bg-muted/70 p-0.5">
+              <TabsTrigger value="brief" className="h-7 px-2.5 text-xs">
+                Brief
+              </TabsTrigger>
+              <TabsTrigger value="comments" className="h-7 px-2.5 text-xs">
+                Komentar
+                {comments.length > 0 ? (
+                  <span className="ml-1 rounded-full bg-background px-1.5 text-[10px] text-muted-foreground">
+                    {comments.length}
+                  </span>
+                ) : null}
+              </TabsTrigger>
+            </TabsList>
+          </div>
+          <TabsContent value="brief" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
+            {briefPane}
+          </TabsContent>
+          <TabsContent value="comments" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
+            {commentsPane}
+          </TabsContent>
+        </Tabs>
+      ) : (
+        commentsPane
+      )}
     </div>;
 });
 OptimizedCommentPanel.displayName = 'OptimizedCommentPanel';

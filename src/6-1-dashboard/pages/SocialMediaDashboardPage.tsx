@@ -1472,6 +1472,7 @@ const SocialMediaContent = () => {
               }
               canvaRevising={canvaRunByPlanId[notificationPreviewPlan.id]?.revision_requested === true}
               canvaRunError={canvaRunByPlanId[notificationPreviewPlan.id]?.error ?? null}
+              briefMarkdown={notificationPreviewPlan.brief ?? null}
               revisionBaselineLink={notificationPreviewPlan.production_revision_baseline_link ?? null}
               onResubmitForReview={() =>
                 handleProductionResubmitForReview(notificationPreviewPlan.id)

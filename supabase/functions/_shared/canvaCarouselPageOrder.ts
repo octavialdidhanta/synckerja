@@ -3,6 +3,37 @@ import { slideTexts, type CarouselSlide } from "./canvaCarouselBrief.ts";
 const MIN_HEADLINE_SCORE = 0.55;
 const MIN_TOKEN_LEN = 2;
 
+/** Last-page brand strings as sent to Canva via buildCanvaCarouselBrief. */
+export type PageOrderLockup = {
+  brandName?: string | null;
+  tagline?: string | null;
+  facts?: string[] | null;
+};
+
+/** Needles used to match a brief slide to a Canva page (lockup overrides last slide). */
+export function pageOrderNeedles(
+  slide: CarouselSlide,
+  index: number,
+  total: number,
+  lockup?: PageOrderLockup | null,
+): string[] {
+  const last = index === total - 1;
+  if (last && lockup) {
+    const locked = [
+      lockup.brandName,
+      lockup.tagline,
+      ...(Array.isArray(lockup.facts) ? lockup.facts : []),
+    ]
+      .map((part) => String(part ?? "").replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+    if (locked.length > 0) return locked;
+  }
+  const { headline, small } = slideTexts(slide);
+  return [headline, small, slide.copy]
+    .map((part) => String(part ?? "").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
 export function normalizeCarouselText(value: string): string {
   return String(value ?? "")
     .toLowerCase()
@@ -24,6 +55,11 @@ export function carouselTextScore(needle: string, haystack: string): number {
   if (!n || !h) return 0;
   if (h.includes(n)) return 1;
   if (n.length >= 8 && n.includes(h)) return 0.9;
+  // Canva sometimes joins words in richtext dumps ("PrediksiDampak FinansialLebih").
+  const nCompact = n.replace(/\s+/g, "");
+  const hCompact = h.replace(/\s+/g, "");
+  if (nCompact.length >= 8 && hCompact.includes(nCompact)) return 0.95;
+  if (nCompact.length >= 12 && nCompact.includes(hCompact) && hCompact.length >= 8) return 0.85;
   const needleTokens = tokens(needle);
   if (needleTokens.length === 0) return 0;
   const hayTokens = new Set(tokens(haystack));
@@ -56,6 +92,7 @@ export type CarouselPageOrderResult = {
 export function orderCarouselPages(
   slides: CarouselSlide[],
   pageTexts: Map<number, string[]>,
+  lockup?: PageOrderLockup | null,
 ): CarouselPageOrderResult | null {
   if (slides.length < 2) return null;
 
@@ -77,8 +114,7 @@ export function orderCarouselPages(
 
   for (let index = 0; index < slides.length; index += 1) {
     const slide = slides[index];
-    const { headline, small } = slideTexts(slide);
-    const needles = [headline, small, slide.copy].map((part) => part.trim()).filter(Boolean);
+    const needles = pageOrderNeedles(slide, index, slides.length, lockup);
     if (needles.length === 0) return null;
 
     let best: { page: number; score: number } | null = null;
@@ -99,7 +135,7 @@ export function orderCarouselPages(
       slide: index + 1,
       page: best.page,
       score: Number(best.score.toFixed(3)),
-      headline: headline || small || slide.copy,
+      headline: needles[0] ?? "",
     });
   }
 
@@ -182,6 +218,147 @@ export function collectPageTextsFromDesign(payload: unknown): Map<number, string
   }
   walkDesignTexts(root, null, byPage);
   return byPage;
+}
+
+function richtextPlain(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  const record = asRecord(value);
+  if (!record) return "";
+  if (typeof record.plaintext === "string" && record.plaintext.trim()) return record.plaintext.trim();
+  if (typeof record.plain_text === "string" && record.plain_text.trim()) return record.plain_text.trim();
+  if (typeof record.text === "string" && record.text.trim()) return record.text.trim();
+  if (Array.isArray(record.regions)) {
+    return record.regions.map((region) => {
+      const item = asRecord(region);
+      return typeof item?.text === "string" ? item.text : "";
+    }).join("").trim();
+  }
+  return "";
+}
+
+/**
+ * Build page → text snippets from get-design-content (richtexts) payloads.
+ * Index is 1-based when Canva omits page_number.
+ */
+export function collectPageTextsFromGetDesignContent(payload: unknown): Map<number, string[]> {
+  const byPage = new Map<number, string[]>();
+  const root = asRecord(payload);
+  if (!root) return byPage;
+
+  const pageRows = Array.isArray(root.pages)
+    ? root.pages
+    : Array.isArray(root.contents)
+      ? root.contents
+      : Array.isArray(asRecord(root.result)?.pages)
+        ? (asRecord(root.result)!.pages as unknown[])
+        : null;
+
+  if (Array.isArray(pageRows) && pageRows.length > 0) {
+    for (const [index, item] of pageRows.entries()) {
+      const page = asRecord(item);
+      if (!page) {
+        if (typeof item === "string" && item.trim()) pushText(byPage, index + 1, item);
+        continue;
+      }
+      const number = pageNumberOf(page) ?? index + 1;
+      const rich = Array.isArray(page.richtexts)
+        ? page.richtexts
+        : Array.isArray(page.rich_texts)
+          ? page.rich_texts
+          : Array.isArray(page.texts)
+            ? page.texts
+            : null;
+      if (rich) {
+        for (const entry of rich) {
+          const text = richtextPlain(entry);
+          if (text) pushText(byPage, number, text);
+        }
+      }
+      const direct = richtextPlain(page.content ?? page.text ?? page.plaintext ?? page.plain_text ?? "");
+      if (direct) pushText(byPage, number, direct);
+      walkDesignTexts(page, number, byPage);
+    }
+  }
+
+  // Some MCP wrappers nest richtexts at the top level without page wrappers.
+  if (byPage.size === 0 && Array.isArray(root.richtexts)) {
+    for (const entry of root.richtexts) {
+      const text = richtextPlain(entry);
+      if (text) pushText(byPage, 1, text);
+    }
+  }
+
+  if (byPage.size === 0) walkDesignTexts(root, null, byPage);
+  return byPage;
+}
+
+function mcpContentPlainTexts(payload: unknown): string[] {
+  const root = asRecord(payload);
+  if (!root) return [];
+  const content = Array.isArray(root.content) ? root.content : null;
+  if (!content) return [];
+  const parts: string[] = [];
+  for (const item of content) {
+    const text = asRecord(item)?.text;
+    if (typeof text === "string" && text.trim()) parts.push(text.trim());
+  }
+  return parts;
+}
+
+/**
+ * When MCP returns one flat text blob (no page wrappers), split on badges like "2/8".
+ * Returns empty map if fewer than 2 page sections are found.
+ */
+export function collectPageTextsFromFlatBadgeDump(text: string): Map<number, string[]> {
+  const byPage = new Map<number, string[]>();
+  const source = String(text ?? "");
+  if (!source.trim()) return byPage;
+  // Canva MCP dumps page markers as "1/8", "3 / 8" (often alone on a line).
+  const badge = /(?:^|\n)\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*(?=\n|$)/g;
+  const marks: Array<{ page: number; total: number; index: number; len: number }> = [];
+  for (const match of source.matchAll(badge)) {
+    const page = Number(match[1]);
+    const total = Number(match[2]);
+    if (!Number.isInteger(page) || page < 1 || page > 10) continue;
+    if (!Number.isInteger(total) || total < 2 || total > 10) continue;
+    marks.push({ page, total, index: match.index ?? 0, len: match[0].length });
+  }
+  if (marks.length < 2) return byPage;
+  const expectedTotal = marks[0].total;
+  // Section for page N is text AFTER previous badge up to (and excluding) badge N,
+  // or: text between badge N and badge N+1. Canva often places the badge near the
+  // end of the page, so prefer "text before badge N belongs to page N".
+  for (let i = 0; i < marks.length; i += 1) {
+    const start = i === 0 ? 0 : marks[i - 1].index + marks[i - 1].len;
+    const end = marks[i].index;
+    const chunk = source.slice(start, end).replace(/\s+/g, " ").trim();
+    if (chunk) pushText(byPage, marks[i].page, chunk);
+  }
+  // Trailing text after the last badge (rare) stays on that page.
+  const last = marks[marks.length - 1];
+  const tail = source.slice(last.index + last.len).replace(/\s+/g, " ").trim();
+  if (tail) pushText(byPage, last.page, tail);
+  // Incomplete badge sets are unsafe for ordering — caller should prefer per-page reads.
+  if (byPage.size < expectedTotal) return byPage;
+  return byPage;
+}
+
+/** Prefer get-design-content shape, then read-design / design_content / flat MCP text. */
+export function collectPageTextsFromAny(payload: unknown): Map<number, string[]> {
+  const fromContent = collectPageTextsFromGetDesignContent(payload);
+  if (fromContent.size > 0) return fromContent;
+  const fromDesign = collectPageTextsFromDesign(payload);
+  if (fromDesign.size > 0) return fromDesign;
+  const plains = mcpContentPlainTexts(payload);
+  if (plains.length > 0) {
+    const fromFlat = collectPageTextsFromFlatBadgeDump(plains.join("\n"));
+    if (fromFlat.size > 0) return fromFlat;
+    // Single-page probe: stash whole text on page 1 for callers that reassign.
+    const single = new Map<number, string[]>();
+    pushText(single, 1, plains.join("\n"));
+    return single;
+  }
+  return new Map();
 }
 
 /** Near-white RGBA bitmap = blank cover page Canva sometimes inserts. */

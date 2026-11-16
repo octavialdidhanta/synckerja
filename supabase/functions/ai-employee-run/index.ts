@@ -37,6 +37,7 @@ import {
   normalizeCarouselReference,
   brandLockupFromBrief,
   diagnoseCarouselDraftDetail,
+  EXECUTION_CHECK_IDS,
   invalidRewriteNote,
   parseCarouselDraft,
   pickMenuIds,
@@ -177,6 +178,25 @@ function baseRewriteNote(checkId: string): string {
     return "Pemeriksaan soundsSpoken gagal. Tulis ulang vo supaya terdengar seperti diucapkan, kalimat pendek dan wajar, bukan teks brosur. Isi dan urutan slide tetap.";
   }
   return `Pemeriksaan ${checkId} gagal. Perbaiki draf tanpa menyalin rencana terakhir.`;
+}
+
+function executionChecksFromVerdict(
+  checks: unknown,
+  rejectCheck?: string,
+): Array<{ id: string; state: "pass" | "fail" }> | null {
+  const mapped = Array.isArray(checks)
+    ? checks.map((item: { id?: unknown; state?: unknown }) => ({
+      id: String(item?.id ?? ""),
+      state: (item?.state === "fail" ? "fail" : "pass") as "pass" | "fail",
+    })).filter((item) => item.id)
+    : [];
+  if (mapped.length > 0) return mapped;
+  const reject = String(rejectCheck ?? "").trim();
+  if (!reject || !(EXECUTION_CHECK_IDS as readonly string[]).includes(reject)) return null;
+  return EXECUTION_CHECK_IDS.map((id) => ({
+    id,
+    state: id === reject ? "fail" as const : "pass" as const,
+  }));
 }
 
 function publicError(error: unknown): string {
@@ -810,6 +830,8 @@ Deno.serve(async (req: Request) => {
       const product = await loadProduct();
       const brief = briefRows[0] ?? null;
       const useSystemHooks = brief?.use_system_hooks !== false;
+      const executionCheckEnabled = brief?.execution_check_enabled !== false;
+      let lastExecutionChecks: Array<{ id: string; state: "pass" | "fail" }> | null = null;
       let systemHooks: Array<{ id?: string; name?: string; description?: string; hook_content?: string }> = [];
       if (useSystemHooks) {
         const [defaultHooks, orgHooks] = await Promise.all([
@@ -1626,6 +1648,15 @@ Deno.serve(async (req: Request) => {
             stop = "quota";
             break;
           }
+          if (!executionCheckEnabled) {
+            // Brief switch OFF: skip one-shot execution judge; hard gates above still apply.
+            plan = candidate;
+            verdict = null;
+            executionId = null;
+            lastExecutionChecks = null;
+            lastReject = "";
+            break;
+          }
           const judge = async (draft: typeof candidate) => withRetry(async () => {
             const result = await modelScript(buildExecutionCheckPrompt({
               day,
@@ -1660,6 +1691,8 @@ Deno.serve(async (req: Request) => {
           const nextVerdict = parseExecutionVerdict(checked.script);
           if (!nextVerdict?.ok) {
             lastReject = String(nextVerdict?.check_id ?? "unparsed").slice(0, 40);
+            // Keep the last failed checklist so Generate sekarang can show Pass/Fail rows.
+            lastExecutionChecks = executionChecksFromVerdict(nextVerdict?.checks, lastReject);
             if (attemptNo >= draftAttempts) {
               skipIdea(currentIdeaId, lastReject);
               break;
@@ -1693,11 +1726,12 @@ Deno.serve(async (req: Request) => {
           }
           plan = candidate;
           verdict = nextVerdict;
+          lastExecutionChecks = executionChecksFromVerdict(nextVerdict.checks);
           lastReject = "";
           break;
         }
         if (stop !== "done") break;
-        if (!plan || !verdict?.ok) {
+        if (!plan || (executionCheckEnabled && !verdict?.ok)) {
           // Ensure the current path cannot be retried if a branch only flipped idea.skip.
           if (!ideaBlocked(currentIdeaId)) skipIdea(currentIdeaId, lastReject || "checks_failed");
           continue;
@@ -1736,7 +1770,7 @@ Deno.serve(async (req: Request) => {
             ...planPayload,
             ...(palette ? { palette } : {}),
             idea_id: String(idea.idea_id ?? idea.id ?? ""),
-            execution_id: executionId,
+            ...(executionId ? { execution_id: executionId } : {}),
             ...(focused ? {
               path_pillar_id: String(path?.content_pillar_id ?? ""),
               delivery_voice: path?.delivery_voice == null ? "" : String(path.delivery_voice),
@@ -1832,6 +1866,11 @@ Deno.serve(async (req: Request) => {
         plan_count: dryRun ? drafts.length : planIds.length,
         plan_ids: planIds,
         drafts: dryRun ? drafts : undefined,
+        execution_check_enabled: executionCheckEnabled,
+        execution_checks: executionCheckEnabled ? lastExecutionChecks : null,
+        ...(status === "failed" && label === "checks_failed" && lastReject
+          ? { reject_check: lastReject }
+          : {}),
       });
     }
 

@@ -2104,7 +2104,14 @@ test("Hook sistem masuk prompt; placeholder mentah ditolak", () => {
 test("generate-script-ai carousel prefix tidak memaksa caption satu kalimat pendek", () => {
   const source = readFileSync(new URL("../../supabase/functions/generate-script-ai/index.ts", import.meta.url), "utf8");
   assert.doesNotMatch(source, /one short Indonesian sentence/);
-  assert.match(source, /350-550/);
+  assert.match(source, /const CAPTION_BODY_FLOOR = 200/);
+  assert.match(source, /const CAPTION_BODY_TARGET_MIN = 350/);
+  assert.match(source, /const CAPTION_BODY_TARGET_MAX = 550/);
+  assert.match(source, /const HOOK_MAX_WORDS = 8/);
+  assert.match(source, /const VO_MAX_WORDS = 12/);
+  assert.match(source, /CAPTION_BODY_TARGET_MIN\}-\$\{CAPTION_BODY_TARGET_MAX/);
+  assert.match(source, /takeAround\("Wajib:"/);
+  assert.match(source, /takeAround\("Panjang caption body"/);
   assert.match(source, /real newline characters/);
   assert.match(source, /const CAPTION_LIMIT = 800/);
   assert.match(source, /caption\.length > CAPTION_LIMIT/);

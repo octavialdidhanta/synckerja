@@ -106,6 +106,8 @@ interface GoogleDriveLinkDialogProps {
   /** Canva is editing the existing design from slide comments. */
   canvaRevising?: boolean;
   canvaRunError?: string | null;
+  /** Plan brief markdown — shown per carousel slide in the comment panel Brief tab. */
+  briefMarkdown?: string | null;
 }
 const isCarouselContentType = (t: string | undefined) => t === 'Post' || t === 'Carousel';
 
@@ -145,6 +147,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
   canvaRefreshing = false,
   canvaRevising = false,
   canvaRunError = null,
+  briefMarkdown = null,
 }) => {
   const { t } = useAppTranslation();
   const { data: planFeatures = [] } = useProductKnowledgeFeatures();
@@ -1414,6 +1417,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                 socialMediaPlanId={socialMediaPlanId}
                 linkUrl={isCarouselMode ? 'carousel' : (googleDriveLink || 'default-link')}
                 carouselSlideNumber={isCarouselMode && carouselImages.length > 0 ? carouselPreviewIndex + 1 : null}
+                briefMarkdown={briefMarkdown}
               />
             </div>
           </div>

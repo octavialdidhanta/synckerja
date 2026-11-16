@@ -73,7 +73,18 @@ export function readCanvaToolJson(result: unknown): Record<string, unknown> {
   if (structured && (
     structured.job_id || structured.jobId || structured.status || structured.design
     || structured.transaction_id || structured.pages || structured.result || structured.asset
-  )) return structured;
+  )) {
+    // get-design-content sometimes returns structuredContent.pages that is empty/useless
+    // while the usable copy lives in content[].text (flat page dump). Keep both.
+    const text = textFromContent(root.content);
+    if (text && !text.startsWith("{") && Array.isArray(structured.pages) && structured.pages.length === 0) {
+      return { ...structured, content: root.content };
+    }
+    if (text && !text.startsWith("{") && !Array.isArray(structured.pages) && !structured.result) {
+      return { ...structured, content: root.content };
+    }
+    return structured;
+  }
   const text = textFromContent(root.content);
   if (text.startsWith("{")) {
     try {

@@ -138,39 +138,75 @@ export function useAiEmployeePage(employeeId: string | undefined) {
     const { data, error } = await supabase.functions.invoke("ai-employee-run", {
       body: { employee_id: employeeId, mode, manual: true },
     });
+    type GenerateBody = {
+      ok?: boolean;
+      error?: string;
+      plan_count?: number;
+      status?: string;
+      execution_check_enabled?: boolean;
+      execution_checks?: Array<{ id: string; state: string }> | null;
+      reject_check?: string;
+      model_error?: unknown;
+    };
     const readPayload = (value: unknown) => {
-      if (!value || typeof value !== "object") return { code: "", modelError: "" };
-      const row = value as { error?: unknown; model_error?: unknown };
+      if (!value || typeof value !== "object") {
+        return { code: "", modelError: "", body: null as GenerateBody | null };
+      }
+      const row = value as GenerateBody;
       return {
         code: typeof row.error === "string" ? row.error : "",
         modelError: typeof row.model_error === "string" ? row.model_error : "",
+        body: row,
       };
     };
-    let { code, modelError } = readPayload(data);
+    let { code, modelError, body } = readPayload(data);
     if (error) {
       const context = (error as { context?: unknown }).context;
       if (context instanceof Response) {
-        const body = await context.clone().json().catch(() => null);
-        const fromBody = readPayload(body);
+        const parsed = await context.clone().json().catch(() => null);
+        const fromBody = readPayload(parsed);
         if (!code) code = fromBody.code;
         if (!modelError) modelError = fromBody.modelError;
+        if (!body) body = fromBody.body;
       }
       if (presentGeminiSpendCap(modelError) || presentGeminiSpendCap(code)) {
         throw new GeminiSpendCapError(modelError || code);
       }
-      throw new Error(code || "generate_failed");
+      const fail = new Error(code || "generate_failed") as Error & {
+        executionCheckEnabled?: boolean;
+        executionChecks?: GenerateBody["execution_checks"];
+        rejectCheck?: string;
+      };
+      if (body) {
+        fail.executionCheckEnabled = body.execution_check_enabled !== false;
+        fail.executionChecks = body.execution_checks ?? null;
+        fail.rejectCheck = typeof body.reject_check === "string" ? body.reject_check : undefined;
+      }
+      throw fail;
     }
-    const row = data && typeof data === "object"
-      ? data as { ok?: boolean; error?: string; plan_count?: number; status?: string }
-      : {};
+    const row = body ?? {};
     if (row.ok === false) {
       if (presentGeminiSpendCap(modelError) || presentGeminiSpendCap(code || row.error)) {
         throw new GeminiSpendCapError(modelError || code || row.error || "generate_failed");
       }
-      throw new Error(row.error || "generate_failed");
+      const fail = new Error(row.error || "generate_failed") as Error & {
+        executionCheckEnabled?: boolean;
+        executionChecks?: GenerateBody["execution_checks"];
+        rejectCheck?: string;
+      };
+      fail.executionCheckEnabled = row.execution_check_enabled !== false;
+      fail.executionChecks = row.execution_checks ?? null;
+      fail.rejectCheck = typeof row.reject_check === "string" ? row.reject_check : undefined;
+      throw fail;
     }
     await reload();
-    return { planCount: Number(row.plan_count ?? 0), status: String(row.status ?? "") };
+    return {
+      planCount: Number(row.plan_count ?? 0),
+      status: String(row.status ?? ""),
+      executionCheckEnabled: row.execution_check_enabled !== false,
+      executionChecks: row.execution_checks ?? null,
+      rejectCheck: typeof row.reject_check === "string" ? row.reject_check : undefined,
+    };
   };
 
   const generateNow = async () => invokeManualGenerate("sop1");

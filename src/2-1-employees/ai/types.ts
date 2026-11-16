@@ -46,6 +46,8 @@ export type BriefDraft = {
   contentPlanAutoApprove: boolean;
   /** When true, SOP1 fills Hook headline from Product Knowledge hooks. */
   useSystemHooks: boolean;
+  /** When true (default), SOP1 runs the 10-point execution check before plan save. */
+  executionCheckEnabled: boolean;
 };
 
 export type SubServiceOption = {

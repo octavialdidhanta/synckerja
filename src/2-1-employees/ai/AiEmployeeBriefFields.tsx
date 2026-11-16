@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/
 import { cn } from "@/shared/lib/utils";
 import { anglesForCatalogs, anglesWithLockedIdeas, groupBriefPillars } from "./angleCatalog";
 import { MAX_BRIEF_ANGLES } from "./briefAngleFocus";
+import { carouselExecutionCheckLines, carouselSystemRulesLines } from "./carouselGenerateRules";
 import type { AngleOption, BriefChange, CatalogOption } from "./types";
 import { useSubCategoryPhotoUrls } from "./subCategoryPhotos";
 import type { PillarFunnel, PillarUsage } from "./pillarUsage";
@@ -801,5 +802,37 @@ export function ChangeTable({ rows }: { rows: BriefChange[] }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** Read-only SOP1 generate gates for Advanced Brief (not toggles). */
+export function CarouselSystemRulesPanel() {
+  const lines = carouselSystemRulesLines();
+  return (
+    <div className="space-y-2 py-0.5">
+      <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+        Selalu aktif
+      </span>
+      <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed text-foreground">
+        {lines.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Read-only 10 execution check labels (one model call when the brief switch is ON). */
+export function CarouselExecutionCheckList() {
+  const rows = carouselExecutionCheckLines();
+  return (
+    <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-relaxed text-muted-foreground">
+      {rows.map((row) => (
+        <li key={row.id}>
+          <span className="text-foreground">{row.label}</span>
+          <span className="text-muted-foreground"> ({row.id})</span>
+        </li>
+      ))}
+    </ul>
   );
 }

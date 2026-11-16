@@ -24,6 +24,7 @@ function draft(partial: Partial<BriefDraft> = {}): BriefDraft {
     subServiceIds: [],
     contentPlanAutoApprove: false,
     useSystemHooks: true,
+    executionCheckEnabled: true,
     ...partial,
   };
 }

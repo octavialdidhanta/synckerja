@@ -4,8 +4,17 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 /** Caption body + system lockup contacts + hashtags. */
 const CAPTION_LIMIT = 800;
+/** Hard reject: slogan-thin body after stripping tags/contacts. */
+const CAPTION_BODY_FLOOR = 200;
+/** Soft target for body before system footer (enforced by soft-trim). */
+const CAPTION_BODY_TARGET_MIN = 350;
+const CAPTION_BODY_TARGET_MAX = 550;
 const CAPTION_HASHTAG_MIN = 3;
 const CAPTION_HASHTAG_MAX = 5;
+/** Slide 1 Hook headline and later Headline: max words. */
+const HOOK_MAX_WORDS = 8;
+/** On-slide supporting line (vo) max words — not the same as Hook headline. */
+const VO_MAX_WORDS = 12;
 
 function bytesOf(text) {
   return new TextEncoder().encode(text);
@@ -876,7 +885,7 @@ function captionRules(brief, service, pillar) {
         `Hashtag wajib ${CAPTION_HASHTAG_MIN} sampai ${CAPTION_HASHTAG_MAX} di baris tersendiri di akhir, dipisah spasi. Campuran selektif: 1 niche dari Idea/angle/mekanisme post, 1 sampai 2 mid searchable dari topik atau Product Knowledge, paling banyak 1 brand/katalog bila natural. Sumber: Idea, territory/angle, Product Knowledge, nama pilar bila relevan — bukan data iklan dan bukan daftar random.`,
         "Dilarang hashtag mega-generik kosong yang tidak spesifik ke isi: #bisnis #sukses #motivasi #viral #fyp #trending dan sejenisnya. Pilih tag yang relevan dan searchable; jangan mengklaim volume traffic yang tidak diketahui.",
       ]),
-    "Panjang caption body (sebelum kontak/hashtag sistem): target sekitar 350 sampai 550 karakter. Slogan tipis di bawah 200 karakter ditolak sistem. Aturan pendek untuk vo/hook slide tidak berlaku untuk caption.",
+    `Panjang caption body (sebelum kontak/hashtag sistem): target sekitar ${CAPTION_BODY_TARGET_MIN} sampai ${CAPTION_BODY_TARGET_MAX} karakter. Slogan tipis di bawah ${CAPTION_BODY_FLOOR} karakter ditolak sistem. Aturan pendek untuk vo/hook slide tidak berlaku untuk caption.`,
     "Struktur komunikasi caption (tulang wajib terasa; bentuk/gaya penulisan bebas — jangan rumus tetap sebelum→stuck→solusi; jangan berhenti di satu-dua kalimat slogan):",
     "(1) Scene masuk: langsung di tengah situasi/emosi konkret (bukan slogan generik).",
     "(2) Blind spot: tunjukkan audiens merasa aman/biasa saja/tidak menyadari masalahnya sedang jalan — beat ini wajib terasa.",
@@ -884,8 +893,8 @@ function captionRules(brief, service, pillar) {
     "(4) Insight: terjemahkan territory/angle/idea ke suara feed (kamu, bahasa lisan). Jangan menyalin concept word-for-word.",
     "(5) Discovery soft: satu reframe (bukan X, tapi Y) yang bikin mikir — bukan pitch fitur/produk.",
     "(6) Soft close: maksimal satu ajakan ringan di akhir body sesuai funnel pilar (lihat baris CTA).",
-    "(7) Sistem menempelkan website/kontak (jika ada) lalu hashtag di baris akhir — jangan mengarang URL/nomor lain. Sisakan paling sedikit ~100 karakter dari batas total 800 untuk footer kontak+hashtag (sistem akan memotong body jika penuh, tapi jangan isi sampai mentok).",
-    "Tulis seperti artikel di feed yang layak dibaca lama (beberapa paragraf pendek). Pisahkan paragraf dengan enter / baris kosong di string caption (bukan satu blok menyatu). Idealnya tiap beat utama (scene, blind spot, insight, soft close) mulai di paragraf baru. Kreatifitas bentuk OK selama tulang komunikasi di atas terasa dan body mendekati target 350-550 (bukan 800 penuh). Caption untuk audiens; concept untuk alasan internal.",
+    `(7) Sistem menempelkan website/kontak (jika ada) lalu hashtag di baris akhir — jangan mengarang URL/nomor lain. Sisakan paling sedikit ~100 karakter dari batas total ${CAPTION_LIMIT} untuk footer kontak+hashtag. Body di atas ~${CAPTION_BODY_TARGET_MAX} dipotong sistem sebelum footer; jangan isi sampai mentok ${CAPTION_LIMIT}.`,
+    `Tulis seperti artikel di feed yang layak dibaca lama (beberapa paragraf pendek). Pisahkan paragraf dengan enter / baris kosong di string caption (bukan satu blok menyatu). Idealnya tiap beat utama (scene, blind spot, insight, soft close) mulai di paragraf baru. Kreatifitas bentuk OK selama tulang komunikasi di atas terasa dan body mendekati target ${CAPTION_BODY_TARGET_MIN}-${CAPTION_BODY_TARGET_MAX} (bukan ${CAPTION_LIMIT} penuh). Caption untuk audiens; concept untuk alasan internal.`,
     "Dilarang bahasa review internal: jangan \"konten ini dibuat\", \"penonton perlu menyadari\", \"audiens harus\", atau frasa yang membicarakan penonton sebagai objek.",
     captionPillarCtaLine(pillar),
     "Soft sell saja. Dilarang hard CTA bertumpuk, klaim \"solusi terbaik\", harga, diskon, atau hard-sell produk di caption.",
@@ -1476,11 +1485,12 @@ export function buildSop1Prompt({ day, pillar, steps, catalog, thinking, feedbac
     "Contoh arah (bukan template wajib): hook 'Angka doang vs. Angka + Aktivitas' → dua sisi laporan; kiri grafik + angka total saja; kanan grafik sama + angka + daftar aktivitas tim yang terbaca. Komposisi, framing, dan gaya foto tetap bebas.",
     "Jangan mengunci kreativitas Canva: jangan memaksa warna, font, posisi elemen, atau layout. Element Lainnya (Point, Ajakan, Arah gambar, label) tetap bebas kreatif; Scene Visual hanya memastikan makna teks terbaca di gambar.",
     "Bila adegan memuat orang, minta foto manusia sungguhan: kulit alami, kamera nyata, bukan ilustrasi, kartun, 3D, atau wajah sintetis.",
-    "vo adalah teks pendukung di slide (bukan voiceover audio): satu kalimat bahasa Indonesia, paling banyak 12 kata, boleh singkat. Peran tipografi sama di setiap slide (teks di bawah headline, ukuran standar antar slide). Copy menyambung dengan adegan. Jangan mengulang caption. Jangan mengosongkan vo.",
+    `vo adalah teks pendukung di slide (bukan voiceover audio): satu kalimat bahasa Indonesia, paling banyak ${VO_MAX_WORDS} kata, boleh singkat. Peran tipografi sama di setiap slide (teks di bawah headline, ukuran standar antar slide). Copy menyambung dengan adegan. Jangan mengulang caption. Jangan mengosongkan vo.`,
+    `Hook headline (maks ${HOOK_MAX_WORDS} kata) ≠ vo (maks ${VO_MAX_WORDS} kata). Jangan campur batas keduanya; jangan pakai batas vo untuk Hook headline atau sebaliknya.`,
     "Bahasa vo dan Hook headline: bahasa lisan sehari-hari yang diucapkan audiens ke teman dekat. Pakai bentuk pendek seperti nggak, aja, banget, sih, deh, kok, atau dong bila pas. Sapa penonton dengan kamu, bukan Anda. Jangan memakai kata formal seperti tidak, sangat, namun, merupakan, atau oleh karena itu. Tetap jelas dan jangan menumpuk singkatan.",
     "title dan Hook headline berangkat dari Idea dan Development pilar, bukan dari klaim Product Knowledge. Klaim produk boleh muncul di slide tengah; slide terakhir khusus brand lockup.",
-    "element adalah Element Lainnya. Mulai slide 2 dan seterusnya, element wajib diawali 'Headline: ...': judul slide itu, paling banyak 8 kata, teks terbesar di slide. Label kecil lain boleh menyusul, misalnya 'Point: ...' untuk bukti, angka, atau kontras, dan 'Ajakan: ...' untuk ajakan. Instruksi gambar seperti panah, ikon, infografis, atau ilustrasi ditulis setelah label 'Arah gambar: ...', bukan sebagai teks slide.",
-    "Slide 1 adalah halaman pembuka. element slide 1 wajib diawali dua label ini: 'Hook headline: ...' lalu 'Visual hook: ...'. Hook headline adalah kalimat pendek yang menghentikan scroll, paling banyak 8 kata. Visual hook adalah hal yang mata tangkap lebih dulu dan harus selaras dengan Scene Visual. Komponen lain, termasuk 'Arah gambar: ...', menyusul setelah kedua label itu.",
+    `element adalah Element Lainnya. Mulai slide 2 dan seterusnya, element wajib diawali 'Headline: ...': judul slide itu, paling banyak ${HOOK_MAX_WORDS} kata, teks terbesar di slide. Label kecil lain boleh menyusul, misalnya 'Point: ...' untuk bukti, angka, atau kontras, dan 'Ajakan: ...' untuk ajakan. Instruksi gambar seperti panah, ikon, infografis, atau ilustrasi ditulis setelah label 'Arah gambar: ...', bukan sebagai teks slide.`,
+    `Slide 1 adalah halaman pembuka. element slide 1 wajib diawali dua label ini: 'Hook headline: ...' lalu 'Visual hook: ...'. Hook headline adalah kalimat pendek yang menghentikan scroll, paling banyak ${HOOK_MAX_WORDS} kata. Visual hook adalah hal yang mata tangkap lebih dulu dan harus selaras dengan Scene Visual. Komponen lain, termasuk 'Arah gambar: ...', menyusul setelah kedua label itu.`,
     "tagging boleh kosong. Isi hanya label singkat yang benar-benar tampil di slide.",
     "Gambar dan copy di setiap slide harus menyatu supaya penonton berhenti, mengerti, lalu ingin lanjut. Jangan membuat slide yang hanya adegan tanpa teks.",
     "Jangan memakai judul, headline, atau kalimat slide 1 yang tercantum pada rencana terakhir.",
@@ -1737,7 +1747,7 @@ function captionBodyOnly(caption) {
  * Reject slogan-thin bodies after stripping system lockup lines.
  */
 function captionDepthOk(caption) {
-  return captionBodyOnly(caption).length >= 200;
+  return captionBodyOnly(caption).length >= CAPTION_BODY_FLOOR;
 }
 
 /** Replace caption hashtag line with Brand lockup tags. */
@@ -1769,9 +1779,29 @@ function stripFactFromCaptionBody(body, fact) {
   return normalizeCaptionText(text.replace(new RegExp(clean.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), " "));
 }
 
+/** Soft-trim caption body to target max at paragraph/sentence boundary. */
+function softTrimCaptionBody(body, maxChars = CAPTION_BODY_TARGET_MAX) {
+  const text = normalizeCaptionText(body);
+  if (text.length <= maxChars) return text;
+  const sliced = text.slice(0, maxChars);
+  const para = sliced.lastIndexOf("\n\n");
+  if (para >= Math.floor(maxChars * 0.6)) return sliced.slice(0, para).trimEnd();
+  const sentence = Math.max(
+    sliced.lastIndexOf(". "),
+    sliced.lastIndexOf("! "),
+    sliced.lastIndexOf("? "),
+  );
+  if (sentence >= Math.floor(maxChars * 0.6)) return sliced.slice(0, sentence + 1).trimEnd();
+  return sliced.replace(/\s+\S*$/, "").trimEnd() || sliced.trimEnd();
+}
+
+function countWords(text) {
+  return String(text ?? "").trim().split(/\s+/).filter(Boolean).length;
+}
+
 /**
  * Build caption as body + reserved footer (contacts then hashtags).
- * Body is trimmed first so lockup contacts are never sliced off the end.
+ * Body is soft-trimmed to target max, then room-trimmed so footer never drops.
  */
 function assembleCaptionWithLockup(caption, contacts, tags) {
   const source = normalizeCaptionText(caption);
@@ -1780,6 +1810,7 @@ function assembleCaptionWithLockup(caption, contacts, tags) {
     .map((fact) => String(fact ?? "").trim())
     .filter(Boolean);
   for (const fact of contactList) body = stripFactFromCaptionBody(body, fact);
+  body = softTrimCaptionBody(body, CAPTION_BODY_TARGET_MAX);
   const tagList = (Array.isArray(tags) ? tags : []).filter(Boolean);
   const tagLine = tagList.join(" ");
   const contactBlock = contactList.join("\n");
@@ -1999,13 +2030,23 @@ export function diagnoseCarouselDraftDetail(text, notes, lockup, { pillarId = ""
     const element = carouselCell(slide.element);
     if (timing !== `Slide ${index + 1}`) return { code: "timing", caption: stats() };
     if (!visual) return { code: "visual", caption: stats() };
-    // vo = teks pendukung di slide (bukan voiceover). Cukup non-kosong; boleh singkat lisan.
+    // vo = teks pendukung di slide (bukan voiceover). Non-kosong + maks VO_MAX_WORDS.
     if (!vo) return { code: "vo", caption: stats() };
+    if (countWords(vo) > VO_MAX_WORDS) return { code: "vo", caption: stats() };
     if (element.length < 12) return { code: "element", caption: stats() };
     if (index === 0 && (!/hook headline\s*:/i.test(element) || !/visual hook\s*:/i.test(element))) {
       return { code: "hook", caption: stats() };
     }
     if (index === 0 && hookHasRawPlaceholders(element)) return { code: "hook", caption: stats() };
+    if (index === 0 && countWords(hookFromElement(element)) > HOOK_MAX_WORDS) {
+      return { code: "hook", caption: stats() };
+    }
+    if (index > 0) {
+      const headline = headlineFromElement(element);
+      if (headline && countWords(headline) > HOOK_MAX_WORDS) {
+        return { code: "element", caption: stats() };
+      }
+    }
     packed.push({
       timing,
       visual,
@@ -2040,6 +2081,10 @@ export function diagnoseCarouselDraftDetail(text, notes, lockup, { pillarId = ""
   if (!captionDepthOk(draft.caption)) {
     return { code: "caption", caption: captionRejectMeta(draft.caption, "too_thin", rawCaptionLen) };
   }
+  // DB ai_employee_carousel_fields requires '#'; fail here if heal did not attach tags.
+  if (!String(draft.caption ?? "").includes("#")) {
+    return { code: "hashtags", caption: finalStats() };
+  }
   if (!captionHashtagsOk(draft.caption, lockup)) return { code: "hashtags", caption: finalStats() };
   const known = new Set((Array.isArray(pillars) ? pillars : []).map((row) => String(row?.id ?? "")));
   const wantPillar = String(pillarId || draft.content_pillar_id || "");
@@ -2068,7 +2113,7 @@ export function invalidRewriteNote(code, captionMeta = null) {
   if (key === "caption") {
     const reason = String(captionMeta?.reason ?? "");
     if (reason === "empty") {
-      return `Caption kosong. Tulis body feed sekitar 350-550 karakter (scene konkret, blind spot, insight, discovery soft, soft close — beberapa paragraf pendek). Kontak+hashtag dilampirkan sistem. Total maksimal ${CAPTION_LIMIT} karakter.`;
+      return `Caption kosong. Tulis body feed sekitar ${CAPTION_BODY_TARGET_MIN}-${CAPTION_BODY_TARGET_MAX} karakter (scene konkret, blind spot, insight, discovery soft, soft close — beberapa paragraf pendek). Kontak+hashtag dilampirkan sistem. Total maksimal ${CAPTION_LIMIT} karakter.`;
     }
     if (reason === "over_limit") {
       const len = Number(captionMeta?.caption_len) || 0;
@@ -2076,22 +2121,24 @@ export function invalidRewriteNote(code, captionMeta = null) {
     }
     const bodyLen = Number(captionMeta?.body_len);
     const bodyHint = Number.isFinite(bodyLen) ? ` (body sekarang ${bodyLen} karakter)` : "";
-    return `Caption body terlalu tipis${bodyHint}. Tulis ulang body sekitar 350-550 karakter (bukan satu slogan): scene konkret, blind spot, insight dari territory/angle/idea, discovery soft, satu soft close. Kontak+hashtag dilampirkan sistem. Total maksimal ${CAPTION_LIMIT} karakter.`;
+    return `Caption body terlalu tipis${bodyHint}. Tulis ulang body sekitar ${CAPTION_BODY_TARGET_MIN}-${CAPTION_BODY_TARGET_MAX} karakter (minimal ${CAPTION_BODY_FLOOR}, bukan satu slogan): scene konkret, blind spot, insight dari territory/angle/idea, discovery soft, satu soft close. Kontak+hashtag dilampirkan sistem. Total maksimal ${CAPTION_LIMIT} karakter.`;
   }
   if (key === "slides") return "slides wajib array 2 sampai 10 objek slide.";
   if (key === "timing") return 'Setiap slide.timing harus tepat "Slide 1", "Slide 2", dst sesuai urutan.';
   if (key === "visual") return "Setiap slide.visual wajib diisi (Scene Visual), jangan kosong.";
   if (key === "vo") {
-    return "Setiap slide.vo wajib diisi: teks pendukung di slide (bukan voiceover), satu kalimat singkat bahasa lisan. Boleh pendek.";
+    return `Setiap slide.vo wajib diisi: teks pendukung di slide (bukan voiceover), satu kalimat bahasa lisan, paling banyak ${VO_MAX_WORDS} kata. Hook headline punya batas sendiri (${HOOK_MAX_WORDS} kata) — jangan campur.`;
   }
-  if (key === "element") return "Setiap slide.element minimal 12 karakter.";
+  if (key === "element") {
+    return `Setiap slide.element minimal 12 karakter. Mulai slide 2, Headline: paling banyak ${HOOK_MAX_WORDS} kata.`;
+  }
   if (key === "hook") {
-    return "Slide 1 element wajib memuat Hook headline: (maks 8 kata, tanpa placeholder [X]/[Y]/[Z]) dan Visual hook:.";
+    return `Slide 1 element wajib memuat Hook headline: (maks ${HOOK_MAX_WORDS} kata, tanpa placeholder [X]/[Y]/[Z]) dan Visual hook:. Hook ≠ vo (vo maks ${VO_MAX_WORDS} kata).`;
   }
   if (key === "concept") return "concept wajib minimal 40 karakter.";
   if (key === "notes") return "Caption/slide terakhir belum memuat fakta catatan wajib atau masih memuat teks terlarang.";
   if (key === "hashtags") {
-    return `Caption wajib ${CAPTION_HASHTAG_MIN} sampai ${CAPTION_HASHTAG_MAX} hashtag di baris akhir, dipisah spasi.`;
+    return `Caption wajib punya # di baris akhir. Tanpa Brand lockup: ${CAPTION_HASHTAG_MIN}-${CAPTION_HASHTAG_MAX} hashtag. Dengan lockup: sistem menempelkan tag brand — pastikan lockup hashtag terisi atau biarkan sistem menempel setelah body.`;
   }
   if (key === "referensi") return "Setiap slide.element wajib tepat satu label Referensi N sesuai slot brief yang diizinkan.";
   if (key === "pillar") return "content_pillar_id harus sama dengan pilar yang diminta di prompt.";
@@ -2118,9 +2165,15 @@ export function parseCarouselDraft(text, notes, lockup) {
     const vo = carouselCell(slide.vo ?? slide.copy);
     const element = carouselCell(slide.element);
     if (timing !== `Slide ${index + 1}` || !visual || !vo || element.length < 12) return null;
+    if (countWords(vo) > VO_MAX_WORDS) return null;
     if (index === 0 && !/hook headline\s*:/i.test(element)) return null;
     if (index === 0 && !/visual hook\s*:/i.test(element)) return null;
     if (index === 0 && hookHasRawPlaceholders(element)) return null;
+    if (index === 0 && countWords(hookFromElement(element)) > HOOK_MAX_WORDS) return null;
+    if (index > 0) {
+      const headline = headlineFromElement(element);
+      if (headline && countWords(headline) > HOOK_MAX_WORDS) return null;
+    }
     packed.push({
       timing,
       visual,
@@ -2150,6 +2203,7 @@ export function parseCarouselDraft(text, notes, lockup) {
   const lockupFacts = normalizeLockupFacts(lockup);
   if ((notes || lockupFacts.length > 0) && !carouselNotesOk(draft, notes, lockup)) return null;
   if (!captionDepthOk(draft.caption)) return null;
+  if (!String(draft.caption ?? "").includes("#")) return null;
   if (!captionHashtagsOk(draft.caption, lockup)) return null;
   return draft;
 }

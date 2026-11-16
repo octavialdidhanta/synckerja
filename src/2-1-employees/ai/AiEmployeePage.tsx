@@ -61,6 +61,11 @@ import {
   type ThinkingLabQueueBlockReason,
 } from "./ThinkingLabQueueBlockedDialog";
 import { setThinkingLabFokusEmployee } from "@/thinking-lab/hooks/useThinkingLabAngleFocus";
+import {
+  CarouselExecutionCheckProgressDialog,
+  progressFromGenerateResult,
+  type ExecutionCheckProgress,
+} from "./CarouselExecutionCheckProgress";
 
 
 const WEEKDAYS = [
@@ -334,6 +339,7 @@ export default function AiEmployeePage() {
   const [reportCode, setReportCode] = useState("work_report.daily");
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [executionProgress, setExecutionProgress] = useState<ExecutionCheckProgress | null>(null);
   const [planMenuOpen, setPlanMenuOpen] = useState(false);
   const [queueBlockReason, setQueueBlockReason] = useState<ThinkingLabQueueBlockReason | null>(null);
   const generatingRef = useRef(false);
@@ -683,15 +689,41 @@ export default function AiEmployeePage() {
     if (generatingRef.current) return;
     generatingRef.current = true;
     setGenerating(true);
+    // Don't block the page with a pending 10-row modal — toast/button spinner is enough while waiting.
+    setExecutionProgress(null);
     try {
       const result = await model.generateNow();
+      // Success: toast only. Checklist is useful when quality checks reject a draft.
+      setExecutionProgress(null);
       toast({
         title: result.planCount > 0
           ? t("aiEmployee.schedule.generated", "Plan dibuat")
           : t("aiEmployee.schedule.generatedEmpty", "Tidak ada plan baru"),
       });
     } catch (error) {
-      reportGenerateError(error);
+      const detail = error as Error & {
+        executionCheckEnabled?: boolean;
+        executionChecks?: Array<{ id: string; state: string }> | null;
+        rejectCheck?: string;
+      };
+      const message = String(detail?.message ?? "");
+      if (message.includes("checks_failed") || detail.executionChecks || detail.rejectCheck) {
+        setExecutionProgress(progressFromGenerateResult({
+          enabled: detail.executionCheckEnabled !== false,
+          checks: detail.executionChecks,
+          rejectCheck: detail.rejectCheck || (message.includes("checks_failed") ? "checks_failed" : undefined),
+          failed: true,
+        }));
+        // Modal already explains which check failed — keep toast short.
+        toast({
+          title: t("aiEmployee.schedule.generateFailed", "Plan tidak dibuat."),
+          description: t("aiEmployee.schedule.checksFailedShort", "Cek kualitas menolak semua draf."),
+          variant: "destructive",
+        });
+      } else {
+        setExecutionProgress(null);
+        reportGenerateError(error);
+      }
     } finally {
       void queryClient.invalidateQueries({ queryKey: [RUN_LOG_KEY] });
       generatingRef.current = false;
@@ -1364,6 +1396,11 @@ export default function AiEmployeePage() {
                           t={t}
                           onReview={() => setBriefOpen(true)}
                           onOpenAngle={setAngleDetailId}
+                          generating={generating}
+                          onGenerateNow={() => {
+                            setBriefPanelOpen(false);
+                            void generatePlanNow();
+                          }}
                           saveReference={model.saveReference}
                           clearReference={model.clearReference}
                           saveCatalogColor={model.saveCatalogColor}
@@ -1570,6 +1607,14 @@ export default function AiEmployeePage() {
           if (!open) setQueueBlockReason(null);
         }}
         onOpenThinkingLab={openThinkingLabFromQueueBlock}
+      />
+
+      <CarouselExecutionCheckProgressDialog
+        progress={executionProgress}
+        onOpenChange={(open) => {
+          if (!open) setExecutionProgress(null);
+          else setExecutionProgress((current) => (current ? { ...current, open: true } : current));
+        }}
       />
     </div>
   );

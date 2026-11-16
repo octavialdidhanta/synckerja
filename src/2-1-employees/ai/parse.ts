@@ -141,6 +141,7 @@ export function briefDraftFromPayload(value: unknown): { draft: BriefDraft; labe
       ...chosenSubCategory(row),
       contentPlanAutoApprove: row.content_plan_auto_approve === true,
       useSystemHooks: row.use_system_hooks !== false,
+      executionCheckEnabled: row.execution_check_enabled !== false,
     },
     labels: {
       services: asOptions(row.services).map((item) => ({ ...item, label: item.label })),
@@ -484,7 +485,8 @@ export function sameBriefExceptAngles(left: BriefDraft, right: BriefDraft): bool
     && left.repeatVoices.every((voice, index) => voice === right.repeatVoices[index])
     && sameIds(left.subServiceIds, right.subServiceIds)
     && left.contentPlanAutoApprove === right.contentPlanAutoApprove
-    && left.useSystemHooks === right.useSystemHooks;
+    && left.useSystemHooks === right.useSystemHooks
+    && left.executionCheckEnabled === right.executionCheckEnabled;
 }
 
 export function sameSchedule(left: ScheduleRow, right: ScheduleRow): boolean {
@@ -556,6 +558,12 @@ export function briefChanges(
     before.useSystemHooks !== after.useSystemHooks,
     before.useSystemHooks ? "Pakai hook Product Knowledge" : "AI mencari hook",
     after.useSystemHooks ? "Pakai hook Product Knowledge" : "AI mencari hook",
+  );
+  push(
+    "Cek kualitas (execution)",
+    before.executionCheckEnabled !== after.executionCheckEnabled,
+    before.executionCheckEnabled ? "Hidup" : "Mati",
+    after.executionCheckEnabled ? "Hidup" : "Mati",
   );
   return rows;
 }

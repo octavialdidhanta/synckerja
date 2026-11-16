@@ -15,8 +15,11 @@ function failedSentence(error: string | null): string {
   if (error === "canva_not_connected" || error === "canva_dispatch_missing") return "Canva belum terhubung";
   if (error === "canva_tool_missing") return "Canva belum punya alat desain";
   if (error === "not_approved") return "Persetujuan berubah sebelum desain dibuat";
+  if (error === "carousel_page_text_unreadable") {
+    return "Canva tidak bisa dibaca teks halaman untuk merapikan urutan — coba Perbarui lagi";
+  }
   if (error === "carousel_page_order_mismatch") {
-    return "Jumlah halaman Canva tidak cocok dengan brief — buka Canva, samakan halaman, lalu Perbarui lagi";
+    return "Urutan/teks halaman Canva tidak bisa dicocokkan ke brief — buka Canva, cek isi tiap slide, lalu Perbarui lagi";
   }
   const detail = String(error ?? "").replace(/^canva_job_failed:/, "").trim();
   const lower = detail.toLowerCase();

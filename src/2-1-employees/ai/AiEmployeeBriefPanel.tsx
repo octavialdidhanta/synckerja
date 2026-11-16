@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Switch } from "@/shared/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
@@ -20,6 +20,8 @@ import { CatalogColorField, CatalogLogoField } from "./CatalogAssetsFields";
 import type { useBriefPillarUsage } from "./pillarUsage";
 import {
   AngleFocusField,
+  CarouselExecutionCheckList,
+  CarouselSystemRulesPanel,
   CatalogSelect,
   FieldHint,
   listed,
@@ -49,6 +51,8 @@ const WIDE_VALUE_KEYS = new Set([
   "systemHooks",
   "subCategory",
   "personas",
+  "executionCheck",
+  "systemRules",
 ]);
 
 function BriefRowView({
@@ -120,6 +124,9 @@ export type AiEmployeeBriefPanelProps = {
   t: (key: string, fallback: string) => string;
   onReview: () => void;
   onOpenAngle: (id: string) => void;
+  /** Same handler as Job Desc table "Generate sekarang". */
+  generating?: boolean;
+  onGenerateNow?: () => void;
 } & ModelFns;
 
 export function AiEmployeeBriefPanel({
@@ -138,6 +145,8 @@ export function AiEmployeeBriefPanel({
   t,
   onReview,
   onOpenAngle,
+  generating = false,
+  onGenerateNow,
   saveReference,
   clearReference,
   saveCatalogColor,
@@ -432,6 +441,45 @@ export function AiEmployeeBriefPanel({
 
   const advancedRows: BriefRow[] = [
     {
+      key: "executionCheck",
+      label: t("aiEmployee.brief.executionCheck", "Cek kualitas (execution)"),
+      hint: t(
+        "aiEmployee.brief.executionCheckHint",
+        "Saat ON, draf dinilai 10 poin sebelum plan disimpan. Saat OFF, langkah itu dilewati; aturan generate (sistem) tetap berlaku.",
+      ),
+      value: (
+        <div className="space-y-1 py-0.5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-gray-900">
+              {brief.executionCheckEnabled
+                ? t("aiEmployee.brief.executionCheckOn", "10 poin dinilai sebelum simpan")
+                : t("aiEmployee.brief.executionCheckOff", "Dilewati (saklar OFF)")}
+            </p>
+            <Switch
+              checked={brief.executionCheckEnabled}
+              disabled={!canEdit || saving}
+              onCheckedChange={(checked) =>
+                setBrief((current) => (current ? { ...current, executionCheckEnabled: checked } : current))
+              }
+              aria-label={t("aiEmployee.brief.executionCheck", "Cek kualitas (execution)")}
+            />
+          </div>
+          <CarouselExecutionCheckList />
+        </div>
+      ),
+      editor: null,
+    },
+    {
+      key: "systemRules",
+      label: t("aiEmployee.brief.systemRules", "Aturan generate (sistem)"),
+      hint: t(
+        "aiEmployee.brief.systemRulesHint",
+        "Selalu aktif untuk Generate sekarang dan jadwal. Tidak bisa dimatikan per brief. Angka harus sama dengan validator SOP1.",
+      ),
+      value: <CarouselSystemRulesPanel />,
+      editor: null,
+    },
+    {
       key: "personas",
       label: t("aiEmployee.brief.personas", "Persona"),
       hint: openMode
@@ -508,7 +556,7 @@ export function AiEmployeeBriefPanel({
                 <FieldHint
                   wide
                   label={t("aiEmployee.brief.title", "Brief")}
-                  text={"Berlaku untuk Content Plan Carousel. Field yang diisi menjadi batas. Field yang dikosongkan melepas batas itu.\n\nKatalog paling banyak satu. Kosong berarti plan tidak dibuat. Satu katalog untuk karyawan ini. Katalog lain membutuhkan karyawan AI baru.\n\nFokus angle paling banyak 6.\nFokus angle kosong: tidak ada giliran angle. Idea yang dikunci dan lolos dari angle mana pun ikut. Yang belum punya plan didahulukan. Setelah semua idea punya plan, giliran tetap merata: jumlah plan paling sedikit, lalu yang paling lama tidak dipakai. Idea dan pilar plan terakhir dilewati selama masih ada pilihan. Angle ikut terbawa dari idea.\nFokus angle diisi: giliran menjauh dari plan organisasi yang tanggal postingnya paling baru. Angle yang paling lama tidak keluar didahulukan, dan angle plan terakhir dilewati selama angle lain masih punya idea yang lolos. Idea di angle itu dipilih yang jumlah plannya paling sedikit, lalu yang paling lama tidak dipakai. Idea plan terakhir tidak diulang selama masih ada idea lain yang jumlahnya sama atau lebih sedikit. Idea yang sama boleh kembali lewat pilar yang belum pernah dipasangkan. Persona dan audiens tidak dikirim.\n\nPilar kosong: pilar diambil dari pilar aktif di Content Pillar Tracker. Yang paling sedikit dipakai pada bulan berjalan didahulukan. Pilar plan terakhir dilewati selama masih ada pilar lain yang belum dipasangkan dengan idea itu.\nPilar diisi: giliran hanya di dalam daftar itu, dengan urutan yang sama.\nPasangan idea dan pilar yang sama tidak dibuat dua kali.\n\nProduct Knowledge kosong: daftarnya semua baris yang kategorinya sama dengan katalog.\nProduct Knowledge diisi: hanya baris itu.\nSaat fokus angle terisi, Naya memilih dari daftar itu (paling banyak 30) dan pilihannya dipakai selama ada di daftar.\nSaat fokus angle kosong, yang dikirim paling banyak 3 baris, dan baris yang sudah terpakai dilewati.\n\nReferensi layout (Advanced): penanda slot di script, bukan desain Canva. Tempel tersimpan langsung.\n\nSuara kosong: tidak ada gaya bahasa.\nCatatan wajib adalah instruksi. Caption dan teks slide terakhir memenuhi maksudnya. Nomor telepon, harga, atau fakta lain di dalam instruksi itu yang muncul, lalu ikut ke Canva. Kalimat instruksinya tidak disalin.\nCatatan terlarang tidak boleh muncul di judul, caption, concept, visual, teks, atau element, dan ikut sebagai larangan ke Canva.\nBila adegan memuat orang, gambar diminta sebagai foto manusia sungguhan, bukan ilustrasi.\nGaya pengulangan (Advanced) kosong: tidak ada plan kedua. Gaya pertama dipakai hanya setelah plan pertama tayang lebih dari 7 hari dan metriknya di atas median."}
+                  text={"Berlaku untuk Content Plan Carousel. Field yang diisi menjadi batas. Field yang dikosongkan melepas batas itu.\n\nAturan generate ada di Advanced (sistem, read-only).\n\nKatalog paling banyak satu. Kosong berarti plan tidak dibuat. Satu katalog untuk karyawan ini. Katalog lain membutuhkan karyawan AI baru.\n\nFokus angle paling banyak 6.\nFokus angle kosong: tidak ada giliran angle. Idea yang dikunci dan lolos dari angle mana pun ikut. Yang belum punya plan didahulukan. Setelah semua idea punya plan, giliran tetap merata: jumlah plan paling sedikit, lalu yang paling lama tidak dipakai. Idea dan pilar plan terakhir dilewati selama masih ada pilihan. Angle ikut terbawa dari idea.\nFokus angle diisi: giliran menjauh dari plan organisasi yang tanggal postingnya paling baru. Angle yang paling lama tidak keluar didahulukan, dan angle plan terakhir dilewati selama angle lain masih punya idea yang lolos. Idea di angle itu dipilih yang jumlah plannya paling sedikit, lalu yang paling lama tidak dipakai. Idea plan terakhir tidak diulang selama masih ada idea lain yang jumlahnya sama atau lebih sedikit. Idea yang sama boleh kembali lewat pilar yang belum pernah dipasangkan. Persona dan audiens tidak dikirim.\n\nPilar kosong: pilar diambil dari pilar aktif di Content Pillar Tracker. Yang paling sedikit dipakai pada bulan berjalan didahulukan. Pilar plan terakhir dilewati selama masih ada pilar lain yang belum dipasangkan dengan idea itu.\nPilar diisi: giliran hanya di dalam daftar itu, dengan urutan yang sama.\nPasangan idea dan pilar yang sama tidak dibuat dua kali.\n\nProduct Knowledge kosong: daftarnya semua baris yang kategorinya sama dengan katalog.\nProduct Knowledge diisi: hanya baris itu.\nSaat fokus angle terisi, Naya memilih dari daftar itu (paling banyak 30) dan pilihannya dipakai selama ada di daftar.\nSaat fokus angle kosong, yang dikirim paling banyak 3 baris, dan baris yang sudah terpakai dilewati.\n\nReferensi layout (Advanced): penanda slot di script, bukan desain Canva. Tempel tersimpan langsung.\n\nSuara kosong: tidak ada gaya bahasa.\nCatatan wajib adalah instruksi. Caption dan teks slide terakhir memenuhi maksudnya. Nomor telepon, harga, atau fakta lain di dalam instruksi itu yang muncul, lalu ikut ke Canva. Kalimat instruksinya tidak disalin.\nCatatan terlarang tidak boleh muncul di judul, caption, concept, visual, teks, atau element, dan ikut sebagai larangan ke Canva.\nBila adegan memuat orang, gambar diminta sebagai foto manusia sungguhan, bukan ilustrasi.\nGaya pengulangan (Advanced) kosong: tidak ada plan kedua. Gaya pertama dipakai hanya setelah plan pertama tayang lebih dari 7 hari dan metriknya di atas median."}
                 />
               </DialogTitle>
               <DialogDescription>{workName}</DialogDescription>
@@ -578,15 +626,31 @@ export function AiEmployeeBriefPanel({
           <Button
             type="button"
             variant="outline"
-            disabled={saving}
+            disabled={saving || generating}
             onClick={() => onOpenChange(false)}
           >
             {dismissLabel}
           </Button>
+          {canEdit && onGenerateNow ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={saving || generating || briefDirty || brief.serviceIds.length !== 1}
+              aria-busy={generating}
+              onClick={() => {
+                void onGenerateNow();
+              }}
+            >
+              {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
+              {generating
+                ? t("aiEmployee.schedule.generating", "Membuat plan...")
+                : t("aiEmployee.schedule.generateNow", "Generate sekarang")}
+            </Button>
+          ) : null}
           {canEdit ? (
             <Button
               type="button"
-              disabled={saving || brief.serviceIds.length > 1 || !briefDirty}
+              disabled={saving || generating || brief.serviceIds.length > 1 || !briefDirty}
               onClick={onReview}
             >
               {t("aiEmployee.brief.review", "Tinjau brief")}

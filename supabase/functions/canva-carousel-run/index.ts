@@ -6,9 +6,10 @@ import { callCanvaTool, canvaEditingMode, listCanvaMcpTools, type CanvaEditingMo
 import { readCanvaToolJson } from "../_shared/canvaMcpParse.ts";
 import { getCanvaAccessToken } from "../_shared/canvaToken.ts";
 import {
-  collectPageTextsFromDesign,
+  collectPageTextsFromAny,
   isNearBlankRgba,
   orderCarouselPages,
+  type PageOrderLockup,
 } from "../_shared/canvaCarouselPageOrder.ts";
 import { Image } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
 import { reviseCarousel } from "./revise.ts";
@@ -643,47 +644,120 @@ async function activeLogoBytes(
   return bytes;
 }
 
+function mergePageTexts(into: Map<number, string[]>, from: Map<number, string[]>): void {
+  for (const [page, texts] of from) {
+    const list = into.get(page) ?? [];
+    for (const text of texts) {
+      if (text && !list.includes(text)) list.push(text);
+    }
+    if (list.length > 0) into.set(page, list);
+  }
+}
+
 async function readDesignPageTexts(
   admin: SupabaseClient,
   organizationId: string,
   token: string,
   designId: string,
+  expectedPages: number,
 ): Promise<{ token: string; pageTexts: Map<number, string[]> }> {
-  try {
-    const detected = await editingModeFor(admin, organizationId, token);
-    if (detected.mode !== "current") {
-      return { token: detected.token, pageTexts: new Map() };
-    }
-    let current = detected.token;
-    for (const openTransaction of [false, true]) {
+  let current = token;
+  const pageCount = Math.min(10, Math.max(2, Math.floor(expectedPages) || 2));
+  // Prefer per-page reads: Canva MCP often returns one flat text dump for "all pages",
+  // and badge splits (1/8, 2/8, …) can omit pages — that caused false PAGE_ORDER_MISMATCH.
+  {
+    const filled = new Map<number, string[]>();
+    for (let page = 1; page <= pageCount; page += 1) {
       try {
-        const opened = await callRaw(admin, organizationId, current, "read-design", {
+        const one = await callRaw(admin, organizationId, current, "get-design-content", {
           design_id: designId,
-          open_transaction: openTransaction,
-          filter: { fields: ["page_metadata", "design_content"] },
-          user_intent: "membaca teks tiap page carousel untuk urutan export",
+          content_types: ["richtexts"],
+          pages: [page],
+          user_intent: `membaca teks page ${page} untuk urutan export sesuai brief`,
         });
-        current = opened.token;
-        const pageTexts = collectPageTextsFromDesign(opened.payload);
-        if (pageTexts.size > 0) return { token: current, pageTexts };
+        current = one.token;
+        const part = collectPageTextsFromAny(one.payload);
+        // Single-page MCP dumps are often keyed as page 1 — reassign to the requested page.
+        if (part.has(page) && part.size > 1) {
+          mergePageTexts(filled, new Map([[page, part.get(page) ?? []]]));
+        } else if (part.size >= 1) {
+          const texts = part.has(page)
+            ? (part.get(page) ?? [])
+            : [...part.values()][0] ?? [];
+          mergePageTexts(filled, new Map([[page, texts]]));
+        }
       } catch (error) {
         console.log(JSON.stringify({
           event: "canva_page_text_failed",
           design_id: designId,
-          open_transaction: openTransaction,
+          source: "get-design-content-page",
+          page,
           error: publicError(error).slice(0, 200),
         }));
       }
     }
-    return { token: current, pageTexts: new Map() };
+    console.log(JSON.stringify({
+      event: "canva_page_text_per_page",
+      design_id: designId,
+      text_count: filled.size,
+      text_pages: [...filled.keys()].sort((a, b) => a - b),
+      text_lens: [...filled.entries()].map(([page, texts]) => [page, texts.join(" ").length]),
+    }));
+    if (filled.size >= Math.max(2, pageCount - 1)) {
+      // Accept complete or near-complete (blank trailing page is rare).
+      return { token: current, pageTexts: filled };
+    }
+  }
+
+  // Fallback: bulk get-design-content (structured pages or flat badge dump).
+  try {
+    const opened = await callRaw(admin, organizationId, current, "get-design-content", {
+      design_id: designId,
+      content_types: ["richtexts"],
+      user_intent: "membaca teks tiap page carousel untuk urutan export sesuai brief",
+    });
+    current = opened.token;
+    const pageTexts = collectPageTextsFromAny(opened.payload);
+    console.log(JSON.stringify({
+      event: "canva_page_text_bulk",
+      design_id: designId,
+      text_count: pageTexts.size,
+      text_pages: [...pageTexts.keys()].sort((a, b) => a - b),
+      payload_keys: Object.keys(opened.payload ?? {}).slice(0, 20),
+    }));
+    // Only accept complete bulk parses — partial flat dumps mis-assign headlines.
+    if (pageTexts.size >= pageCount) return { token: current, pageTexts };
   } catch (error) {
     console.log(JSON.stringify({
       event: "canva_page_text_failed",
       design_id: designId,
+      source: "get-design-content",
       error: publicError(error).slice(0, 200),
     }));
-    return { token, pageTexts: new Map() };
   }
+
+  for (const openTransaction of [false, true]) {
+    try {
+      const opened = await callRaw(admin, organizationId, current, "read-design", {
+        design_id: designId,
+        open_transaction: openTransaction,
+        filter: { fields: ["page_metadata", "design_content"] },
+        user_intent: "membaca teks tiap page carousel untuk urutan export sesuai brief",
+      });
+      current = opened.token;
+      const pageTexts = collectPageTextsFromAny(opened.payload);
+      if (pageTexts.size > 0) return { token: current, pageTexts };
+    } catch (error) {
+      console.log(JSON.stringify({
+        event: "canva_page_text_failed",
+        design_id: designId,
+        source: "read-design",
+        open_transaction: openTransaction,
+        error: publicError(error).slice(0, 200),
+      }));
+    }
+  }
+  return { token: current, pageTexts: new Map() };
 }
 
 function uniqueSortedPages(values: unknown[]): number[] {
@@ -700,36 +774,27 @@ async function resolveExportPages(
   designId: string,
   slides: CarouselSlide[],
   apiPages: number[],
+  lockup?: PageOrderLockup | null,
 ): Promise<{ token: string; pages: number[]; allowBlankFilter: boolean }> {
-  const read = await readDesignPageTexts(admin, organizationId, token, designId);
+  const read = await readDesignPageTexts(admin, organizationId, token, designId, slides.length);
   token = read.token;
-  const ordered = orderCarouselPages(slides, read.pageTexts);
+  const ordered = orderCarouselPages(slides, read.pageTexts, lockup);
   console.log(JSON.stringify({
     event: "canva_page_order",
     design_id: designId,
     expected: slides.length,
     api_pages: apiPages,
     text_pages: [...read.pageTexts.keys()].sort((a, b) => a - b),
+    text_count: read.pageTexts.size,
     matched: ordered?.matched ?? null,
     dropped_blanks: ordered?.droppedBlanks ?? [],
     ordered: ordered?.orderedPageNumbers ?? null,
   }));
+  // Only brief-matched page order may be exported. Never fall back to raw Canva indices.
   if (ordered && ordered.orderedPageNumbers.length === slides.length) {
     return { token, pages: ordered.orderedPageNumbers, allowBlankFilter: false };
   }
-  // Text unread: export Canva pages as listed, then drop blank JPGs if count is high.
-  if (read.pageTexts.size === 0 && apiPages.length > 0) {
-    return {
-      token,
-      pages: apiPages,
-      allowBlankFilter: apiPages.length !== slides.length,
-    };
-  }
-  // Text unread and Canva did not list page_numbers — export whole design, filter blanks later.
-  if (read.pageTexts.size === 0 && apiPages.length === 0) {
-    return { token, pages: [], allowBlankFilter: true };
-  }
-  // Text present but could not map 1:1 — do not guess order.
+  if (read.pageTexts.size === 0) throw new Error("carousel_page_text_unreadable");
   throw new Error(PAGE_ORDER_MISMATCH);
 }
 
@@ -902,6 +967,16 @@ async function exportCarouselImages(
       const jpg = asRecord(asRecord(formatsCall.payload.formats)?.jpg);
       if (!jpg) throw new Error("export_format_missing");
       const apiPages = Array.isArray(jpg.page_numbers) ? uniqueSortedPages(jpg.page_numbers) : [];
+      const pageLockup: PageOrderLockup | null = logoChoice
+        ? {
+          brandName: logoChoice.brandName,
+          tagline: logoChoice.tagline,
+          facts: lockupContactFacts({
+            websiteUrl: logoChoice.websiteUrl,
+            defaultContact: logoChoice.defaultContact,
+          }),
+        }
+        : null;
       const resolved = await resolveExportPages(
         admin,
         organizationId,
@@ -909,6 +984,7 @@ async function exportCarouselImages(
         String(locked.design_id),
         slides,
         apiPages,
+        pageLockup,
       );
       token = resolved.token;
       const pages = resolved.pages;
@@ -1021,10 +1097,10 @@ async function exportCarouselImages(
         return;
       }
       const message = exportError(error);
-      if (message === PAGE_ORDER_MISMATCH) {
+      if (message === PAGE_ORDER_MISMATCH || message === "carousel_page_text_unreadable") {
         // Perbarui with existing images = export only.
         // First create (no images yet) may redesign once even if markSucceeded set refresh_requested.
-        const mayRedesign = !hadImages;
+        const mayRedesign = !hadImages && message === PAGE_ORDER_MISMATCH;
         if (mayRedesign) {
           const retried = await requeueDesignForPageOrder(
             admin,
@@ -1036,7 +1112,7 @@ async function exportCarouselImages(
         await admin
           .from("canva_carousel_runs")
           .update({
-            error: PAGE_ORDER_MISMATCH,
+            error: message,
             images_ready: hadImages,
             refresh_requested: false,
             review_after_export: false,
