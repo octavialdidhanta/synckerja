@@ -57,6 +57,7 @@ import {
   orderCopyFallbackPaths,
   selectCopyPriors,
   pickUnusedIdea,
+  chooseSop1Pillar,
   rankPillarsForRotation,
   parsePlanDraft,
   projectRefFromUrl,
@@ -1901,11 +1902,14 @@ Deno.serve(async (req: Request) => {
         return json({ ok: false, error: "catalog_limit", mode: "sop4", run_id: runId, model_calls: 0 }, 422);
       }
 
-      const [pillarRows, catalogRows, thinkingRows, planRows, performanceRows] = await Promise.all([
+      // Days cadence: post for today (same as SOP1). Month window drives pillar rotation.
+      const monthStart = `${today.slice(0, 7)}-01`;
+      const [pillarRows, catalogRows, thinkingRows, planRows, monthPlanRows, performanceRows] = await Promise.all([
         loadScope("pillars"),
         loadScope("catalog"),
         loadScope("thinking"),
         loadScope("plans", { from: today, to: today }),
+        loadScope("plans", { from: monthStart, to: today }),
         loadScope("performance"),
       ]);
 
@@ -1945,13 +1949,33 @@ Deno.serve(async (req: Request) => {
         return json({ ok: false, error: "ideas_blocked", mode: "sop4", run_id: runId, model_calls: 0 }, 422);
       }
 
-      const pillar = pillars[0] as { id?: string; name?: string; description?: string };
-      const dated = resolvePostDate({ today, requestedDate, modelDate: "", plans: planRows });
-      if (!dated.ok || !isDay(dated.postDate)) {
+      // Prefer least-used pillar in the month (brief-filtered pool), not alphabetical pillars[0].
+      const picked = chooseSop1Pillar(pillars, monthPlanRows);
+      if (!picked?.id) {
+        await closeSop4("failed", "pillar_cap");
+        return json({ ok: false, error: "pillar_cap", mode: "sop4", run_id: runId, model_calls: 0 }, 422);
+      }
+      const pillarRow = pillars.find((row) => String(row.id ?? "") === picked.id) ?? pillars[0];
+      const pillar = {
+        id: String(picked.id),
+        name: String(picked.name || pillarRow?.name || ""),
+        description: String((pillarRow as { description?: string } | undefined)?.description ?? ""),
+      };
+
+      // Story jadwal harian: tanggal = hari ini (atau requestedDate), bukan nextWeekDays.
+      let day = today;
+      if (requestedDate) {
+        const dated = resolvePostDate({ today, requestedDate, modelDate: "", plans: planRows });
+        if (!dated.ok || !isDay(dated.postDate)) {
+          await closeSop4("failed", "invalid_date");
+          return json({ ok: false, error: "invalid_input", mode: "sop4", run_id: runId, model_calls: 0 }, 422);
+        }
+        day = dated.postDate;
+      }
+      if (!isDay(day)) {
         await closeSop4("failed", "invalid_date");
         return json({ ok: false, error: "invalid_input", mode: "sop4", run_id: runId, model_calls: 0 }, 422);
       }
-      const day = dated.postDate;
       let avoid = "";
       let draft: ReturnType<typeof readStoryDraftCandidate> = null;
       let stop: "done" | "failed" | "quota" = "done";

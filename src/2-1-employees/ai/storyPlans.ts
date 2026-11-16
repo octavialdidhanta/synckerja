@@ -14,6 +14,7 @@ export type StoryPlanRow = {
   postDate: string | null;
   picName: string;
   contentTypeName: string;
+  serviceId: string | null;
   serviceName: string;
   pillarName: string;
   briefPreview: string;
@@ -59,11 +60,13 @@ export function parseStoryPlans(value: unknown): StoryPlans {
       if (!row) return [];
       const id = text(row.id);
       if (!id) return [];
+      const serviceId = text(row.service_id);
       return [{
         id,
         postDate: text(row.post_date) || null,
         picName: text(row.pic_name),
         contentTypeName: text(row.content_type_name) || "Story",
+        serviceId: serviceId || null,
         serviceName: text(row.service_name),
         pillarName: text(row.pillar_name),
         briefPreview: text(row.brief_preview),

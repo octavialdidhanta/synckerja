@@ -587,25 +587,35 @@ async function designOperations(
     "Elements:",
     elements.slice(0, 16).map(elementLine).join("\n") || "- none",
   ].join("\n");
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
-    },
-    body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
-      temperature: 0.1,
-      max_tokens: 1200,
-      response_format: { type: "json_object" },
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-  if (!response.ok) throw new Error("revision_model_failed");
-  const body = asRecord(await response.json());
-  const choice = Array.isArray(body?.choices) ? asRecord(body.choices[0]) : null;
-  const message = asRecord(choice?.message);
-  const content = typeof message?.content === "string" ? message.content : "";
+  // llama-3.3-70b-versatile retired on Groq (2026-08-16) for free/developer tiers.
+  const models = [
+    (Deno.env.get("GROQ_REVISION_MODEL") ?? "").trim(),
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+  ].filter(Boolean);
+  let content = "";
+  for (const model of models) {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.1,
+        max_tokens: 1200,
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!response.ok) continue;
+    const body = asRecord(await response.json());
+    const choice = Array.isArray(body?.choices) ? asRecord(body.choices[0]) : null;
+    const message = asRecord(choice?.message);
+    content = typeof message?.content === "string" ? message.content : "";
+    if (content) break;
+  }
   if (!content) throw new Error("revision_model_failed");
   try {
     return readDesignOperations(content, elements, page, commentText);

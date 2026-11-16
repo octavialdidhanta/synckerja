@@ -140,7 +140,8 @@ export function buildCanvaStoryBrief(
   const title = clip(input.title, 200) || "Story";
   const caption = clip(input.caption, 400);
   const forbiddenNote = clip(input.forbiddenNote, 500);
-  const requiredNote = clip(input.requiredNote, 500);
+  // Revision notes need more room than a short brand hint (was 500 → comments got cut).
+  const requiredNote = clip(input.requiredNote, 1200);
   const mergedFonts = {
     headline: input.fonts?.headline || input.fields.fonts?.headline || null,
     body: input.fonts?.body || input.fields.fonts?.body || null,

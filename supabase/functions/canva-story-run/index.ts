@@ -11,6 +11,7 @@ import {
 import { callCanvaTool, listCanvaMcpTools } from "../_shared/canvaMcp.ts";
 import { readCanvaToolJson } from "../_shared/canvaMcpParse.ts";
 import { getCanvaAccessToken } from "../_shared/canvaToken.ts";
+import { reviseStory } from "./revise.ts";
 
 const POLL_BUDGET_MS = 100_000;
 const EXPORT_POLL_MS = 45_000;
@@ -246,10 +247,10 @@ async function exportStoryImage(
   try {
     const { data: run } = await admin
       .from("canva_story_runs")
-      .select("status, images_ready, export_attempts, design_id, updated_at, refresh_requested, export_path")
+      .select("status, images_ready, export_attempts, design_id, updated_at, refresh_requested, revision_requested, export_path")
       .eq("social_media_plan_id", planId)
       .maybeSingle();
-    if (!run || run.status !== "succeeded" || run.images_ready || !run.design_id) return;
+    if (!run || run.status !== "succeeded" || run.images_ready || !run.design_id || run.revision_requested === true) return;
     if (Number(run.export_attempts) >= 3) {
       if (run.refresh_requested === true) {
         await admin
@@ -436,12 +437,21 @@ Deno.serve(async (req: Request) => {
   const admin = createClient(supabaseUrl, serviceRoleKey);
   const { data: run, error: runError } = await admin
     .from("canva_story_runs")
-    .select("status, canva_job_id, continuation_token, attempts, updated_at, organization_id, images_ready, design_id, error, export_attempts, refresh_requested")
+    .select("status, canva_job_id, continuation_token, attempts, updated_at, organization_id, images_ready, design_id, error, export_attempts, refresh_requested, revision_requested")
     .eq("social_media_plan_id", planId)
     .maybeSingle();
   if (runError || !run) return json({ error: "missing" }, 404);
 
   if (run.status === "succeeded") {
+    if (run.revision_requested === true) {
+      await reviseStory(
+        admin,
+        planId,
+        String(run.organization_id),
+        () => exportStoryImage(admin, planId, String(run.organization_id)),
+      );
+      return json({ ok: true, status: "succeeded" });
+    }
     if (run.images_ready !== true || run.refresh_requested === true) {
       await exportStoryImage(admin, planId, String(run.organization_id));
     }

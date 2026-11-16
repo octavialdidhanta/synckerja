@@ -26,6 +26,7 @@ export function useCanvaStoryRuns(planIds: string[]) {
       const waiting = rows.some((row) =>
         row.status === "queued"
         || row.status === "running"
+        || row.revision_requested === true
         || (row.refresh_requested === true && row.images_ready !== true)
         || (row.status === "succeeded" && row.images_ready !== true && !row.error)
       );

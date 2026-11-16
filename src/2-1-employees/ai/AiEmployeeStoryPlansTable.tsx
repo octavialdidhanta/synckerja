@@ -195,6 +195,7 @@ export function AiEmployeeStoryPlansTable({ employeeId }: { employeeId: string }
       designUrl: live?.design_url ?? row.canva?.design_url ?? null,
       exportPath: live?.export_path ?? row.canva?.export_path ?? null,
       postDate: row.postDate,
+      serviceId: row.serviceId,
       productionApproved: row.productionApproved || row.productionStatus === "Approved",
     };
   };
@@ -207,6 +208,7 @@ export function AiEmployeeStoryPlansTable({ employeeId }: { employeeId: string }
       designUrl: live?.design_url ?? row.canva?.design_url ?? null,
       exportPath: live?.export_path ?? row.canva?.export_path ?? null,
       postDate: row.postDate,
+      serviceId: row.serviceId,
       productionStatus: row.productionStatus,
       productionApproved: row.productionApproved,
     });
@@ -219,6 +221,7 @@ export function AiEmployeeStoryPlansTable({ employeeId }: { employeeId: string }
       designUrl: approved.designUrl,
       exportPath: approved.exportPath,
       postDate: approved.postDate,
+      serviceId: approved.serviceId,
       productionApproved: true,
     });
   };

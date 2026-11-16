@@ -8,6 +8,7 @@ export type CanvaStoryRun = {
   error: string | null;
   images_ready?: boolean;
   refresh_requested?: boolean;
+  revision_requested?: boolean;
   export_path?: string | null;
 };
 
@@ -37,6 +38,32 @@ export function CanvaStoryNote({
     if (error === "not_story") {
       return t("aiEmployee.story.canvaNotStory", "Bukan plan Story");
     }
+    if (error === "story_comments_missing") {
+      return t("aiEmployee.story.canvaRevisionNeedComment", "Canva revisi butuh komentar review");
+    }
+    if (
+      error === "revision_failed"
+      || error === "revision_unsupported"
+      || error === "revision_layout_unsupported"
+      || error === "revision_style_limited"
+      || error === "revision_edit_failed"
+      || error === "revision_commit_failed"
+      || error === "revision_model_missing"
+      || error === "revision_model_failed"
+      || error === "revision_image_failed"
+      || error === "revision_no_effect"
+      || error === "revision_create_failed"
+      || error === "revision_create_timeout"
+      || error === "revision_design_missing"
+      || error === "revision_plan_missing"
+    ) {
+      return error === "revision_no_effect"
+        ? t(
+          "aiEmployee.story.canvaRevisionNoEffect",
+          "Canva tidak mengubah desain dari komentar — coba komentar lebih spesifik atau edit manual di Canva",
+        )
+        : t("aiEmployee.story.canvaRevisionFailed", "Canva gagal merevisi Story dari komentar");
+    }
     const detail = String(error ?? "").replace(/^canva_job_failed:/, "").trim();
     const lower = detail.toLowerCase();
     if (lower.includes("credit_quota") || lower.includes("credit quota")) {
@@ -53,6 +80,9 @@ export function CanvaStoryNote({
     return t("aiEmployee.story.canvaFailed", "Canva gagal membuat desain Story");
   };
 
+  if (run.revision_requested && run.status === "succeeded") {
+    return <WorkingNote text={t("aiEmployee.story.canvaRevising", "Canva sedang merevisi Story")} />;
+  }
   if (
     run.refresh_requested
     && (run.status === "succeeded" || run.status === "queued" || run.status === "running")
