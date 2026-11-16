@@ -517,7 +517,13 @@ export function createApp(deps: AppDeps) {
     }),
   );
 
-  app.get("/health", (c) => c.json({ ok: true }));
+  app.get("/health", (c) =>
+    c.json({
+      ok: true,
+      rev: "linkedin-performance-v1",
+      tools: ["linkedin.performance"],
+    }),
+  );
 
   app.get("/.well-known/oauth-protected-resource", (c) => c.json(protectedResourceMetadata(deps.config)));
   app.get("/.well-known/oauth-protected-resource/mcp", (c) => c.json(protectedResourceMetadata(deps.config)));
