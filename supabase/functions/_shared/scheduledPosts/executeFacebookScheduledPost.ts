@@ -36,6 +36,8 @@ import {
 import { resolveVideoBytesForUpload, type SharedPublishContext } from "./sharedPublishContext.ts";
 import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 import type { FacebookProviderConfig, ScheduledPostRow } from "./scheduledPostTypes.ts";
+import { isStoryContentType } from "./storyPublishEligibility.ts";
+import { executeFacebookStoryScheduledPost } from "./executeFacebookStoryScheduledPost.ts";
 
 type PlanRow = {
   id: string;
@@ -243,6 +245,9 @@ export async function executeFacebookScheduledPost(
 ): Promise<{ published_url: string; external_post_id: string | null }> {
   const plan = await loadPlan(admin, schedule.social_media_plan_id);
   if (!plan) throw new Error("plan_not_found");
+  if (isStoryContentType(plan.content_type?.name)) {
+    return executeFacebookStoryScheduledPost(admin, schedule);
+  }
   if (isCarouselContentType(plan.content_type?.name)) {
     return executeFacebookCarouselScheduledPost(admin, schedule, plan);
   }

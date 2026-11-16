@@ -1,4 +1,6 @@
-import { briefFacts, textHasFact } from "./briefFacts.mjs";
+import { lockupContactFacts, mergeContactFacts } from "./briefFacts.mjs";
+
+export { lockupContactFacts, mergeContactFacts };
 
 export type CarouselSlide = {
   label: string;
@@ -322,7 +324,9 @@ function paletteLine(palette?: CatalogPalette | null): string {
 }
 
 function logoLine(logo?: "required" | "none"): string {
-  if (logo === "required") return "Leave the top center of every page empty.";
+  if (logo === "required") {
+    return "Leave the top center of the last page empty for the company logo. Do not reserve logo space on earlier pages.";
+  }
   return "";
 }
 
@@ -426,6 +430,43 @@ const HIERARCHY_RULE =
   "On every page the headline is the biggest text. The small text (deskripsi/supporting line) uses one standard size on every page — roughly half to two-thirds the headline — never tiny, never bigger than the headline, and not a different scale from page to page.";
 /** Fonts only: each page keeps its own layout. */
 export const TYPE_RULE = "Use one headline font and one body font on every page. The layout of each page may differ.";
+
+const ALLOWED_BRAND_FONTS = new Set([
+  "Montserrat",
+  "Poppins",
+  "Open Sans",
+  "Lato",
+  "Roboto",
+  "Nunito",
+  "Raleway",
+  "Oswald",
+  "Playfair Display",
+  "Source Sans 3",
+  "Inter",
+  "Merriweather",
+  "DM Sans",
+  "Bebas Neue",
+]);
+
+function normalizeBrandFont(name?: string | null): string {
+  const value = String(name ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+  return ALLOWED_BRAND_FONTS.has(value) ? value : "";
+}
+
+/** Inject curated Canva font names when the catalog lockup has them; else keep TYPE_RULE. */
+export function typeLine(fonts?: { headline?: string | null; body?: string | null } | null): string {
+  const headline = normalizeBrandFont(fonts?.headline);
+  const body = normalizeBrandFont(fonts?.body);
+  if (!headline && !body) return TYPE_RULE;
+  if (headline && body) {
+    return `Headline text always uses the Canva font "${headline}" on every page. Supporting/deskripsi text always uses the Canva font "${body}" on every page. Do not switch typefaces between pages. The layout of each page may differ.`;
+  }
+  if (headline) {
+    return `Headline text always uses the Canva font "${headline}" on every page. Supporting/deskripsi text uses one consistent complementary font on every page. Do not switch typefaces between pages. The layout of each page may differ.`;
+  }
+  return `Supporting/deskripsi text always uses the Canva font "${body}" on every page. Headline text uses one consistent complementary font on every page. Do not switch typefaces between pages. The layout of each page may differ.`;
+}
+
 const SCENE_MATCH_RULE =
   "When a page scene names a chart, report, screen, document, or comparison, draw those details so the meaning matches the headline: readable sample numbers, side labels, icons, or short lists — not a blank or decorative chart. Keep composition and layout creative; do not replace the scene with a generic office photo that ignores it.";
 
@@ -475,6 +516,14 @@ export function buildCanvaCarouselBrief(input: {
   styleLock?: string;
   palette?: CatalogPalette | null;
   logo?: "required" | "none";
+  /** Curated Canva font names from the catalog brand lockup. */
+  fonts?: { headline?: string | null; body?: string | null } | null;
+  /** Website / default contact from catalog lockup (not merged into requiredNote). */
+  lockupContact?: string[] | null;
+  /** Exact brand wordmark on the last page (catalog brand_name or service name). */
+  brandName?: string | null;
+  /** Exact tagline under the brand name on the last page. */
+  tagline?: string | null;
   /** Menus the plan shows; Canva draws these dishes itself. */
   menus?: string[];
   /** A real photo placed on the last page. Not sent by canva-carousel-run any more. */
@@ -485,7 +534,9 @@ export function buildCanvaCarouselBrief(input: {
   const limitChars = options.limit && options.limit > 0 ? options.limit : BRIEF_LIMIT_FULL;
   const title = input.title.replace(/\s+/g, " ").trim().slice(0, 200) || "Carousel";
   const caption = input.caption.replace(/\s+/g, " ").trim().slice(0, 280);
-  const requiredFacts = briefFacts(input.requiredNote).slice(0, 5);
+  const requiredFacts = mergeContactFacts(input.lockupContact, input.requiredNote, 5);
+  const brandName = String(input.brandName ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const tagline = String(input.tagline ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
   const forbiddenNote = (input.forbiddenNote ?? "").replace(/\s+/g, " ").trim().slice(0, 500);
   const notes = referenceNotes(input.styleLock ?? "");
   const sharedNote = notes.get(0) ?? "";
@@ -522,11 +573,23 @@ export function buildCanvaCarouselBrief(input: {
       let labels = [...texts.labels, slide.tagging].map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean);
       const contact: string[] = [];
       if (last) {
+        if (brandName) headline = brandName;
+        if (tagline) small = tagline;
         for (const fact of requiredFacts) {
           headline = withoutFact(headline, fact);
           small = withoutFact(small, fact);
           labels = labels.map((label) => withoutFact(label, fact)).filter(Boolean);
           contact.push(fact);
+        }
+        if (brandName) {
+          labels = labels
+            .map((label) => withoutFact(label, brandName))
+            .filter((label) => label.toLowerCase() !== brandName.toLowerCase());
+        }
+        if (tagline) {
+          labels = labels
+            .map((label) => withoutFact(label, tagline))
+            .filter((label) => label.toLowerCase() !== tagline.toLowerCase());
         }
       }
       if (small && small.toLowerCase() === headline.toLowerCase()) small = "";
@@ -554,13 +617,24 @@ export function buildCanvaCarouselBrief(input: {
     })
     .join("\n");
   const assemble = (pages: string, layout: string) => [
-    `Design an Instagram carousel with ${input.slides.length} portrait 4:5 pages. One page per slide. Make every page editable.`,
-    requiredFacts.length > 0 ? `Write exactly this on the last page, in its contact box: ${requiredFacts.join(" ")}` : "",
+    `Design an Instagram carousel with exactly ${input.slides.length} portrait 4:5 pages. One page per slide. Page k = slide k. No cover, blank, or extra pages. Do not reorder. Make every page editable.`,
+    brandName
+      ? `Brand spelling lock (every page): whenever the product/app/company name appears — headlines, body, UI mockups, sidebars, browser chrome, buttons, watermarks, or logos-as-text — write it exactly as "${brandName}". Copy every letter. Do not shorten, drop letters, swap letters, transliterate, or invent a nearby spelling.`
+      : "",
+    brandName
+      ? `On the last page, the brand wordmark / company name text must also be spelled exactly: "${brandName}".`
+      : "",
+    tagline
+      ? `On the last page, under the brand name, write the tagline exactly: "${tagline}".`
+      : "",
+    requiredFacts.length > 0
+      ? `On the last page contact box, write these catalog strings character-for-character with identical spelling (including every letter in the domain): ${requiredFacts.join(" ")}. Do not change, shorten, or “correct” the URL or phone.`
+      : "",
     forbiddenNote ? `Do not write any of this: ${forbiddenNote}` : "",
     paletteLine(input.palette),
     logoLine(input.logo),
     HIERARCHY_RULE,
-    TYPE_RULE,
+    typeLine(input.fonts),
     SCENE_MATCH_RULE,
     showsPerson ? PERSON_PHOTO_RULE : "",
     showsFood || (foodBusiness && products.length > 0) ? FOOD_PHOTO_RULE : "",

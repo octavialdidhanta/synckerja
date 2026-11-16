@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { anglesForCatalogs, anglesWithLockedIdeas, groupBriefPillars, pillarsForLockedIdeas } from "./angleCatalog";
+import {
+  anglesForCatalogs,
+  anglesWithLockedIdeas,
+  groupBriefPillars,
+  MAX_BRIEF_PILLARS,
+  pillarsForLockedIdeas,
+  clampBriefPillarIds,
+  syncPillarIdsForAngles,
+} from "./angleCatalog";
 
 const options = [
   { id: "a", serviceId: "synckerja" },
@@ -54,6 +62,46 @@ describe("pillarsForLockedIdeas", () => {
 
   it("shows nothing until an angle is selected", () => {
     expect(pillarsForLockedIdeas(pillars, angles, [])).toEqual([]);
+  });
+});
+
+describe("syncPillarIdsForAngles", () => {
+  const angles = [
+    { id: "an02", pillarIds: ["edukasi", "shared"] },
+    { id: "an03", pillarIds: ["cerita", "shared"] },
+    { id: "an04", pillarIds: ["penawaran"] },
+  ];
+
+  it("clears all pillars when no angle is selected", () => {
+    expect(syncPillarIdsForAngles(angles, [])).toEqual([]);
+  });
+
+  it("fills locked pillars for one selected angle", () => {
+    expect(syncPillarIdsForAngles(angles, ["an02"])).toEqual(["edukasi", "shared"]);
+  });
+
+  it("unions locked pillars across angles in selection order and dedupes", () => {
+    expect(syncPillarIdsForAngles(angles, ["an03", "an02"])).toEqual(["cerita", "shared", "edukasi"]);
+  });
+
+  it("caps at MAX_BRIEF_PILLARS", () => {
+    const many = {
+      id: "wide",
+      pillarIds: Array.from({ length: MAX_BRIEF_PILLARS + 5 }, (_, i) => `p${i}`),
+    };
+    expect(syncPillarIdsForAngles([many], ["wide"])).toEqual(
+      Array.from({ length: MAX_BRIEF_PILLARS }, (_, i) => `p${i}`),
+    );
+  });
+});
+
+describe("clampBriefPillarIds", () => {
+  it("clears all pillars when no angle is selected", () => {
+    expect(clampBriefPillarIds(["edukasi", "cerita"], [])).toEqual([]);
+  });
+
+  it("keeps pillars while at least one angle is selected", () => {
+    expect(clampBriefPillarIds(["edukasi", "orphan"], ["an02"])).toEqual(["edukasi", "orphan"]);
   });
 });
 

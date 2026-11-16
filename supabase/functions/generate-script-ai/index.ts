@@ -13,6 +13,9 @@ const corsHeaders: Record<string, string> = {
 const BAHASA_INSTRUCTION = "\n\nPENTING: Seluruh output script, caption, dan hashtag HARUS dalam Bahasa Indonesia. Jangan gunakan bahasa lain.";
 const FORMAT_INSTRUCTION =
   "\n\nFORMAT OUTPUT: Gunakan Markdown dengan benar. Untuk tabel: gunakan format standar (| Kolom1 | Kolom2 | Kolom3 |) dengan baris pemisah (|---|---|---|), satu baris per row. Jangan wrap teks ke baris baru di dalam satu cell—gunakan satu baris per row tabel agar terbaca rapi. Untuk tabel breakdown script: header HARUS persis lima kolom | Timing | Visual | VO (Voice Over) | Element Lainnya | Tagging | — dilarang mengganti Element Lainnya jadi Text On Screen/Teks di Layar, dilarang menghilangkan Tagging, dilarang hanya empat kolom. Setiap baris data wajib isi kolom Tagging. WAJIB: Akhiri script dengan blok ## CAPTION ## (baris sendiri) lalu baris baru lalu teks caption agar bisa disimpan di Save to Plan. Jika ada konsep, awali dengan ## Konsep Konten ## atau ## Concept of Content ## (baris sendiri) lalu baris baru lalu paragraf konsep.";
+/** Keep in sync with planDraft CAPTION_LIMIT — total caption including contacts/hashtags. */
+const CAPTION_LIMIT = 800;
+const CAROUSEL_MAX_TOKENS = 4096;
 
 /** Shared DB column `model` holds the active provider's model id — reject Gemini/Groq leftovers when routing to Fireworks. */
 function resolveFireworksChatModelId(stored: string | null | undefined): string {
@@ -83,6 +86,17 @@ function carouselCellText(input: unknown, limit = 500): string {
   return String(input ?? "").replace(/\s+/g, " ").trim().slice(0, limit);
 }
 
+/** Keep paragraph breaks in captions; do not flatten newlines (unlike carouselCellText). */
+function normalizeCarouselCaption(input: unknown, limit = CAPTION_LIMIT): string {
+  return String(input ?? "")
+    .replace(/\r\n/g, "\n")
+    .replace(/[^\S\n]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, limit);
+}
+
 function carouselField(row: Record<string, unknown>, names: string[]): string {
   const wanted = new Set(names.map((name) => name.toLowerCase().replace(/[\s_-]/g, "")));
   for (const [key, val] of Object.entries(row)) {
@@ -149,19 +163,25 @@ function finishCarouselScript(
   const captionSource = [value.caption, value.hashtags, value.hashtag, ...packed.map((slide) => slide.tagging)]
     .map((item) => String(item ?? ""))
     .join(" ");
-  let caption = cell(value.caption, 2000);
-  if (!caption) caption = cell(value.title, 180);
-  if (!caption) caption = cell(packed[0]?.visual, 180);
+  // Caption must keep \n paragraph breaks; carouselCellText flattens whitespace and would make body unreadable.
+  let caption = normalizeCarouselCaption(value.caption, CAPTION_LIMIT);
+  if (!caption) caption = normalizeCarouselCaption(value.title, 180);
+  if (!caption) caption = normalizeCarouselCaption(packed[0]?.visual, 180);
   const tags = captionSource.match(/#[^\s#]+/g) ?? [];
-  if (!caption.includes("#") && tags[0]) caption = `${caption} ${tags[0]}`.trim();
+  if (!caption.includes("#") && tags[0]) caption = normalizeCarouselCaption(`${caption}\n${tags[0]}`, CAPTION_LIMIT);
   if (!caption.includes("#")) {
     const word = caption.match(/[A-Za-z0-9]{3,}/);
-    caption = `${caption} #${(word?.[0] ?? "konten").toLowerCase()}`.trim();
+    caption = normalizeCarouselCaption(`${caption}\n#${(word?.[0] ?? "konten").toLowerCase()}`, CAPTION_LIMIT);
   }
-  if (caption.length > 400) {
-    const tag = ((caption.match(/#[^\s#]+/g) ?? tags)[0] ?? "").slice(0, 40);
-    const room = Math.max(0, 399 - (tag ? tag.length + 1 : 0));
-    caption = `${caption.slice(0, room).trim()}${tag ? ` ${tag}` : ""}`.trim();
+  if (caption.length > CAPTION_LIMIT) {
+    const tagMatch = caption.match(/(?:^|\n)((?:#[^\s#]+)(?:[ \t]+#[^\s#]+)*)\s*$/);
+    const tag = tagMatch?.[1] || ((caption.match(/#[^\s#]+/g) ?? tags)[0] ?? "").slice(0, 40);
+    const withoutTag = tag
+      ? normalizeCarouselCaption(caption.slice(0, caption.lastIndexOf(tag)), CAPTION_LIMIT)
+      : caption;
+    const room = Math.max(0, CAPTION_LIMIT - 1 - (tag ? tag.length + 1 : 0));
+    const body = withoutTag.length > room ? withoutTag.slice(0, room).replace(/\n+$/, "").trimEnd() : withoutTag;
+    caption = normalizeCarouselCaption([body, tag].filter(Boolean).join("\n"), CAPTION_LIMIT);
   }
   let title = cell(value.title, 200);
   if (!title) title = cell(packed[0]?.visual, 80);
@@ -444,7 +464,7 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
       const carouselDraft = isThinkingJson && prompt.includes("Content Plan Carousel");
       const executionCheck = isThinkingJson && prompt.includes("thinking.execution.check");
       const thinkingPrefix = carouselDraft
-        ? "Return JSON only. Use the keys title, post_date, caption, concept, slides, content_pillar_id, product_knowledge_id, and product_knowledge_fields. Do not use a brief key. caption is one short Indonesian sentence and must contain #. concept is required, 40 to 800 Indonesian characters, and explains why this content was made. slides has 2 to 10 objects. Choose the count. timing is exactly Slide 1, then Slide 2, and so on, with no extra punctuation. visual is Scene Visual: one to three scene sentences that match that slide's Hook headline / Headline / Teks — not a generic office photo and not a file path. If the scene shows a screen, report, chart, or UI, name readable details (sample numbers, side labels, activity icons, short lists), not a blank chart. Do not lock Canva layout, colors, or fonts. vo and element are required on every slide and must not be empty. vo is the small on-slide Indonesian supporting line (same role on every slide). element holds the other on-slide parts. Slide 1 element must start with Hook headline: and then Visual hook:. tagging may be empty. Do not write anything outside that JSON."
+        ? "Return JSON only. Use the keys title, post_date, caption, concept, slides, content_pillar_id, product_knowledge_id, and product_knowledge_fields. Do not use a brief key. caption is Indonesian feed copy for dwell time: several short paragraphs covering scene, blind spot, insight, and soft close — not one short slogan and not one dense wall of text. Separate paragraphs with real newline characters (\\n or blank lines) inside the JSON string so the feed is easy to read. Target about 350-550 characters of body before contacts/hashtags (do not fill all 800); leave room for system-appended website/contact/hashtag footer. Total caption including that footer must stay within 800 characters. Hashtags may be included, or left empty when the prompt says the system will attach Brand lockup tags. concept is required, 40 to 800 Indonesian characters, and explains why this content was made. slides has 2 to 10 objects. Choose the count. timing is exactly Slide 1, then Slide 2, and so on, with no extra punctuation. visual is Scene Visual: one to three scene sentences that match that slide's Hook headline / Headline / Teks — not a generic office photo and not a file path. If the scene shows a screen, report, chart, or UI, name readable details (sample numbers, side labels, activity icons, short lists), not a blank chart. Do not lock Canva layout, colors, or fonts. vo and element are required on every slide and must not be empty. vo is the small on-slide Indonesian supporting line (same role on every slide; short rules for vo/hook do not apply to caption). element holds the other on-slide parts. Slide 1 element must start with Hook headline: and then Visual hook:. tagging may be empty. Do not write anything outside that JSON."
         : executionCheck
           ? "Return JSON only. Use the keys statement, checks, facts, and script. checks must contain exactly these ids, each as an object with id and state: hookHolds, soundsSpoken, usesSlang, pillarFits, formatHolds, mechanismVisible, messageStays, causeChain, viewerClimb, emotionalTone. state is pass or fail. facts.resolution is RESOLVED, facts.relationToParent is VALID_EXECUTION, and facts.unresolvedReasons is an empty array only when every state is pass. script is an object with title. Do not return only an ok key."
           : THINKING_JSON_SYSTEM;
@@ -487,7 +507,7 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
             ...(isThinkingJson
               ? {
                 response_format: { type: "json_object" },
-                ...(prompt.includes("Content Plan Carousel") ? { max_tokens: 1800 } : {}),
+                ...(prompt.includes("Content Plan Carousel") ? { max_tokens: CAROUSEL_MAX_TOKENS } : {}),
               }
               : {}),
           }),

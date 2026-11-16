@@ -13,6 +13,12 @@ describe("schedule time WIB", () => {
     expect(scheduleTimeWibOrDefault(iso, "18:00")).toBe("09:00");
   });
 
+  it("uses Jakarta calendar day when post_date is midnight WIB stored as prior-day UTC", () => {
+    const iso = resolveScheduledAtUtc("2026-11-14T17:00:00.000Z", "20:00");
+    expect(iso).toBe("2026-11-15T13:00:00.000Z");
+    expect(formatTimeWibFromUtc(iso!)).toBe("20:00");
+  });
+
   it("uses the org default only when there is no saved schedule", () => {
     expect(scheduleTimeWibOrDefault(null, "18:00")).toBe("18:00");
     expect(scheduleTimeWibOrDefault(undefined, "15:00")).toBe("15:00");

@@ -22,6 +22,46 @@ export function pillarsForLockedIdeas<
   return pillars.filter((pillar) => allowed.has(pillar.id));
 }
 
+/** Max brief pillar_ids (matches ai_employee_briefs CHECK + ProductKnowledgeField). */
+export const MAX_BRIEF_PILLARS = 12;
+
+/**
+ * Fokus angle is parent of Pilar: sync brief pillarIds to the union of locked pillars
+ * on the selected angles (same source as pillarsForLockedIdeas). Empty angles ⇒ [].
+ * Order: angleIds order, then each angle's pillarIds order; dedupe; cap at max.
+ */
+export function syncPillarIdsForAngles<
+  A extends { id: string; pillarIds: readonly string[] },
+>(angles: readonly A[], angleIds: readonly string[], max = MAX_BRIEF_PILLARS): string[] {
+  if (angleIds.length === 0) return [];
+  const byId = new Map(angles.map((angle) => [angle.id, angle]));
+  const next: string[] = [];
+  const seen = new Set<string>();
+  for (const angleId of angleIds) {
+    const angle = byId.get(angleId);
+    if (!angle) continue;
+    for (const pillarId of angle.pillarIds) {
+      if (seen.has(pillarId)) continue;
+      seen.add(pillarId);
+      next.push(pillarId);
+      if (next.length >= max) return next;
+    }
+  }
+  return next;
+}
+
+/**
+ * After sync: allow manual pillar edits while angles remain.
+ * No Fokus angle ⇒ clear (parent rule). Prefer syncPillarIdsForAngles when angleIds change.
+ */
+export function clampBriefPillarIds(
+  pillarIds: readonly string[],
+  angleIds: readonly string[],
+): string[] {
+  if (angleIds.length === 0) return [];
+  return [...pillarIds];
+}
+
 /**
  * Brief pillar dropdown in three groups:
  * - locked: locked on an idea of the chosen angles (shown with a lock, used or not)

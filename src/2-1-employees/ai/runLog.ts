@@ -1,5 +1,7 @@
 /** Run log of one AI employee: where each content plan came from and how each run ended. */
 
+import { RUN_STALE_MS } from "./runningSop";
+
 export type ChainLink = { id: string; code: string; statement: string };
 
 export type IdeaChain = {
@@ -154,15 +156,24 @@ export function parseRunLog(value: unknown): RunLog {
 
 type Label = (key: string, fallback: string) => string;
 
-/** The reason a run ended, from its note ("sop1 <label> ... reject=<check>"), in plain words. */
+/** The reason a run ended, from its note ("sop1|sop4 <label> ... reject=<check>"), in plain words. */
 export function runReason(row: Pick<RunLogRow, "note" | "status" | "planCount">, t: Label): string {
   const note = row.note.trim();
-  const label = /^sop1\s+(\S+)/i.exec(note)?.[1] ?? "";
+  const sopMatch = /^(sop1|sop4)\s+(\S+)/i.exec(note);
+  const sopCode = (sopMatch?.[1] ?? "").toLowerCase();
+  const isStory = sopCode === "sop4";
+  const label = sopMatch?.[2] ?? "";
   const reject = /\breject=(\S+)/.exec(note)?.[1] ?? "";
   const check = checkName(reject, t);
+  const doneLabel = isStory
+    ? t("aiEmployee.log.reason.storyDone", "Story dibuat")
+    : t("aiEmployee.log.reason.done", "Plan dibuat");
+  const emptyLabel = isStory
+    ? t("aiEmployee.log.reason.storyEmpty", "Tidak ada Story baru")
+    : t("aiEmployee.log.reason.empty", "Tidak ada plan baru");
   switch (label) {
     case "done":
-      return row.planCount > 0 ? t("aiEmployee.log.reason.done", "Plan dibuat") : t("aiEmployee.log.reason.empty", "Tidak ada plan baru");
+      return row.planCount > 0 ? doneLabel : emptyLabel;
     case "dry_run":
       return t("aiEmployee.log.reason.dryRun", "Uji coba, tidak disimpan");
     case "target_met":
@@ -180,9 +191,12 @@ export function runReason(row: Pick<RunLogRow, "note" | "status" | "planCount">,
     case "quota":
       return t("aiEmployee.log.reason.quota", "Kuota model habis");
     case "path_unconfirmed":
-      return t("aiEmployee.log.reason.pathUnconfirmed", "Ide di Fokus angle belum cocok dengan pilar yang dipilih");
+      return t(
+        "aiEmployee.log.reason.pathUnconfirmed",
+        "Belum ada jalur kreatif siap di Thinking Lab — lock pilar di Creative Path dulu",
+      );
     case "ideas_blocked":
-      return t("aiEmployee.log.reason.ideasBlocked", "Tidak ada ide siap pakai di Fokus angle");
+      return t("aiEmployee.log.reason.ideasBlocked", "Belum ada ide locked+lolos di Fokus angle");
     case "no_pillars":
       return t("aiEmployee.log.reason.noPillars", "Tidak ada pilar aktif");
     case "brief_missing":
@@ -201,7 +215,10 @@ export function runReason(row: Pick<RunLogRow, "note" | "status" | "planCount">,
       break;
   }
   if (row.status === "running") return t("aiEmployee.log.reason.running", "Sedang berjalan");
-  if (row.status === "succeeded") return row.planCount > 0 ? t("aiEmployee.log.reason.done", "Plan dibuat") : "—";
+  if (row.status === "succeeded") {
+    if (isStory) return row.planCount > 0 ? doneLabel : "—";
+    return row.planCount > 0 ? t("aiEmployee.log.reason.done", "Plan dibuat") : "—";
+  }
   if (/^model_failed/.test(note)) return t("aiEmployee.log.reason.modelFailed", "Model AI gagal menjawab");
   return note && note !== "manual" ? note : "—";
 }
@@ -209,6 +226,29 @@ export function runReason(row: Pick<RunLogRow, "note" | "status" | "planCount">,
 function checkName(reject: string, t: Label): string {
   if (!reject) return "";
   if (reject.startsWith("copy:")) return t("aiEmployee.log.check.copy", "naskah terlalu mirip plan sebelumnya");
+  if (reject.startsWith("invalid:")) {
+    const code = reject.slice("invalid:".length);
+    const invalidNames: Record<string, [string, string]> = {
+      json: ["aiEmployee.log.check.invalidJson", "JSON tidak valid"],
+      title: ["aiEmployee.log.check.invalidTitle", "judul kosong"],
+      caption: ["aiEmployee.log.check.invalidCaption", "caption tidak valid"],
+      slides: ["aiEmployee.log.check.invalidSlides", "jumlah/isi slide salah"],
+      timing: ["aiEmployee.log.check.invalidTiming", "timing slide salah"],
+      visual: ["aiEmployee.log.check.invalidVisual", "scene visual kosong"],
+      vo: ["aiEmployee.log.check.invalidVo", "teks slide kosong"],
+      element: ["aiEmployee.log.check.invalidElement", "element terlalu pendek"],
+      hook: ["aiEmployee.log.check.invalidHook", "hook slide 1 kurang"],
+      concept: ["aiEmployee.log.check.invalidConcept", "concept terlalu pendek"],
+      notes: ["aiEmployee.log.check.invalidNotes", "catatan wajib/terlarang"],
+      hashtags: ["aiEmployee.log.check.invalidHashtags", "hashtag caption salah"],
+      referensi: ["aiEmployee.log.check.invalidReferensi", "label referensi slide"],
+      pillar: ["aiEmployee.log.check.invalidPillar", "pilar tidak cocok"],
+      verdict: ["aiEmployee.log.check.invalidVerdict", "hasil cek tidak terbaca"],
+    };
+    const knownInvalid = invalidNames[code];
+    const detail = knownInvalid ? t(knownInvalid[0], knownInvalid[1]) : code;
+    return `${t("aiEmployee.log.check.invalidOutput", "output model tidak valid")} (${detail})`;
+  }
   const names: Record<string, [string, string]> = {
     hookHolds: ["aiEmployee.log.check.hookHolds", "hook slide 1"],
     soundsSpoken: ["aiEmployee.log.check.soundsSpoken", "bahasa kurang lisan"],
@@ -217,6 +257,9 @@ function checkName(reject: string, t: Label): string {
     messageStays: ["aiEmployee.log.check.messageStays", "mengulang plan terakhir"],
     mechanismVisible: ["aiEmployee.log.check.mechanismVisible", "draf tidak membawa ide"],
     checks_incomplete: ["aiEmployee.log.check.incomplete", "pemeriksaan tidak lengkap"],
+    invalid_output: ["aiEmployee.log.check.invalidOutput", "output model tidak valid"],
+    parse_failed: ["aiEmployee.log.check.parseFailed", "draf tidak bisa dibaca"],
+    path_not_allowed: ["aiEmployee.log.check.pathNotAllowed", "jalur carousel ditolak"],
   };
   const known = names[reject];
   return known ? t(known[0], known[1]) : reject;
@@ -311,15 +354,24 @@ export function setChainLevel(filter: ChainFilter, level: ChainLevel, id: string
   return next;
 }
 
+/** True while the worker is still within the live window (same stale cut as the schedule spinner). */
+export function isLiveRunning(row: Pick<RunLogRow, "status" | "startedAt">, now: Date = new Date()): boolean {
+  if (row.status !== "running") return false;
+  const started = row.startedAt ? Date.parse(row.startedAt) : NaN;
+  if (!Number.isFinite(started)) return false;
+  return now.getTime() - started < RUN_STALE_MS;
+}
+
 /** Summary of the runs shown, so the numbers follow the filters. */
-export function summarizeRows(rows: RunLogRow[]): RunLogSummary {
+export function summarizeRows(rows: RunLogRow[], now: Date = new Date()): RunLogSummary {
   const ideas = new Set<string>();
   let plans = 0;
   const summary: RunLogSummary = { runs: rows.length, succeeded: 0, failed: 0, deferred: 0, running: 0, plans: 0, uniqueIdeas: 0 };
   for (const row of rows) {
     if (row.status === "succeeded") summary.succeeded += 1;
     else if (row.status === "failed" || row.status === "returned") summary.failed += 1;
-    else if (row.status === "running") summary.running += 1;
+    else if (isLiveRunning(row, now)) summary.running += 1;
+    else if (row.status === "running") summary.deferred += 1;
     else summary.deferred += 1;
     plans += row.plans.length;
     row.plans.forEach((plan) => {
@@ -476,7 +528,7 @@ export function treeOptions(tree: TreeNode[], rows: RunLogRow[], filter: ChainFi
     });
 }
 
-export type CoverageCell = { plans: number; failed: number };
+export type CoverageCell = { plans: number; failed: number; running: number };
 export type CoverageRow = {
   angleId: string;
   label: string;
@@ -486,15 +538,21 @@ export type CoverageRow = {
   cells: Record<string, CoverageCell>;
   plans: number;
   failed: number;
+  running: number;
 };
 export type CoverageMap = { pillars: Array<{ id: string; label: string; plans: number }>; rows: CoverageRow[] };
 
 /**
- * Angle × Pillar coverage of the shown runs: plans made per pair, and runs that tried the pair
- * and saved nothing. Angles come from the Thinking Lab under the chosen chain, so angles with
- * no run show as empty rows; columns are the pillars used, or the chosen pillar.
+ * Angle × Pillar coverage of the shown runs: plans made per pair, live attempts, and runs that
+ * tried the pair and saved nothing. Angles come from the Thinking Lab under the chosen chain.
  */
-export function coverageMap(tree: TreeNode[], rows: RunLogRow[], filter: ChainFilter, pillarId = ""): CoverageMap {
+export function coverageMap(
+  tree: TreeNode[],
+  rows: RunLogRow[],
+  filter: ChainFilter,
+  pillarId = "",
+  now: Date = new Date(),
+): CoverageMap {
   const pillarNames = new Map<string, string>();
   const cells = new Map<string, Record<string, CoverageCell>>();
   const usedIdeas = new Map<string, Set<string>>();
@@ -502,7 +560,7 @@ export function coverageMap(tree: TreeNode[], rows: RunLogRow[], filter: ChainFi
     if (!angleId || !pillar || (pillarId && pillar !== pillarId)) return;
     if (name) pillarNames.set(pillar, name);
     const row = cells.get(angleId) ?? {};
-    const cell = row[pillar] ?? { plans: 0, failed: 0 };
+    const cell = row[pillar] ?? { plans: 0, failed: 0, running: 0 };
     cell[key] += 1;
     row[pillar] = cell;
     cells.set(angleId, row);
@@ -519,6 +577,8 @@ export function coverageMap(tree: TreeNode[], rows: RunLogRow[], filter: ChainFi
           usedIdeas.set(angleId, set);
         }
       }
+    } else if (row.attempt && isLiveRunning(row, now)) {
+      add(row.attempt.chain?.angle?.id ?? "", row.attempt.pillarId, row.attempt.pillarName, "running");
     } else if (row.attempt && row.status !== "succeeded" && row.status !== "running") {
       add(row.attempt.chain?.angle?.id ?? "", row.attempt.pillarId, row.attempt.pillarName, "failed");
     }
@@ -531,9 +591,11 @@ export function coverageMap(tree: TreeNode[], rows: RunLogRow[], filter: ChainFi
     const row = cells.get(angle.id) ?? {};
     let plans = 0;
     let failed = 0;
+    let running = 0;
     for (const [pillar, cell] of Object.entries(row)) {
       plans += cell.plans;
       failed += cell.failed;
+      running += cell.running;
       pillarPlans.set(pillar, (pillarPlans.get(pillar) ?? 0) + cell.plans);
     }
     const ideas = tree.filter((node) => node.level === "idea" && node.parentId === angle.id);
@@ -546,6 +608,7 @@ export function coverageMap(tree: TreeNode[], rows: RunLogRow[], filter: ChainFi
       cells: row,
       plans,
       failed,
+      running,
     };
   });
   const pillars = [...pillarNames.entries()]

@@ -41,7 +41,7 @@ function Hair({ appearance }: { appearance: OfficeAppearance }) {
 
 function OfficeCharacter({ appearance }: { appearance: OfficeAppearance }) {
   return (
-    <g className="ai-office-person">
+    <g>
       <path d="M58 118c8-16 76-16 84 0l-8 28H66z" fill="#3f4450" />
       <path d="M64 112c10-18 62-18 72 0v34H64z" fill={appearance.shirt} />
       <path d="M92 124h16l-2 14h-12z" fill="#fff" opacity="0.3" />
@@ -65,65 +65,118 @@ function OfficeCharacter({ appearance }: { appearance: OfficeAppearance }) {
   );
 }
 
+const BOOK_COLORS = ["#c45c4a", "#3d6f8f", "#b8893d", "#5a7a4a"] as const;
+
+/** Stack rests on the hairline (head cx=100, top ~y 50). Keep SVG transform only — CSS transform overrides it. */
+function JobDescBooks({ labels }: { labels: string[] }) {
+  const books = labels.slice(0, 3);
+  if (books.length === 0) return null;
+  const bookH = 16;
+  const bookThickness = 14;
+  const hairTop = 50;
+  const topY = hairTop - books.length * bookH - 1;
+  return (
+    <g transform={`translate(100 ${topY})`}>
+      {books.map((label, index) => {
+        const y = index * bookH;
+        const tilt = index % 2 === 0 ? -5 : 4;
+        const width = 78 - index * 4;
+        const fill = BOOK_COLORS[index % BOOK_COLORS.length];
+        const short = label.length > 18 ? `${label.slice(0, 17)}…` : label;
+        return (
+          <g key={`${label}-${index}`} transform={`rotate(${tilt} 0 ${y + bookThickness / 2})`}>
+            <rect x={-width / 2} y={y} width={width} height={bookThickness} rx="2" fill={fill} />
+            <rect x={-width / 2} y={y} width="5" height={bookThickness} rx="1.5" fill="#fff" opacity="0.3" />
+            <text
+              x="0"
+              y={y + bookThickness * 0.72}
+              textAnchor="middle"
+              fontSize="7.5"
+              fontFamily="system-ui, sans-serif"
+              fontWeight="700"
+              fill="#fffaf3"
+            >
+              {short}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 function Workstation({
   employee,
   roleLabel,
+  jobDescLine,
+  jobDescBooks,
   catalogLabel,
 }: {
   employee: Employee;
   roleLabel: string;
+  jobDescLine: string;
+  jobDescBooks: string[];
   catalogLabel: string;
 }) {
   const appearance = appearanceFromId(employee.id);
+  const detail = [roleLabel, jobDescLine, catalogLabel].filter(Boolean).join(" · ");
   return (
     <Link
       to={`/ai-employees/${employee.id}`}
-      aria-label={`${employee.full_name}, ${roleLabel}, ${catalogLabel}`}
-      title={`${employee.full_name} · ${roleLabel} · ${catalogLabel}`}
+      aria-label={`${employee.full_name}, ${detail}`}
+      title={`${employee.full_name} · ${detail}`}
       className="group flex w-[220px] flex-col items-center rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1d4ed8]"
     >
-      <svg viewBox="0 0 220 210" className="h-[210px] w-[220px] overflow-visible" aria-hidden>
-        <ellipse cx="110" cy="196" rx="70" ry="7" fill="#000" opacity="0.08" />
-        <OfficeCharacter appearance={appearance} />
-        <path d="M28 146h164l-10 14H38z" fill="#c4885a" />
-        <rect x="38" y="160" width="144" height="26" fill="#7a4b2c" />
-        <rect x="46" y="186" width="8" height="14" fill="#5c3a22" />
-        <rect x="166" y="186" width="8" height="14" fill="#5c3a22" />
-        <rect x="56" y="100" width="108" height="52" rx="5" fill="#e7e7ec" />
-        <clipPath id={`screen-${employee.id}`}>
-          <rect x="59" y="103" width="102" height="46" rx="2" />
-        </clipPath>
-        <rect x="59" y="103" width="102" height="46" rx="2" fill="#f7f8fa" />
-        <image
-          href={SYNCKERJA_BRAND_LOGO_SRC}
-          x="98"
-          y="114"
-          width="24"
-          height="24"
-          preserveAspectRatio="xMidYMid meet"
-          clipPath={`url(#screen-${employee.id})`}
-        />
-        <rect x="106" y="152" width="8" height="6" rx="2" fill="#d4d4d8" />
-        <rect x="88" y="157" width="44" height="4" rx="2" fill="#c8c8ce" />
-        <clipPath id={`plate-${employee.id}`}>
-          <rect x="62" y="166" width="96" height="14" />
-        </clipPath>
-        <rect x="60" y="166" width="100" height="16" rx="2" fill="#fffaf3" />
-        <text
-          x="110"
-          y="177"
-          textAnchor="middle"
-          fontSize="10"
-          fontFamily="system-ui, sans-serif"
-          fontWeight="600"
-          fill="#3f3428"
-          clipPath={`url(#plate-${employee.id})`}
-        >
-          {employee.full_name}
-        </text>
+      <svg viewBox="0 0 220 230" className="h-[230px] w-[220px] overflow-visible" aria-hidden>
+        <ellipse cx="110" cy="216" rx="70" ry="7" fill="#000" opacity="0.08" />
+        <g transform="translate(0 20)">
+          <g className="ai-office-person">
+            <OfficeCharacter appearance={appearance} />
+            <JobDescBooks labels={jobDescBooks} />
+          </g>
+          <path d="M28 146h164l-10 14H38z" fill="#c4885a" />
+          <rect x="38" y="160" width="144" height="26" fill="#7a4b2c" />
+          <rect x="46" y="186" width="8" height="14" fill="#5c3a22" />
+          <rect x="166" y="186" width="8" height="14" fill="#5c3a22" />
+          <rect x="56" y="100" width="108" height="52" rx="5" fill="#e7e7ec" />
+          <clipPath id={`screen-${employee.id}`}>
+            <rect x="59" y="103" width="102" height="46" rx="2" />
+          </clipPath>
+          <rect x="59" y="103" width="102" height="46" rx="2" fill="#f7f8fa" />
+          <image
+            href={SYNCKERJA_BRAND_LOGO_SRC}
+            x="98"
+            y="114"
+            width="24"
+            height="24"
+            preserveAspectRatio="xMidYMid meet"
+            clipPath={`url(#screen-${employee.id})`}
+          />
+          <rect x="106" y="152" width="8" height="6" rx="2" fill="#d4d4d8" />
+          <rect x="88" y="157" width="44" height="4" rx="2" fill="#c8c8ce" />
+          <clipPath id={`plate-${employee.id}`}>
+            <rect x="62" y="166" width="96" height="14" />
+          </clipPath>
+          <rect x="60" y="166" width="100" height="16" rx="2" fill="#fffaf3" />
+          <text
+            x="110"
+            y="177"
+            textAnchor="middle"
+            fontSize="10"
+            fontFamily="system-ui, sans-serif"
+            fontWeight="600"
+            fill="#3f3428"
+            clipPath={`url(#plate-${employee.id})`}
+          >
+            {employee.full_name}
+          </text>
+        </g>
       </svg>
       <span className="mt-1 w-[168px] rounded-sm bg-[#fffaf3] px-2 py-1 text-center shadow-sm ring-1 ring-[#e4d5c0]">
         <span className="block truncate text-[11px] font-semibold leading-4 text-[#3f3428]">{roleLabel}</span>
+        {jobDescLine ? (
+          <span className="block truncate text-[10px] leading-4 text-[#5c4a32]">{jobDescLine}</span>
+        ) : null}
         <span className="block truncate text-[10px] leading-4 text-[#6b5a45]">{catalogLabel}</span>
       </span>
     </Link>
@@ -146,11 +199,13 @@ function DepartmentRoom({
   bay,
   carpet,
   noRoleLabel,
+  jobDescFor,
   catalogLabelFor,
 }: {
   bay: OfficeBay;
   carpet: string;
   noRoleLabel: string;
+  jobDescFor: (employeeId: string) => { line: string; books: string[] };
   catalogLabelFor: (employeeId: string) => string;
 }) {
   return (
@@ -185,14 +240,19 @@ function DepartmentRoom({
           aria-hidden
         />
         <div className="relative flex flex-wrap items-end gap-x-2 gap-y-4">
-          {bay.employees.map((employee) => (
-            <Workstation
-              key={employee.id}
-              employee={employee}
-              roleLabel={employee.job_position_name?.trim() || noRoleLabel}
-              catalogLabel={catalogLabelFor(employee.id)}
-            />
-          ))}
+          {bay.employees.map((employee) => {
+            const jobDesc = jobDescFor(employee.id);
+            return (
+              <Workstation
+                key={employee.id}
+                employee={employee}
+                roleLabel={employee.job_position_name?.trim() || noRoleLabel}
+                jobDescLine={jobDesc.line}
+                jobDescBooks={jobDesc.books}
+                catalogLabel={catalogLabelFor(employee.id)}
+              />
+            );
+          })}
         </div>
       </div>
     </section>
@@ -202,10 +262,12 @@ function DepartmentRoom({
 export function OfficeWorkspace({
   bays,
   noRoleLabel,
+  jobDescFor,
   catalogLabelFor,
 }: {
   bays: OfficeBay[];
   noRoleLabel: string;
+  jobDescFor: (employeeId: string) => { line: string; books: string[] };
   catalogLabelFor: (employeeId: string) => string;
 }) {
   return (
@@ -241,6 +303,7 @@ export function OfficeWorkspace({
             bay={bay}
             carpet={BAY_CARPETS[index % BAY_CARPETS.length] ?? BAY_CARPETS[0]}
             noRoleLabel={noRoleLabel}
+            jobDescFor={jobDescFor}
             catalogLabelFor={catalogLabelFor}
           />
         ))}

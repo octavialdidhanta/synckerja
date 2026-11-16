@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { FOOD_PHOTO_RULE, PERSON_PHOTO_RULE, PRODUCT_PHOTO_RULE, buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, fitLayoutNote, layoutOnlyDescription, meatHint, meatRule, shortSlideText, slideTexts } from "./canvaCarouselBrief.ts";
+import { FOOD_PHOTO_RULE, PERSON_PHOTO_RULE, PRODUCT_PHOTO_RULE, TYPE_RULE, buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, fitLayoutNote, layoutOnlyDescription, lockupContactFacts, meatHint, meatRule, mergeContactFacts, shortSlideText, slideTexts, typeLine } from "./canvaCarouselBrief.ts";
 
 const storyboard = [
   "| Timing | Visual | VO (Voice Over) | Scene Visual | Element Lainnya | Tagging |",
@@ -46,6 +46,8 @@ Deno.test("buildCanvaCarouselBrief keeps the 4:5 ratio and every slide", () => {
     slides: carouselSlidesFromBrief(storyboard),
   });
   assertEquals(brief.includes("4:5"), true);
+  assertEquals(brief.includes("exactly 2 portrait 4:5 pages"), true);
+  assertEquals(brief.includes("Page k = slide k"), true);
   assertEquals(brief.includes("Page 1"), true);
   assertEquals(brief.includes("Real person photo. Scene: Ibu bertanya di meja makan"), true);
   assertEquals(brief.includes("#kemandirian"), true);
@@ -87,7 +89,9 @@ Deno.test("carouselSlidesFromBrief keeps copy, hook, and other elements", () => 
   assertEquals(locked.includes("secondary #445566"), true);
   assertEquals(locked.includes("accent #778899"), true);
   assertEquals(locked.includes("text color"), false);
-  assertEquals(locked.includes("Leave the top center of every page empty."), true);
+  assertEquals(locked.includes("Leave the top center of the last page empty for the company logo."), true);
+  assertEquals(locked.includes("Do not reserve logo space on earlier pages."), true);
+  assertEquals(locked.includes("Leave the top center of every page empty."), false);
   assertEquals(locked.includes("Do not draw a logo"), false);
   assertEquals(locked.includes("Write only the headline, small text, small labels, and contact box"), true);
   assertEquals(locked.includes("readable sample numbers, side labels, icons, or short lists"), true);
@@ -401,4 +405,104 @@ Deno.test("buildCanvaCarouselBrief keeps one font, drops trailing separators", (
   assertEquals(brief.includes("Headline (biggest text): Bedanya apa sih?\n"), true);
   assertEquals(brief.includes("?;"), false);
   assertEquals(brief.includes("Lemak tipis;"), false);
+});
+
+Deno.test("typeLine locks curated Canva fonts when both are set", () => {
+  assertEquals(typeLine(null), TYPE_RULE);
+  assertEquals(typeLine({ headline: "NotARealFont", body: "" }), TYPE_RULE);
+  const both = typeLine({ headline: "Montserrat", body: "Open Sans" });
+  assertEquals(both.includes('Canva font "Montserrat"'), true);
+  assertEquals(both.includes('Canva font "Open Sans"'), true);
+  assertEquals(both.includes(TYPE_RULE), false);
+  const headlineOnly = typeLine({ headline: "Oswald", body: null });
+  assertEquals(headlineOnly.includes('Canva font "Oswald"'), true);
+  assertEquals(headlineOnly.includes("complementary font"), true);
+});
+
+Deno.test("buildCanvaCarouselBrief injects brand fonts into the type rule", () => {
+  const slides = [
+    { label: "", scene: "Meja", copy: "Halo.", elements: "Headline: Tes;", tagging: "" },
+    { label: "", scene: "Meja", copy: "Oke.", elements: "Headline: Lanjut;", tagging: "" },
+  ];
+  const brief = buildCanvaCarouselBrief({
+    title: "Tes",
+    caption: "",
+    slides,
+    fonts: { headline: "Poppins", body: "Lato" },
+  });
+  assertEquals(brief.includes('Canva font "Poppins"'), true);
+  assertEquals(brief.includes('Canva font "Lato"'), true);
+  assertEquals(brief.includes(TYPE_RULE), false);
+});
+
+Deno.test("mergeContactFacts prefers lockup and dedupes overlapping phones", () => {
+  assertEquals(lockupContactFacts({ websiteUrl: "https://a.com", defaultContact: "081234567890" }), [
+    "https://a.com",
+    "081234567890",
+  ]);
+  const merged = mergeContactFacts(
+    ["https://brand.id", "081234567890"],
+    "Cantumkan nomor 0812-3456-7890 dan https://other.id",
+  );
+  assertEquals(merged[0], "https://brand.id");
+  assertEquals(merged.includes("081234567890"), true);
+  assertEquals(merged.filter((fact) => fact.replace(/\D/g, "").endsWith("81234567890")).length, 1);
+  assertEquals(merged.includes("https://other.id"), true);
+});
+
+Deno.test("buildCanvaCarouselBrief puts lockup contact in the last-page contact box", () => {
+  const slides = [
+    { label: "", scene: "Meja", copy: "Halo.", elements: "Headline: Tes;", tagging: "" },
+    { label: "", scene: "Meja", copy: "Oke.", elements: "Headline: Brand;", tagging: "" },
+  ];
+  const brief = buildCanvaCarouselBrief({
+    title: "Tes",
+    caption: "",
+    slides,
+    lockupContact: ["https://synckerja.com", "081234567890"],
+  });
+  assertEquals(brief.includes("Contact box, separate at the bottom of this page: https://synckerja.com 081234567890"), true);
+  assertEquals(
+    brief.includes("character-for-character with identical spelling")
+      && brief.includes("https://synckerja.com")
+      && brief.includes("081234567890"),
+    true,
+  );
+});
+
+Deno.test("buildCanvaCarouselBrief locks exact brand name and tagline on the last page", () => {
+  const slides = [
+    { label: "", scene: "Meja", copy: "Halo.", elements: "Headline: Tes;", tagging: "" },
+    { label: "", scene: "Logo di tengah", copy: "Wrong Brand", elements: "Headline: Synkerja Office;", tagging: "" },
+  ];
+  const brief = buildCanvaCarouselBrief({
+    title: "Tes",
+    caption: "",
+    slides,
+    brandName: "Synckerja Office",
+    tagline: "Measuring Performance, Connecting Progress",
+  });
+  assertEquals(brief.includes('exactly as "Synckerja Office"'), true);
+  assertEquals(brief.includes("Brand spelling lock (every page)"), true);
+  assertEquals(brief.includes('tagline exactly: "Measuring Performance, Connecting Progress"'), true);
+  assertEquals(brief.includes("Headline (biggest text): Synckerja Office"), true);
+  assertEquals(brief.includes("Measuring Performance, Connecting Progress"), true);
+  assertEquals(brief.includes("Headline (biggest text): Synkerja Office"), false);
+});
+
+Deno.test("buildCanvaCarouselBrief locks catalog contact strings exactly", () => {
+  const slides = [
+    { label: "", scene: "A", copy: "Satu.", elements: "Headline: A;", tagging: "" },
+    { label: "", scene: "B", copy: "Dua.", elements: "Headline: B;", tagging: "" },
+  ];
+  const brief = buildCanvaCarouselBrief({
+    title: "Tes",
+    caption: "",
+    slides,
+    brandName: "Synckerja Office",
+    lockupContact: ["https://synckerja.com/", "081118891308"],
+  });
+  assertEquals(brief.includes("https://synckerja.com/"), true);
+  assertEquals(brief.includes("character-for-character"), true);
+  assertEquals(brief.includes("catalog strings"), true);
 });

@@ -15,6 +15,7 @@ import { usePlanBulkPublish } from '../hooks/usePlanBulkPublish';
 import { listAllAutoScheduleTargets } from '../lib/resolveRequiredPlatformTargets';
 import type { RequiredPlatformAutoTarget } from '../lib/resolveRequiredPlatformTargets';
 import { resolveScheduledAtUtc, scheduleTimeWibOrDefault } from '../lib/resolveScheduledAtUtc';
+import { calendarDayYmd } from '../lib/onTimeStatus';
 import { validateGoogleDriveVideoLink } from '../lib/validateGoogleDriveVideoLink';
 import { pickAccountScheduleForModal } from '../lib/pickPlatformScheduleDisplay';
 import {
@@ -179,7 +180,7 @@ export function UnifiedAutoScheduleSection({
     });
   }, [targets, defaultTimeWib, schedules]);
 
-  const postDateYmd = postDate?.slice(0, 10) ?? '';
+  const postDateYmd = calendarDayYmd(postDate) ?? '';
   const driveLink = googleDriveLink?.trim() ?? '';
   const driveValidation = useMemo(() => validateGoogleDriveVideoLink(driveLink), [driveLink]);
   const fieldLabel = 'text-[11px] font-medium uppercase tracking-wide text-muted-foreground';

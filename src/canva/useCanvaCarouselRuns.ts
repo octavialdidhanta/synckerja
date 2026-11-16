@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 import { useEffect } from "react";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { CAROUSEL_QUERY_KEY } from "@/6-1-dashboard/hook/useCarouselImages";
+import { presentCanvaCreditQuota } from "@/canva/canvaCreditQuota";
 import type { CanvaCarouselRun } from "./CanvaCarouselNote";
 
 export function useCanvaCarouselRuns(planIds: string[]) {
@@ -39,5 +40,17 @@ export function useCanvaCarouselRuns(planIds: string[]) {
     if (!imageRefreshKey.includes(":true:")) return;
     void queryClient.invalidateQueries({ queryKey: [CAROUSEL_QUERY_KEY] });
   }, [imageRefreshKey, queryClient]);
+
+  const creditErrorKey = (query.data ?? [])
+    .map((row) => String(row.error ?? ""))
+    .filter((error) => error)
+    .join("|");
+  useEffect(() => {
+    if (!creditErrorKey) return;
+    for (const part of creditErrorKey.split("|")) {
+      if (presentCanvaCreditQuota(part)) break;
+    }
+  }, [creditErrorKey]);
+
   return query;
 }

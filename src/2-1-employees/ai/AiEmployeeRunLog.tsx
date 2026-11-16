@@ -14,6 +14,7 @@ import {
   coverageMap,
   chainOptions,
   ideaCode,
+  isLiveRunning,
   jakartaMonth,
   parsePillars,
   parseRunLog,
@@ -34,16 +35,18 @@ import {
   type RunLogRow,
   type TreeOption,
 } from "./runLog";
+import { useSopRunning } from "./runningSop";
 
 export const RUN_LOG_KEY = "ai-employee-run-log";
 
-type StatusFilter = "all" | "succeeded" | "failed" | "deferred";
+type StatusFilter = "all" | "succeeded" | "failed" | "deferred" | "running";
 type SourceFilter = "all" | "manual" | "schedule" | "job";
 
-function useRunLog(employeeId: string, month: string) {
+function useRunLog(employeeId: string, month: string, pollWhileBusy: boolean) {
   return useQuery({
     queryKey: [RUN_LOG_KEY, employeeId, month],
     refetchOnWindowFocus: false,
+    refetchInterval: pollWhileBusy ? 5_000 : false,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("ai_employee_run_log", {
         p_employee_id: employeeId,
@@ -81,7 +84,7 @@ function StatusPill({ status, label }: { status: string; label: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+        "inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium",
         group === "succeeded" && "bg-green-100 text-green-800",
         group === "failed" && "bg-red-100 text-red-800",
         group === "deferred" && "bg-amber-100 text-amber-800",
@@ -140,7 +143,9 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
   const [pillarFilter, setPillarFilter] = useState("");
   const [untouchedOnly, setUntouchedOnly] = useState(false);
   const [showMap, setShowMap] = useState(true);
-  const query = useRunLog(employeeId, month);
+  const sop1Running = useSopRunning(employeeId, "SOP1");
+  const sop4Running = useSopRunning(employeeId, "SOP4");
+  const query = useRunLog(employeeId, month, sop1Running || sop4Running);
   const treeQuery = useThinkingTree(employeeId);
   const tree = useMemo(() => treeQuery.data?.tree ?? [], [treeQuery.data]);
   const pillars = useMemo(() => treeQuery.data?.pillars ?? [], [treeQuery.data]);
@@ -226,7 +231,7 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
     const group = statusGroup(status);
     if (group === "succeeded") return t("aiEmployee.log.status.succeeded", "Berhasil");
     if (group === "failed") return t("aiEmployee.log.status.failed", "Gagal");
-    if (group === "running") return t("aiEmployee.log.status.running", "Berjalan");
+    if (group === "running") return t("aiEmployee.log.status.running", "Running");
     return t("aiEmployee.log.status.deferred", "Ditunda");
   };
   const sourceLabel = (row: RunLogRow) => {
@@ -241,19 +246,28 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
   };
 
   // The numbers follow the filters, so a Master Thought or Angle can be judged on its own.
-  const summary = log ? (filtered ? summarizeRows(rows) : log.summary) : undefined;
+  // Live running uses the same stale window as the schedule spinner so the chip is not sticky.
+  const summary = log
+    ? (filtered
+      ? summarizeRows(rows)
+      : { ...log.summary, running: summarizeRows(log.rows).running })
+    : undefined;
   const chips: Array<[string, number, string]> = summary
     ? [
       [t("aiEmployee.log.summary.runs", "Run"), summary.runs, ""],
       [t("aiEmployee.log.summary.succeeded", "Berhasil"), summary.succeeded, "text-green-700"],
       [t("aiEmployee.log.summary.failed", "Gagal"), summary.failed, "text-red-700"],
       [t("aiEmployee.log.summary.deferred", "Ditunda"), summary.deferred, "text-amber-700"],
+      ...(summary.running > 0
+        ? [[t("aiEmployee.log.summary.running", "Sedang berjalan"), summary.running, "text-blue-700"] as [string, number, string]]
+        : []),
       [t("aiEmployee.log.summary.plans", "Plan dibuat"), summary.plans, ""],
       [t("aiEmployee.log.summary.ideas", "Idea dipakai"), summary.uniqueIdeas, ""],
     ]
     : [];
 
   return (
+    <div className="flex flex-col gap-3">
     <section className="rounded-md border border-border bg-card p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">{t("aiEmployee.log.title", "Log")}</h2>
@@ -273,6 +287,7 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
               <SelectItem value="all">{t("aiEmployee.log.filter.allStatus", "Semua status")}</SelectItem>
               <SelectItem value="succeeded">{t("aiEmployee.log.status.succeeded", "Berhasil")}</SelectItem>
               <SelectItem value="failed">{t("aiEmployee.log.status.failed", "Gagal")}</SelectItem>
+              <SelectItem value="running">{t("aiEmployee.log.status.running", "Running")}</SelectItem>
               <SelectItem value="deferred">{t("aiEmployee.log.status.deferred", "Ditunda")}</SelectItem>
             </SelectContent>
           </Select>
@@ -359,7 +374,7 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
       </div>
 
       {chips.length > 0 ? (
-        <div className="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+        <div className={cn("grid grid-cols-3 gap-2", summary?.running ? "sm:grid-cols-7" : "sm:grid-cols-6")}>
           {chips.map(([label, value, tone]) => (
             <div key={label} className="rounded-md border border-border px-3 py-2">
               <div className="text-xs text-muted-foreground">{label}</div>
@@ -368,37 +383,38 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
           ))}
         </div>
       ) : null}
+    </section>
 
       {log && coverage.rows.length > 0 ? (
-        <div className="mb-3 rounded-md border border-border">
+        <section className="rounded-md border border-border bg-card">
           <button
             type="button"
-            className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium"
+            className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm font-medium"
             onClick={() => setShowMap((value) => !value)}
           >
             <span>
               {t("aiEmployee.log.map.title", "Peta cakupan Angle × Pilar")}
               <span className="ml-2 text-xs font-normal text-muted-foreground">
-                {t("aiEmployee.log.map.hint", "angka = plan dibuat, merah = dicoba tapi gagal, kosong = belum dikerjain")}
+                {t("aiEmployee.log.map.hint", "angka = plan dibuat, biru = sedang berjalan, merah = dicoba tapi gagal, kosong = belum dikerjain")}
               </span>
             </span>
             <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", showMap && "rotate-180")} />
           </button>
           {showMap ? (
-            <div className="overflow-x-auto border-t border-border">
+            <div className="max-h-[min(280px,40vh)] overflow-auto border-t border-border nested-scroll-touch-chain">
               <table className="w-full border-collapse text-xs">
-                <thead>
+                <thead className="sticky top-0 z-20 bg-card shadow-sm">
                   <tr>
-                    <th className="sticky left-0 z-10 min-w-[16rem] bg-card px-2 py-2 text-left font-medium text-muted-foreground">
+                    <th className="sticky left-0 z-30 min-w-[16rem] bg-card px-2 py-2 text-left font-medium text-muted-foreground">
                       {t("aiEmployee.log.angle", "Angle")}
                     </th>
-                    <th className="px-2 py-2 text-center font-medium text-muted-foreground">{t("aiEmployee.log.map.ideas", "Idea dipakai / siap")}</th>
+                    <th className="bg-card px-2 py-2 text-center font-medium text-muted-foreground">{t("aiEmployee.log.map.ideas", "Idea dipakai / siap")}</th>
                     {coverage.pillars.map((pillar) => (
-                      <th key={pillar.id} className="max-w-[7rem] px-2 py-2 text-center font-medium text-muted-foreground" title={pillar.label}>
+                      <th key={pillar.id} className="max-w-[7rem] bg-card px-2 py-2 text-center font-medium text-muted-foreground" title={pillar.label}>
                         <span className="line-clamp-2">{pillar.label}</span>
                       </th>
                     ))}
-                    <th className="px-2 py-2 text-center font-medium text-muted-foreground">{t("aiEmployee.log.map.total", "Total plan")}</th>
+                    <th className="bg-card px-2 py-2 text-center font-medium text-muted-foreground">{t("aiEmployee.log.map.total", "Total plan")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -422,6 +438,8 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
                         const cell = row.cells[pillar.id];
                         const plans = cell?.plans ?? 0;
                         const failed = cell?.failed ?? 0;
+                        const running = cell?.running ?? 0;
+                        const empty = plans === 0 && failed === 0 && running === 0;
                         return (
                           <td key={pillar.id} className="p-0.5 text-center">
                             <button
@@ -429,16 +447,19 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
                               onClick={() => focusCell(row.angleId, pillar.id)}
                               className={cn(
                                 "h-7 w-full min-w-[3rem] rounded",
-                                plans === 0 && failed === 0 && "text-muted-foreground/60 hover:bg-muted",
+                                empty && "text-muted-foreground/60 hover:bg-muted",
                                 plans === 1 && "bg-green-100 text-green-900",
                                 plans === 2 && "bg-green-200 text-green-900",
                                 plans >= 3 && "bg-green-400 text-white",
-                                plans === 0 && failed > 0 && "bg-red-50 text-red-700",
+                                plans === 0 && running > 0 && "bg-blue-50 text-blue-800",
+                                plans === 0 && running === 0 && failed > 0 && "bg-red-50 text-red-700",
                               )}
-                              title={`${row.label} × ${pillar.label}: ${plans} plan, ${failed} gagal`}
+                              title={`${row.label} × ${pillar.label}: ${plans} plan, ${running} sedang, ${failed} gagal`}
                             >
-                              {plans > 0 ? plans : failed > 0 ? "" : "—"}
-                              {failed > 0 ? <span className="ml-1 text-red-700">{failed}✕</span> : null}
+                              {plans > 0 ? plans : running > 0 ? "…" : failed > 0 ? "" : "—"}
+                              {plans === 0 && running === 0 && failed > 0 ? (
+                                <span className="ml-1 text-red-700">{failed}✕</span>
+                              ) : null}
                             </button>
                           </td>
                         );
@@ -455,42 +476,64 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
               ) : null}
             </div>
           ) : null}
-        </div>
+        </section>
       ) : null}
 
+      <section className="rounded-md border border-border bg-card">
+        <div className="border-b border-border px-3 py-2.5">
+          <h3 className="text-sm font-medium">{t("aiEmployee.log.runsTitle", "Riwayat run")}</h3>
+          <p className="text-xs text-muted-foreground">
+            {t("aiEmployee.log.runsHint", "Daftar generate terjadwal dan manual di bulan ini.")}
+          </p>
+        </div>
+        <div className="p-0">
       {query.isLoading ? (
-        <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 px-3 py-6 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           {t("aiEmployee.log.loading", "Memuat log...")}
         </div>
       ) : query.isError ? (
-        <div className="flex items-center gap-3 py-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-3 px-3 py-4 text-sm text-muted-foreground">
           <span>{t("aiEmployee.log.error", "Log belum bisa dimuat.")}</span>
           <Button type="button" variant="outline" size="sm" onClick={() => void query.refetch()}>
             {t("aiEmployee.page.retry", "Muat ulang")}
           </Button>
         </div>
       ) : rows.length === 0 ? (
-        <p className="py-4 text-sm text-muted-foreground">
+        <p className="px-3 py-4 text-sm text-muted-foreground">
           {filtered
             ? t("aiEmployee.log.emptyFiltered", "Tidak ada run yang cocok dengan filter ini.")
             : t("aiEmployee.log.empty", "Belum ada run di bulan ini.")}
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
+          <Table
+            containerClassName="scrollbar-hide seamless-scroll nested-scroll-touch-chain-xy max-h-[min(420px,50vh)] overflow-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="table-fixed w-max min-w-[92rem]"
+          >
+            <colgroup>
+              <col className="w-8" />
+              <col className="w-[10.5rem]" />
+              <col className="w-[9.75rem]" />
+              <col className="w-[5.5rem]" />
+              <col className="w-[14rem]" />
+              <col className="w-[9rem]" />
+              <col className="w-[8.5rem]" />
+              <col className="w-[13.5rem]" />
+              <col className="w-[22rem]" />
+              <col className="w-[7rem]" />
+            </colgroup>
+            <TableHeader className="sticky top-0 z-20 border-b bg-card shadow-sm [&_th]:bg-card">
+              <TableRow className="hover:bg-card">
                 <TableHead className="w-8" />
-                <TableHead>{t("aiEmployee.log.col.time", "Waktu")}</TableHead>
-                <TableHead>{t("aiEmployee.log.col.source", "Sumber")}</TableHead>
-                <TableHead>{t("aiEmployee.log.col.status", "Status")}</TableHead>
-                <TableHead className="min-w-[14rem]">{t("aiEmployee.log.col.reason", "Alasan")}</TableHead>
-                <TableHead>{t("aiEmployee.log.col.idea", "Angle · Idea")}</TableHead>
-                <TableHead>{t("aiEmployee.log.col.ideaMonth", "Idea bulan ini")}</TableHead>
-                <TableHead>{t("aiEmployee.log.col.pillar", "Pilar")}</TableHead>
-                <TableHead className="min-w-[14rem]">{t("aiEmployee.log.col.plan", "Plan")}</TableHead>
-                <TableHead>{t("aiEmployee.log.col.canva", "Canva")}</TableHead>
+                <TableHead className="whitespace-nowrap">{t("aiEmployee.log.col.time", "Waktu")}</TableHead>
+                <TableHead className="whitespace-nowrap">{t("aiEmployee.log.col.source", "Sumber")}</TableHead>
+                <TableHead className="whitespace-nowrap">{t("aiEmployee.log.col.status", "Status")}</TableHead>
+                <TableHead className="whitespace-nowrap">{t("aiEmployee.log.col.reason", "Alasan")}</TableHead>
+                <TableHead className="whitespace-nowrap">{t("aiEmployee.log.col.idea", "Angle · Idea")}</TableHead>
+                <TableHead className="whitespace-nowrap">{t("aiEmployee.log.col.ideaMonth", "Idea bulan ini")}</TableHead>
+                <TableHead className="whitespace-nowrap">{t("aiEmployee.log.col.pillar", "Pilar")}</TableHead>
+                <TableHead className="whitespace-nowrap">{t("aiEmployee.log.col.plan", "Plan")}</TableHead>
+                <TableHead className="whitespace-nowrap">{t("aiEmployee.log.col.canva", "Canva")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -500,6 +543,7 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
                 const chain = plan?.chain ?? row.attempt?.chain ?? null;
                 const pillarName = plan?.pillarName || row.attempt?.pillarName || "";
                 const fromAttempt = !plan && Boolean(row.attempt);
+                const live = isLiveRunning(row);
                 const canva = canvaLabel(plan, t);
                 const open = openRow === row.id;
                 return (
@@ -517,17 +561,29 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
                       <TableCell className="align-top text-sm">{runReason(row, t)}</TableCell>
                       <TableCell className="whitespace-nowrap align-top text-sm">
                         {ideaCode(chain) || "—"}
-                        {fromAttempt ? <div className="text-xs text-muted-foreground">{t("aiEmployee.log.attempted", "dicoba")}</div> : null}
+                        {fromAttempt ? (
+                          <div className="text-xs text-muted-foreground">
+                            {live
+                              ? t("aiEmployee.log.attemptLive", "sedang")
+                              : t("aiEmployee.log.attempted", "dicoba")}
+                          </div>
+                        ) : null}
                       </TableCell>
                       <TableCell className="whitespace-nowrap align-top text-sm">
                         {plan?.chain?.idea ? `${plan.ideaMonthCount}×` : "—"}
                       </TableCell>
-                      <TableCell className="align-top text-sm">{pillarName || "—"}</TableCell>
-                      <TableCell className="align-top text-sm">
-                        {plan ? plan.title || "—" : "—"}
-                        {row.plans.length > 1 ? (
-                          <span className="ml-1 text-xs text-muted-foreground">+{row.plans.length - 1}</span>
-                        ) : null}
+                      <TableCell className="max-w-0 whitespace-nowrap align-top text-sm">
+                        <span className="block truncate" title={pillarName || undefined}>
+                          {pillarName || "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="max-w-0 whitespace-nowrap align-top text-sm">
+                        <span className="block truncate" title={plan?.title || undefined}>
+                          {plan ? plan.title || "—" : "—"}
+                          {row.plans.length > 1 ? (
+                            <span className="ml-1 text-xs text-muted-foreground">+{row.plans.length - 1}</span>
+                          ) : null}
+                        </span>
                       </TableCell>
                       <TableCell className={cn("whitespace-nowrap align-top text-sm", canva.tone)}>{canva.text}</TableCell>
                     </TableRow>
@@ -563,7 +619,11 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
                               </div>
                             )) : row.attempt ? (
                               <div className="flex flex-col gap-2">
-                                <span className="text-sm font-medium">{t("aiEmployee.log.lastAttempt", "Terakhir dicoba")}</span>
+                                <span className="text-sm font-medium">
+                                  {live
+                                    ? t("aiEmployee.log.liveAttempt", "Sedang dikerjakan")
+                                    : t("aiEmployee.log.lastAttempt", "Terakhir dicoba")}
+                                </span>
                                 <ChainList chain={row.attempt.chain} pillarName={row.attempt.pillarName} />
                               </div>
                             ) : (
@@ -583,8 +643,9 @@ export function AiEmployeeRunLog({ employeeId }: { employeeId: string }) {
               })}
             </TableBody>
           </Table>
-        </div>
       )}
-    </section>
+        </div>
+      </section>
+    </div>
   );
 }

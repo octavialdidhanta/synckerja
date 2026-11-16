@@ -193,6 +193,8 @@ import { LabWorkspaceGrid } from "@/thinking-lab/page/shells/LabWorkspaceGrid";
 import { LabDialogs } from "@/thinking-lab/page/shells/LabDialogs";
 import { buildLabWorkspaceGridProps } from "@/thinking-lab/page/shells/labWorkspaceGridTypes";
 import type { LabFocus } from "@/thinking-lab/page/labFocus";
+import { useThinkingLabAngleFocus } from "@/thinking-lab/hooks/useThinkingLabAngleFocus";
+import { AngleFocusTargetBar } from "@/thinking-lab/section/AngleFocusTargetBar";
 import { createAngleActions, useAngleFlowState } from "@/thinking-lab/page/angleFlow";
 import { createBigThoughtActions, useBigThoughtFlowState } from "@/thinking-lab/page/bigThoughtFlow";
 import { createExecutionActions, useExecutionState } from "@/thinking-lab/page/executionFlow";
@@ -281,6 +283,7 @@ export function ThinkingLabPage() {
   const queryClient = useQueryClient();
   const masters = useMasterThought();
   const catalogs = useLabCatalogs(masters.organizationId);
+  const angleFocus = useThinkingLabAngleFocus();
   const checkSettingsQuery = useCheckSettings(masters.organizationId);
   const checkSettingsRef = useRef(checkSettingsQuery.data?.checks);
   checkSettingsRef.current = checkSettingsQuery.data?.checks;
@@ -1527,6 +1530,24 @@ export function ThinkingLabPage() {
         setCreativeFormat,
         admittedTerritories,
         angleChecklists,
+        angleFocus: {
+          selectedAngleIds: angleFocus.selectedAngleIds,
+          saving: angleFocus.saving,
+          angleFocusStatus: angleFocus.angleFocusStatus,
+          onAngleFocusClick: angleFocus.onAngleFocusClick,
+          targetBar: (
+            <AngleFocusTargetBar
+              targetName={angleFocus.targetEmployeeName}
+              pickerOpen={angleFocus.pickerOpen}
+              employees={angleFocus.aiEmployees}
+              employeesLoading={angleFocus.employeesLoading}
+              onOpenPicker={angleFocus.openPicker}
+              onClosePicker={() => angleFocus.setPickerOpen(false)}
+              onSelectEmployee={angleFocus.selectEmployee}
+              onClear={angleFocus.clearTarget}
+            />
+          ),
+        },
       },
       execution: {
         focusedExecution,

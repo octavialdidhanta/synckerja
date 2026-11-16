@@ -1,12 +1,19 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { BRIEF_LIMIT_FULL, BRIEF_LIMIT_SHORT, buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, layoutOnlyDescription } from "../_shared/canvaCarouselBrief.ts";
+import { BRIEF_LIMIT_FULL, BRIEF_LIMIT_SHORT, buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, layoutOnlyDescription, lockupContactFacts, type CarouselSlide } from "../_shared/canvaCarouselBrief.ts";
 import { callCanvaTool, canvaEditingMode, listCanvaMcpTools, type CanvaEditingMode } from "../_shared/canvaMcp.ts";
 import { readCanvaToolJson } from "../_shared/canvaMcpParse.ts";
 import { getCanvaAccessToken } from "../_shared/canvaToken.ts";
+import {
+  collectPageTextsFromDesign,
+  isNearBlankRgba,
+  orderCarouselPages,
+} from "../_shared/canvaCarouselPageOrder.ts";
 import { Image } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
 import { reviseCarousel } from "./revise.ts";
+
+const PAGE_ORDER_MISMATCH = "carousel_page_order_mismatch";
 
 const POLL_BUDGET_MS = 100_000;
 const EXPORT_POLL_MS = 45_000;
@@ -440,7 +447,7 @@ async function placeLogoInDesign(
   const uploaded = await callRaw(admin, organizationId, token, "upload-asset-from-url", {
     url,
     name: "company-logo.png",
-    user_intent: "mengunggah logo perusahaan untuk ditaruh di tengah atas setiap slide",
+    user_intent: "mengunggah logo perusahaan untuk ditaruh di tengah atas slide penutup",
   });
   token = uploaded.token;
   let assetId = logoAssetId(uploaded.payload);
@@ -452,32 +459,28 @@ async function placeLogoInDesign(
   }
   if (!assetId) throw new Error("logo_place_failed");
 
-  const opened = await openEditing(admin, organizationId, token, designId, "membuka desain untuk menempelkan logo perusahaan");
+  const opened = await openEditing(admin, organizationId, token, designId, "membuka desain untuk menempelkan logo di slide penutup");
   token = opened.token;
   const session = opened.session;
   const logoPages = session.pages.filter((page) => !page.responsive);
-  if (!session.transactionId || logoPages.length === 0) throw new Error("logo_place_failed");
-  let inserted = 0;
+  const lastPage = logoPages[logoPages.length - 1];
+  if (!session.transactionId || !lastPage) throw new Error("logo_place_failed");
   try {
-    for (const page of logoPages) {
-      const box = Math.max(72, Math.round(Math.min(page.width, page.height) * 0.16));
-      const edited = await editPage(admin, organizationId, token, session, page.pageNumber, [{
-        type: "insert_fill",
-        page_id: page.id,
-        asset_type: "image",
-        asset_id: assetId,
-        alt_text: "Logo perusahaan",
-        top: Math.round(Math.min(page.width, page.height) * 0.03),
-        left: Math.round((page.width - box) / 2),
-        width: box,
-        height: box,
-      }], "menempelkan logo perusahaan di tengah atas slide");
-      token = edited.token;
-      if (!edited.ok) throw new Error("logo_place_failed");
-      inserted += 1;
-    }
-    if (inserted === 0) throw new Error("logo_place_failed");
-    const committed = await finishEditing(admin, organizationId, token, session, "commit", "menyimpan logo perusahaan di setiap slide");
+    const box = Math.max(72, Math.round(Math.min(lastPage.width, lastPage.height) * 0.16));
+    const edited = await editPage(admin, organizationId, token, session, lastPage.pageNumber, [{
+      type: "insert_fill",
+      page_id: lastPage.id,
+      asset_type: "image",
+      asset_id: assetId,
+      alt_text: "Logo perusahaan",
+      top: Math.round(Math.min(lastPage.width, lastPage.height) * 0.03),
+      left: Math.round((lastPage.width - box) / 2),
+      width: box,
+      height: box,
+    }], "menempelkan logo perusahaan di tengah atas slide penutup");
+    token = edited.token;
+    if (!edited.ok) throw new Error("logo_place_failed");
+    const committed = await finishEditing(admin, organizationId, token, session, "commit", "menyimpan logo perusahaan di slide penutup");
     if (!committed.ok) throw new Error("logo_place_failed");
   } catch (error) {
     await finishEditing(admin, organizationId, token, session, "cancel", "membatalkan logo yang gagal dipasang").catch(() => undefined);
@@ -581,7 +584,15 @@ async function libraryPhotos(
 async function selectedLogo(
   admin: SupabaseClient,
   planId: string,
-): Promise<{ path: string } | null> {
+): Promise<{
+  path: string;
+  brandName: string;
+  tagline: string;
+  headlineFont: string;
+  bodyFont: string;
+  websiteUrl: string;
+  defaultContact: string;
+} | null> {
   const { data: plan } = await admin
     .from("social_media_plans")
     .select("pic_id, organization_id")
@@ -594,14 +605,29 @@ async function selectedLogo(
   if (services.length !== 1) throw new Error("logo_missing");
   const { data: logo } = await admin
     .from("digital_asset_company_logos")
-    .select("logo_path, service_id, organization_id")
+    .select("logo_path, service_id, organization_id, brand_name, tagline, headline_font, body_font, website_url, default_contact")
     .eq("id", brief.company_logo_id)
     .maybeSingle();
   const path = String(logo?.logo_path ?? "").trim();
   if (!logo || logo.organization_id !== plan.organization_id || String(logo.service_id ?? "") !== services[0] || !path) {
     throw new Error("logo_missing");
   }
-  return { path };
+  const { data: service } = await admin
+    .from("services")
+    .select("name")
+    .eq("id", services[0])
+    .maybeSingle();
+  const brandName = String(logo.brand_name ?? "").trim()
+    || String(service?.name ?? "").trim();
+  return {
+    path,
+    brandName,
+    tagline: String(logo.tagline ?? "").trim(),
+    headlineFont: String(logo.headline_font ?? "").trim(),
+    bodyFont: String(logo.body_font ?? "").trim(),
+    websiteUrl: String(logo.website_url ?? "").trim(),
+    defaultContact: String(logo.default_contact ?? "").trim(),
+  };
 }
 
 async function activeLogoBytes(
@@ -617,6 +643,158 @@ async function activeLogoBytes(
   return bytes;
 }
 
+async function readDesignPageTexts(
+  admin: SupabaseClient,
+  organizationId: string,
+  token: string,
+  designId: string,
+): Promise<{ token: string; pageTexts: Map<number, string[]> }> {
+  try {
+    const detected = await editingModeFor(admin, organizationId, token);
+    if (detected.mode !== "current") {
+      return { token: detected.token, pageTexts: new Map() };
+    }
+    let current = detected.token;
+    for (const openTransaction of [false, true]) {
+      try {
+        const opened = await callRaw(admin, organizationId, current, "read-design", {
+          design_id: designId,
+          open_transaction: openTransaction,
+          filter: { fields: ["page_metadata", "design_content"] },
+          user_intent: "membaca teks tiap page carousel untuk urutan export",
+        });
+        current = opened.token;
+        const pageTexts = collectPageTextsFromDesign(opened.payload);
+        if (pageTexts.size > 0) return { token: current, pageTexts };
+      } catch (error) {
+        console.log(JSON.stringify({
+          event: "canva_page_text_failed",
+          design_id: designId,
+          open_transaction: openTransaction,
+          error: publicError(error).slice(0, 200),
+        }));
+      }
+    }
+    return { token: current, pageTexts: new Map() };
+  } catch (error) {
+    console.log(JSON.stringify({
+      event: "canva_page_text_failed",
+      design_id: designId,
+      error: publicError(error).slice(0, 200),
+    }));
+    return { token, pageTexts: new Map() };
+  }
+}
+
+function uniqueSortedPages(values: unknown[]): number[] {
+  const pages = values
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value > 0 && value <= 10);
+  return [...new Set(pages)].sort((a, b) => a - b).slice(0, 10);
+}
+
+async function resolveExportPages(
+  admin: SupabaseClient,
+  organizationId: string,
+  token: string,
+  designId: string,
+  slides: CarouselSlide[],
+  apiPages: number[],
+): Promise<{ token: string; pages: number[]; allowBlankFilter: boolean }> {
+  const read = await readDesignPageTexts(admin, organizationId, token, designId);
+  token = read.token;
+  const ordered = orderCarouselPages(slides, read.pageTexts);
+  console.log(JSON.stringify({
+    event: "canva_page_order",
+    design_id: designId,
+    expected: slides.length,
+    api_pages: apiPages,
+    text_pages: [...read.pageTexts.keys()].sort((a, b) => a - b),
+    matched: ordered?.matched ?? null,
+    dropped_blanks: ordered?.droppedBlanks ?? [],
+    ordered: ordered?.orderedPageNumbers ?? null,
+  }));
+  if (ordered && ordered.orderedPageNumbers.length === slides.length) {
+    return { token, pages: ordered.orderedPageNumbers, allowBlankFilter: false };
+  }
+  // Text unread: export Canva pages as listed, then drop blank JPGs if count is high.
+  if (read.pageTexts.size === 0 && apiPages.length > 0) {
+    return {
+      token,
+      pages: apiPages,
+      allowBlankFilter: apiPages.length !== slides.length,
+    };
+  }
+  // Text unread and Canva did not list page_numbers — export whole design, filter blanks later.
+  if (read.pageTexts.size === 0 && apiPages.length === 0) {
+    return { token, pages: [], allowBlankFilter: true };
+  }
+  // Text present but could not map 1:1 — do not guess order.
+  throw new Error(PAGE_ORDER_MISMATCH);
+}
+
+async function jpegIsBlank(bytes: Uint8Array): Promise<boolean> {
+  try {
+    const page = await Image.decode(bytes);
+    return isNearBlankRgba(page.bitmap, page.width, page.height);
+  } catch {
+    return false;
+  }
+}
+
+async function filterBlankExportUrls(urls: string[]): Promise<string[]> {
+  const kept: string[] = [];
+  for (const url of urls) {
+    const bytes = await downloadJpeg(url);
+    if (await jpegIsBlank(bytes)) continue;
+    kept.push(url);
+  }
+  return kept;
+}
+
+async function requeueDesignForPageOrder(
+  admin: SupabaseClient,
+  planId: string,
+  attempts: number,
+): Promise<boolean> {
+  // First-create only: one redesign when page order mismatches (attempts<=1).
+  // User "Perbarui" is export-only and never calls this.
+  if (attempts > 1) return false;
+  const now = new Date().toISOString();
+  const { data: queued } = await admin
+    .from("canva_carousel_runs")
+    .update({
+      status: "queued",
+      canva_job_id: null,
+      continuation_token: null,
+      design_id: null,
+      design_url: null,
+      images_ready: false,
+      refresh_requested: false,
+      review_after_export: false,
+      revision_requested: false,
+      export_attempts: 0,
+      error: null,
+      finished_at: null,
+      updated_at: now,
+    })
+    .eq("social_media_plan_id", planId)
+    .eq("status", "succeeded")
+    .select("social_media_plan_id")
+    .maybeSingle();
+  if (!queued) return false;
+  try {
+    await admin.rpc("canva_carousel_post", { p_plan_id: planId, p_mode: "resume" });
+  } catch (error) {
+    console.log(JSON.stringify({
+      event: "canva_page_order_requeue_dispatch_failed",
+      plan_id: planId,
+      error: publicError(error).slice(0, 200),
+    }));
+  }
+  return true;
+}
+
 async function exportCarouselImages(
   admin: SupabaseClient,
   planId: string,
@@ -625,7 +803,7 @@ async function exportCarouselImages(
   try {
     const { data: run } = await admin
       .from("canva_carousel_runs")
-      .select("status, images_ready, export_attempts, design_id, updated_at, refresh_requested, revision_requested, review_after_export")
+      .select("status, images_ready, export_attempts, design_id, updated_at, refresh_requested, revision_requested, review_after_export, attempts")
       .eq("social_media_plan_id", planId)
       .maybeSingle();
     if (!run || run.status !== "succeeded" || run.images_ready || !run.design_id || run.revision_requested === true) return;
@@ -657,6 +835,26 @@ async function exportCarouselImages(
         .from("canva_carousel_runs")
         .update({ images_ready: true, refresh_requested: false, error: null, updated_at: new Date().toISOString() })
         .eq("social_media_plan_id", planId);
+      return;
+    }
+
+    const { data: plan } = await admin
+      .from("social_media_plans")
+      .select("brief")
+      .eq("id", planId)
+      .maybeSingle();
+    const slides = carouselSlidesFromBrief(String(plan?.brief ?? ""));
+    if (slides.length < 2) {
+      await admin
+        .from("canva_carousel_runs")
+        .update({
+          error: "slides_missing",
+          images_ready: hadImages,
+          refresh_requested: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("social_media_plan_id", planId)
+        .eq("status", "succeeded");
       return;
     }
 
@@ -703,12 +901,18 @@ async function exportCarouselImages(
       token = formatsCall.token;
       const jpg = asRecord(asRecord(formatsCall.payload.formats)?.jpg);
       if (!jpg) throw new Error("export_format_missing");
-      const pages = Array.isArray(jpg.page_numbers)
-        ? jpg.page_numbers
-          .map((value) => Number(value))
-          .filter((value) => Number.isInteger(value) && value > 0)
-          .slice(0, 10)
-        : [];
+      const apiPages = Array.isArray(jpg.page_numbers) ? uniqueSortedPages(jpg.page_numbers) : [];
+      const resolved = await resolveExportPages(
+        admin,
+        organizationId,
+        token,
+        String(locked.design_id),
+        slides,
+        apiPages,
+      );
+      token = resolved.token;
+      const pages = resolved.pages;
+      const allowBlankFilter = resolved.allowBlankFilter;
       const exportArgs: Record<string, unknown> = {
         design_id: locked.design_id,
         format: "jpg",
@@ -731,10 +935,16 @@ async function exportCarouselImages(
       }
       urls = urls.slice(0, 10);
       if (urls.length === 0) throw new Error("export_empty");
+      if (allowBlankFilter && urls.length > slides.length) {
+        urls = await filterBlankExportUrls(urls);
+      }
+      if (urls.length !== slides.length) throw new Error(PAGE_ORDER_MISMATCH);
 
-      for (const url of urls) {
+      for (let index = 0; index < urls.length; index += 1) {
+        const url = urls[index];
         const original = await downloadJpeg(url);
-        const bytes = logo && !placedInDesign ? await stampLogoOnSlide(original, logo) : original;
+        const stampFallback = logo && !placedInDesign && index === urls.length - 1;
+        const bytes = stampFallback ? await stampLogoOnSlide(original, logo) : original;
         const path = `${organizationId}/${planId}/${crypto.randomUUID()}.jpg`;
         const { error } = await admin.storage.from(CAROUSEL_BUCKET).upload(
           path,
@@ -811,6 +1021,31 @@ async function exportCarouselImages(
         return;
       }
       const message = exportError(error);
+      if (message === PAGE_ORDER_MISMATCH) {
+        // Perbarui with existing images = export only.
+        // First create (no images yet) may redesign once even if markSucceeded set refresh_requested.
+        const mayRedesign = !hadImages;
+        if (mayRedesign) {
+          const retried = await requeueDesignForPageOrder(
+            admin,
+            planId,
+            Number(run.attempts ?? 0),
+          );
+          if (retried) return;
+        }
+        await admin
+          .from("canva_carousel_runs")
+          .update({
+            error: PAGE_ORDER_MISMATCH,
+            images_ready: hadImages,
+            refresh_requested: false,
+            review_after_export: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("social_media_plan_id", planId)
+          .eq("status", "succeeded");
+        return;
+      }
       const attempts = Number(locked.export_attempts ?? 1);
       const stillTrying = message === "export_pending" && attempts < 3;
       await admin
@@ -1203,6 +1438,17 @@ Deno.serve(async (req: Request) => {
       styleLock,
       palette: carouselPalette(String(plan.brief ?? "")),
       logo: (logo ? "required" : "none") as "required" | "none",
+      fonts: logo
+        ? { headline: logo.headlineFont || null, body: logo.bodyFont || null }
+        : null,
+      lockupContact: logo
+        ? lockupContactFacts({
+          websiteUrl: logo.websiteUrl,
+          defaultContact: logo.defaultContact,
+        })
+        : null,
+      brandName: logo?.brandName || null,
+      tagline: logo?.tagline || null,
       menus: productPhotos.map((photo) => photo.name),
       requiredNote: String(employeeBrief?.required_notes ?? ""),
       forbiddenNote: String(employeeBrief?.forbidden_notes ?? ""),

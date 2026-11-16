@@ -3,9 +3,12 @@ import type {
   RequiredPlatformProgressItem,
   SocialMediaLinkInput,
 } from './computeRequiredPlatformsProgress';
+import { calculateOnTimeStatus, calendarDayYmd } from './onTimeStatus';
 
 export const ON_TIME_IN_PROGRESS = 'In Progress';
 export const ON_TIME_SCHEDULED = 'Scheduled';
+
+export { calculateOnTimeStatus as calculateOnTimeStatusClient } from './onTimeStatus';
 
 /** True only when all required platforms are complete and post metadata reflects a finished publish. */
 export function isPostMetricComplete(plan: {
@@ -30,18 +33,8 @@ function isFilledItemStatus(status: RequiredPlatformItemStatus): boolean {
   return status === 'published' || status === 'link_ready';
 }
 
-export function calculateOnTimeStatusClient(
-  actualPostDateIso: string | null,
-  postDateIso: string | null,
-): string {
-  if (!actualPostDateIso || !postDateIso) return '';
-  const actual = new Date(actualPostDateIso);
-  const planned = new Date(postDateIso);
-  if (Number.isNaN(actual.getTime()) || Number.isNaN(planned.getTime())) return '';
-  if (actual <= planned) return 'Ontime';
-  const diffTime = Math.abs(actual.getTime() - planned.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return `Late ${diffDays} Day${diffDays > 1 ? 's' : ''}`;
+function actualDateFromIso(iso: string): string {
+  return calendarDayYmd(iso) ?? iso.slice(0, 10);
 }
 
 export function derivePlanPostMetadataClient(
@@ -59,10 +52,10 @@ export function derivePlanPostMetadataClient(
       .map((l) => l.created_at)
       .filter(Boolean) as string[];
     const earliest = dates.length > 0 ? dates.sort()[0] : new Date().toISOString();
-    const actualDate = earliest.split('T')[0];
+    const actualDate = actualDateFromIso(earliest);
     return {
       actual_post_date: actualDate,
-      on_time_status: calculateOnTimeStatusClient(actualDate, postDateIso) || ON_TIME_IN_PROGRESS,
+      on_time_status: calculateOnTimeStatus(actualDate, postDateIso) || ON_TIME_IN_PROGRESS,
     };
   }
 
@@ -81,10 +74,10 @@ export function derivePlanPostMetadataClient(
     const latestIso = completionDates.length > 0
       ? completionDates.sort().at(-1)!
       : new Date().toISOString();
-    const actualDate = latestIso.split('T')[0];
+    const actualDate = actualDateFromIso(latestIso);
     return {
       actual_post_date: actualDate,
-      on_time_status: calculateOnTimeStatusClient(actualDate, postDateIso) || ON_TIME_IN_PROGRESS,
+      on_time_status: calculateOnTimeStatus(actualDate, postDateIso) || ON_TIME_IN_PROGRESS,
     };
   }
 

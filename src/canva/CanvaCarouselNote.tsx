@@ -15,7 +15,17 @@ function failedSentence(error: string | null): string {
   if (error === "canva_not_connected" || error === "canva_dispatch_missing") return "Canva belum terhubung";
   if (error === "canva_tool_missing") return "Canva belum punya alat desain";
   if (error === "not_approved") return "Persetujuan berubah sebelum desain dibuat";
+  if (error === "carousel_page_order_mismatch") {
+    return "Jumlah halaman Canva tidak cocok dengan brief — buka Canva, samakan halaman, lalu Perbarui lagi";
+  }
   const detail = String(error ?? "").replace(/^canva_job_failed:/, "").trim();
+  const lower = detail.toLowerCase();
+  if (
+    lower.includes("credit_quota")
+    || lower.includes("credit quota")
+  ) {
+    return "Canva gagal: kuota AI Canva habis / cooldown — buka Billing Canva";
+  }
   if (detail && detail !== "canva_failed") return `Canva gagal: ${detail.slice(0, 120)}`;
   return "Canva gagal membuat desain";
 }
@@ -33,10 +43,16 @@ export function CanvaCarouselNote({
   if (run.revision_requested && run.status === "succeeded") {
     return <CanvaWorkingNote text="Canva sedang merevisi" onPrimary={onPrimary} />;
   }
+  if (
+    run.refresh_requested
+    && (run.status === "succeeded" || run.status === "queued" || run.status === "running")
+  ) {
+    return <CanvaWorkingNote text="Canva sedang memperbarui gambar" onPrimary={onPrimary} />;
+  }
   if (run.status === "queued" || run.status === "running") {
     return <CanvaWorkingNote text="Canva sedang membuat desain" onPrimary={onPrimary} />;
   }
-  if (run.status === "failed") {
+  if (run.status === "failed" || (run.status === "succeeded" && run.error)) {
     return (
       <p className={onPrimary ? "text-[11px] leading-4 text-white" : "text-[11px] leading-4 text-destructive"}>
         {failedSentence(run.error)}

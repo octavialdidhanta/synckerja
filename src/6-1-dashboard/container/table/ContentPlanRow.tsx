@@ -39,6 +39,7 @@ import { hasProductionDeliverable, productionStatusSelectValue } from '../../uti
 import {
   ON_TIME_IN_PROGRESS,
   ON_TIME_SCHEDULED,
+  calculateOnTimeStatusClient,
 } from '@/6-1-scheduled-posts/lib/derivePlanPostMetadata';
 import { CreateTaskDialog } from '@/8-2-DailyTask/section/CreateTaskDialog';
 import { DailyTaskProvider } from '@/8-2-DailyTask/context/DailyTaskContext';
@@ -307,34 +308,6 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
   // POINT 3: Production fields are no longer locked when production approved
   // const isProductionLocked = plan.production_approved === true; // REMOVED: No more production locking
 
-  // Track the last post_date values to detect changes
-  const calculateOnTimeStatus = (actualPostDate: string | null, postDate: string) => {
-    if (!actualPostDate || !postDate) return '';
-    
-    try {
-      const actual = new Date(actualPostDate);
-      const planned = new Date(postDate);
-      
-      // Check if dates are valid
-      if (isNaN(actual.getTime()) || isNaN(planned.getTime())) {
-        return '';
-      }
-      
-      // Calculate difference in days
-      const diffTime = actual.getTime() - planned.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays <= 0) {
-        return 'Ontime';
-      } else {
-        return `Late ${diffDays} Day${diffDays > 1 ? 's' : ''}`;
-      }
-    } catch (error) {
-      devLog.error('Error calculating on-time status:', error);
-      return '';
-    }
-  };
-
   const displayOnTimeStatus = () => {
     if (!plan.post_date) {
       return '';
@@ -342,19 +315,15 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
 
     const stored = plan.on_time_status?.trim() ?? '';
 
+    if (plan.actual_post_date) {
+      return calculateOnTimeStatusClient(plan.actual_post_date, plan.post_date) || stored || '-';
+    }
+
     if (stored === ON_TIME_IN_PROGRESS || stored === ON_TIME_SCHEDULED) {
       return stored;
     }
 
-    if (!plan.actual_post_date) {
-      return stored || '-';
-    }
-
-    if (stored === 'Ontime' || stored.includes('Late')) {
-      return stored;
-    }
-
-    return calculateOnTimeStatus(plan.actual_post_date, plan.post_date) || '-';
+    return stored || '-';
   };
 
   const onTimeStatusLabel = displayOnTimeStatus();
@@ -382,6 +351,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
       canvaRun.status === "queued"
       || canvaRun.status === "running"
       || (canvaRun.revision_requested && canvaRun.status === "succeeded")
+      || (canvaRun.refresh_requested && canvaRun.status === "succeeded")
     ),
   );
 
@@ -1023,7 +993,12 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
           setIsGoogleDriveDialogOpen(true);
         }} isSelected={isSelected} contentType={contentTypeName} carouselImageCount={carouselImageCount} />
           )}
-            {plan.approved && canvaRun && (canvaRun.status !== 'succeeded' || canvaRun.revision_requested) ? (
+            {plan.approved && canvaRun && (
+              canvaRun.status !== 'succeeded'
+              || canvaRun.revision_requested
+              || canvaRun.refresh_requested
+              || Boolean(canvaRun.error)
+            ) ? (
               <CanvaCarouselNote run={canvaRun} showSuccess={false} onPrimary={isSelected} />
             ) : null}
           </div>

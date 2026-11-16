@@ -1,3 +1,5 @@
+import type { StoryBriefDraft, StoryBriefLabels } from "./storyBriefTypes";
+
 export type CatalogOption = {
   id: string;
   label: string;
@@ -37,10 +39,13 @@ export type BriefDraft = {
   productIds: string[];
   angleIds: string[];
   repeatVoices: string[];
+  /** @deprecated Unused by UI/script/Canva; always cleared on save. Kept for payload shape only. */
   splitRule: string;
   subServiceId: string | null;
   subServiceIds: string[];
   contentPlanAutoApprove: boolean;
+  /** When true, SOP1 fills Hook headline from Product Knowledge hooks. */
+  useSystemHooks: boolean;
 };
 
 export type SubServiceOption = {
@@ -145,6 +150,9 @@ export type AiEmployeePageData = {
   schedules: ScheduleRow[];
   routines: RoutineRow[];
   brief: BriefDraft;
+  storyBrief: StoryBriefDraft;
+  storyBriefLabels: StoryBriefLabels;
+  storyBrandColors: CatalogBrandColor[];
   references: BriefReference[];
   brandColorId: string | null;
   companyLogoId: string | null;
@@ -168,6 +176,8 @@ export type AiEmployeePageData = {
   quota: AiEmployeeQuota;
 };
 
+export type { StoryBriefDraft, StoryBriefLabels };
+
 export type BriefReference = {
   position: number;
   storagePath: string;
@@ -184,6 +194,12 @@ export type CatalogBrandColor = {
 export type CatalogCompanyLogo = {
   id: string;
   brandName: string;
+  tagline: string;
+  headlineFont: string;
+  bodyFont: string;
+  websiteUrl: string;
+  defaultContact: string;
+  hashtags: string[];
   logoPath: string;
 };
 

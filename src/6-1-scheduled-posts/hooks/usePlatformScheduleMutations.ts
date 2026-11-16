@@ -8,6 +8,7 @@ export type PlatformPublishFunction =
   | 'tiktok-content-publish'
   | 'youtube-content-publish'
   | 'meta-content-publish'
+  | 'meta-story-publish'
   | 'linkedin-content-publish';
 
 async function invokePlatformPublish(

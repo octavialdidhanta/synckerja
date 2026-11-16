@@ -561,7 +561,6 @@ export async function aiEmployeeBriefUpdate(
     productKnowledgeIds: string[];
     angleIds?: string[];
     repeatVoices?: string[];
-    splitRule: string;
   },
 ) {
   assertOrgOwner(ctx);
@@ -582,7 +581,8 @@ export async function aiEmployeeBriefUpdate(
       product_knowledge_ids: brief.productKnowledgeIds,
       ...(brief.angleIds ? { angle_ids: brief.angleIds } : {}),
       ...(brief.repeatVoices ? { repeat_voices: brief.repeatVoices } : {}),
-      split_rule: brief.splitRule,
+      // Dead field: always clear (no script/Canva consumer).
+      split_rule: "",
     },
   });
   return {

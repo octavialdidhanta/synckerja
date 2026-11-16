@@ -1,0 +1,37 @@
+---
+description: Cek bentrok lintas lapisan saat ubah prompt AI, system prefix, post-process, validasi, atau limit DB — wajib sebut risiko sebelum deploy.
+alwaysApply: true
+---
+
+# Prompt / Constraint Conflict Check
+
+Pakai rule ini setiap mengubah instruksi model, prefix generate, normalisasi output, gate validasi, atau batas di DB/RPC yang memengaruhi konten AI (caption, slide, hook, hashtag, brand lockup, dll.).
+
+## Lapisan yang harus dicek bersama
+
+1. **SOP / plan prompt** (`planDraft`, `buildSop1Prompt`, rewrite notes)
+2. **System / provider prefix** (`generate-script-ai` thinkingPrefix, max_tokens)
+3. **Post-process** (soften, normalize, `finishCarouselScript`, flatten whitespace, truncate)
+4. **Validator app** (`diagnoseCarouselDraft`, `captionDepthOk`, parse gates)
+5. **DB / RPC** (`ai_employee_carousel_fields`, `ai_employee_perform`, kolom/limit SQL)
+
+Jangan anggap satu file sebagai sumber kebenaran tunggal.
+
+## Wajib sebelum selesai / deploy
+
+- [ ] Angka selaras: floor, target, cap, truncate, dan limit DB (contoh floor 200 / target 350–550 / cap 800).
+- [ ] Wording tidak saling lawan (contoh “paragraf + enter” vs `.replace(/\s+/g, " ")` yang meratakan newline).
+- [ ] Aturan field A tidak bocor ke field B (vo/hook pendek ≠ caption).
+- [ ] “Sistem menempelkan X” tidak dibenturkan dengan “model wajib menulis X” tanpa soft-heal.
+- [ ] Prefix generate (awal/akhir prompt) tidak mengoverride SOP dengan aturan lama/pendek.
+- [ ] Kalau ada risiko bentrok: sebut eksplisit di jawaban + file/fungsi mana yang bentrok, lalu rapikan sebelum deploy.
+
+## Pola gagal yang sudah pernah terjadi
+
+- Target caption panjang vs system prefix “one short sentence”
+- Cap app 800 vs DB `char_length > 400` → `perform_failed`
+- Prompt “beberapa paragraf” vs post-process yang flatten semua whitespace
+
+## Respons agent
+
+Jika menemukan bentrok: **jangan diam**. Jelaskan lapisan mana yang menang hari ini, dampak ke output/user, dan perbaikan yang menyelaraskan semua lapisan — bukan hanya prompt atau hanya validator.

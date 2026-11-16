@@ -35,8 +35,12 @@ import {
   catalogPalette,
   carouselReferenceOk,
   normalizeCarouselReference,
+  brandLockupFromBrief,
+  diagnoseCarouselDraftDetail,
+  invalidRewriteNote,
   parseCarouselDraft,
   pickMenuIds,
+  pickSystemHook,
   referencePositions,
   rotateReference,
   briefWithReference,
@@ -53,12 +57,6 @@ import {
   orderCopyFallbackPaths,
   selectCopyPriors,
   pickUnusedIdea,
-  appendCarouselDevelopmentPath,
-  buildCarouselPathCheckPrompt,
-  buildCarouselPathPrompt,
-  carouselDevelopmentPath,
-  parseCarouselPathCheck,
-  parseCarouselPathReviews,
   rankPillarsForRotation,
   parsePlanDraft,
   projectRefFromUrl,
@@ -69,15 +67,24 @@ import {
   signRunnerJwt,
   validatePlanDraft,
 } from "../_shared/aiEmployee/planDraft.mjs";
+import {
+  buildSop4Prompt,
+  buildStoryExecutionCheckPrompt,
+  diagnoseStoryDraftDetail,
+  readStoryDraftCandidate,
+  storyPalette,
+} from "../_shared/aiEmployee/storyDraft.mjs";
 
-/** Extra carousel paths a focused run may build after every queued path was rejected. */
 /** Wall-clock budget for model work in one run; the worker is stopped at 150s. */
 const RUN_TIME_BUDGET_MS = 105_000;
+/** Leave headroom so a draft/judge pair is not started when it cannot finish. */
+const MIN_MODEL_REMAINING_MS = 35_000;
 /** Temperature for a draft retry after a rejection, so the rewrite actually differs. */
 const RETRY_TEMPERATURE = 0.7;
-const MAX_PATH_REFILLS = 1;
-/** Pillar proposals tried per refill (each costs up to 2 model calls). */
-const MAX_REFILL_PATH_ATTEMPTS = 4;
+/** Draft rewrite attempts when time is still comfortable. */
+const MAX_DRAFT_ATTEMPTS = 3;
+/** Draft rewrite attempts after half the wall budget is gone. */
+const MAX_DRAFT_ATTEMPTS_TIGHT = 2;
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -219,20 +226,25 @@ Deno.serve(async (req: Request) => {
   const requestedDate = body.post_date == null || body.post_date === "" ? "" : String(body.post_date).trim();
   const today = jakartaToday();
   const mode = body.mode == null || body.mode === "" ? "plan" : String(body.mode);
-  if (mode !== "plan" && mode !== "chat" && mode !== "sop1" && mode !== "sop3" && mode !== "job") return json({ error: "invalid_input" }, 400);
+  if (mode !== "plan" && mode !== "chat" && mode !== "sop1" && mode !== "sop3" && mode !== "sop4" && mode !== "job") {
+    return json({ error: "invalid_input" }, 400);
+  }
   const chat = mode === "chat";
   const sop1 = mode === "sop1";
   const sop3 = mode === "sop3";
+  const sop4 = mode === "sop4";
   const jobMode = mode === "job";
   const jobId = typeof body.job_id === "string" ? body.job_id.trim() : "";
   if (jobMode && (!isUuid(jobId) || body.dry_run === true)) return json({ error: "invalid_input" }, 400);
-  if (!isUuid(employeeId) || instruction.length > 4000 || (!sop1 && !jobMode && !instruction)) return json({ error: "invalid_input" }, 400);
+  if (!isUuid(employeeId) || instruction.length > 4000 || (!sop1 && !sop4 && !jobMode && !instruction)) {
+    return json({ error: "invalid_input" }, 400);
+  }
   if (requestedDate && (!isDay(requestedDate) || requestedDate < today)) return json({ error: "invalid_input" }, 400);
   if (body.dry_run != null && typeof body.dry_run !== "boolean") return json({ error: "invalid_input" }, 400);
   if (body.manual != null && typeof body.manual !== "boolean") return json({ error: "invalid_input" }, 400);
   const dryRun = body.dry_run === true;
   const manual = body.manual === true;
-  if (manual && mode !== "sop1") return json({ error: "invalid_input" }, 400);
+  if (manual && mode !== "sop1" && mode !== "sop4") return json({ error: "invalid_input" }, 400);
 
   const internalHeader = req.headers.get("x-synckerja-internal-secret");
   const internalHeaderPresent = internalHeader != null;
@@ -418,7 +430,8 @@ Deno.serve(async (req: Request) => {
 
     if (manual) {
       if (caller.mode !== "user" || !userId) return json({ error: "forbidden" }, 403);
-      const begun = await rpc("ai_employee_sop1_manual_begin", {
+      const beginRpc = sop4 ? "ai_employee_sop4_manual_begin" : "ai_employee_sop1_manual_begin";
+      const begun = await rpc(beginRpc, {
         p_user_id: userId,
         p_employee_id: employeeId,
       });
@@ -437,7 +450,7 @@ Deno.serve(async (req: Request) => {
     } else {
       const started = await rpc("ai_employee_run_start", {
         p_employee_id: employeeId,
-        p_sop_code: sop1 ? "SOP1" : chat ? "CHAT" : (sop3 || jobSource === "revision") ? "SOP3" : "SOP2",
+        p_sop_code: sop1 ? "SOP1" : sop4 ? "SOP4" : chat ? "CHAT" : (sop3 || jobSource === "revision") ? "SOP3" : "SOP2",
       });
       runId = typeof started.body === "string" && isUuid(started.body) ? started.body : null;
       if (!runId) {
@@ -629,10 +642,17 @@ Deno.serve(async (req: Request) => {
     }
 
     if (sop1) {
+      type CaptionRejectMeta = {
+        reason: string;
+        caption_len: number;
+        body_len: number;
+        has_hash: boolean;
+        raw_caption_len?: number;
+      };
       type ModelResult =
         | { kind: "ok"; script: string }
         | { kind: "quota" }
-        | { kind: "failed"; detail: { status: number; message: string } };
+        | { kind: "failed"; detail: { status: number; message: string; caption?: CaptionRejectMeta | null } };
       const rowsOf = (value: unknown): Record<string, unknown>[] => {
         const rows = value && typeof value === "object" ? (value as { rows?: unknown }).rows : null;
         return Array.isArray(rows) ? rows as Record<string, unknown>[] : [];
@@ -647,8 +667,9 @@ Deno.serve(async (req: Request) => {
         if (loaded.status < 200 || loaded.status >= 300) throw new Error("context_failed");
         return rowsOf(loaded.body);
       };
+      const remainingMs = () => RUN_TIME_BUDGET_MS - (Date.now() - runStartedAt);
       const modelScript = async (prompt: string, temperature = 0): Promise<ModelResult> => {
-        if (Date.now() - runStartedAt > RUN_TIME_BUDGET_MS) {
+        if (remainingMs() <= 0) {
           timeBudgetHit = true;
           return { kind: "quota" };
         }
@@ -679,6 +700,11 @@ Deno.serve(async (req: Request) => {
       const withRetry = async (run: () => Promise<ModelResult>): Promise<ModelResult> => {
         const first = await run();
         if (first.kind !== "failed") return first;
+        // A second model call when the budget is almost gone only burns quota into time_budget.
+        if (remainingMs() < MIN_MODEL_REMAINING_MS) {
+          timeBudgetHit = true;
+          return { kind: "quota" };
+        }
         return run();
       };
 
@@ -722,15 +748,31 @@ Deno.serve(async (req: Request) => {
         if (result.status < 200 || result.status >= 300) console.error("ai-employee-run kr:", result.status);
       };
       let lastReject = "";
-      let preparedCarouselPath = false;
       // The last idea and pillar this run worked on, for the run log on the employee page.
       let attemptedIdeaId = "";
       let attemptedPillarId = "";
+      let writtenAttemptKey = "";
       const attempt = (ideaId: unknown, pillarId: unknown) => {
         const idea = String(ideaId ?? "");
         const pillar = String(pillarId ?? "");
         if (isUuid(idea)) attemptedIdeaId = idea;
         if (isUuid(pillar)) attemptedPillarId = pillar;
+        const key = `${attemptedIdeaId}:${attemptedPillarId}`;
+        if (!runId || (!attemptedIdeaId && !attemptedPillarId) || key === writtenAttemptKey) return;
+        writtenAttemptKey = key;
+        // Live log/map need the pair while status is still running — do not wait for closeSop1.
+        void admin
+          .from("ai_employee_runs")
+          .update({
+            attempted_idea_id: attemptedIdeaId || null,
+            attempted_pillar_id: attemptedPillarId || null,
+          })
+          .eq("id", runId)
+          .eq("employee_id", employeeId)
+          .eq("status", "running")
+          .then(({ error }) => {
+            if (error) console.error("ai-employee-run attempt_live:", error.message.slice(0, 120));
+          });
       };
       const closeSop1 = async (status: "succeeded" | "failed" | "deferred" | "late", label: string, openCount: number) => {
         if (label === "quota" && timeBudgetHit) label = "time_budget";
@@ -742,7 +784,7 @@ Deno.serve(async (req: Request) => {
             .eq("employee_id", employeeId);
           if (saved.error) console.error("ai-employee-run attempt:", saved.error.message.slice(0, 120));
         }
-        const note = `sop1 ${label} steps=${steps.length} open=${openCount} plans=${planIds.length} calls=${modelCalls}${preparedCarouselPath ? " path=1" : ""}${lastReject ? ` reject=${lastReject}` : ""}`;
+        const note = `sop1 ${label} steps=${steps.length} open=${openCount} plans=${planIds.length} calls=${modelCalls}${lastReject ? ` reject=${lastReject}` : ""}`;
         await finish(status, note);
         await refreshKrs();
       };
@@ -766,6 +808,19 @@ Deno.serve(async (req: Request) => {
       const performance = await loadScope("performance", {});
       const product = await loadProduct();
       const brief = briefRows[0] ?? null;
+      const useSystemHooks = brief?.use_system_hooks !== false;
+      let systemHooks: Array<{ id?: string; name?: string; description?: string; hook_content?: string }> = [];
+      if (useSystemHooks) {
+        const [defaultHooks, orgHooks] = await Promise.all([
+          admin.from("product_knowledge_hooks").select("id, name, description, hook_content, organization_id, created_at").is("organization_id", null).not("name", "is", null),
+          admin.from("product_knowledge_hooks").select("id, name, description, hook_content, organization_id, created_at").eq("organization_id", employee.organization_id).not("name", "is", null),
+        ]);
+        if (!defaultHooks.error && !orgHooks.error) {
+          systemHooks = [...(orgHooks.data ?? []), ...(defaultHooks.data ?? [])] as typeof systemHooks;
+        } else {
+          console.log(JSON.stringify({ event: "sop1_hooks_load_failed", run_id: runId, default: defaultHooks.error?.message, org: orgHooks.error?.message }));
+        }
+      }
       // Menus (sub categories) of the brief's catalog that have a real library photo.
       // The draft may pick up to 3; canva-carousel-run then places only those photos.
       const menus: { id: string; name: string }[] = [];
@@ -817,6 +872,40 @@ Deno.serve(async (req: Request) => {
       const pillars = preferredPillars.size > 0
         ? pillarRows.filter((row) => preferredPillars.has(String(row.id ?? "")))
         : pillarRows;
+      // Funnel/category enrich CTA tone in SOP1; the pillars scope only returns id/name.
+      const pillarMeta = new Map<string, { name: string; funnel: string; category: string; description: string }>();
+      {
+        const textOf = (value: unknown) => String(value ?? "").replace(/\s+/g, " ").trim();
+        const metaQuery = await admin
+          .from("content_pillars")
+          .select("id, name, funnel_stage, category, description, organization_id, is_default")
+          .eq("is_active", true)
+          .or(`is_default.eq.true,organization_id.eq.${employee.organization_id}`);
+        if (!metaQuery.error) {
+          for (const row of (metaQuery.data ?? []) as Array<Record<string, unknown>>) {
+            const id = String(row.id ?? "");
+            const own = row.is_default === true || String(row.organization_id ?? "") === employee.organization_id;
+            if (!own || !isUuid(id)) continue;
+            pillarMeta.set(id, {
+              name: textOf(row.name),
+              funnel: textOf(row.funnel_stage),
+              category: textOf(row.category),
+              description: textOf(row.description),
+            });
+          }
+        }
+      }
+      const withPillarMeta = (id: string, name: string) => {
+        const meta = pillarMeta.get(id);
+        return {
+          id,
+          name: meta?.name || name,
+          funnel: meta?.funnel ?? "",
+          category: meta?.category ?? "",
+          description: meta?.description ?? "",
+          capped: false as const,
+        };
+      };
       if (!manual && String(scheduleResult.data?.cadence ?? "") !== "days") {
         await closeSop1("failed", "schedule_missing", 0);
         return json({ ok: false, error: "schedule_missing", mode: "sop1", run_id: runId, model_calls: 0 }, 422);
@@ -844,14 +933,16 @@ Deno.serve(async (req: Request) => {
         return json({ ok: true, mode: "sop1", status: "succeeded", run_id: runId, model_calls: 0, plan_count: 0, plan_ids: [] });
       }
       let openTurn: Record<string, unknown> | null = null;
-      let openPillar: { id: string; name: string } | null = null;
-      // Idea/pillar pairs that ended at least two runs of the last day without a plan.
+      let openPillar: { id: string; name: string; funnel: string; category: string; description: string } | null = null;
+      // Idea/pillar pairs that already burned a full run today without a plan stay off the queue.
+      // Hard fails also cool the whole idea: another pillar on the same idea usually reprints the same copy.
       const cooledPairs = new Set<string>();
+      const cooledIdeas = new Set<string>();
       {
         const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const recentFails = await admin
           .from("ai_employee_runs")
-          .select("attempted_idea_id, attempted_pillar_id")
+          .select("attempted_idea_id, attempted_pillar_id, note")
           .eq("employee_id", employeeId)
           .eq("organization_id", employee.organization_id)
           .eq("sop_code", "SOP1")
@@ -861,27 +952,44 @@ Deno.serve(async (req: Request) => {
           .gte("started_at", since)
           .not("attempted_idea_id", "is", null)
           .order("started_at", { ascending: false })
-          .limit(6);
+          .limit(8);
         const failCount = new Map<string, number>();
-        for (const row of (recentFails.data ?? []) as Array<{ attempted_idea_id?: string; attempted_pillar_id?: string }>) {
-          const pair = `${String(row.attempted_idea_id ?? "")}:${String(row.attempted_pillar_id ?? "")}`;
-          failCount.set(pair, (failCount.get(pair) ?? 0) + 1);
+        for (const row of (recentFails.data ?? []) as Array<{ attempted_idea_id?: string; attempted_pillar_id?: string; note?: string }>) {
+          const ideaId = String(row.attempted_idea_id ?? "");
+          const pair = `${ideaId}:${String(row.attempted_pillar_id ?? "")}`;
+          const note = String(row.note ?? "");
+          // time_budget / checks_failed / copy burn the idea; cool after one miss so the next
+          // click does not spend another 105s hopping pillars on the same draft.
+          const hard = /time_budget|checks_failed|copy:/.test(note);
+          failCount.set(pair, (failCount.get(pair) ?? 0) + (hard ? 2 : 1));
+          if (hard && isUuid(ideaId)) cooledIdeas.add(ideaId);
         }
         for (const [pair, count] of failCount) if (count >= 2) cooledPairs.add(pair);
-        if (cooledPairs.size > 0) console.log(JSON.stringify({ event: "sop1_cooldown", run_id: runId, pairs: [...cooledPairs].slice(0, 5) }));
+        if (cooledPairs.size > 0 || cooledIdeas.size > 0) {
+          console.log(JSON.stringify({
+            event: "sop1_cooldown",
+            run_id: runId,
+            pairs: [...cooledPairs].slice(0, 5),
+            ideas: [...cooledIdeas].slice(0, 5),
+          }));
+        }
       }
-      // Set inside the block below: builds a new carousel path when every queued path was rejected.
-      let refillCarouselPath:
-        | ((blocked: Set<string>) => Promise<{ kind: string; ideaId?: string; pillarId?: string }>)
-        | null = null;
+      if (focused && (cooledPairs.size > 0 || cooledIdeas.size > 0)) {
+        carouselPaths = carouselPaths.filter((row) => {
+          const ideaId = String(row.idea_id ?? "");
+          if (cooledIdeas.has(ideaId)) return false;
+          return !cooledPairs.has(`${ideaId}:${String(row.content_pillar_id ?? "")}`);
+        });
+      }
       {
         const textOf = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+        // Focused runs only consume Thinking Lab locks already in carousel_paths — never invent paths.
         const prepareCarouselPath = async (
           mode: "path" | "open",
           extraBlocked: Set<string> = new Set(),
           maxAttempts = 6,
         ): Promise<
-          | { kind: "ready"; ideaId: string; pillarId: string; openIdea?: Record<string, unknown>; openPillar?: { id: string; name: string } }
+          | { kind: "ready"; ideaId: string; pillarId: string; openIdea?: Record<string, unknown>; openPillar?: { id: string; name: string; funnel: string; category: string; description: string } }
           | { kind: "blocked" }
           | { kind: "unconfirmed" }
           | { kind: "quota" }
@@ -1075,7 +1183,48 @@ Deno.serve(async (req: Request) => {
             }))
             : [];
           const blockedPairs = new Set([...takenPairs, ...extraBlocked]);
-          const ask = (prompt: string) => withRetry(() => modelScript(prompt));
+          if (mode === "path") {
+            // Serve only Thinking Lab locks already in the queue — never invent idea×pillar pairs.
+            const usableQueued = carouselPaths.filter((row) => {
+              const ideaId = String(row.idea_id ?? "");
+              const pillarId = String(row.content_pillar_id ?? "");
+              if (row.used === true || row.skip === true) return false;
+              if (blockedPairs.has(`${ideaId}:`) || blockedPairs.has(`${ideaId}:${pillarId}`)) return false;
+              return true;
+            });
+            if (usableQueued.length === 0) return { kind: "unconfirmed" };
+            const queuedIdeaIds = new Set(usableQueued.map((row) => String(row.idea_id ?? "")).filter((id) => isUuid(id)));
+            const queuedPillarIds = new Set(
+              usableQueued.map((row) => String(row.content_pillar_id ?? "")).filter((id) => isUuid(id)),
+            );
+            const pathIdeas = turnIdeas.filter((idea) => queuedIdeaIds.has(idea.id));
+            const pathPillars = turnPillars.filter((pillar) => queuedPillarIds.has(pillar.id));
+            const pathAngles = turnAngles.filter((angle) => pathIdeas.some((idea) => idea.angleId === angle.id));
+            const turn = chooseContentTurn({
+              angles: pathAngles,
+              ideas: pathIdeas,
+              pillars: pathPillars,
+              takenPairs: [...blockedPairs],
+              previous: { angleId: previousAngleId, ideaId: previousIdeaId, pillarId: previousPillarId },
+            });
+            const pick = turn
+              ? usableQueued.find((row) =>
+                String(row.idea_id ?? "") === turn.ideaId
+                && String(row.content_pillar_id ?? "") === turn.pillarId
+                && !blockedPairs.has(`${turn.ideaId}:${turn.pillarId}`))
+              : null;
+            const queued = pick ?? usableQueued.find((row) => {
+              const ideaId = String(row.idea_id ?? "");
+              const pillarId = String(row.content_pillar_id ?? "");
+              return !blockedPairs.has(`${ideaId}:`) && !blockedPairs.has(`${ideaId}:${pillarId}`);
+            });
+            if (!queued) return { kind: "unconfirmed" };
+            const ideaId = String(queued.idea_id ?? "");
+            const pillarId = String(queued.content_pillar_id ?? "");
+            attempt(ideaId, pillarId);
+            carouselPaths = [queued];
+            return { kind: "ready", ideaId, pillarId };
+          }
           let attempts = 0;
           while (attempts < maxAttempts) {
             const turn = chooseContentTurn({
@@ -1090,101 +1239,36 @@ Deno.serve(async (req: Request) => {
             const pillar = rotated.find((row) => row.id === turn.pillarId);
             if (!candidate || !pillar) return { kind: "blocked" };
             attempt(candidate.id, pillar.id);
-            if (mode === "open") {
-              return {
-                kind: "ready",
-                ideaId: candidate.id,
-                pillarId: pillar.id,
-                openIdea: {
-                  id: candidate.id,
-                  idea_id: candidate.id,
-                  idea_statement: candidate.statement,
-                  statement: candidate.statement,
-                  angle_statement: candidate.angleStatement,
-                  territory_statement: candidate.territoryStatement,
-                  big_thought_statement: candidate.bigThoughtStatement,
-                  master_statement: candidate.masterStatement,
-                  used: false,
-                  skip: false,
-                },
-                openPillar: { id: pillar.id, name: pillar.name },
-              };
-            }
-            const queued = carouselPaths.find((row) => String(row.idea_id ?? "") === candidate.id && String(row.content_pillar_id ?? "") === pillar.id && row.used !== true && row.skip !== true);
-            if (queued) {
-              carouselPaths = [queued];
-              return { kind: "ready", ideaId: candidate.id, pillarId: pillar.id };
-            }
-            attempts += 1;
-            const context = [candidate.masterStatement, candidate.bigThoughtStatement, candidate.territoryStatement, candidate.angleStatement, candidate.statement].filter(Boolean).join("\n");
-            const proposed = await ask(buildCarouselPathPrompt({ context, pillars: [pillar] }));
-            if (proposed.kind === "quota") return { kind: "quota" };
-            if (proposed.kind === "failed") return { kind: "failed", detail: proposed.detail };
-            const review = parseCarouselPathReviews(proposed.script, [pillar])[0];
-            const checked = review && review.contentPillarId === pillar.id
-              ? await ask(buildCarouselPathCheckPrompt({
-                context,
-                pillar,
-                development: review.development,
-                claim: review.reason,
-              }))
-              : null;
-            if (checked && checked.kind === "quota") return { kind: "quota" };
-            if (checked && checked.kind === "failed") return { kind: "failed", detail: checked.detail };
-            const verdict = checked && checked.kind === "ok" ? parseCarouselPathCheck(checked.script) : null;
-            const record = verdict?.pass
-              ? carouselDevelopmentPath({
-                id: pillar.id,
-                name: pillar.name,
-                development: review?.development ?? "",
-                reason: verdict.reason,
-                savedAt: new Date().toISOString(),
-              })
-              : null;
-            if (!record) {
-              blockedPairs.add(`${candidate.id}:${pillar.id}`);
-              continue;
-            }
-            if (!dryRun) {
-              const saved = await admin
-                .from("thinking_lab_ideas")
-                .update({ development_paths: appendCarouselDevelopmentPath(candidate.developmentPaths, record) })
-                .eq("id", candidate.id)
-                .eq("organization_id", employee.organization_id)
-                .eq("status", "locked");
-              if (saved.error) throw new Error("context_failed");
-            } else {
-              carouselPaths = [{
+            return {
+              kind: "ready",
+              ideaId: candidate.id,
+              pillarId: pillar.id,
+              openIdea: {
+                id: candidate.id,
                 idea_id: candidate.id,
-                content_pillar_id: record.contentPillarId,
-                pillar_name: record.pillarName,
-                development: record.reviews[0]?.development ?? "",
-                prompt_voice: textOf(brief?.voice),
-                delivery_voice: "",
-                is_repeat: false,
                 idea_statement: candidate.statement,
+                statement: candidate.statement,
                 angle_statement: candidate.angleStatement,
                 territory_statement: candidate.territoryStatement,
                 big_thought_statement: candidate.bigThoughtStatement,
                 master_statement: candidate.masterStatement,
-              }];
-            }
-            preparedCarouselPath = true;
-            return { kind: "ready", ideaId: candidate.id, pillarId: pillar.id };
+                used: false,
+                skip: false,
+              },
+              openPillar: withPillarMeta(pillar.id, pillar.name),
+            };
           }
-          return { kind: "unconfirmed" };
+          return { kind: "blocked" };
         };
-        if (focused) {
-          refillCarouselPath = (blocked) => prepareCarouselPath("path", new Set([...cooledPairs, ...blocked]), MAX_REFILL_PATH_ATTEMPTS);
-        }
-        // An idea and pillar that just failed twice rest for a while; without them the next
-        // click picked the same pair and failed the same way.
-        let prepared = await prepareCarouselPath(focused ? "path" : "open", cooledPairs);
-        if (prepared.kind === "blocked" && cooledPairs.size > 0) {
-          console.log(JSON.stringify({ event: "sop1_cooldown_lifted", run_id: runId, pairs: [...cooledPairs].slice(0, 5) }));
-          cooledPairs.clear();
-          prepared = await prepareCarouselPath(focused ? "path" : "open");
-        }
+        const blockedFromCooldown = () => new Set<string>([
+          ...cooledPairs,
+          ...[...cooledIdeas].map((id) => `${id}:`),
+        ]);
+        // An idea that just hard-failed rests for a while; without this the next click
+        // hopped pillars on the same idea and burned another full time budget.
+        let prepared = await prepareCarouselPath(focused ? "path" : "open", blockedFromCooldown());
+        // Do not lift cooldown here: clearing cooledPairs used to re-select the same
+        // idea/pillar and burn another full time budget on a known-bad draft.
         if (prepared.kind === "quota") {
           // Out of time with nothing saved is a failed run; a real model quota waits for later.
           const ranOut = timeBudgetHit;
@@ -1223,7 +1307,11 @@ Deno.serve(async (req: Request) => {
           }
         } else if (!dryRun) {
           const loaded = await loadScope("carousel_paths", {});
-          const rested = loaded.filter((row: Record<string, unknown>) => !cooledPairs.has(`${String(row.idea_id ?? "")}:${String(row.content_pillar_id ?? "")}`));
+          const rested = loaded.filter((row: Record<string, unknown>) => {
+            const ideaId = String(row.idea_id ?? "");
+            if (cooledIdeas.has(ideaId)) return false;
+            return !cooledPairs.has(`${ideaId}:${String(row.content_pillar_id ?? "")}`);
+          });
           carouselPaths = orderCopyFallbackPaths(rested.length > 0 ? rested : loaded, prepared.ideaId, prepared.pillarId);
           adoptPathPillars(carouselPaths);
         } else {
@@ -1300,41 +1388,36 @@ Deno.serve(async (req: Request) => {
       let dayIndex = 0;
       let ideaTries = 0;
       let ideaCap = focused ? Math.max(carouselPaths.length, 1) : 1;
-      let pathRefills = 0;
-      const rejectedPairs = new Set<string>(cooledPairs);
+      const rejectedPairs = new Set<string>([
+        ...cooledPairs,
+        ...[...cooledIdeas].map((id) => `${id}:`),
+      ]);
       const pathPair = (row: Record<string, unknown>) => `${String(row.idea_id ?? "")}:${String(row.content_pillar_id ?? "")}`;
-      const nextPath = () => carouselPaths.find((row) => row.used !== true && row.skip !== true) ?? null;
-      while (dayIndex < open.length && stop === "done") {
-        // Every queued path was rejected (e.g. copy too close to earlier plans):
-        // build a path for another locked idea before giving up on this run.
-        if (
-          focused &&
-          refillCarouselPath &&
-          pathRefills < MAX_PATH_REFILLS &&
-          (!nextPath() || ideaTries >= ideaCap)
-        ) {
-          pathRefills += 1;
-          for (const row of carouselPaths) {
-            if (row.skip === true || row.used === true) rejectedPairs.add(pathPair(row));
-          }
-          const refilled = await refillCarouselPath(rejectedPairs);
-          if (refilled.kind === "quota") {
-            stop = "quota";
-            break;
-          }
-          if (refilled.kind === "ready") {
-            if (!dryRun) {
-              const loaded = await loadScope("carousel_paths", {});
-              carouselPaths = orderCopyFallbackPaths(
-                loaded.filter((row: Record<string, unknown>) => !rejectedPairs.has(pathPair(row))),
-                refilled.ideaId,
-                refilled.pillarId,
-              );
-            }
-            adoptPathPillars(carouselPaths);
-            ideaCap = ideaTries + Math.max(carouselPaths.filter((row) => row.used !== true && row.skip !== true).length, 1);
+      const pathIdeaId = (row: Record<string, unknown>) => String(row.idea_id ?? row.id ?? "");
+      // Whole-idea block only via cooledIdeas or the `${id}:` sentinel from skipIdea — not every cooled pair.
+      const ideaBlocked = (ideaId: string) => Boolean(ideaId) && (cooledIdeas.has(ideaId) || rejectedPairs.has(`${ideaId}:`));
+      const pathBlocked = (row: Record<string, unknown>) => {
+        const id = pathIdeaId(row);
+        const pair = pathPair(row);
+        if (ideaBlocked(id)) return true;
+        return cooledPairs.has(pair) || rejectedPairs.has(pair);
+      };
+      // Hard reject: drop every queued pillar for this idea so the run does not reprint the same copy.
+      const skipIdea = (ideaId: unknown, reason = "") => {
+        const id = String(ideaId ?? "");
+        if (reason) lastReject = reason.slice(0, 40);
+        if (!isUuid(id)) return;
+        rejectedPairs.add(`${id}:`);
+        for (const row of carouselPaths) {
+          if (pathIdeaId(row) === id) {
+            row.skip = true;
+            rejectedPairs.add(pathPair(row));
           }
         }
+        if (openTurn && pathIdeaId(openTurn) === id) openTurn.skip = true;
+      };
+      const nextPath = () => carouselPaths.find((row) => row.used !== true && row.skip !== true && !pathBlocked(row)) ?? null;
+      while (dayIndex < open.length && stop === "done") {
         ideaTries += 1;
         if (ideaTries > ideaCap) {
           stop = "ideas_exhausted";
@@ -1348,15 +1431,16 @@ Deno.serve(async (req: Request) => {
           break;
         }
         const choice = focused
-          ? { id: String(path?.content_pillar_id ?? ""), name: String(path?.pillar_name ?? ""), capped: false }
+          ? withPillarMeta(String(path?.content_pillar_id ?? ""), String(path?.pillar_name ?? ""))
           : openPillar
-            ? { id: openPillar.id, name: openPillar.name, capped: false }
+            ? withPillarMeta(openPillar.id, openPillar.name)
             : null;
         if (!choice?.id) {
           stop = "pillar_cap";
           break;
         }
-        attempt(idea.idea_id ?? idea.id, choice.id);
+        const currentIdeaId = String(idea.idea_id ?? idea.id ?? "");
+        attempt(currentIdeaId, choice.id);
         const voicedBrief = focused
           ? { ...brief, voice: String(path?.prompt_voice ?? brief?.voice ?? "") }
           : brief;
@@ -1374,17 +1458,31 @@ Deno.serve(async (req: Request) => {
         // Angles the latest plans keep coming back to, without the catalog, menu and brand words.
         const usedTopics = usedTopicPhrases(
           compared.flatMap((row) => [row.title, row.hook]).filter(Boolean),
-          [String(service.name ?? ""), ...menus.map((row) => row.name), String(brief?.brand_name ?? "")],
+          [String(service.name ?? ""), ...menus.map((row) => row.name)],
         );
         const promptPlans = compared.slice(0, 6);
+        const brandLockup = brandLockupFromBrief(promptBrief, service);
+        const lockupFacts = {
+          websiteUrl: brandLockup.website,
+          defaultContact: brandLockup.defaultContact,
+          hashtags: brandLockup.hashtags,
+        };
         let avoid = "";
         let plan: ReturnType<typeof parseCarouselDraft> & { service_id: string } | null = null;
         let verdict: ReturnType<typeof parseExecutionVerdict> = null;
         let executionId: string | null = null;
-        for (let attempt = 1; attempt <= 3 && stop === "done"; attempt += 1) {
+        if (remainingMs() < MIN_MODEL_REMAINING_MS) {
+          timeBudgetHit = true;
+          stop = "quota";
+          break;
+        }
+        const draftAttempts = remainingMs() < RUN_TIME_BUDGET_MS / 2 ? MAX_DRAFT_ATTEMPTS_TIGHT : MAX_DRAFT_ATTEMPTS;
+        for (let attemptNo = 1; attemptNo <= draftAttempts && stop === "done"; attemptNo += 1) {
           const drafted = await withRetry(async () => {
             // A retry after a rejected draft needs a different answer; at temperature 0 the
             // model wrote the same title three times in a row.
+            const seed = openingSeed + dayIndex + attemptNo - 1;
+            const systemHook = useSystemHooks ? pickSystemHook(systemHooks, seed) : null;
             const result = await modelScript(buildSop1Prompt({
               day,
               pillar: choice,
@@ -1401,15 +1499,39 @@ Deno.serve(async (req: Request) => {
               path: promptPath,
               avoid,
               menus,
-              // A rejected draft also moves to the next opening style.
-              openingStyle: openingStyleFor(openingSeed + dayIndex + attempt - 1),
+              // A rejected draft also moves to the next opening style (unless system hook wins).
+              openingStyle: openingStyleFor(seed),
               usedTopics,
+              systemHook,
             }), avoid ? RETRY_TEMPERATURE : 0);
             if (result.kind !== "ok") return result;
-            const parsed = parseCarouselDraft(result.script, draftNotes);
-            if (parsed) parsed.slides = normalizeCarouselReference(parsed.slides, referencePositions(promptBrief));
-            if (!parsed || !pillars.some((row) => String(row.id ?? "") === choice.id) || !carouselReferenceOk(parsed.slides, referencePositions(promptBrief))) {
-              return { kind: "failed", detail: { status: 0, message: "invalid_model_output" } };
+            const refSlots = referencePositions(promptBrief);
+            const parsed = parseCarouselDraft(result.script, draftNotes, lockupFacts);
+            if (parsed) parsed.slides = normalizeCarouselReference(parsed.slides, refSlots);
+            let invalidCode = "";
+            let captionMeta = null;
+            if (!parsed) {
+              const diagnosis = diagnoseCarouselDraftDetail(result.script, draftNotes, lockupFacts, {
+                pillarId: choice.id,
+                pillars,
+                referenceSlots: refSlots,
+              });
+              invalidCode = diagnosis.code || "json";
+              captionMeta = diagnosis.caption;
+            } else if (!pillars.some((row) => String(row.id ?? "") === choice.id)) {
+              invalidCode = "pillar";
+            } else if (!carouselReferenceOk(parsed.slides, refSlots)) {
+              invalidCode = "referensi";
+            }
+            if (invalidCode) {
+              return {
+                kind: "failed",
+                detail: {
+                  status: 0,
+                  message: `invalid:${invalidCode}`,
+                  caption: captionMeta,
+                },
+              };
             }
             parsed.post_date = day;
             parsed.content_pillar_id = choice.id;
@@ -1417,16 +1539,61 @@ Deno.serve(async (req: Request) => {
           });
           if (drafted.kind === "quota") { stop = "quota"; break; }
           if (drafted.kind === "failed") {
-            if (drafted.detail.message !== "invalid_model_output") {
-              stop = "failed";
-              failure = drafted.detail;
-              break;
+            const failMsg = String(drafted.detail.message ?? "");
+            // Structure/parse failures retry with a fix note, same as copy rejects — do not burn the idea on the first bad JSON.
+            if (failMsg.startsWith("invalid:")) {
+              lastReject = failMsg.slice(0, 40);
+              const captionMeta = drafted.detail?.caption ?? null;
+              console.log(JSON.stringify({
+                event: "sop1_invalid_draft",
+                run_id: runId,
+                attempt: attemptNo,
+                code: failMsg,
+                caption_reason: captionMeta?.reason ?? null,
+                caption_len: captionMeta?.caption_len ?? null,
+                body_len: captionMeta?.body_len ?? null,
+                has_hash: captionMeta?.has_hash ?? null,
+                raw_caption_len: captionMeta?.raw_caption_len ?? null,
+              }));
+              if (attemptNo >= draftAttempts) {
+                skipIdea(currentIdeaId, lastReject);
+                break;
+              }
+              avoid = invalidRewriteNote(failMsg, captionMeta);
+              continue;
             }
-            idea.skip = true;
+            stop = "failed";
+            failure = drafted.detail;
             break;
           }
-          const parsed = parseCarouselDraft(drafted.script, draftNotes);
-          if (!parsed) { idea.skip = true; break; }
+          const parsed = parseCarouselDraft(drafted.script, draftNotes, lockupFacts);
+          if (!parsed) {
+            const diagnosis = diagnoseCarouselDraftDetail(drafted.script, draftNotes, lockupFacts, {
+              pillarId: choice.id,
+              pillars,
+              referenceSlots: referencePositions(promptBrief),
+            });
+            const code = diagnosis.code || "json";
+            lastReject = `invalid:${code}`.slice(0, 40);
+            console.log(JSON.stringify({
+              event: "sop1_invalid_draft",
+              run_id: runId,
+              attempt: attemptNo,
+              code: lastReject,
+              caption_reason: diagnosis.caption?.reason ?? null,
+              caption_len: diagnosis.caption?.caption_len ?? null,
+              body_len: diagnosis.caption?.body_len ?? null,
+              has_hash: diagnosis.caption?.has_hash ?? null,
+              raw_caption_len: diagnosis.caption?.raw_caption_len ?? null,
+              path: "post_parse",
+            }));
+            if (attemptNo >= draftAttempts) {
+              skipIdea(currentIdeaId, lastReject);
+              break;
+            }
+            avoid = invalidRewriteNote(lastReject, diagnosis.caption);
+            continue;
+          }
           const candidate = { ...parsed, post_date: day, content_pillar_id: choice.id, service_id: service.id };
           const collision = copyCollides(candidate, compared, { claimTokens });
           if (collision) {
@@ -1434,21 +1601,29 @@ Deno.serve(async (req: Request) => {
             console.log(JSON.stringify({
               event: "sop1_copy_reject",
               run_id: runId,
-              attempt,
+              attempt: attemptNo,
               field: collision.field,
               prior_title: collision.title,
               prior_used: "used" in collision ? collision.used : undefined,
               draft_title: candidate.title,
               draft_opening: copyFingerprint(candidate).lines[0] ?? "",
             }));
-            if (attempt >= 3) { idea.skip = true; break; }
+            if (attemptNo >= draftAttempts) {
+              skipIdea(currentIdeaId, lastReject);
+              break;
+            }
             avoid = collision.reason;
             continue;
           }
           // Slide titles are what Canva shows biggest; repeats are only logged for now.
           const repeated = headlineRepeats(candidate.slides.map((slide) => headlineFromElement(slide.element)), compared);
           if (repeated.length > 0) {
-            console.log(JSON.stringify({ event: "sop1_headline_repeat", run_id: runId, attempt, draft_title: candidate.title, repeats: repeated.slice(0, 5) }));
+            console.log(JSON.stringify({ event: "sop1_headline_repeat", run_id: runId, attempt: attemptNo, draft_title: candidate.title, repeats: repeated.slice(0, 5) }));
+          }
+          if (remainingMs() < MIN_MODEL_REMAINING_MS) {
+            timeBudgetHit = true;
+            stop = "quota";
+            break;
           }
           const judge = async (draft: typeof candidate) => withRetry(async () => {
             const result = await modelScript(buildExecutionCheckPrompt({
@@ -1462,23 +1637,32 @@ Deno.serve(async (req: Request) => {
             if (result.kind !== "ok") return result;
             return parseExecutionVerdict(result.script)
               ? { kind: "ok" as const, script: result.script }
-              : { kind: "failed" as const, detail: { status: 0, message: "invalid_model_output" } };
+              : { kind: "failed" as const, detail: { status: 0, message: "invalid:verdict" } };
           });
           const checked = await judge(candidate);
           if (checked.kind === "quota") { stop = "quota"; break; }
           if (checked.kind === "failed") {
-            if (checked.detail.message !== "invalid_model_output") {
-              stop = "failed";
-              failure = checked.detail;
-              break;
+            const failMsg = String(checked.detail.message ?? "");
+            if (failMsg.startsWith("invalid:")) {
+              lastReject = failMsg.slice(0, 40);
+              if (attemptNo >= draftAttempts) {
+                skipIdea(currentIdeaId, lastReject);
+                break;
+              }
+              avoid = invalidRewriteNote(failMsg);
+              continue;
             }
-            idea.skip = true;
+            stop = "failed";
+            failure = checked.detail;
             break;
           }
           const nextVerdict = parseExecutionVerdict(checked.script);
           if (!nextVerdict?.ok) {
             lastReject = String(nextVerdict?.check_id ?? "unparsed").slice(0, 40);
-            if (attempt >= 3) { idea.skip = true; break; }
+            if (attemptNo >= draftAttempts) {
+              skipIdea(currentIdeaId, lastReject);
+              break;
+            }
             avoid = checkRewriteNote(lastReject, Array.isArray(nextVerdict?.reasons) ? nextVerdict.reasons : []);
             continue;
           }
@@ -1488,7 +1672,7 @@ Deno.serve(async (req: Request) => {
               p_run_id: runId,
               p_action: "thinking.execution.check",
               p_payload: withJobClaim({
-                idea_id: String(idea.idea_id ?? idea.id ?? ""),
+                idea_id: currentIdeaId,
                 content_pillar_id: choice.id,
                 statement: nextVerdict.statement,
                 checks: nextVerdict.checks,
@@ -1501,8 +1685,7 @@ Deno.serve(async (req: Request) => {
               : null;
             if (judged.status < 200 || judged.status >= 300 || accepted?.accepted !== true || !isUuid(accepted.execution_id)) {
               const rejected = accepted && typeof accepted.check_id === "string" ? accepted.check_id : "db";
-              lastReject = rejected.slice(0, 40);
-              idea.skip = true;
+              skipIdea(currentIdeaId, rejected);
               break;
             }
             executionId = String(accepted.execution_id);
@@ -1513,7 +1696,11 @@ Deno.serve(async (req: Request) => {
           break;
         }
         if (stop !== "done") break;
-        if (!plan || !verdict?.ok) continue;
+        if (!plan || !verdict?.ok) {
+          // Ensure the current path cannot be retried if a branch only flipped idea.skip.
+          if (!ideaBlocked(currentIdeaId)) skipIdea(currentIdeaId, lastReject || "checks_failed");
+          continue;
+        }
         const productId = focused
           ? chooseBriefProduct(product, plan.product_knowledge_id)
           : chooseProduct(product, plan.product_knowledge_id);
@@ -1562,10 +1749,19 @@ Deno.serve(async (req: Request) => {
           ? String((performed.body as { message?: unknown }).message ?? "")
           : "";
         if (focused && performMessage.includes("path_not_allowed")) {
-          idea.skip = true;
+          skipIdea(currentIdeaId, "path_not_allowed");
           continue;
         }
-        if (performed.status < 200 || performed.status >= 300 || !isUuid(createdId)) throw new Error("perform_failed");
+        if (performed.status < 200 || performed.status >= 300 || !isUuid(createdId)) {
+          console.error(JSON.stringify({
+            event: "sop1_perform_failed",
+            run_id: runId,
+            status: performed.status,
+            body: performed.body,
+            caption_len: typeof planPayload?.caption === "string" ? planPayload.caption.length : null,
+          }));
+          throw new Error("perform_failed");
+        }
         if (pickedMenus.length > 0) {
           const tagged = await admin
             .from("social_media_plans")
@@ -1635,6 +1831,408 @@ Deno.serve(async (req: Request) => {
         plan_count: dryRun ? drafts.length : planIds.length,
         plan_ids: planIds,
         drafts: dryRun ? drafts : undefined,
+      });
+    }
+
+    if (sop4) {
+      const rowsOf = (value: unknown): Record<string, unknown>[] => {
+        const rows = value && typeof value === "object" ? (value as { rows?: unknown }).rows : null;
+        return Array.isArray(rows) ? rows as Record<string, unknown>[] : [];
+      };
+      const loadScope = async (scope: string, params: Record<string, string> = {}) => {
+        const loaded = await rpc("ai_employee_context", {
+          p_employee_id: employeeId,
+          p_run_id: runId,
+          p_scope: scope,
+          p_params: params,
+        });
+        if (loaded.status < 200 || loaded.status >= 300) throw new Error("context_failed");
+        return rowsOf(loaded.body);
+      };
+      const closeSop4 = async (status: "succeeded" | "failed" | "deferred", note: string, openCount = 0) => {
+        const label = note.slice(0, 120);
+        await finish(status, `sop4 ${label} open=${openCount} plans=${planIds.length} calls=${modelCalls}`);
+      };
+      const remainingMs = () => RUN_TIME_BUDGET_MS - (Date.now() - runStartedAt);
+      type ModelResult =
+        | { kind: "ok"; script: string }
+        | { kind: "quota" }
+        | { kind: "failed"; detail: { status: number; message: string } };
+      const modelScript = async (prompt: string, temperature = 0): Promise<ModelResult> => {
+        if (remainingMs() <= 0) {
+          timeBudgetHit = true;
+          return { kind: "quota" };
+        }
+        const reserved = await rpc("ai_employee_reserve_model_call", {
+          p_employee_id: employeeId,
+          p_run_id: runId,
+          p_commit: true,
+        });
+        const decision = interpretReserve(reserved.status, reserved.body);
+        if (decision.kind === "quota") return { kind: "quota" };
+        if (decision.kind !== "ok") return { kind: "failed", detail: { status: reserved.status, message: "reserve_failed" } };
+        modelCalls += 1;
+        const modelCall = scriptAiCall({
+          url: supabaseUrl,
+          serviceRoleKey,
+          anonKey,
+          internalSecret,
+          organizationId: employee.organization_id,
+          userId: modelUserId,
+          prompt,
+          temperature,
+        });
+        const modelResponse = await fetch(modelCall.url, modelCall.init);
+        const modelBody = await readJson(modelResponse) as { script?: unknown };
+        if (modelResponse.ok && typeof modelBody?.script === "string") return { kind: "ok", script: modelBody.script };
+        const detail = publicModelFailure(modelResponse.status, modelBody);
+        return { kind: "failed", detail: { status: detail.status, message: detail.message } };
+      };
+
+      const storyBriefRows = await loadScope("story_brief");
+      const storyBrief = storyBriefRows[0] ?? null;
+      const chosenCatalog = catalogChoice(storyBrief);
+      if (chosenCatalog.status === "missing") {
+        await closeSop4("failed", "brief_missing");
+        return json({ ok: false, error: "brief_missing", mode: "sop4", run_id: runId, model_calls: 0 }, 422);
+      }
+      if (chosenCatalog.status === "many") {
+        await closeSop4("failed", "catalog_limit");
+        return json({ ok: false, error: "catalog_limit", mode: "sop4", run_id: runId, model_calls: 0 }, 422);
+      }
+
+      const [pillarRows, catalogRows, thinkingRows, planRows, performanceRows] = await Promise.all([
+        loadScope("pillars"),
+        loadScope("catalog"),
+        loadScope("thinking"),
+        loadScope("plans", { from: today, to: today }),
+        loadScope("performance"),
+      ]);
+
+      const service = (catalogRows.find((row) => String(row.id ?? "") === chosenCatalog.id) ?? null) as {
+        id?: string;
+        name?: string;
+      } | null;
+      if (!service?.id) {
+        await closeSop4("failed", "brief_missing");
+        return json({ ok: false, error: "brief_missing", mode: "sop4", run_id: runId, model_calls: 0 }, 422);
+      }
+
+      const preferredPillars = new Set(
+        Array.isArray(storyBrief?.pillar_ids)
+          ? storyBrief.pillar_ids.filter((id: unknown) => typeof id === "string")
+          : [],
+      );
+      const pillars = preferredPillars.size > 0
+        ? pillarRows.filter((row) => preferredPillars.has(String(row.id ?? "")))
+        : pillarRows;
+      if (pillars.length === 0) {
+        await closeSop4("failed", "no_pillars");
+        return json({ ok: false, error: "no_pillars", mode: "sop4", run_id: runId, model_calls: 0 }, 422);
+      }
+
+      const angleIds = Array.isArray(storyBrief?.angle_ids)
+        ? storyBrief.angle_ids.filter((id: unknown): id is string => typeof id === "string" && isUuid(id))
+        : [];
+      let thinkingPool = thinkingRows;
+      if (angleIds.length > 0) {
+        const focused = thinkingRows.filter((row) => angleIds.includes(String(row.angle_id ?? "")));
+        if (focused.length > 0) thinkingPool = focused;
+      }
+      const idea = pickUnusedIdea(thinkingPool);
+      if (!idea) {
+        await closeSop4("failed", "ideas_blocked");
+        return json({ ok: false, error: "ideas_blocked", mode: "sop4", run_id: runId, model_calls: 0 }, 422);
+      }
+
+      const pillar = pillars[0] as { id?: string; name?: string; description?: string };
+      const dated = resolvePostDate({ today, requestedDate, modelDate: "", plans: planRows });
+      if (!dated.ok || !isDay(dated.postDate)) {
+        await closeSop4("failed", "invalid_date");
+        return json({ ok: false, error: "invalid_input", mode: "sop4", run_id: runId, model_calls: 0 }, 422);
+      }
+      const day = dated.postDate;
+      let avoid = "";
+      let draft: ReturnType<typeof readStoryDraftCandidate> = null;
+      let stop: "done" | "failed" | "quota" = "done";
+
+      for (let attempt = 0; attempt < MAX_DRAFT_ATTEMPTS; attempt += 1) {
+        if (remainingMs() < MIN_MODEL_REMAINING_MS) {
+          timeBudgetHit = true;
+          stop = "quota";
+          break;
+        }
+        const prompt = buildSop4Prompt({
+          day,
+          pillar,
+          storyBrief,
+          service: { id: String(service.id), name: String(service.name ?? "") },
+          idea,
+          thinking: thinkingPool,
+          plans: planRows,
+          performance: performanceRows,
+          avoid,
+        });
+        const temperature = attempt === 0 ? 0 : RETRY_TEMPERATURE;
+        const drafted = await modelScript(prompt, temperature);
+        if (drafted.kind === "quota") {
+          stop = "quota";
+          break;
+        }
+        if (drafted.kind !== "ok") {
+          stop = "failed";
+          break;
+        }
+        const candidate = readStoryDraftCandidate(drafted.script);
+        if (!candidate) {
+          avoid = "JSON Story tidak valid. Ikuti kunci yang diminta.";
+          continue;
+        }
+        candidate.content_pillar_id = String(pillar.id ?? "");
+        candidate.service_id = String(service.id);
+        candidate.post_date = day;
+        const diagnose = diagnoseStoryDraftDetail(candidate);
+        if (diagnose) {
+          avoid = diagnose;
+          continue;
+        }
+        draft = candidate;
+        break;
+      }
+
+      if (stop === "quota") {
+        await closeSop4("deferred", timeBudgetHit ? "time_budget" : "quota_exceeded");
+        return json({
+          ok: false,
+          mode: "sop4",
+          status: "deferred",
+          error: timeBudgetHit ? "time_budget" : "quota_exceeded",
+          run_id: runId,
+          model_calls: modelCalls,
+          plan_count: 0,
+          plan_ids: [],
+        });
+      }
+      if (stop === "failed" || !draft) {
+        await closeSop4("failed", "model_failed");
+        return json({
+          ok: false,
+          mode: "sop4",
+          status: "failed",
+          error: "model_failed",
+          run_id: runId,
+          model_calls: modelCalls,
+          plan_count: 0,
+          plan_ids: [],
+        });
+      }
+
+      if (dryRun) {
+        await closeSop4("succeeded", "dry_run");
+        return json({
+          ok: true,
+          mode: "sop4",
+          status: "succeeded",
+          dry_run: true,
+          run_id: runId,
+          model_calls: modelCalls,
+          plan_count: 1,
+          plan_ids: [],
+          drafts: [draft],
+        });
+      }
+
+      let verdict: ReturnType<typeof parseExecutionVerdict> = null;
+      for (let checkAttempt = 0; checkAttempt < 2; checkAttempt += 1) {
+        if (!draft) break;
+        if (remainingMs() < MIN_MODEL_REMAINING_MS) {
+          timeBudgetHit = true;
+          break;
+        }
+        const checked = await modelScript(buildStoryExecutionCheckPrompt({
+          day,
+          pillar,
+          idea,
+          draft,
+        }), 0);
+        if (checked.kind === "quota") {
+          await closeSop4("deferred", "quota_exceeded");
+          return json({
+            ok: false,
+            mode: "sop4",
+            status: "deferred",
+            error: "quota_exceeded",
+            run_id: runId,
+            model_calls: modelCalls,
+            plan_count: 0,
+            plan_ids: [],
+          });
+        }
+        if (checked.kind !== "ok") {
+          await closeSop4("failed", "model_failed");
+          return json({ ok: false, mode: "sop4", status: "failed", error: "model_failed", run_id: runId, model_calls: modelCalls }, 422);
+        }
+        verdict = parseExecutionVerdict(checked.script);
+        if (verdict?.ok) break;
+
+        const failNote = [
+          verdict?.check_id ? String(verdict.check_id) : "checks_failed",
+          ...(Array.isArray(verdict?.reasons) ? verdict.reasons : []),
+        ].filter(Boolean).join("; ").slice(0, 280);
+        if (checkAttempt >= 1 || remainingMs() < MIN_MODEL_REMAINING_MS) {
+          await closeSop4("failed", failNote || "checks_failed");
+          return json({
+            ok: false,
+            mode: "sop4",
+            status: "failed",
+            error: "checks_failed",
+            run_id: runId,
+            model_calls: modelCalls,
+            check_id: verdict?.check_id ?? null,
+            reasons: verdict?.reasons ?? [],
+          }, 422);
+        }
+
+        // One rewrite after check fail, then re-check (Story-specific prompt).
+        const rewritePrompt = buildSop4Prompt({
+          day,
+          pillar,
+          storyBrief,
+          service: { id: String(service.id), name: String(service.name ?? "") },
+          idea,
+          thinking: thinkingPool,
+          plans: planRows,
+          performance: performanceRows,
+          avoid: failNote || "Perbaiki draf agar lulus cek Story.",
+        });
+        const rewritten = await modelScript(rewritePrompt, RETRY_TEMPERATURE);
+        if (rewritten.kind !== "ok") {
+          await closeSop4("failed", failNote || "checks_failed");
+          return json({
+            ok: false,
+            mode: "sop4",
+            status: "failed",
+            error: "checks_failed",
+            run_id: runId,
+            model_calls: modelCalls,
+            check_id: verdict?.check_id ?? null,
+            reasons: verdict?.reasons ?? [],
+          }, 422);
+        }
+        const next = readStoryDraftCandidate(rewritten.script);
+        if (!next || diagnoseStoryDraftDetail(next)) {
+          await closeSop4("failed", failNote || "checks_failed");
+          return json({
+            ok: false,
+            mode: "sop4",
+            status: "failed",
+            error: "checks_failed",
+            run_id: runId,
+            model_calls: modelCalls,
+            check_id: verdict?.check_id ?? null,
+            reasons: verdict?.reasons ?? [],
+          }, 422);
+        }
+        next.content_pillar_id = String(pillar.id ?? "");
+        next.service_id = String(service.id);
+        next.post_date = day;
+        draft = next;
+      }
+
+      if (timeBudgetHit && !verdict?.ok) {
+        await closeSop4("deferred", "time_budget");
+        return json({
+          ok: false,
+          mode: "sop4",
+          status: "deferred",
+          error: "time_budget",
+          run_id: runId,
+          model_calls: modelCalls,
+          plan_count: 0,
+          plan_ids: [],
+        });
+      }
+      if (!verdict?.ok || !draft) {
+        await closeSop4("failed", "checks_failed");
+        return json({
+          ok: false,
+          mode: "sop4",
+          status: "failed",
+          error: "checks_failed",
+          run_id: runId,
+          model_calls: modelCalls,
+          check_id: verdict?.check_id ?? null,
+          reasons: verdict?.reasons ?? [],
+        }, 422);
+      }
+
+      const judged = await rpc("ai_employee_perform", {
+        p_employee_id: employeeId,
+        p_run_id: runId,
+        p_action: "thinking.execution.check",
+        p_payload: withJobClaim({
+          idea_id: String(idea.idea_id ?? idea.id ?? ""),
+          content_pillar_id: draft.content_pillar_id,
+          statement: verdict.statement,
+          checks: verdict.checks,
+          facts: verdict.facts,
+          script: verdict.script,
+        }, claimToken),
+      });
+      const accepted = judged.body && typeof judged.body === "object"
+        ? (judged.body as { accepted?: unknown; execution_id?: unknown })
+        : null;
+      const executionId = accepted?.execution_id;
+      if (judged.status < 200 || judged.status >= 300 || accepted?.accepted !== true || !isUuid(executionId)) {
+        await closeSop4("failed", "execution_failed");
+        return json({ ok: false, mode: "sop4", status: "failed", error: "execution_failed", run_id: runId, model_calls: modelCalls }, 422);
+      }
+
+      const palette = storyPalette(storyBrief);
+      const performed = await rpc("ai_employee_perform", {
+        p_employee_id: employeeId,
+        p_run_id: runId,
+        p_action: "thinking.plan.save",
+        p_payload: withJobClaim({
+          content_kind: "story",
+          title: draft.title,
+          post_date: draft.post_date,
+          caption: draft.caption,
+          concept: draft.concept,
+          visual: draft.visual,
+          headline: draft.headline,
+          content_pillar_id: draft.content_pillar_id,
+          service_id: draft.service_id,
+          headline_font: String(storyBrief?.headline_font ?? ""),
+          body_font: String(storyBrief?.body_font ?? ""),
+          ...(palette ? { palette } : {}),
+          idea_id: String(idea.idea_id ?? idea.id ?? ""),
+          execution_id: executionId,
+        }, claimToken),
+      });
+      const createdId = performed.body && typeof performed.body === "object"
+        ? (performed.body as { id?: unknown }).id
+        : null;
+      if (performed.status < 200 || performed.status >= 300 || !isUuid(createdId)) {
+        console.error(JSON.stringify({
+          event: "sop4_perform_failed",
+          run_id: runId,
+          status: performed.status,
+          body: performed.body,
+        }));
+        await closeSop4("failed", "perform_failed");
+        return json({ ok: false, mode: "sop4", status: "failed", error: "perform_failed", run_id: runId, model_calls: modelCalls }, 422);
+      }
+      planIds.push(String(createdId));
+      await closeSop4("succeeded", "ok");
+      return json({
+        ok: true,
+        mode: "sop4",
+        status: "succeeded",
+        run_id: runId,
+        model_calls: modelCalls,
+        plan_count: planIds.length,
+        plan_ids: planIds,
       });
     }
 

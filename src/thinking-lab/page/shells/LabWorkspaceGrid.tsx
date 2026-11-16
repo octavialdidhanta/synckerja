@@ -24,6 +24,7 @@ import {
 } from "@/thinking-lab/page/thinkingLabLayout";
 import { LabMasterComposer, LabMasterSavedList, LabMasterSectionArea } from "@/thinking-lab/page/shells/LabMasterColumn";
 import { MasterThoughtMapTree } from "@/thinking-lab/section/MasterThoughtMapTree";
+import { AngleFocusAccessory } from "@/thinking-lab/section/AngleFocusAccessory";
 import { LabNodeInspector } from "@/thinking-lab/section/LabNodeInspector";
 import { LockedPillarSection } from "@/thinking-lab/section/LockedPillarSection";
 import { ExecutionScriptPanel } from "@/thinking-lab/section/ExecutionScriptPanel";
@@ -113,6 +114,7 @@ export function LabWorkspaceGrid({
     setCreativeFormat,
     admittedTerritories,
     angleChecklists,
+    angleFocus,
   } = map;
   const {
     focusedExecution,
@@ -238,6 +240,7 @@ export function LabWorkspaceGrid({
                           ) : null}
                           {!showComposer ? (
                           <div className="flex min-h-0 flex-1 flex-col p-4">
+                          {angleFocus?.targetBar}
                           <MasterThoughtMapTree
                             masters={masters.data ?? []}
                             selectedId={selected?.id ?? null}
@@ -248,6 +251,22 @@ export function LabWorkspaceGrid({
                             inspectedIdeaId={focus?.kind === "idea" ? focus.ideaId : null}
                             inspectedPillarId={focus?.kind === "pillar" ? focus.contentPillarId : null}
                             inspectedExecutionId={focus?.kind === "execution" ? focus.executionId : null}
+                            focusedAngleIds={angleFocus?.selectedAngleIds}
+                            renderAngleFocusAccessory={
+                              angleFocus
+                                ? (angleId) => {
+                                    const status = angleFocus.angleFocusStatus(angleId);
+                                    return (
+                                      <AngleFocusAccessory
+                                        selected={status.selected}
+                                        disabled={status.disabled}
+                                        label={status.label}
+                                        onClick={() => angleFocus.onAngleFocusClick(angleId)}
+                                      />
+                                    );
+                                  }
+                                : undefined
+                            }
                             childrenByMasterId={(() => {
                               /** Full nested map so Expand all can open every level without focus-gating. */
                               const territoriesForThought = (thoughtId: string) =>

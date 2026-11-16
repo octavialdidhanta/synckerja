@@ -40,6 +40,7 @@ export function Pill({
   truncateTitle = false,
   mark,
   accessory,
+  trailingAccessory,
   onClick,
 }: {
   nodeId: string;
@@ -57,6 +58,8 @@ export function Pill({
   /** Ellipsize the title inside the shared node width. */
   truncateTitle?: boolean;
   accessory?: ReactNode;
+  /** Far-right control inside the pill (e.g. AI Employee Fokus angle). */
+  trailingAccessory?: ReactNode;
   onClick: () => void;
 }) {
   const { t } = useAppTranslation();
@@ -87,9 +90,10 @@ export function Pill({
         aria-label={title.trim() || levelText}
         aria-current={selected ? "true" : undefined}
         className={cn(
-          "items-stretch rounded-[4px] px-2 py-0.5 text-left text-xs font-medium",
+          "items-stretch rounded-[4px] px-2 py-0.5 text-left text-xs font-medium select-none",
           tone === "master" ? "max-w-[22rem] whitespace-normal" : "whitespace-nowrap",
           accessory && "pl-6",
+          trailingAccessory && (count > 0 ? "pr-7" : "pr-6"),
           truncateTitle ? "flex w-full min-w-0 overflow-hidden" : stretch ? "flex w-full" : "inline-flex w-max",
           solid ? SOLID[tone] : cn("gap-1.5 pl-1", ACCENT[tone]),
           tone === "bigThought" && selected && "border-[#16365c] bg-[#1e4a86]",
@@ -117,6 +121,16 @@ export function Pill({
         ) : null}
       </button>
       {accessory ? <div className="absolute left-0.5 top-1/2 z-10 -translate-y-1/2">{accessory}</div> : null}
+      {trailingAccessory ? (
+        <div
+          className={cn(
+            "absolute top-1/2 z-10 -translate-y-1/2",
+            count > 0 ? "right-3" : "right-0.5",
+          )}
+        >
+          {trailingAccessory}
+        </div>
+      ) : null}
       {count > 0 ? (
         <span
           className="absolute -right-2.5 top-1/2 flex h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white px-1 text-[10px] font-semibold text-slate-600 shadow-sm"

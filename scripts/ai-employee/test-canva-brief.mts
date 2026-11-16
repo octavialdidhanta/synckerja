@@ -41,7 +41,7 @@ test("brief canva memisahkan layout, hex, logo, judul, dan teks kecil", () => {
   assert.match(locked, /secondary #445566/);
   assert.match(locked, /accent #778899/);
   assert.doesNotMatch(locked, /text color/i);
-  assert.match(locked, /Leave the top center of every page empty\./);
+  assert.match(locked, /Leave the top center of the last page empty for the company logo\./);
   assert.match(locked, /Headline \(biggest text\): Visi\nSmall text: Sibuk merencanakan\./);
 
   const plain = buildCanvaCarouselBrief({

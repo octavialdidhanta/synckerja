@@ -3,6 +3,7 @@ import {
   pickPlatformScheduleForModal,
   type ScheduleRow,
 } from "./pickPlatformScheduleServer.ts";
+import { calendarDayYmd } from "./syncPlanPostMetadata.ts";
 
 export type RequiredPlatformRow = {
   id?: string;
@@ -170,7 +171,7 @@ export function derivePlanPostMetadata(
     const earliest = dates.length > 0
       ? dates.sort()[0]
       : new Date().toISOString();
-    const actualDate = earliest.split("T")[0];
+    const actualDate = calendarDayYmd(earliest) ?? earliest.slice(0, 10);
     return {
       actual_post_date: actualDate,
       on_time_status: calculateOnTimeStatus(actualDate, postDateIso) || ON_TIME_IN_PROGRESS,
@@ -192,7 +193,7 @@ export function derivePlanPostMetadata(
     const latestIso = completionDates.length > 0
       ? completionDates.sort().at(-1)!
       : new Date().toISOString();
-    const actualDate = latestIso.split("T")[0];
+    const actualDate = calendarDayYmd(latestIso) ?? latestIso.slice(0, 10);
     return {
       actual_post_date: actualDate,
       on_time_status: calculateOnTimeStatus(actualDate, postDateIso) || ON_TIME_IN_PROGRESS,

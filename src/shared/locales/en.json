@@ -1973,5 +1973,50 @@
       "paneDetail": "Detail",
       "paneSwitchAria": "List or detail"
     }
+  },
+  "aiEmployee": {
+    "story": {
+      "title": "Story plans",
+      "generating": "Creating Story...",
+      "plansEmpty": "No Story plans this month.",
+      "plansEmptyHint": "Fill the Design Story brief, then Generate now.",
+      "plansLoadFailed": "Failed to load Story plans",
+      "plansLoading": "Loading Story plans…",
+      "review": "Review",
+      "publish": "Publish",
+      "openCanva": "Open in Canva",
+      "refreshCanva": "Refresh from Canva",
+      "startCanva": "Create in Canva",
+      "prodApproved": "Approved",
+      "prodRevision": "Request Revision",
+      "prodNeedReview": "Need Review",
+      "reviewTitle": "Review Story",
+      "reviewDesc": "Review production design (not content re-approval). After Approve, continue to Story Publish Setup.",
+      "reviewReadyPublish": "Ready to publish to Instagram Stories.",
+      "publishTitle": "Story Publish Setup",
+      "publishDesc": "Post Instagram Story (Meta STORIES). Caption is not sent — text is already in the design.",
+      "canvaQueued": "Canva Story queued",
+      "canvaRefreshQueued": "Refreshing from Canva",
+      "canvaOpen": "Open Canva design",
+      "canvaWorking": "Canva is creating Story",
+      "canvaRefreshing": "Canva is refreshing Story",
+      "canvaBriefMissing": "Canva blocked: Story brief incomplete",
+      "canvaNotConnected": "Canva is not connected",
+      "canvaToolMissing": "Canva design tools missing",
+      "canvaNotApproved": "Approval changed before design was created",
+      "canvaNotStory": "Not a Story plan",
+      "canvaCreditQuota": "Canva failed: AI credit quota / cooldown — open Canva Billing",
+      "canvaFailedDetail": "Canva failed: {{detail}}",
+      "canvaFailed": "Canva failed to create Story design"
+    },
+    "log": {
+      "reason": {
+        "storyDone": "Story created",
+        "storyEmpty": "No new Story"
+      }
+    },
+    "index": {
+      "bookCarousel": "Design Carousel"
+    }
   }
 }

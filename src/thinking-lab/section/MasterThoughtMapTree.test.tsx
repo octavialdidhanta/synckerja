@@ -1,4 +1,4 @@
-﻿import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MasterThoughtMapTree, mapLinkPath, panToCenter, settleCurves, type MasterMapChild } from "@/thinking-lab/section/MasterThoughtMapTree";
 import type { LabMasterThought, MasterThoughtFacts } from "@/thinking-lab/master-thought/types";
@@ -161,6 +161,77 @@ describe("MasterThoughtMapTree pills", () => {
     expect(screen.queryByRole("button", { name: /Mantan anak motor/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Letter to Younger Self" })).toBeNull();
     expect(screen.getByRole("button", { name: "Uang muda lebih baik ditabung" })).toBeTruthy();
+  });
+
+  it("expands only angles with Fokus robot active", () => {
+    render(
+      <MasterThoughtMapTree
+        masters={[master("m1", "Uang muda lebih baik ditabung")]}
+        selectedId="m1"
+        inspectedMasterId="m1"
+        inspectedThoughtId={null}
+        inspectedTerritoryId={null}
+        inspectedAngleId={null}
+        inspectedIdeaId={null}
+        focusedAngleIds={new Set(["a1"])}
+        childrenByMasterId={
+          new Map([
+            [
+              "m1",
+              [
+                {
+                  id: "bt1",
+                  code: "BT01",
+                  label: "Keinginan",
+                  statement: "Alasan",
+                  childCount: 1,
+                  territories: [
+                    {
+                      id: "t1",
+                      code: "TR01",
+                      statement: "Mantan anak motor",
+                      childCount: 2,
+                      angles: [
+                        {
+                          id: "a1",
+                          code: "AN01",
+                          statement: "Motor aktif",
+                          subject: "Motor aktif",
+                          childCount: 1,
+                          ideas: [{ id: "i1", code: "ID01", statement: "Idea Fokus", recommended: true }],
+                        },
+                        {
+                          id: "a2",
+                          code: "AN02",
+                          statement: "Motor lain",
+                          subject: "Motor lain",
+                          childCount: 1,
+                          ideas: [{ id: "i2", code: "ID02", statement: "Idea Non Fokus", recommended: false }],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            ],
+          ])
+        }
+        onSelect={vi.fn()}
+        onSelectChild={vi.fn()}
+        onSelectTerritory={vi.fn()}
+        onSelectAngle={vi.fn()}
+        onSelectIdea={vi.fn()}
+        onRequestEdit={vi.fn()}
+        onRequestDelete={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand Fokus" }));
+    expect(screen.getByRole("button", { name: /Motor aktif/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Idea Fokus/ })).toBeTruthy();
+    // Sibling angle under the same territory can appear collapsed; its ideas stay closed.
+    expect(screen.getByRole("button", { name: /Motor lain/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Idea Non Fokus/ })).toBeNull();
   });
 
   it("stars an Idea whose cause is locked", () => {

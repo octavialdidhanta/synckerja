@@ -35,6 +35,8 @@ import {
   GOOGLE_PICKER_HOST_OPEN_EVENT,
   isGooglePickerHostSessionActive,
 } from '@/shared/lib/googleDrivePicker';
+import { triggerPlanAutoSchedule } from '@/6-1-scheduled-posts/lib/triggerPlanAutoSchedule';
+import { presentCanvaCreditQuota } from '@/canva/canvaCreditQuota';
 
 const CAROUSEL_MAX_IMAGES = 10;
 
@@ -611,7 +613,6 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
     }
     
     try {
-      const { supabase } = await import('@/shared/lib/supabaseClient');
       const approvedDate = new Date().toISOString();
       const { error } = await supabase
         .from('social_media_plans')
@@ -692,12 +693,13 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
     if (!canvaRefreshWatch || !socialMediaPlanId) return;
     let stopped = false;
     let sawWorking = false;
-    const finish = async (replaced: boolean) => {
+    const finish = async (replaced: boolean, canvaError?: string | null) => {
       if (stopped) return;
       stopped = true;
       setRefreshingFromCanva(false);
       await queryClient.invalidateQueries({ queryKey: ['canva-carousel-runs'] });
       if (!replaced) {
+        if (presentCanvaCreditQuota(canvaError)) return;
         toast.error('Gambar dari Canva belum terganti. Gambar yang lama tetap ada.');
         return;
       }
@@ -709,18 +711,27 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
         p_plan_ids: [socialMediaPlanId],
       });
       if (stopped || error || !Array.isArray(data) || data.length === 0) return;
-      const row = data[0] as { images_ready?: boolean; refresh_requested?: boolean; error?: string | null };
+      const row = data[0] as {
+        status?: string;
+        images_ready?: boolean;
+        refresh_requested?: boolean;
+        error?: string | null;
+      };
+      if (row.status === 'failed') {
+        await finish(false, row.error);
+        return;
+      }
       const working = row.refresh_requested === true && row.images_ready !== true;
       if (working) {
         sawWorking = true;
         return;
       }
       if (row.refresh_requested === true) {
-        await finish(false);
+        await finish(false, row.error);
         return;
       }
       if (!sawWorking && row.images_ready !== true) return;
-      await finish(!row.error);
+      await finish(!row.error, row.error);
     };
     void tick();
     const timer = window.setInterval(() => {

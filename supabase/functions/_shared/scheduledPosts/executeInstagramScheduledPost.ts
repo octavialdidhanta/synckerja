@@ -30,6 +30,8 @@ import { touchPublishingHeartbeat } from "./publishingHeartbeat.ts";
 import { resolveVideoBytesForUpload, type SharedPublishContext } from "./sharedPublishContext.ts";
 import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 import type { InstagramProviderConfig, ScheduledPostRow } from "./scheduledPostTypes.ts";
+import { isStoryContentType } from "./storyPublishEligibility.ts";
+import { executeInstagramStoryScheduledPost } from "./executeInstagramStoryScheduledPost.ts";
 
 const INSTAGRAM_PUBLISH_SCOPES = ["instagram_content_publish"] as const;
 
@@ -351,6 +353,9 @@ export async function executeInstagramScheduledPost(
 ): Promise<{ published_url: string; external_post_id: string | null }> {
   const plan = await loadPlan(admin, schedule.social_media_plan_id);
   if (!plan) throw new Error("plan_not_found");
+  if (isStoryContentType(plan.content_type?.name)) {
+    return executeInstagramStoryScheduledPost(admin, schedule);
+  }
   if (isCarouselContentType(plan.content_type?.name)) {
     return executeInstagramCarouselScheduledPost(admin, schedule, plan);
   }

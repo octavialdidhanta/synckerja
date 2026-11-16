@@ -1,4 +1,4 @@
-import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import type { Dispatch, MutableRefObject, ReactNode, SetStateAction } from "react";
 import type { MasterCatalogLink } from "@/thinking-lab/master-thought/catalog";
 import type { LabFocus } from "@/thinking-lab/page/labFocus";
 import type { LabMasterThought } from "@/thinking-lab/master-thought/types";
@@ -181,6 +181,13 @@ export type LabWorkspaceGridMapSlice = {
   setCreativeFormat: (format: CreativeFormat | null) => void;
   admittedTerritories: LabTerritory[];
   angleChecklists: Record<string, { checks: AnglePassCheck[]; note?: string }>;
+  angleFocus?: {
+    selectedAngleIds: ReadonlySet<string>;
+    saving: boolean;
+    angleFocusStatus: (angleId: string) => { selected: boolean; disabled: boolean; label: string };
+    onAngleFocusClick: (angleId: string) => void;
+    targetBar: ReactNode;
+  };
 };
 
 export type LabWorkspaceGridExecutionSlice = {

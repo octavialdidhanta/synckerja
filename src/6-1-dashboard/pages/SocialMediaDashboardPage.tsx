@@ -38,6 +38,7 @@ import {
   getGoogleDriveLinkNonEmptyUpdates,
   getProductionResubmitAfterRevisionUpdates,
 } from '../utils/googleDriveLinkSavePolicy';
+import { calculateOnTimeStatus, calendarDayYmd } from '@/6-1-scheduled-posts/lib/onTimeStatus';
 
 // Import optimized hooks
 import { useSocialMediaData, useSocialMediaMutations } from "../hook/useOptimizedSocialMediaState";
@@ -470,49 +471,9 @@ const SocialMediaContent = () => {
     }
     // else: show all plans (default behavior)
 
-    // Helper function to extract date string from date value (robust parsing)
+    // Calendar day in Asia/Jakarta (date-only strings kept as-is).
     const getDateString = (dateValue: string | Date | null | undefined): string | null => {
-      if (!dateValue) return null;
-      
-      try {
-        if (typeof dateValue === 'string') {
-          // If already in YYYY-MM-DD format, return as is
-          if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
-            return dateValue;
-          }
-          // If contains 'T', split and take date part
-          if (dateValue.includes('T')) {
-            return dateValue.split('T')[0];
-          }
-          // If contains space, split and take date part (format: "YYYY-MM-DD HH:mm:ss")
-          if (dateValue.includes(' ')) {
-            return dateValue.split(' ')[0];
-          }
-          // Otherwise, try to parse it
-          const date = new Date(dateValue);
-          if (!isNaN(date.getTime())) {
-            // Use local date to avoid timezone issues
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-          }
-        }
-        
-        if (dateValue instanceof Date) {
-          if (!isNaN(dateValue.getTime())) {
-            // Use local date to avoid timezone issues
-            const year = dateValue.getFullYear();
-            const month = String(dateValue.getMonth() + 1).padStart(2, '0');
-            const day = String(dateValue.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-          }
-        }
-      } catch (e) {
-        // Silently fail and return null
-      }
-      
-      return null;
+      return calendarDayYmd(dateValue);
     };
 
     // Daily total: content with post_date on selected day (same basis as main table POST DATE column)
@@ -528,31 +489,6 @@ const SocialMediaContent = () => {
       return postDate.getMonth() === currentMonth &&
              postDate.getFullYear() === currentYear;
     });
-
-    // Helper function to calculate on-time status (same logic as ContentPlanRow)
-    const calculateOnTimeStatus = (actualPostDate: string | null, postDate: string) => {
-      if (!actualPostDate || !postDate) return '';
-      
-      try {
-        const actual = new Date(actualPostDate);
-        const planned = new Date(postDate);
-        
-        if (isNaN(actual.getTime()) || isNaN(planned.getTime())) {
-          return '';
-        }
-        
-        const diffTime = actual.getTime() - planned.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        if (diffDays <= 0) {
-          return 'Ontime';
-        } else {
-          return `Late ${diffDays} Day${diffDays > 1 ? 's' : ''}`;
-        }
-      } catch (error) {
-        return '';
-      }
-    };
 
     // Helper function to check if content is not completed based on tab
     const isNotCompleted = (plan: any) => {
@@ -580,32 +516,11 @@ const SocialMediaContent = () => {
       if (!plan.post_date) return '';
 
       const stored = String(plan.on_time_status ?? '').trim();
-      if (stored === 'In Progress' || stored === 'Scheduled') return stored;
-      if (!plan.actual_post_date) return stored;
-
-      if (stored === 'Ontime' || stored.includes('Late')) return stored;
-
-      const actualPostDate = getActualPostDateForPlan(plan);
-      if (!actualPostDate) return stored;
-
-      try {
-        const actual = new Date(actualPostDate);
-        const planned = new Date(plan.post_date);
-
-        if (isNaN(actual.getTime()) || isNaN(planned.getTime())) {
-          return '';
-        }
-
-        const diffTime = actual.getTime() - planned.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays <= 0) {
-          return 'Ontime';
-        }
-        return `Late ${diffDays} Day${diffDays > 1 ? 's' : ''}`;
-      } catch {
-        return '';
+      if (plan.actual_post_date) {
+        return calculateOnTimeStatus(plan.actual_post_date, plan.post_date) || stored;
       }
+      if (stored === 'In Progress' || stored === 'Scheduled') return stored;
+      return stored;
     };
 
     // Helper function to check if content is late using On Time Status calculation

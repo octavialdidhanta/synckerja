@@ -675,7 +675,6 @@ export type McpReadDeps = {
       productKnowledgeIds: string[];
       angleIds?: string[];
       repeatVoices?: string[];
-      splitRule: string;
     },
   ) => Promise<unknown>;
   listProductKnowledge: (
@@ -1603,7 +1602,6 @@ async function runTool(
                 .slice(0, 3),
             }
           : {}),
-        splitRule: typeof args.split_rule === "string" ? args.split_rule : "",
       });
     case "product_knowledge.list":
       return deps.listProductKnowledge(ctx, {

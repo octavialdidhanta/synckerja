@@ -1,0 +1,39 @@
+---
+description: Kode, file, dan folder harus rapi, terpisah per fitur, mudah di-maintain dan diaudit — jangan campur jalur yang sudah hidup.
+alwaysApply: true
+---
+
+# Code Organization & Maintainability
+
+Setiap penulisan kode, penamaan file/folder, dan penempatan modul harus memudahkan maintenance dan audit. Prefer perubahan kecil yang jelas daripada refactor besar tanpa perlu.
+
+## Folder & file
+
+- Satu concern per file; pecah bila file sulit diaudit atau mencampur dua fitur.
+- Fitur baru yang “mirror” fitur lama: **copy ke file/folder terpisah**, lalu sesuaikan — jangan branch-in panjang ke pipeline yang sudah terbukti (contoh: Story terpisah dari Carousel).
+- Nama file/folder: jelas, konsisten dengan tetangga, mencerminkan domain (`*Story*`, `*Carousel*`, `*Brief*`), bukan generik (`utils2`, `helpersNew`, `temp`).
+- Colocate yang sering berubah bersama (komponen + hook + parse tipenya); shared lintas modul hanya jika benar-benar dipakai >1 domain.
+- Migrasi SQL: satu topik per file, nama timestamp + ringkas; jangan menempelkan perubahan tak terkait.
+
+## Kode
+
+- Fungsi/komponen: satu tanggung jawab; hindari “god file” yang menambah cabang fitur baru di tengah alur lama.
+- Duplikasi kecil yang terisolasi lebih aman daripada abstraksi premature yang mengikat dua jalur produk.
+- Jangan ubah perilaku jalur produksi yang tidak terkait task (publish lock, SOP1, Canva carousel) demi fitur baru.
+- Konstanta, kode SOP, dan label produk harus selaras antar UI / RPC / edge — sebutkan bila ada risiko drift.
+- Komentar hanya untuk intent non-obvious atau batas aman (“jangan klaim cron di sini”); jangan komentar yang mengulang kode.
+
+## Audit checklist (sebelum anggap selesai)
+
+- [ ] Reviewer bisa menebak lokasi fitur dari nama folder/file saja.
+- [ ] Diff tidak mencampur cleanup acak dengan fitur baru.
+- [ ] Jalur lama yang tidak terkait tetap utuh (tidak ikut berubah “sekalian”).
+- [ ] Tidak ada file mati, nama sementara, atau TODO mengambang tanpa pemilik di diff yang sama.
+- [ ] Kalau mirror: jelas mana file Story vs Carousel (atau domain A vs B).
+
+## Anti-pola
+
+- Menambah `if (isStory)` di seluruh pipeline carousel/publish yang sudah di-lock.
+- Meletakkan logic domain di `App.tsx`, barrel raksasa, atau shared “catch-all”.
+- Rename massal / pindah folder di luar scope task.
+- File `*Copy*`, `*Old*`, `*Backup*` di tree utama.

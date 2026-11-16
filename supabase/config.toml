@@ -205,6 +205,9 @@ verify_jwt = false
 [functions.canva-carousel-run]
 verify_jwt = false
 
+[functions.canva-story-run]
+verify_jwt = false
+
 # Meta Ads per-tenant: user JWT validated inside; OAuth callback has no JWT.
 [functions.meta-ads-upload-conversion]
 verify_jwt = false
@@ -281,6 +284,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.social-media-scheduler]
+verify_jwt = false
+
+# Design Story IG STORIES — separate from meta-content-publish (carousel/Reel lock).
+[functions.meta-story-publish]
 verify_jwt = false
 
 [functions.social-media-plan-publish]

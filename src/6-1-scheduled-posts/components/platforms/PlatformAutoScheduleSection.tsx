@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { useOrgDefaultPostTime } from '../../hooks/useOrgDefaultPostTime';
 import { resolveScheduledAtUtc, formatTimeWibFromUtc } from '../../lib/resolveScheduledAtUtc';
+import { calendarDayYmd } from '../../lib/onTimeStatus';
 import { ScheduleStatusBadge } from '../ScheduleStatusBadge';
 import type { ScheduledPost } from '../../types/scheduled-post';
 import { GoogleDriveFilePreview } from '@/6-1-dashboard/modal/GoogleDriveInAppFilePreview';
@@ -128,7 +129,7 @@ export function PlatformAutoScheduleSection({
 
   const selectedAccount = accounts.find((a) => a.id === accountId);
   const publishScopesOk = selectedAccount?.publishScopesOk !== false;
-  const postDateYmd = postDate?.slice(0, 10) ?? '';
+  const postDateYmd = calendarDayYmd(postDate) ?? '';
   const driveLink = googleDriveLink?.trim() ?? '';
   const driveValidation = useMemo(() => validateGoogleDriveVideoLink(driveLink), [driveLink]);
   const isBusy = scheduleMutation.isPending || postNowMutation.isPending || cancelMutation.isPending;

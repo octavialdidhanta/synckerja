@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -103,6 +103,10 @@ type MasterThoughtMapTreeProps = {
   territoryGenerateThoughtId?: string | null;
   territoryGeneratePending?: boolean;
   onGenerateTerritory?: (thoughtId: string) => void;
+  /** AI Employee Fokus angle control on Angle pills. */
+  renderAngleFocusAccessory?: (angleId: string) => ReactNode;
+  /** Angle ids with robot Fokus active — used by Expand Fokus. */
+  focusedAngleIds?: ReadonlySet<string>;
 };
 
 export function MasterThoughtMapTree({
@@ -129,11 +133,13 @@ export function MasterThoughtMapTree({
   territoryGenerateThoughtId = null,
   territoryGeneratePending = false,
   onGenerateTerritory,
+  renderAngleFocusAccessory,
+  focusedAngleIds,
 }: MasterThoughtMapTreeProps) {
   const { t } = useAppTranslation();
   const canvasRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ x: number; y: number; originX: number; originY: number } | null>(null);
+  const dragRef = useRef<{ x: number; y: number; originX: number; originY: number; fromNode: boolean } | null>(null);
   const movedRef = useRef(false);
   const centerRequest = useRef<string | null>(null);
   const centerOrigin = useRef<{
@@ -322,15 +328,37 @@ export function MasterThoughtMapTree({
     return () => viewport.removeEventListener("wheel", onWheel);
   }, [masters.length]);
 
+  const endPan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    dragRef.current = null;
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!(event.target instanceof Element) || event.target.closest("button, a, [role='menuitem']")) return;
+    if (event.button !== 0) return;
+    if (!(event.target instanceof Element)) return;
+    // Menus / links / explicit map controls stay clickable; node pills may start a pan.
+    if (event.target.closest("a, [role='menuitem'], [data-map-control]")) return;
+    const onNode = Boolean(event.target.closest("[data-map-node]"));
+    const onButton = event.target.closest("button");
+    if (onButton && !onNode) return;
+    // Empty canvas: block native selection immediately. On a node, wait until real drag
+    // so a plain click can still open/inspect the pill.
+    if (!onNode) event.preventDefault();
     const live = canvasRef.current ? readMapTranslation(canvasRef.current) : null;
     stopCentering();
     const originX = live?.x ?? view.x;
     const originY = live?.y ?? view.y;
     if (live) setView((current) => ({ ...current, x: originX, y: originY }));
-    dragRef.current = { x: event.clientX, y: event.clientY, originX, originY };
+    dragRef.current = { x: event.clientX, y: event.clientY, originX, originY, fromNode: onNode };
     movedRef.current = false;
+    // Capture empty-pane pans immediately; node pans capture after the move threshold.
+    if (!onNode) event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -340,14 +368,15 @@ export function MasterThoughtMapTree({
     const dy = event.clientY - drag.y;
     if (Math.hypot(dx, dy) <= 4) return;
     movedRef.current = true;
+    event.preventDefault();
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.setPointerCapture(event.pointerId);
     }
     setView((current) => ({ ...current, x: drag.originX + dx, y: drag.originY + dy }));
   };
 
-  const onPointerUp = () => {
-    dragRef.current = null;
+  const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    endPan(event);
   };
 
   if (masters.length === 0) return null;
@@ -454,6 +483,51 @@ export function MasterThoughtMapTree({
     return { master: true, thoughts, territories, angles, ideas };
   };
 
+  const expandFocusedBranches = (): OpenBranches => {
+    const active = focusedAngleIds ?? new Set<string>();
+    const thoughts = new Set<string>();
+    const territories = new Set<string>();
+    const angles = new Set<string>();
+    const ideas = new Set<string>();
+    if (active.size === 0) return freshBranches();
+    for (const child of children) {
+      for (const territory of child.territories ?? []) {
+        for (const angle of territory.angles ?? []) {
+          if (!active.has(angle.id)) continue;
+          thoughts.add(child.id);
+          territories.add(territory.id);
+          angles.add(angle.id);
+          for (const idea of angle.ideas ?? []) {
+            const below =
+              (idea.pillars?.length ?? 0) > 0 || (idea.executions?.length ?? 0) > 0 || (idea.childCount ?? 0) > 0;
+            if (below) ideas.add(idea.id);
+          }
+        }
+      }
+    }
+    return {
+      master: thoughts.size > 0,
+      thoughts,
+      territories,
+      angles,
+      ideas,
+    };
+  };
+
+  const focusedExpandCount = (() => {
+    const active = focusedAngleIds ?? new Set<string>();
+    if (active.size === 0) return 0;
+    let count = 0;
+    for (const child of children) {
+      for (const territory of child.territories ?? []) {
+        for (const angle of territory.angles ?? []) {
+          if (active.has(angle.id)) count += 1;
+        }
+      }
+    }
+    return count;
+  })();
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       {selected ? (
@@ -464,6 +538,7 @@ export function MasterThoughtMapTree({
             variant="outline"
             className="h-7 rounded-md bg-background/95 px-2 text-xs shadow-sm"
             disabled={children.length === 0}
+            data-map-control=""
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
@@ -478,6 +553,34 @@ export function MasterThoughtMapTree({
             size="sm"
             variant="outline"
             className="h-7 rounded-md bg-background/95 px-2 text-xs shadow-sm"
+            disabled={focusedExpandCount === 0}
+            title={
+              focusedExpandCount === 0
+                ? t(
+                    "thinkingLab.tree.expandFocusedEmpty",
+                    "Belum ada angle dengan robot Fokus aktif di map ini",
+                  )
+                : t(
+                    "thinkingLab.tree.expandFocusedHint",
+                    "Buka hanya angle yang robot Fokus-nya aktif",
+                  )
+            }
+            data-map-control=""
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              stopCentering();
+              setExpanded(expandFocusedBranches());
+            }}
+          >
+            {t("thinkingLab.tree.expandFocused", "Expand Fokus")}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 rounded-md bg-background/95 px-2 text-xs shadow-sm"
+            data-map-control=""
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
@@ -491,11 +594,12 @@ export function MasterThoughtMapTree({
       ) : null}
       <div
         ref={viewportRef}
-        className="relative min-h-[16rem] flex-1 cursor-grab touch-none overflow-hidden active:cursor-grabbing"
+        className="relative min-h-[16rem] flex-1 cursor-grab touch-none select-none overflow-hidden selection:bg-transparent active:cursor-grabbing"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onLostPointerCapture={onPointerUp}
         onClickCapture={(event) => {
           if (!movedRef.current) return;
           event.preventDefault();
@@ -506,7 +610,7 @@ export function MasterThoughtMapTree({
         <div
           ref={canvasRef}
           data-map-canvas=""
-          className="relative w-max"
+          className="relative w-max select-none selection:bg-transparent"
           style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`, transformOrigin: "0 0" }}
         >
           <MapCurves canvasRef={canvasRef} links={links} layoutEpoch={`${measureNonce}|${view.x}|${view.y}|${view.scale}`} />
@@ -708,6 +812,7 @@ export function MasterThoughtMapTree({
                                               fullTitle={angle.statement}
                                               selected={inspectedAngleId === angle.id}
                                               childCount={angle.childCount}
+                                              trailingAccessory={renderAngleFocusAccessory?.(angle.id)}
                                               onClick={() => {
                                                 const already = inspectedAngleId === angle.id;
                                                 setExpanded((current) => {

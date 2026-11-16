@@ -254,9 +254,10 @@ export const aiEmployeeBriefUpdateInput = aiEmployeeNameInput.extend({
   forbidden_notes: z.string().max(2000),
   pillar_ids: z.array(briefId).max(12),
   product_knowledge_ids: z.array(briefId).max(12),
-  angle_ids: z.array(briefId).max(3).optional(),
+  angle_ids: z.array(briefId).max(6).optional(),
   repeat_voices: z.array(z.string().trim().min(1).max(500)).max(3).optional(),
-  split_rule: z.string().max(1000),
+  /** Ignored zombie; accepted for older clients then cleared on write. */
+  split_rule: z.string().max(1000).optional(),
 }).strict();
 
 export const productKnowledgeListInput = z.object({
@@ -277,5 +278,4 @@ export type AiEmployeeBriefInput = {
   productKnowledgeIds: string[];
   angleIds?: string[];
   repeatVoices?: string[];
-  splitRule: string;
 };

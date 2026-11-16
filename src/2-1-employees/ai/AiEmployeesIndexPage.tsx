@@ -28,8 +28,21 @@ export default function AiEmployeesIndexPage() {
   const pending = orgLoading || userLoading || (Boolean(organizationId) && (employeesQuery.isLoading || catalogsQuery.isLoading));
   const unassignedLabel = t("aiEmployee.index.unassigned", "Umum");
   const noRoleLabel = t("aiEmployee.index.noRole", "Belum ada jabatan");
+  const contentPlanJobDesc = t("aiEmployee.work.weeklyPlan", "Content Plan Carousel");
+  const reportJobDesc = t("aiEmployee.routine.title", "Laporan email");
+  const designStoryJobDesc = t("aiEmployee.work.designStory", "Design Story");
+  const bookCarousel = t("aiEmployee.index.bookCarousel", "Design Carousel");
+  const bookReport = t("aiEmployee.index.bookReport", "Report");
+  const bookDesignStory = t("aiEmployee.index.bookDesignStory", "Design Story");
   const noCatalogLabel = t("aiEmployee.index.noCatalog", "Belum ada katalog");
   const catalogErrorLabel = t("aiEmployee.index.catalogError", "Katalog belum termuat");
+  const contentPlannerJobDesc = useMemo(
+    () => ({
+      line: [contentPlanJobDesc, reportJobDesc, designStoryJobDesc].filter(Boolean).join(" · "),
+      books: [bookCarousel, bookReport, bookDesignStory].filter(Boolean),
+    }),
+    [bookCarousel, bookDesignStory, bookReport, contentPlanJobDesc, designStoryJobDesc, reportJobDesc],
+  );
   const aiEmployees = useMemo(
     () => (employeesQuery.data ?? []).filter((employee) => employee.is_ai),
     [employeesQuery.data],
@@ -92,6 +105,7 @@ export default function AiEmployeesIndexPage() {
                       <OfficeWorkspace
                         bays={bays}
                         noRoleLabel={noRoleLabel}
+                        jobDescFor={() => contentPlannerJobDesc}
                         catalogLabelFor={(employeeId) => {
                           if (catalogsQuery.isError) return catalogErrorLabel;
                           const catalogName = catalogsQuery.data?.get(employeeId);

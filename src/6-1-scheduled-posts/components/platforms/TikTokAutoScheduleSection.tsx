@@ -23,6 +23,7 @@ import {
 } from '../../hooks/useScheduledPostsByPlan';
 import { useOrgDefaultPostTime } from '../../hooks/useOrgDefaultPostTime';
 import { resolveScheduledAtUtc, formatTimeWibFromUtc } from '../../lib/resolveScheduledAtUtc';
+import { calendarDayYmd } from '../../lib/onTimeStatus';
 import { ScheduleStatusBadge } from '../ScheduleStatusBadge';
 import type { ScheduledPost } from '../../types/scheduled-post';
 import { GoogleDriveFilePreview } from '@/6-1-dashboard/modal/GoogleDriveInAppFilePreview';

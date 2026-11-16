@@ -1,8 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { GeminiSpendCapError, presentGeminiSpendCap } from "@/shared/ai/geminiSpendCap";
 import { supabase } from "@/shared/lib/supabaseClient";
+import { aiEmployeePageQueryKey, briefPayloadFromDraft } from "./briefAngleFocus";
 import { classifyAiEmployeeError, parseAiEmployeePage, type AiEmployeeFailure } from "./parse";
+import { storyBriefPayloadFromDraft } from "./storyBriefPayload";
+import type { StoryBriefDraft } from "./storyBriefTypes";
 import type { AiEmployeePageData, BriefDraft, RoutineRow, ScheduleRow } from "./types";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -12,7 +16,7 @@ export function isEmployeeUuid(value: string | undefined): value is string {
 }
 
 function pageKey(organizationId: string | null, employeeId: string | undefined) {
-  return ["ai-employee-page", organizationId, employeeId] as const;
+  return aiEmployeePageQueryKey(organizationId, employeeId);
 }
 
 async function readPage(employeeId: string): Promise<AiEmployeePageData> {
@@ -57,22 +61,56 @@ export function useAiEmployeePage(employeeId: string | undefined) {
     if (!isEmployeeUuid(employeeId)) throw new Error("not_found");
     const { error } = await supabase.rpc("ai_employee_page_brief_save", {
       p_employee_id: employeeId,
-      p_brief: {
-        service_ids: draft.serviceIds,
-        audience: draft.audience,
-        persona_ids: draft.personaIds,
-        voice: draft.voice,
-        required_notes: draft.requiredNotes,
-        forbidden_notes: draft.forbiddenNotes,
-        pillar_ids: draft.pillarIds,
-        product_knowledge_ids: draft.productIds,
-        angle_ids: draft.angleIds,
-        repeat_voices: draft.repeatVoices,
-        split_rule: draft.splitRule,
-        sub_service_id: draft.subServiceIds[0] ?? null,
-        sub_service_ids: draft.subServiceIds,
-        content_plan_auto_approve: draft.contentPlanAutoApprove,
-      },
+      p_brief: briefPayloadFromDraft(draft),
+    });
+    if (error) throw error;
+    await reload();
+  };
+
+  const saveStoryBrief = async (draft: StoryBriefDraft) => {
+    if (!isEmployeeUuid(employeeId)) throw new Error("not_found");
+    const { error } = await supabase.rpc("ai_employee_page_story_brief_save", {
+      p_employee_id: employeeId,
+      p_brief: storyBriefPayloadFromDraft(draft),
+    });
+    if (error) throw error;
+    await reload();
+  };
+
+  const saveStoryCatalogColor = async (input: {
+    id: string | null;
+    primary: string;
+    secondary: string;
+    accent: string;
+  }) => {
+    if (!isEmployeeUuid(employeeId)) throw new Error("not_found");
+    const { error } = await supabase.rpc("ai_employee_story_catalog_color_save", {
+      p_employee_id: employeeId,
+      p_color_id: input.id,
+      p_brand_name: "",
+      p_primary: input.primary,
+      p_secondary: input.secondary,
+      p_accent: input.accent,
+    });
+    if (error) throw error;
+    await reload();
+  };
+
+  const selectStoryCatalogColor = async (colorId: string | null) => {
+    if (!isEmployeeUuid(employeeId)) throw new Error("not_found");
+    const { error } = await supabase.rpc("ai_employee_story_catalog_color_set", {
+      p_employee_id: employeeId,
+      p_color_id: colorId,
+    });
+    if (error) throw error;
+    await reload();
+  };
+
+  const deleteStoryCatalogColor = async (colorId: string) => {
+    if (!isEmployeeUuid(employeeId)) throw new Error("not_found");
+    const { error } = await supabase.rpc("ai_employee_story_catalog_color_delete", {
+      p_employee_id: employeeId,
+      p_color_id: colorId,
     });
     if (error) throw error;
     await reload();
@@ -95,29 +133,48 @@ export function useAiEmployeePage(employeeId: string | undefined) {
     await reload();
   };
 
-  const generateNow = async () => {
+  const invokeManualGenerate = async (mode: "sop1" | "sop4") => {
     if (!isEmployeeUuid(employeeId)) throw new Error("not_found");
     const { data, error } = await supabase.functions.invoke("ai-employee-run", {
-      body: { employee_id: employeeId, mode: "sop1", manual: true },
+      body: { employee_id: employeeId, mode, manual: true },
     });
+    const readPayload = (value: unknown) => {
+      if (!value || typeof value !== "object") return { code: "", modelError: "" };
+      const row = value as { error?: unknown; model_error?: unknown };
+      return {
+        code: typeof row.error === "string" ? row.error : "",
+        modelError: typeof row.model_error === "string" ? row.model_error : "",
+      };
+    };
+    let { code, modelError } = readPayload(data);
     if (error) {
-      let code = "";
-      const dataError = data && typeof data === "object" ? (data as { error?: unknown }).error : null;
-      if (typeof dataError === "string") code = dataError;
       const context = (error as { context?: unknown }).context;
-      if (!code && context instanceof Response) {
-        const body = await context.clone().json().catch(() => null) as { error?: unknown } | null;
-        if (typeof body?.error === "string") code = body.error;
+      if (context instanceof Response) {
+        const body = await context.clone().json().catch(() => null);
+        const fromBody = readPayload(body);
+        if (!code) code = fromBody.code;
+        if (!modelError) modelError = fromBody.modelError;
+      }
+      if (presentGeminiSpendCap(modelError) || presentGeminiSpendCap(code)) {
+        throw new GeminiSpendCapError(modelError || code);
       }
       throw new Error(code || "generate_failed");
     }
     const row = data && typeof data === "object"
       ? data as { ok?: boolean; error?: string; plan_count?: number; status?: string }
       : {};
-    if (row.ok === false) throw new Error(row.error || "generate_failed");
+    if (row.ok === false) {
+      if (presentGeminiSpendCap(modelError) || presentGeminiSpendCap(code || row.error)) {
+        throw new GeminiSpendCapError(modelError || code || row.error || "generate_failed");
+      }
+      throw new Error(row.error || "generate_failed");
+    }
     await reload();
     return { planCount: Number(row.plan_count ?? 0), status: String(row.status ?? "") };
   };
+
+  const generateNow = async () => invokeManualGenerate("sop1");
+  const generateStoryNow = async () => invokeManualGenerate("sop4");
 
   const saveRoutine = async (row: RoutineRow) => {
     if (!isEmployeeUuid(employeeId)) throw new Error("not_found");
@@ -199,7 +256,16 @@ export function useAiEmployeePage(employeeId: string | undefined) {
     await reload();
   };
 
-  const saveCatalogLogo = async (input: { id: string | null; file: File | null }) => {
+  const saveCatalogLogo = async (input: {
+    id: string | null;
+    file: File | null;
+    tagline: string;
+    headlineFont: string;
+    bodyFont: string;
+    websiteUrl: string;
+    defaultContact: string;
+    hashtags: string[];
+  }) => {
     if (!isEmployeeUuid(employeeId) || !organizationId) throw new Error("not_found");
     let path: string | null = null;
     if (input.file) {
@@ -226,6 +292,12 @@ export function useAiEmployeePage(employeeId: string | undefined) {
       p_logo_id: input.id,
       p_brand_name: "",
       p_storage_path: path,
+      p_tagline: input.tagline.trim().slice(0, 120) || null,
+      p_headline_font: input.headlineFont.trim().slice(0, 60) || null,
+      p_body_font: input.bodyFont.trim().slice(0, 60) || null,
+      p_website_url: input.websiteUrl || null,
+      p_default_contact: input.defaultContact || null,
+      p_hashtags: input.hashtags,
     });
     if (error) {
       if (path) await supabase.storage.from("digital-asset-company-logos").remove([path]);
@@ -282,8 +354,13 @@ export function useAiEmployeePage(employeeId: string | undefined) {
     showFullPageSkeleton: orgBootstrapPending || (enabled && query.isLoading),
     reload,
     saveBrief,
+    saveStoryBrief,
+    saveStoryCatalogColor,
+    selectStoryCatalogColor,
+    deleteStoryCatalogColor,
     saveSchedule,
     generateNow,
+    generateStoryNow,
     saveRoutine,
     saveReference,
     clearReference,

@@ -373,7 +373,6 @@ describe("ai employee brief update", () => {
     forbiddenNotes: "jangan harga",
     pillarIds: [],
     productKnowledgeIds: ["33333333-3333-4333-8333-333333333333"],
-    splitRule: "bergiliran",
   };
 
   function briefAdmin() {
@@ -424,6 +423,7 @@ describe("ai employee brief update", () => {
       voice: "hangat",
       persona_ids: ["22222222-2222-4222-8222-222222222222"],
       product_knowledge_ids: ["33333333-3333-4333-8333-333333333333"],
+      split_rule: "",
     });
     expect(calls[0]?.args.p_brief).not.toHaveProperty("angle_ids");
     expect(calls[0]?.args.p_brief).not.toHaveProperty("repeat_voices");
@@ -451,7 +451,6 @@ describe("ai employee brief update", () => {
       forbidden_notes: input.forbiddenNotes,
       pillar_ids: [],
       product_knowledge_ids: input.productKnowledgeIds,
-      split_rule: input.splitRule,
     }).success).toBe(true);
     expect(aiEmployeeBriefUpdateInput.safeParse({
       employee_name: "nay",
@@ -465,7 +464,6 @@ describe("ai employee brief update", () => {
       product_knowledge_ids: [],
       angle_ids: [angleId, angleId, angleId, angleId],
       repeat_voices: ["satu", "dua", "tiga", "empat"],
-      split_rule: "",
     }).success).toBe(false);
   });
 });

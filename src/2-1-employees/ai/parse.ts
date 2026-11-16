@@ -1,3 +1,7 @@
+import { normalizeBrandFont } from "./brandFonts";
+import { storyBriefFromPayload } from "./storyBriefPayload";
+import { normalizeDefaultContact, normalizeWebsiteUrl } from "./brandLockupContact";
+import { normalizeBrandHashtags } from "./brandLockupHashtags";
 import type {
   AiEmployeeJob,
   AiEmployeeKeyResult,
@@ -117,6 +121,8 @@ function asProducts(value: unknown): ProductOption[] {
 
 export function briefDraftFromPayload(value: unknown): { draft: BriefDraft; labels: AiEmployeePageData["briefLabels"] } {
   const row = asRecord(value) ?? {};
+  const angleIds = asStringArray(row.angle_ids);
+  const pillarIdsRaw = asStringArray(row.pillar_ids);
   return {
     draft: {
       serviceIds: asStringArray(row.service_ids),
@@ -125,13 +131,16 @@ export function briefDraftFromPayload(value: unknown): { draft: BriefDraft; labe
       voice: asString(row.voice),
       requiredNotes: asString(row.required_notes),
       forbiddenNotes: asString(row.forbidden_notes),
-      pillarIds: asStringArray(row.pillar_ids),
+      // Fokus angle is parent of Pilar — orphan pillar_ids are ignored when angles are empty.
+      pillarIds: angleIds.length === 0 ? [] : pillarIdsRaw,
       productIds: asStringArray(row.product_knowledge_ids),
-      angleIds: asStringArray(row.angle_ids),
+      angleIds,
       repeatVoices: asStringArray(row.repeat_voices),
-      splitRule: asString(row.split_rule),
+      // Ignored zombie: no UI/runtime consumer; keep empty so compare/save stay clean.
+      splitRule: "",
       ...chosenSubCategory(row),
       contentPlanAutoApprove: row.content_plan_auto_approve === true,
+      useSystemHooks: row.use_system_hooks !== false,
     },
     labels: {
       services: asOptions(row.services).map((item) => ({ ...item, label: item.label })),
@@ -315,6 +324,14 @@ function parseCompanyLogos(value: unknown): CatalogCompanyLogo[] {
     rows.push({
       id,
       brandName: asString(row?.brand_name),
+      tagline: asString(row?.tagline).slice(0, 120),
+      headlineFont: normalizeBrandFont(asString(row?.headline_font)),
+      bodyFont: normalizeBrandFont(asString(row?.body_font)),
+      websiteUrl: normalizeWebsiteUrl(asString(row?.website_url)),
+      defaultContact: normalizeDefaultContact(asString(row?.default_contact)),
+      hashtags: normalizeBrandHashtags(
+        Array.isArray(row?.hashtags) ? row.hashtags.map((item) => String(item ?? "")) : asString(row?.hashtags),
+      ),
       logoPath,
     });
   }
@@ -406,6 +423,7 @@ export function parseAiEmployeePage(value: unknown): AiEmployeePageData {
   const row = asRecord(value);
   if (!row || typeof row.organization_id !== "string") throw new Error("invalid_payload");
   const brief = briefDraftFromPayload(row.brief);
+  const story = storyBriefFromPayload(row.story_brief);
   const briefRow = asRecord(row.brief);
   const brandColors = parseBrandColors(briefRow?.brand_colors);
   const companyLogos = parseCompanyLogos(briefRow?.company_logos);
@@ -420,6 +438,9 @@ export function parseAiEmployeePage(value: unknown): AiEmployeePageData {
     schedules: parseSchedules(row.schedules),
     routines: parseRoutines(row.routines),
     brief: brief.draft,
+    storyBrief: story.draft,
+    storyBriefLabels: story.labels,
+    storyBrandColors: story.brandColors,
     references: parseReferences(briefRow?.references),
     brandColorId: selectedCatalogId(briefRow?.brand_color_id, brandColors.map((item) => item.id)),
     companyLogoId: selectedCatalogId(briefRow?.company_logo_id, companyLogos.map((item) => item.id)),
@@ -446,6 +467,11 @@ export function sameIds(left: string[], right: string[]): boolean {
 }
 
 export function sameBrief(left: BriefDraft, right: BriefDraft): boolean {
+  return sameBriefExceptAngles(left, right) && sameIds(left.angleIds, right.angleIds);
+}
+
+/** True when every brief field except Fokus angle matches. */
+export function sameBriefExceptAngles(left: BriefDraft, right: BriefDraft): boolean {
   return sameIds(left.serviceIds, right.serviceIds)
     && left.audience === right.audience
     && sameIds(left.personaIds, right.personaIds)
@@ -454,12 +480,11 @@ export function sameBrief(left: BriefDraft, right: BriefDraft): boolean {
     && left.forbiddenNotes === right.forbiddenNotes
     && sameIds(left.pillarIds, right.pillarIds)
     && sameIds(left.productIds, right.productIds)
-    && sameIds(left.angleIds, right.angleIds)
     && left.repeatVoices.length === right.repeatVoices.length
     && left.repeatVoices.every((voice, index) => voice === right.repeatVoices[index])
-    && left.splitRule === right.splitRule
     && sameIds(left.subServiceIds, right.subServiceIds)
-    && left.contentPlanAutoApprove === right.contentPlanAutoApprove;
+    && left.contentPlanAutoApprove === right.contentPlanAutoApprove
+    && left.useSystemHooks === right.useSystemHooks;
 }
 
 export function sameSchedule(left: ScheduleRow, right: ScheduleRow): boolean {
@@ -526,7 +551,12 @@ export function briefChanges(
   push("Product Knowledge", !sameIds(before.productIds, after.productIds), nameList(before.productIds, names.products), nameList(after.productIds, names.products));
   push("Sub Category", !sameIds(before.subServiceIds, after.subServiceIds), subCategoryList(before.subServiceIds, names.subServices), subCategoryList(after.subServiceIds, names.subServices));
   push("Content Plan auto approve", before.contentPlanAutoApprove !== after.contentPlanAutoApprove, before.contentPlanAutoApprove ? "Hidup" : "Mati", after.contentPlanAutoApprove ? "Hidup" : "Mati");
-  push("Aturan pecahan", before.splitRule !== after.splitRule, textValue(before.splitRule), textValue(after.splitRule));
+  push(
+    "Hook sistem",
+    before.useSystemHooks !== after.useSystemHooks,
+    before.useSystemHooks ? "Pakai hook Product Knowledge" : "AI mencari hook",
+    after.useSystemHooks ? "Pakai hook Product Knowledge" : "AI mencari hook",
+  );
   return rows;
 }
 

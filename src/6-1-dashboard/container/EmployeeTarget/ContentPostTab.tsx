@@ -20,6 +20,7 @@ import {
   normalizeMonthlyTargetValue,
 } from '../../utils/performanceEmployeeMetrics';
 import { isPostMetricComplete } from '@/6-1-scheduled-posts/lib/derivePlanPostMetadata';
+import { calculateOnTimeStatus, calendarDayYmd } from '@/6-1-scheduled-posts/lib/onTimeStatus';
 
 interface ContentPostTabProps {
   contentManagers: ContentManager[];
@@ -102,55 +103,14 @@ const ContentPostTab: React.FC<ContentPostTabProps> = ({
     };
   }, [monthlyTargetDate]);
 
-  // Helper function to extract date string from date value (same as ProductionTab and ContentPlannerTab)
-  // Enhanced to handle DD/MM/YYYY format
+  // Calendar day in Asia/Jakarta; also accepts DD/MM/YYYY display strings.
   const getDateString = (dateValue: string | Date | null | undefined): string | null => {
     if (!dateValue) return null;
-    
-    try {
-      if (typeof dateValue === 'string') {
-        // If already in YYYY-MM-DD format, return as is
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
-          return dateValue;
-        }
-        // Handle DD/MM/YYYY format (e.g., "04/11/2025")
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateValue)) {
-          const [day, month, year] = dateValue.split('/');
-          return `${year}-${month}-${day}`;
-        }
-        // If contains 'T', split and take date part
-        if (dateValue.includes('T')) {
-          return dateValue.split('T')[0];
-        }
-        // If contains space, split and take date part (format: "YYYY-MM-DD HH:mm:ss")
-        if (dateValue.includes(' ')) {
-          return dateValue.split(' ')[0];
-        }
-        // Otherwise, try to parse it
-        const date = new Date(dateValue);
-        if (!isNaN(date.getTime())) {
-          // Use local date to avoid timezone issues
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
-        }
-      }
-      
-      if (dateValue instanceof Date) {
-        if (!isNaN(dateValue.getTime())) {
-          // Use local date to avoid timezone issues
-          const year = dateValue.getFullYear();
-          const month = String(dateValue.getMonth() + 1).padStart(2, '0');
-          const day = String(dateValue.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
-        }
-      }
-    } catch (e) {
-      // Silently fail and return null
+    if (typeof dateValue === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(dateValue.trim())) {
+      const [day, month, year] = dateValue.trim().split('/');
+      return `${year}-${month}-${day}`;
     }
-    
-    return null;
+    return calendarDayYmd(dateValue);
   };
 
   const getActualPostDateForPlan = useCallback(
@@ -268,16 +228,9 @@ const ContentPostTab: React.FC<ContentPostTabProps> = ({
 
       if (monthlyPlans.length === 0) return null;
 
-      const onTimePlans = monthlyPlans.filter(plan => {
-        const stored = String(plan.on_time_status ?? '').trim();
-        if (stored === 'Ontime') return true;
-        if (stored.includes('Late')) return false;
-        const actualStr = getActualPostDateForPlan(plan);
-        const postStr = getDateString(plan.post_date);
-        if (actualStr && postStr) {
-          return actualStr <= postStr;
-        }
-        return false;
+      const onTimePlans = monthlyPlans.filter((plan) => {
+        if (!plan.actual_post_date || !plan.post_date) return false;
+        return calculateOnTimeStatus(plan.actual_post_date, plan.post_date) === 'Ontime';
       });
 
       return Math.round((onTimePlans.length / monthlyPlans.length) * 100);

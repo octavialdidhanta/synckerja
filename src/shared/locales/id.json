@@ -1973,5 +1973,50 @@
       "paneDetail": "Detail",
       "paneSwitchAria": "Daftar atau detail"
     }
+  },
+  "aiEmployee": {
+    "story": {
+      "title": "Plan Story",
+      "generating": "Membuat Story...",
+      "plansEmpty": "Belum ada plan Story bulan ini.",
+      "plansEmptyHint": "Isi brief Design Story, lalu Generate sekarang.",
+      "plansLoadFailed": "Gagal memuat plan Story",
+      "plansLoading": "Memuat plan Story…",
+      "review": "Review",
+      "publish": "Publish",
+      "openCanva": "Buka di Canva",
+      "refreshCanva": "Perbarui dari Canva",
+      "startCanva": "Buat di Canva",
+      "prodApproved": "Approved",
+      "prodRevision": "Request Revision",
+      "prodNeedReview": "Need Review",
+      "reviewTitle": "Review Story",
+      "reviewDesc": "Review desain produksi (bukan ulang approve konten). Setelah Approve, lanjut ke Story Publish Setup.",
+      "reviewReadyPublish": "Siap publish ke Instagram Stories.",
+      "publishTitle": "Story Publish Setup",
+      "publishDesc": "Post Instagram Story (Meta STORIES). Caption tidak dikirim — teks sudah di dalam desain.",
+      "canvaQueued": "Canva Story antre",
+      "canvaRefreshQueued": "Memperbarui dari Canva",
+      "canvaOpen": "Buka desain Canva",
+      "canvaWorking": "Canva sedang membuat Story",
+      "canvaRefreshing": "Canva sedang memperbarui Story",
+      "canvaBriefMissing": "Canva tidak jalan: brief Story belum lengkap",
+      "canvaNotConnected": "Canva belum terhubung",
+      "canvaToolMissing": "Canva belum punya alat desain",
+      "canvaNotApproved": "Persetujuan berubah sebelum desain dibuat",
+      "canvaNotStory": "Bukan plan Story",
+      "canvaCreditQuota": "Canva gagal: kuota AI Canva habis / cooldown — buka Billing Canva",
+      "canvaFailedDetail": "Canva gagal: {{detail}}",
+      "canvaFailed": "Canva gagal membuat desain Story"
+    },
+    "log": {
+      "reason": {
+        "storyDone": "Story dibuat",
+        "storyEmpty": "Tidak ada Story baru"
+      }
+    },
+    "index": {
+      "bookCarousel": "Design Carousel"
+    }
   }
 }

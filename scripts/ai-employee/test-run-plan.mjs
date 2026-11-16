@@ -53,7 +53,16 @@ import {
   carouselReferenceOk,
   normalizeCarouselReference,
   parseCarouselDraft,
+  diagnoseCarouselDraft,
+  diagnoseCarouselDraftDetail,
+  invalidRewriteNote,
+  captionHashtags,
+  brandLockupFromBrief,
+  placeLockupHashtags,
   pickMenuIds,
+  pickSystemHook,
+  systemHookPromptLines,
+  hookHasRawPlaceholders,
   copyClaimTokens,
   copyCollides,
   orderCopyFallbackPaths,
@@ -78,6 +87,16 @@ import {
 
 const pillarId = "11111111-1111-4111-8111-111111111111";
 const pillars = [{ id: pillarId, name: "Produk" }];
+const CAPTION_TAGS = "#synckerja #kontenBisnis #operasionalTim";
+/** Body ≥200 chars after strip — passes captionDepthOk without relying on hashtags/lockup. */
+const DEEP_CAPTION_BODY = [
+  "Di ruang operasional yang kelihatan tenang, satu status hijau sering menutupi antrean kerja yang menumpuk diam-diam.",
+  "Tim baru sadar setelah deadline bergeser, bukan saat sinyal awal muncul di chat harian.",
+  "Coba cek dulu: apa yang diukur hari ini benar-benar menampilkan beban tersembunyi, atau hanya menenangkan dashboard?",
+].join(" ");
+const DEEP_CAPTION = `${DEEP_CAPTION_BODY}\n\n${CAPTION_TAGS}`;
+const SATE_TAGS = "#sate #dagingMuda #kulinerJakarta";
+const DEEP_SATE_CAPTION = `${DEEP_CAPTION_BODY}\n\n${SATE_TAGS}`;
 
 test("internal secret yang cocok lolos, yang salah ditolak", () => {
   assert.equal(secretMatches("rahasia", "rahasia"), true);
@@ -464,21 +483,78 @@ test("carousel menolak jumlah slide dan caption tanpa hashtag", () => {
     slides: slides(count),
     content_pillar_id: pillarId,
   });
-  const accepted = parseCarouselDraft(raw(6, "Singkat saja #synckerja"));
+  const accepted = parseCarouselDraft(raw(6, DEEP_CAPTION));
   assert.equal(accepted?.slides.length, 6);
   assert.equal(accepted?.concept, reason);
   assert.equal(accepted?.slides[0].timing, "Slide 1");
-  assert.equal(parseCarouselDraft(raw(2, "Singkat #synckerja"))?.slides.length, 2);
-  assert.equal(parseCarouselDraft(raw(10, "Singkat #synckerja"))?.slides.length, 10);
-  assert.equal(parseCarouselDraft(raw(1, "Singkat #synckerja")), null);
-  assert.equal(parseCarouselDraft(raw(11, "Singkat #synckerja")), null);
-  assert.equal(parseCarouselDraft(raw(5, "Tanpa tagar")), null);
-  const shortConcept = parseCarouselDraft(raw(5, "Singkat #synckerja", "terlalu pendek"));
+  assert.equal(parseCarouselDraft(raw(2, DEEP_CAPTION))?.slides.length, 2);
+  assert.equal(parseCarouselDraft(raw(10, DEEP_CAPTION))?.slides.length, 10);
+  assert.equal(parseCarouselDraft(raw(1, DEEP_CAPTION)), null);
+  assert.equal(parseCarouselDraft(raw(11, DEEP_CAPTION)), null);
+  // Soft-heal: missing/few/many hashtags are normalized instead of burning retries.
+  assert.equal(diagnoseCarouselDraft(raw(5, DEEP_CAPTION_BODY)), "");
+  assert.ok(parseCarouselDraft(raw(5, DEEP_CAPTION_BODY)));
+  assert.equal(captionHashtags(parseCarouselDraft(raw(5, DEEP_CAPTION_BODY)).caption).length >= 3, true);
+  assert.equal(diagnoseCarouselDraft(raw(5, `${DEEP_CAPTION_BODY}\n\n#synckerja`)), "");
+  assert.ok(parseCarouselDraft(raw(5, `${DEEP_CAPTION_BODY}\n\n#synckerja`)));
+  assert.equal(diagnoseCarouselDraft(raw(5, `${DEEP_CAPTION_BODY}\n\n#a #b #c #d #e #f`)), "");
+  assert.equal(captionHashtags(parseCarouselDraft(raw(5, `${DEEP_CAPTION_BODY}\n\n#alpha #beta #gamma #delta #epsilon #zeta`)).caption).length, 5);
+  assert.equal(diagnoseCarouselDraft(raw(1, DEEP_CAPTION)), "slides");
+  assert.equal(diagnoseCarouselDraft("bukan-json"), "json");
+  assert.equal(diagnoseCarouselDraft(""), "json");
+  assert.match(invalidRewriteNote("hashtags"), /hashtag/i);
+  assert.match(invalidRewriteNote("hook"), /Hook headline/i);
+  assert.equal(diagnoseCarouselDraft(raw(6, DEEP_CAPTION)), "");
+
+  // Caption reject detail: empty / too_thin / raw overshoot (same invalid:caption code, different reason).
+  const emptyCaption = diagnoseCarouselDraftDetail(raw(5, ""));
+  assert.equal(emptyCaption.code, "caption");
+  assert.equal(emptyCaption.caption?.reason, "empty");
+  assert.equal(emptyCaption.caption?.caption_len, 0);
+  const thinBody = diagnoseCarouselDraftDetail(raw(5, "Pendek saja tanpa insight."));
+  assert.equal(thinBody.code, "caption");
+  assert.equal(thinBody.caption?.reason, "too_thin");
+  assert.ok((thinBody.caption?.body_len ?? 200) < 200);
+  const thinWithTags = diagnoseCarouselDraftDetail(raw(5, `Singkat saja ${CAPTION_TAGS}`));
+  assert.equal(thinWithTags.code, "caption");
+  assert.equal(thinWithTags.caption?.reason, "too_thin");
+  // Soften trims to 800, so overshoot usually surfaces as raw_caption_len on another code — still loggable.
+  const rawOvershoot = diagnoseCarouselDraftDetail(raw(5, "x".repeat(900)));
+  assert.ok((rawOvershoot.caption?.raw_caption_len ?? 0) >= 900);
+  assert.match(invalidRewriteNote("caption", { reason: "over_limit", caption_len: 950, body_len: 900, has_hash: false }), /melebihi 800/);
+  assert.match(invalidRewriteNote("caption", { reason: "too_thin", caption_len: 40, body_len: 28, has_hash: false }), /terlalu tipis/);
+  assert.match(invalidRewriteNote("caption", { reason: "too_thin", caption_len: 40, body_len: 28, has_hash: false }), /350-550/);
+  assert.doesNotMatch(invalidRewriteNote("caption", { reason: "too_thin", caption_len: 40, body_len: 28, has_hash: false }), /artikel singkat/);
+  assert.match(invalidRewriteNote("caption", { reason: "empty", caption_len: 0, body_len: 0, has_hash: false }), /kosong/);
+  assert.match(invalidRewriteNote("caption", { reason: "empty", caption_len: 0, body_len: 0, has_hash: false }), /350-550/);
+  const headlineOnly = slides(3);
+  headlineOnly[0].element = "Headline: Berhenti menebak dulu. Arah gambar: panah ke kalender.";
+  headlineOnly[0].vo = "";
+  assert.equal(diagnoseCarouselDraft(JSON.stringify({
+    title: "Carousel uji",
+    post_date: "2026-11-10",
+    caption: DEEP_CAPTION_BODY,
+    concept: reason,
+    slides: headlineOnly,
+    content_pillar_id: pillarId,
+  })), "");
+  const healed = parseCarouselDraft(JSON.stringify({
+    title: "Carousel uji",
+    post_date: "2026-11-10",
+    caption: DEEP_CAPTION_BODY,
+    concept: reason,
+    slides: headlineOnly,
+  }));
+  assert.ok(healed);
+  assert.match(healed.slides[0].element, /Hook headline:/i);
+  assert.match(healed.slides[0].element, /Visual hook:/i);
+  assert.ok(healed.slides[0].vo);
+  const shortConcept = parseCarouselDraft(raw(5, DEEP_CAPTION, "terlalu pendek"));
   assert.ok(shortConcept);
   assert.match(shortConcept.concept, /^terlalu pendek /);
   assert.ok(shortConcept.concept.length >= 40);
   assert.ok(shortConcept.concept.length <= 800);
-  const missingConcept = parseCarouselDraft(raw(2, "Singkat #synckerja", ""));
+  const missingConcept = parseCarouselDraft(raw(2, DEEP_CAPTION, ""));
   assert.ok(missingConcept);
   assert.ok(missingConcept.concept.length >= 40);
   const shifted = slides(5);
@@ -486,10 +562,37 @@ test("carousel menolak jumlah slide dan caption tanpa hashtag", () => {
   assert.equal(parseCarouselDraft(JSON.stringify({
     title: "Carousel uji",
     post_date: "2026-11-10",
-    caption: "Singkat #synckerja",
+    caption: DEEP_CAPTION,
     concept: "Konten ini dibuat karena penonton sering menebak solusi tanpa melihat masalah yang sebenarnya.",
     slides: shifted,
   })), null);
+  assert.equal(diagnoseCarouselDraft(JSON.stringify({
+    title: "Carousel uji",
+    post_date: "2026-11-10",
+    caption: DEEP_CAPTION,
+    concept: "Konten ini dibuat karena penonton sering menebak solusi tanpa melihat masalah yang sebenarnya.",
+    slides: shifted,
+  })), "timing");
+  const missingHookSlides = slides(3);
+  missingHookSlides[0].element = "Tanpa hook sama sekali di element slide pertama.";
+  assert.equal(diagnoseCarouselDraft(JSON.stringify({
+    title: "Carousel uji",
+    post_date: "2026-11-10",
+    caption: DEEP_CAPTION,
+    concept: reason,
+    slides: missingHookSlides,
+    content_pillar_id: pillarId,
+  })), "");
+  const healedHook = parseCarouselDraft(JSON.stringify({
+    title: "Carousel uji",
+    post_date: "2026-11-10",
+    caption: DEEP_CAPTION,
+    concept: reason,
+    slides: missingHookSlides,
+  }));
+  assert.ok(healedHook);
+  assert.match(healedHook.slides[0].element, /Hook headline:/i);
+  assert.match(healedHook.slides[0].element, /Visual hook:/i);
   const prompt = buildSop1Prompt({
     day: "2026-11-10",
     pillar: pillars[0],
@@ -507,27 +610,69 @@ test("carousel menolak jumlah slide dan caption tanpa hashtag", () => {
   assert.match(prompt, /carousel/);
   assert.match(prompt, /4:5/);
   assert.match(prompt, /hashtag/i);
+  assert.match(prompt, /3 sampai 5/);
+  assert.match(prompt, /#bisnis/);
   assert.match(prompt, /alasan konten ini dibuat/);
   assert.match(prompt, /Hook headline/);
-  assert.match(prompt, /copywriting/);
+  assert.match(prompt, /teks pendukung di slide \(bukan voiceover audio\)/);
   const bare = slides(2);
   bare[0].vo = "";
-  assert.equal(parseCarouselDraft(JSON.stringify({
+  assert.equal(diagnoseCarouselDraft(JSON.stringify({
     title: "Carousel uji",
     post_date: "2026-11-10",
-    caption: "Singkat #synckerja",
+    caption: DEEP_CAPTION,
     concept: reason,
     slides: bare,
-  })), null);
-  const noHook = slides(2);
-  noHook[0].element = "Hanya ikon panah tanpa hook.";
-  assert.equal(parseCarouselDraft(JSON.stringify({
+    content_pillar_id: pillarId,
+  })), "");
+  const filledVo = parseCarouselDraft(JSON.stringify({
     title: "Carousel uji",
     post_date: "2026-11-10",
-    caption: "Singkat #synckerja",
+    caption: DEEP_CAPTION,
+    concept: reason,
+    slides: bare,
+  }));
+  assert.ok(filledVo);
+  assert.ok(filledVo.slides[0].vo);
+  const shortVo = slides(2);
+  shortVo[0].vo = "Coba aja";
+  shortVo[1].vo = "Gini";
+  assert.equal(diagnoseCarouselDraft(JSON.stringify({
+    title: "Carousel uji",
+    post_date: "2026-11-10",
+    caption: DEEP_CAPTION,
+    concept: reason,
+    slides: shortVo,
+    content_pillar_id: pillarId,
+  })), "");
+  assert.ok(parseCarouselDraft(JSON.stringify({
+    title: "Carousel uji",
+    post_date: "2026-11-10",
+    caption: DEEP_CAPTION,
+    concept: reason,
+    slides: shortVo,
+  })));
+  const emptyVisual = slides(2);
+  emptyVisual[0].visual = "";
+  assert.equal(diagnoseCarouselDraft(JSON.stringify({
+    title: "Carousel uji",
+    post_date: "2026-11-10",
+    caption: DEEP_CAPTION,
+    concept: reason,
+    slides: emptyVisual,
+  })), "visual");
+  const noHook = slides(2);
+  noHook[0].element = "Hanya ikon panah tanpa hook.";
+  const healedNoHook = parseCarouselDraft(JSON.stringify({
+    title: "Carousel uji",
+    post_date: "2026-11-10",
+    caption: DEEP_CAPTION,
     concept: reason,
     slides: noHook,
-  })), null);
+  }));
+  assert.ok(healedNoHook);
+  assert.match(healedNoHook.slides[0].element, /Hook headline:/i);
+  assert.match(healedNoHook.slides[0].element, /Visual hook:/i);
   assert.doesNotMatch(prompt, /Ini pengulangan/);
 
   const fresh = buildSop1Prompt({
@@ -1138,14 +1283,18 @@ test("pilar digilir dari yang paling sedikit dipakai, bukan dari idea yang habis
   assert.match(source, /chooseContentTurn/);
 });
 
-test("sop1 fokus menyusun jalur carousel sebelum antrian kosong ditutup", () => {
+test("sop1 fokus gagal cepat bila antrean path kosong, tanpa invent jalur", () => {
   const source = readFileSync(new URL("../../supabase/functions/ai-employee-run/index.ts", import.meta.url), "utf8");
   const prepare = source.indexOf("const prepareCarouselPath");
   const blocked = source.indexOf('"ideas_blocked"', prepare);
   assert.ok(prepare > 0);
   assert.ok(blocked > prepare);
   assert.equal(source.includes('closeSop1("succeeded", "no_idea"'), false);
-  assert.match(source, /appendCarouselDevelopmentPath/);
+  assert.match(source, /usableQueued\.length === 0\) return \{ kind: "unconfirmed" \}/);
+  assert.match(source, /queuedIdeaIds/);
+  assert.match(source, /pathIdeas/);
+  assert.doesNotMatch(source, /buildCarouselPathPrompt/);
+  assert.doesNotMatch(source, /appendCarouselDevelopmentPath/);
   assert.match(source, /chooseContentTurn/);
 });
 
@@ -1230,18 +1379,19 @@ test("catatan wajib memakai faktanya dan catatan terlarang tetap ditolak", () =>
     content_pillar_id: pillarId,
   });
   const notes = { required, forbidden: "harga promo" };
-  const saved = parseCarouselDraft(body("Datang hari ini #sate", "Simpan caranya di rumah."), notes);
+  const saved = parseCarouselDraft(body(DEEP_SATE_CAPTION, "Simpan caranya di rumah."), notes);
   assert.equal(saved.caption.includes(phone), true);
   assert.equal(saved.caption.includes("#sate"), true);
+  assert.equal(captionHashtags(saved.caption).length >= 3, true);
   assert.equal(saved.caption.includes("Input nomor telepon"), false);
   assert.equal(saved.slides[1].vo.includes(phone), true);
   assert.equal(saved.slides[1].vo.includes("Input nomor telepon"), false);
   assert.equal(carouselNotesOk(saved, notes), true);
-  const already = parseCarouselDraft(body(`Datang hari ini ${phone} #sate`, `Simpan caranya ${phone}.`), notes);
+  const already = parseCarouselDraft(body(`${DEEP_CAPTION_BODY} ${phone}\n\n${SATE_TAGS}`, `Simpan caranya ${phone}.`), notes);
   assert.equal(already.caption.split(phone).length - 1, 1);
-  const soft = parseCarouselDraft(body("Datang hari ini #sate", "Simpan caranya di rumah."), { required: "Hubungi jam buka.", forbidden: "" });
+  const soft = parseCarouselDraft(body(DEEP_SATE_CAPTION, "Simpan caranya di rumah."), { required: "Hubungi jam buka.", forbidden: "" });
   assert.equal(soft.caption.includes("Hubungi jam buka"), false);
-  assert.equal(parseCarouselDraft(body(`Datang hari ini ${phone} #sate`, `Simpan caranya ${phone}.`, "Tanpa harga promo"), notes), null);
+  assert.equal(parseCarouselDraft(body(`${DEEP_CAPTION_BODY} ${phone}\n\n${SATE_TAGS}`, `Simpan caranya ${phone}.`, "Tanpa harga promo"), notes), null);
   const prompt = buildSop1Prompt({
     day: "2026-11-12",
     pillar: { id: pillarId, name: "Mitos" },
@@ -1259,6 +1409,158 @@ test("catatan wajib memakai faktanya dan catatan terlarang tetap ditolak", () =>
   assert.doesNotMatch(prompt, /Salin teks ini apa adanya/);
   assert.match(prompt, /harga promo/);
   assert.match(prompt, /foto manusia sungguhan/);
+});
+
+test("caption menyisipkan website dan kontak lockup tanpa memaksa ke last vo", () => {
+  const website = "https://synckerja.com/";
+  const contact = "081118891308";
+  const phone = "081234567890";
+  const slides = (lastVo) => ([
+    {
+      timing: "Slide 1",
+      visual: "Daging kambing di atas panggangan.",
+      vo: "Daging muda lebih empuk daripada daging tua.",
+      element: "Hook headline: Empuk. Visual hook: Irisan daging.",
+      tagging: "",
+    },
+    {
+      timing: "Slide 2",
+      visual: "Piring sate di meja.",
+      vo: lastVo,
+      element: "Ajakan datang pada jam buka.",
+      tagging: "",
+    },
+  ]);
+  const body = (caption, lastVo) => JSON.stringify({
+    title: "Daging muda",
+    post_date: "2026-11-12",
+    caption,
+    concept: "Konten ini dibuat karena penonton masih mengira daging tua selalu lebih enak untuk sate.",
+    slides: slides(lastVo),
+    content_pillar_id: pillarId,
+  });
+  const lockup = { websiteUrl: website, defaultContact: contact };
+  const saved = parseCarouselDraft(body(DEEP_SATE_CAPTION, "Simpan caranya di rumah."), null, lockup);
+  assert.equal(saved.caption.includes(website), true);
+  assert.equal(saved.caption.includes(contact), true);
+  assert.equal(saved.caption.includes("#sate"), true);
+  assert.equal(captionHashtags(saved.caption).length, 3);
+  assert.equal(saved.slides[1].vo.includes(website), false);
+  assert.equal(saved.slides[1].vo.includes(contact), false);
+  assert.equal(carouselNotesOk(saved, null, lockup), true);
+  const already = parseCarouselDraft(
+    body(`${DEEP_CAPTION_BODY} ${website} ${contact}\n\n${SATE_TAGS}`, "Simpan caranya di rumah."),
+    null,
+    lockup,
+  );
+  assert.equal(already.caption.split(website).length - 1, 1);
+  assert.equal(already.caption.split(contact).length - 1, 1);
+  const withNotes = parseCarouselDraft(
+    body(DEEP_SATE_CAPTION, "Simpan caranya di rumah."),
+    { required: `Input nomor: ${phone}`, forbidden: "" },
+    lockup,
+  );
+  assert.equal(withNotes.caption.includes(website), true);
+  assert.equal(withNotes.caption.includes(contact), true);
+  assert.equal(withNotes.caption.includes(phone), true);
+  assert.equal(withNotes.slides[1].vo.includes(phone), true);
+  assert.equal(withNotes.slides[1].vo.includes(website), false);
+  assert.equal(carouselNotesOk({ ...withNotes, caption: DEEP_SATE_CAPTION }, { required: "", forbidden: "" }, lockup), false);
+  const prompt = buildSop1Prompt({
+    day: "2026-11-12",
+    pillar: { id: pillarId, name: "Mitos", funnel: "awareness" },
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+    brief: {
+      service_ids: ["svc-a"],
+      services: [],
+      company_logo_id: "logo-1",
+      company_logos: [{ id: "logo-1", logo_path: "a.png", website_url: website, default_contact: contact }],
+    },
+    performance: [],
+    service: { id: "svc-a", name: "Synckerja" },
+    idea: {
+      idea_statement: "Orang menyamakan sibuk dengan produktif.",
+      territory_statement: "Tim kecil yang selalu online.",
+      angle_statement: "Online terus justru menyembunyikan kerja yang tidak selesai.",
+    },
+  });
+  assert.match(prompt, /Soft sell/);
+  assert.match(prompt, /Batas total 800 karakter/);
+  assert.match(prompt, /3 sampai 5/);
+  assert.match(prompt, /1 niche/);
+  assert.match(prompt, /#bisnis/);
+  assert.match(prompt, /penonton perlu menyadari/);
+  assert.match(prompt, /Struktur komunikasi caption/);
+  assert.match(prompt, /Blind spot/);
+  assert.match(prompt, /Discovery soft/);
+  assert.match(prompt, /350 sampai 550/);
+  assert.match(prompt, /artikel di feed yang layak dibaca lama/);
+  assert.match(prompt, /Pisahkan paragraf dengan enter/);
+  assert.match(prompt, /~100 karakter/);
+  assert.match(prompt, /territory "/);
+  assert.match(prompt, /angle "/);
+  assert.match(prompt, /akan dilampirkan sistem di akhir caption|dilampirkan sistem/);
+  assert.doesNotMatch(prompt, /caption wajib, singkat/);
+  assert.doesNotMatch(prompt, /artikel singkat/);
+  assert.doesNotMatch(prompt, /panjang blok bebas/);
+  assert.doesNotMatch(prompt, /Batas total 400 karakter/);
+  assert.doesNotMatch(prompt, /sebelum kemudian stuck kemudian solusi/);
+  assert.doesNotMatch(prompt, /struktur wajib sebelum/);
+  assert.doesNotMatch(prompt, /tiga sampai lima kalimat/);
+
+  const autoTags = "#OtomatisasiProses #EfisiensiKerja #OperasionalTim";
+  const rich = parseCarouselDraft(body(
+    `Kadang otomatisasi malah bikin kerjaan lebih susah dilacak.\n\nYang kelihatan rapi di dashboard, belum tentu rapi di lapangan 😅\n\n${DEEP_CAPTION_BODY}\n\n${autoTags}`,
+    "Simpan caranya di rumah.",
+  ), null, lockup);
+  assert.equal(rich.caption.includes("\n"), true);
+  assert.equal(rich.caption.includes("😅"), true);
+  assert.equal(rich.caption.includes(website), true);
+  assert.equal(rich.caption.includes(contact), true);
+  assert.equal(captionHashtags(rich.caption).length, 3);
+  assert.match(rich.caption, /\n#OtomatisasiProses #EfisiensiKerja #OperasionalTim\s*$/);
+  assert.equal(rich.caption.includes("susah dilacak.\n\nYang kelihatan"), true);
+
+  const longBody = [
+    "Rantai pasok yang kelihatan rapi di dashboard seringkali justru paling rapuh di lapangan.",
+    "Satu supplier macet sebentar, dan stok yang dikira efisien langsung kosong tanpa bantalan.",
+    "Banyak tim baru sadar setelah gangguan kecil memicu kerugian besar yang sulit dilacak.",
+    "Coba cek dulu: sistem kamu punya cadangan, atau selama ini cuma mengejar efisiensi maksimal?",
+    "Kalau mau bahas lebih lanjut soal cadangan dan resiliensi, silakan hubungi kami ya.",
+  ].join("\n\n");
+  const supplyTags = "#ManajemenRantaiPasok #ResiliensiBisnis #Operasional";
+  const deep = parseCarouselDraft(body(`${longBody}\n\n${supplyTags}`, "Simpan caranya di rumah."), null, lockup);
+  assert.ok(deep);
+  assert.ok(deep.caption.length > 350);
+  assert.ok(deep.caption.length <= 800);
+  assert.equal(deep.caption.includes(website), true);
+  assert.equal(captionHashtags(deep.caption).length, 3);
+  assert.equal(deep.caption.includes("#ManajemenRantaiPasok"), true);
+
+  const oneTag = parseCarouselDraft(body(`${DEEP_CAPTION_BODY}\n\n#sate`, "Simpan caranya di rumah."), null, lockup);
+  assert.ok(oneTag);
+  assert.equal(captionHashtags(oneTag.caption).length >= 3, true);
+  const manyTags = parseCarouselDraft(body(`${DEEP_CAPTION_BODY}\n\n#alpha #beta #gamma #delta #epsilon #zeta`, "Simpan caranya di rumah."), null, lockup);
+  assert.ok(manyTags);
+  assert.equal(captionHashtags(manyTags.caption).length, 5);
+
+  // Body fills the cap; reserved footer keeps contacts + brand hashtags.
+  const tooLong = `${"Paragraf sadar bahaya tersembunyi. ".repeat(28)}\n\n${CAPTION_TAGS}`;
+  const lockupWithTags = {
+    ...lockup,
+    hashtags: ["#HRTech", "#SolusiHR", "#OperasionalTim"],
+  };
+  const fitted = parseCarouselDraft(body(tooLong, "Simpan caranya di rumah."), null, lockupWithTags);
+  assert.ok(fitted);
+  assert.ok(fitted.caption.length <= 800);
+  assert.equal(fitted.caption.includes(website), true);
+  assert.equal(fitted.caption.includes(contact), true);
+  assert.deepEqual(captionHashtags(fitted.caption), lockupWithTags.hashtags);
+  assert.equal(carouselNotesOk(fitted, null, lockupWithTags), true);
 });
 
 test("salinan judul, headline, dan badan ditolak sebelum disimpan", () => {
@@ -1403,22 +1705,29 @@ test("salinan judul, headline, dan badan ditolak sebelum disimpan", () => {
 
   const source = readFileSync(new URL("../../supabase/functions/ai-employee-run/index.ts", import.meta.url), "utf8");
   assert.match(source, /copyCollides/);
-  assert.match(source, /attempt <= 3/);
+  assert.match(source, /attempt <= draftAttempts/);
+  assert.match(source, /MAX_DRAFT_ATTEMPTS/);
   assert.match(source, /rememberCopy/);
   assert.match(source, /orderCopyFallbackPaths/);
   assert.match(source, /ideaTries > ideaCap/);
 });
 
-test("run fokus membangun path baru saat semua path antrean ditolak", () => {
+test("run fokus tidak mengisi ulang path setelah antrean ditolak", () => {
   const source = readFileSync(new URL("../../supabase/functions/ai-employee-run/index.ts", import.meta.url), "utf8");
-  assert.match(source, /const MAX_PATH_REFILLS = 1;/);
-  assert.match(source, /const MAX_REFILL_PATH_ATTEMPTS = 4;/);
+  assert.doesNotMatch(source, /MAX_PATH_REFILLS/);
+  assert.doesNotMatch(source, /MAX_REFILL_PATH_ATTEMPTS/);
+  assert.doesNotMatch(source, /refillCarouselPath/);
   assert.match(source, /rejectedIdeaIds\.has\(candidates\[index\]\.id\)/);
   assert.match(source, /new Set\(\[\.\.\.takenPairs, \.\.\.extraBlocked\]\)/);
   assert.match(source, /while \(attempts < maxAttempts\)/);
-  assert.match(source, /refillCarouselPath = \(blocked\) => prepareCarouselPath\("path", new Set\(\[\.\.\.cooledPairs, \.\.\.blocked\]\), MAX_REFILL_PATH_ATTEMPTS\)/);
-  assert.match(source, /pathRefills < MAX_PATH_REFILLS/);
-  assert.match(source, /!rejectedPairs\.has\(pathPair\(row\)\)/);
+  assert.match(source, /blockedFromCooldown/);
+  assert.match(source, /cooledIdeas/);
+  assert.match(source, /const skipIdea = /);
+  assert.match(source, /!pathBlocked\(row\)/);
+  assert.match(source, /usableQueued/);
+  assert.match(source, /queuedIdeaIds/);
+  assert.doesNotMatch(source, /sop1_cooldown_lifted/);
+  assert.doesNotMatch(source, /buildCarouselPathCheckPrompt/);
 });
 
 test("klaim Product Knowledge boleh diulang di badan slide, judul tetap dicek", () => {
@@ -1560,9 +1869,11 @@ test("revisi Canva memakai jalur lama bila tersedia, atau read-design + edit-des
 test("run berhenti sebelum batas 150 detik dan retry draf memakai temperature lebih tinggi", () => {
   const run = readFileSync(new URL("../../supabase/functions/ai-employee-run/index.ts", import.meta.url), "utf8");
   assert.match(run, /const RUN_TIME_BUDGET_MS = 105_000;/);
-  assert.match(run, /if \(Date\.now\(\) - runStartedAt > RUN_TIME_BUDGET_MS\) \{\s*timeBudgetHit = true;\s*return \{ kind: "quota" \};/);
+  assert.match(run, /const MIN_MODEL_REMAINING_MS = 35_000;/);
+  assert.match(run, /if \(remainingMs\(\) <= 0\) \{\s*timeBudgetHit = true;\s*return \{ kind: "quota" \};/);
   assert.match(run, /if \(label === "quota" && timeBudgetHit\) label = "time_budget";/);
   assert.match(run, /\}\), avoid \? RETRY_TEMPERATURE : 0\);/);
+  assert.match(run, /remainingMs\(\) < MIN_MODEL_REMAINING_MS/);
   const call = scriptAiCall({ url: "https://x.supabase.co", serviceRoleKey: "k", organizationId: "o", userId: "u", prompt: "p", temperature: 0.7 });
   assert.equal(JSON.parse(call.init.body).temperature, 0.7);
   assert.equal(JSON.parse(scriptAiCall({ url: "https://x.supabase.co", serviceRoleKey: "k", organizationId: "o", userId: "u", prompt: "p" }).init.body).temperature, 0);
@@ -1667,4 +1978,140 @@ test("SOP1 menaruh Idea sebagai inti dan menyebut sudut yang sudah sering", () =
   assert.doesNotMatch(bare, /Sudut yang sudah sering/);
   const check = buildExecutionCheckPrompt({ day: "2026-11-13", pillar: { id: "alfa" }, idea: { idea_statement: "x" }, draft: { title: "t", slides: [] } });
   assert.match(check, /mechanismVisible gagal bila judul, hook, dan alur slide tidak membawa mekanisme idea_statement/);
+});
+
+test("Brand lockup hashtags menimpa caption dan prompt melarang mengarang tag", () => {
+  const forced = placeLockupHashtags("Body caption tanpa tag", ["#LaporanBisnis", "#AnalisisWhatIf", "#SynckerjaOffice"]);
+  assert.equal(captionHashtags(forced).join(" "), "#LaporanBisnis #AnalisisWhatIf #SynckerjaOffice");
+  assert.match(forced, /Body caption tanpa tag/);
+  const lockup = brandLockupFromBrief({
+    company_logo_id: "11111111-1111-4111-8111-111111111111",
+    company_logos: [{
+      id: "11111111-1111-4111-8111-111111111111",
+      tagline: "Measuring",
+      website_url: "https://synckerja.com/",
+      default_contact: "081118891308",
+      hashtags: ["#LaporanBisnis", "#AnalisisWhatIf", "#SynckerjaOffice"],
+      logo_path: "org/x.png",
+    }],
+  }, { name: "Synckerja Office" });
+  assert.deepEqual(lockup.hashtags, ["#LaporanBisnis", "#AnalisisWhatIf", "#SynckerjaOffice"]);
+  const prompt = buildSop1Prompt({
+    day: "2026-11-15",
+    pillar: pillars[0],
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+    brief: {
+      company_logo_id: lockup.hasLogo ? "11111111-1111-4111-8111-111111111111" : "",
+      company_logos: [{
+        id: "11111111-1111-4111-8111-111111111111",
+        hashtags: lockup.hashtags,
+        website_url: lockup.website,
+        default_contact: lockup.defaultContact,
+        logo_path: "org/x.png",
+      }],
+    },
+    service: { id: "svc", name: "Synckerja Office" },
+    idea: { idea_id: "i1", idea_statement: "Ide laporan" },
+    product: [],
+  });
+  assert.match(prompt, /Hashtag caption sudah disediakan Brand lockup/);
+  assert.match(prompt, /#LaporanBisnis #AnalisisWhatIf #SynckerjaOffice/);
+  const accepted = parseCarouselDraft(JSON.stringify({
+    title: "Judul uji",
+    post_date: "2026-11-15",
+    caption: DEEP_CAPTION_BODY,
+    concept: "Konten ini dibuat karena penonton masih mengandalkan laporan historis tanpa prediksi.",
+    slides: [
+      {
+        timing: "Slide 1",
+        visual: "Dua laporan di meja, kiri historis kanan prediktif.",
+        vo: "Coba bandingkan",
+        element: "Hook headline: Historis vs prediktif. Visual hook: Dua laporan berdampingan.",
+        tagging: "",
+      },
+      {
+        timing: "Slide 2",
+        visual: "Tim membaca insight what-if di layar.",
+        vo: "Geser lanjut",
+        element: "Headline: What-if lebih jelas.",
+        tagging: "",
+      },
+    ],
+  }), null, {
+    websiteUrl: lockup.website,
+    defaultContact: lockup.defaultContact,
+    hashtags: lockup.hashtags,
+  });
+  assert.ok(accepted);
+  assert.deepEqual(captionHashtags(accepted.caption), lockup.hashtags);
+});
+
+test("Hook sistem masuk prompt; placeholder mentah ditolak", () => {
+  const hook = pickSystemHook([
+    { id: "1", name: "Kalau Mau [X] Ngapain [Y]", hook_content: "Contoh: Kalau mau untung ngapain rugi" },
+    { id: "2", name: "Dulu [X] Sekarang [Y]", hook_content: "Contoh: Dulu manual sekarang otomatis" },
+  ], 1);
+  assert.equal(hook?.name, "Dulu [X] Sekarang [Y]");
+  const lines = systemHookPromptLines(hook);
+  assert.ok(lines.some((line) => /Template Hook headline wajib/.test(line)));
+  const prompt = buildSop1Prompt({
+    day: "2026-11-15",
+    pillar: pillars[0],
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+    brief: null,
+    service: null,
+    idea: { idea_id: "i1", idea_statement: "Ide" },
+    product: [],
+    systemHook: hook,
+  });
+  assert.match(prompt, /Brief meminta pakai hook sistem Product Knowledge/);
+  assert.match(prompt, /Dulu \[X\] Sekarang \[Y\]/);
+  assert.equal(hookHasRawPlaceholders("Hook headline: Kalau Mau [X] Ngapain [Y]. Visual hook: Layar."), true);
+  assert.equal(hookHasRawPlaceholders("Hook headline: Dulu manual sekarang otomatis. Visual hook: Layar."), false);
+  assert.equal(diagnoseCarouselDraft(JSON.stringify({
+    title: "Judul",
+    post_date: "2026-11-15",
+    caption: DEEP_CAPTION,
+    concept: "Konten ini dibuat karena penonton sering menebak solusi tanpa melihat masalah yang sebenarnya.",
+    slides: [
+      {
+        timing: "Slide 1",
+        visual: "Adegan pembuka yang jelas.",
+        vo: "Coba lihat",
+        element: "Hook headline: Kalau Mau [X] Ngapain [Y]. Visual hook: Panah ke angka.",
+        tagging: "",
+      },
+      {
+        timing: "Slide 2",
+        visual: "Adegan penutup.",
+        vo: "Lanjut",
+        element: "Headline: Penutup singkat.",
+        tagging: "",
+      },
+    ],
+    content_pillar_id: pillarId,
+  })), "hook");
+});
+
+test("generate-script-ai carousel prefix tidak memaksa caption satu kalimat pendek", () => {
+  const source = readFileSync(new URL("../../supabase/functions/generate-script-ai/index.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /one short Indonesian sentence/);
+  assert.match(source, /350-550/);
+  assert.match(source, /real newline characters/);
+  assert.match(source, /const CAPTION_LIMIT = 800/);
+  assert.match(source, /caption\.length > CAPTION_LIMIT/);
+  assert.match(source, /function normalizeCarouselCaption/);
+  assert.match(source, /normalizeCarouselCaption\(value\.caption/);
+  assert.match(source, /CAROUSEL_MAX_TOKENS/);
+  assert.doesNotMatch(source, /max_tokens: 1800/);
+  assert.doesNotMatch(source, /caption\.length > 400/);
+  assert.doesNotMatch(source, /let caption = cell\(value\.caption/);
 });

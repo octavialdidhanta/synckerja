@@ -440,7 +440,6 @@ export type AppDeps = {
       productKnowledgeIds: string[];
       angleIds?: string[];
       repeatVoices?: string[];
-      splitRule: string;
     },
   ) => Promise<unknown>;
   listProductKnowledge: (

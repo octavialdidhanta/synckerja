@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { coverageMap, chainOptions, parsePillars, pillarOptions, rowFitsPillar, selectInTree, parseThinkingTree, treeOptions, ideaCode, jakartaMonth, parseRunLog, rowFitsChain, runReason, setChainLevel, shiftMonth, summarizeRows } from "./runLog";
+import { coverageMap, chainOptions, parsePillars, pillarOptions, rowFitsPillar, selectInTree, parseThinkingTree, treeOptions, ideaCode, isLiveRunning, jakartaMonth, parseRunLog, rowFitsChain, runReason, setChainLevel, shiftMonth, summarizeRows } from "./runLog";
+import { RUN_STALE_MS } from "./runningSop";
 
 const t = (_key: string, fallback: string) => fallback;
 
@@ -57,7 +60,7 @@ describe("runReason", () => {
 
   it("explains a path that did not fit the pillar", () => {
     expect(runReason({ note: "sop1 path_unconfirmed steps=8 open=1", status: "failed", planCount: 0 }, t))
-      .toBe("Ide di Fokus angle belum cocok dengan pilar yang dipilih");
+      .toBe("Belum ada jalur kreatif siap di Thinking Lab — lock pilar di Creative Path dulu");
   });
 
   it("falls back to the status", () => {
@@ -230,5 +233,74 @@ describe("coverage map", () => {
     expect(map.pillars.map((pillar) => pillar.id).join(",")).toBe("pb");
     expect(map.rows[0].plans).toBe(0);
     expect(map.rows[0].failed).toBe(1);
+  });
+
+  it("marks a live running attempt on the map, not a stale one", () => {
+    const now = new Date("2026-11-15T08:00:00Z");
+    const live = parseRunLog({
+      rows: [{
+        id: "live",
+        status: "running",
+        started_at: "2026-11-15T07:55:00Z",
+        plans: [],
+        attempt: { pillar_id: "pb", pillar_name: "Case Study", chain },
+      }],
+    }).rows;
+    const stale = parseRunLog({
+      rows: [{
+        id: "stale",
+        status: "running",
+        started_at: new Date(now.getTime() - RUN_STALE_MS - 60_000).toISOString(),
+        plans: [],
+        attempt: { pillar_id: "pb", pillar_name: "Case Study", chain },
+      }],
+    }).rows;
+    expect(isLiveRunning(live[0], now)).toBe(true);
+    expect(isLiveRunning(stale[0], now)).toBe(false);
+    const liveMap = coverageMap(tree, live, {}, "", now);
+    expect(liveMap.rows[0].cells.pb.running).toBe(1);
+    expect(liveMap.rows[0].cells.pb.failed).toBe(0);
+    const staleMap = coverageMap(tree, stale, {}, "", now);
+    expect(staleMap.rows[0].cells.pb?.running ?? 0).toBe(0);
+    expect(summarizeRows(live, now).running).toBe(1);
+    expect(summarizeRows(stale, now).running).toBe(0);
+  });
+
+  it("keeps failed cells red and does not mix with running", () => {
+    const map = coverageMap(tree, log.rows, {});
+    expect(map.rows[0].cells.pb.failed).toBe(1);
+    expect(map.rows[0].cells.pb.running).toBe(0);
+  });
+});
+
+describe("ai-employee-run attempt live write", () => {
+  it("persists attempted_idea_id while the run is still running", () => {
+    const source = readFileSync(resolve(process.cwd(), "supabase/functions/ai-employee-run/index.ts"), "utf8");
+    expect(source).toContain("attempted_idea_id: attemptedIdeaId || null");
+    expect(source).toContain('eq("status", "running")');
+    expect(source).toContain("attempt_live");
+    expect(source).toContain("writtenAttemptKey");
+  });
+
+  it("skips the whole idea after a hard draft reject and cools ideas for 24h", () => {
+    const source = readFileSync(resolve(process.cwd(), "supabase/functions/ai-employee-run/index.ts"), "utf8");
+    expect(source).toContain("const skipIdea = ");
+    expect(source).toContain("cooledIdeas");
+    expect(source).toContain('rejectedPairs.add(`${id}:`)');
+    expect(source).toContain("blockedFromCooldown");
+    expect(source).toContain("diagnoseCarouselDraftDetail");
+    expect(source).toContain("invalidRewriteNote");
+    expect(source).toContain('failMsg.startsWith("invalid:")');
+    expect(source).toContain("caption_reason");
+    expect(source).toContain("body_len");
+  });
+});
+
+describe("checkName invalid codes", () => {
+  it("names invalid:hashtags and invalid:hook in runReason", () => {
+    expect(runReason({ note: "sop1 time_budget steps=8 reject=invalid:hashtags", status: "failed", planCount: 0 }, t))
+      .toContain("hashtag");
+    expect(runReason({ note: "sop1 checks_failed steps=8 reject=invalid:hook", status: "failed", planCount: 0 }, t))
+      .toContain("hook");
   });
 });

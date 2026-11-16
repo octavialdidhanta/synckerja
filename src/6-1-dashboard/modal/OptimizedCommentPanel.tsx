@@ -716,9 +716,6 @@ export const OptimizedCommentPanel: React.FC<OptimizedCommentPanelProps> = React
                 <MessageSquare className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                 <p>Belum ada komentar atau gambar quality control.</p>
                 <p>Tambahkan komentar atau gunakan sniping tool di bawah.</p>
-                <div className="mt-4 text-xs text-gray-400">
-                  Debug: comments={comments.length}, images={images.length}, isLoading={isLoading ? 'true' : 'false'}
-                </div>
               </div>}
           </div>
         </ScrollArea>
