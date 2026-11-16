@@ -188,12 +188,21 @@ export function useLinkedInContentCommentMutations(args: {
         text: input.text,
       });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({
         queryKey: ['linkedin-content-comments', organizationId, pageId, postId],
       });
       void queryClient.invalidateQueries({
         queryKey: ['linkedin-content-comment-posts', organizationId, pageId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [
+          'linkedin-content-comment-replies',
+          organizationId,
+          pageId,
+          postId,
+          variables.commentId,
+        ],
       });
     },
   });

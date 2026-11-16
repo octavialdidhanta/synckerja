@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { LinkedInPageRow } from "./linkedinContentApi.ts";
-import { linkedinContentOAuthScopes } from "./linkedinContentAuth.ts";
+import {
+  linkedinContentMemberOAuthScopes,
+  linkedinContentOAuthScopes,
+  type LinkedInContentConnectKind,
+} from "./linkedinContentAuth.ts";
 import {
   encryptLinkedInContentToken,
 } from "./linkedinContentConfigCrypto.ts";
@@ -15,12 +19,26 @@ export async function saveLinkedInPageConnection(
     refreshToken: string;
     expiresIn?: number;
     grantedScopes?: string[];
+    accountKind?: LinkedInContentConnectKind;
   },
 ): Promise<{ isExistingAccount: boolean }> {
-  const { organizationId, userId, page, accessToken, refreshToken, expiresIn, grantedScopes } = args;
+  const {
+    organizationId,
+    userId,
+    page,
+    accessToken,
+    refreshToken,
+    expiresIn,
+    grantedScopes,
+    accountKind = "organization",
+  } = args;
   const scopes = grantedScopes?.length
     ? grantedScopes
-    : linkedinContentOAuthScopes().split(/\s+/).filter(Boolean);
+    : (accountKind === "person"
+      ? linkedinContentMemberOAuthScopes()
+      : linkedinContentOAuthScopes())
+      .split(/\s+/)
+      .filter(Boolean);
   const pageId = page.page_id;
   const now = new Date().toISOString();
   const accessExpires = expiresIn
@@ -55,11 +73,14 @@ export async function saveLinkedInPageConnection(
 
   const { data: existingAccounts } = await admin
     .from("organization_linkedin_content_accounts")
-    .select("id, is_default, page_id, sort_order")
+    .select("id, is_default, page_id, sort_order, account_kind")
     .eq("organization_id", organizationId)
     .eq("is_active", true);
 
-  const hasDefault = (existingAccounts ?? []).some(
+  const sameKind = (existingAccounts ?? []).filter(
+    (a) => String((a as { account_kind?: string }).account_kind ?? "organization") === accountKind,
+  );
+  const hasDefault = sameKind.some(
     (a) => Boolean((a as { is_default?: boolean }).is_default),
   );
   const existingPage = (existingAccounts ?? []).find(
@@ -77,6 +98,7 @@ export async function saveLinkedInPageConnection(
     {
       organization_id: organizationId,
       page_id: pageId,
+      account_kind: accountKind,
       label: displayName,
       display_name: displayName,
       thumbnail_url: page.thumbnail_url,

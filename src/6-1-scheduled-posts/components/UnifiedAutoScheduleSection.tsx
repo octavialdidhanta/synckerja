@@ -72,10 +72,19 @@ type Props = {
 type PublishResult = { ok: true } | { ok: false; error: string };
 
 function isCarouselPhotoPlatform(platform: string): boolean {
-  return platform === 'TikTok' || platform === 'Instagram' || platform === 'Facebook';
+  return (
+    platform === 'TikTok' ||
+    platform === 'Instagram' ||
+    platform === 'Facebook' ||
+    platform === 'LinkedIn'
+  );
 }
 
-function getReconnectHint(platform: string, t: (key: string) => string): string {
+function getReconnectHint(
+  platform: string,
+  t: (key: string, defaultValue?: string) => string,
+  accountKind?: 'organization' | 'person' | null,
+): string {
   switch (platform) {
     case 'TikTok':
       return t('digitalMarketing.scheduledPosts.reconnectPublishScopes');
@@ -86,7 +95,15 @@ function getReconnectHint(platform: string, t: (key: string) => string): string 
     case 'Facebook':
       return t('digitalMarketing.scheduledPosts.facebookReconnectPublish');
     case 'LinkedIn':
-      return t('digitalMarketing.scheduledPosts.linkedinReconnectPublish');
+      return accountKind === 'person'
+        ? t(
+            'digitalMarketing.scheduledPosts.linkedinReconnectMemberPublish',
+            'Reconnect LinkedIn personal profile in settings to grant w_member_social.',
+          )
+        : t(
+            'digitalMarketing.scheduledPosts.linkedinReconnectPublish',
+            'Reconnect LinkedIn page in settings to grant w_organization_social.',
+          );
     default:
       return t('digitalMarketing.scheduledPosts.oauthAccountRequired');
   }
@@ -113,8 +130,11 @@ export function UnifiedAutoScheduleSection({
 }: Props) {
   const { t } = useTranslation();
   const { data: defaultTime } = useOrgDefaultPostTime();
-  const { accounts: connectedAccounts, isLoading: accountsLoading } =
-    useConnectedPlatformAccounts(organizationId);
+  const {
+    accounts: connectedAccounts,
+    isLoading: accountsLoading,
+    findAccount,
+  } = useConnectedPlatformAccounts(organizationId);
   const { data: schedules } = useScheduledPostsByPlan(planId);
   const { links: planLinks } = useSocialMediaLinks(planId);
   const { scheduleMutation, postNowMutation, cancelMutation } = useUnifiedScheduleMutations();
@@ -238,7 +258,7 @@ export function UnifiedAutoScheduleSection({
         tiktokCarouselOnly &&
         !isCarouselPhotoPlatform(target.platform)
       ) {
-        const error = 'Carousel posts publish to TikTok, Instagram, and Facebook';
+        const error = 'Carousel posts publish to TikTok, Instagram, Facebook, and LinkedIn';
         if (!silent) toast.error(error);
         return { ok: false, error };
       }
@@ -253,7 +273,8 @@ export function UnifiedAutoScheduleSection({
         return { ok: false, error };
       }
       if (!target.publishScopesOk) {
-        const error = getReconnectHint(target.platform, t);
+        const linkedKind = findAccount(target.platform, target.accountId)?.accountKind;
+        const error = getReconnectHint(target.platform, t, linkedKind);
         if (!silent) toast.error(error);
         return { ok: false, error };
       }
@@ -332,6 +353,7 @@ export function UnifiedAutoScheduleSection({
       scheduleRows,
       publishOneTarget,
       lockAccount,
+      findAccount,
     ],
   );
 
@@ -631,7 +653,11 @@ export function UnifiedAutoScheduleSection({
                       isCancelPending={isCancelPending}
                       isDeletePending={isDeletePending}
                       bulkRunning={isBulkRunning}
-                      reconnectHint={getReconnectHint(target.platform, t)}
+                      reconnectHint={getReconnectHint(
+                        target.platform,
+                        t,
+                        findAccount(target.platform, target.accountId)?.accountKind,
+                      )}
                       pinActions={!nativeAppLayout}
                     />
                   );

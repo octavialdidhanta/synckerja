@@ -17,7 +17,15 @@ export type ConnectedPlatformAccount = {
   accountLabel: string;
   publishScopesOk: boolean;
   isActive: boolean;
+  /** LinkedIn only: organization | person */
+  accountKind?: 'organization' | 'person';
+  isDefault?: boolean;
+  sortOrder?: number;
 };
+
+function linkedInKindRank(kind: string | undefined): number {
+  return kind === 'person' ? 1 : 0;
+}
 
 export function useConnectedPlatformAccounts(organizationId: string | null | undefined) {
   const enabled = Boolean(organizationId);
@@ -54,16 +62,21 @@ export function useConnectedPlatformAccounts(organizationId: string | null | und
 
     for (const acc of linkedinSettings.data?.accounts ?? []) {
       if (!acc.is_active) continue;
+      const isPerson = String(acc.account_kind ?? 'organization') === 'person';
+      const labelBase = acc.display_name || acc.label || acc.page_id;
       list.push({
         platform: 'LinkedIn',
         accountId: acc.page_id,
-        accountLabel: acc.display_name || acc.label || acc.page_id,
+        accountLabel: isPerson ? `${labelBase} (Personal)` : labelBase,
         publishScopesOk:
           missingLinkedInScopesForFeature(
             Array.isArray(acc.granted_scopes) ? acc.granted_scopes : [],
-            'publish',
+            isPerson ? 'memberPublish' : 'publish',
           ).length === 0,
         isActive: true,
+        accountKind: isPerson ? 'person' : 'organization',
+        isDefault: Boolean(acc.is_default),
+        sortOrder: Number(acc.sort_order) || 0,
       });
     }
 
@@ -86,6 +99,14 @@ export function useConnectedPlatformAccounts(organizationId: string | null | und
     return list.sort((a, b) => {
       const platformOrder = a.platform.localeCompare(b.platform);
       if (platformOrder !== 0) return platformOrder;
+      if (a.platform === 'LinkedIn' && b.platform === 'LinkedIn') {
+        const kindOrder = linkedInKindRank(a.accountKind) - linkedInKindRank(b.accountKind);
+        if (kindOrder !== 0) return kindOrder;
+        const defaultOrder = Number(Boolean(b.isDefault)) - Number(Boolean(a.isDefault));
+        if (defaultOrder !== 0) return defaultOrder;
+        const sortOrder = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+        if (sortOrder !== 0) return sortOrder;
+      }
       return a.accountLabel.localeCompare(b.accountLabel);
     });
   }, [tiktokSettings.data, youtubeSettings.data, linkedinSettings.data, metaConfig.data?.accounts]);

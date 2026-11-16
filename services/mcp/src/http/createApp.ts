@@ -131,6 +131,10 @@ export type AppDeps = {
     ctx: McpAuthContext,
     query: import("../tools/comments/commentsQuery").CommentsQuery,
   ) => Promise<import("../tools/comments/commentsQuery").CommentsSource>;
+  readLinkedInPerformance: (
+    ctx: McpAuthContext,
+    query: import("../tools/linkedin/performanceQuery").LinkedInPerformanceQuery,
+  ) => Promise<import("../tools/linkedin/performanceQuery").LinkedInPerformanceSource>;
   listAdsAccounts: (ctx: McpAuthContext) => Promise<AdsAccountRow[]>;
   listAdsPerformance: (
     ctx: McpAuthContext,

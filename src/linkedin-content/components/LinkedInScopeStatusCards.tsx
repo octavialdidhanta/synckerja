@@ -17,18 +17,36 @@ const FEATURE_LINKS: Record<keyof typeof LINKEDIN_SCOPE_FEATURE_MAP, string> = {
   comments: '/digital-marketing/social-media-performance/manage-comments/linkedin',
   insights: '/digital-marketing/social-media-performance/linkedin',
   publish: '/digital-marketing/social-media/content-calendar',
+  memberPublish: '/digital-marketing/social-media-performance/linkedin/settings',
+  memberInsights: '/digital-marketing/social-media-performance/linkedin',
   pages: '/digital-marketing/social-media-performance/linkedin/settings',
 };
+
+const MEMBER_FEATURES = new Set<keyof typeof LINKEDIN_SCOPE_FEATURE_MAP>([
+  'memberPublish',
+  'memberInsights',
+]);
 
 export function LinkedInScopeStatusCards({ accounts }: LinkedInScopeStatusCardsProps) {
   const { t } = useTranslation();
   if (accounts.length === 0) return null;
 
-  const primary = accounts.find((a) => a.is_default) ?? accounts[0];
-  const granted = parseLinkedInGrantedScopes(primary.granted_scopes);
-  const features = Object.keys(LINKEDIN_SCOPE_FEATURE_MAP) as Array<
-    keyof typeof LINKEDIN_SCOPE_FEATURE_MAP
-  >;
+  const orgPrimary =
+    accounts.find((a) => a.is_default && String(a.account_kind ?? 'organization') !== 'person') ??
+    accounts.find((a) => String(a.account_kind ?? 'organization') !== 'person') ??
+    accounts[0];
+  const personPrimary =
+    accounts.find((a) => a.account_kind === 'person' && a.is_default) ??
+    accounts.find((a) => a.account_kind === 'person') ??
+    null;
+
+  const orgGranted = parseLinkedInGrantedScopes(orgPrimary.granted_scopes);
+  const personGranted = parseLinkedInGrantedScopes(personPrimary?.granted_scopes);
+  const hasPersonAccount = Boolean(personPrimary);
+
+  const features = (
+    Object.keys(LINKEDIN_SCOPE_FEATURE_MAP) as Array<keyof typeof LINKEDIN_SCOPE_FEATURE_MAP>
+  ).filter((feature) => !MEMBER_FEATURES.has(feature) || hasPersonAccount);
 
   return (
     <div className="space-y-2 border-t border-slate-200 pt-4">
@@ -37,12 +55,21 @@ export function LinkedInScopeStatusCards({ accounts }: LinkedInScopeStatusCardsP
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
         {features.map((feature) => {
+          const granted = MEMBER_FEATURES.has(feature) ? personGranted : orgGranted;
           const missing = missingLinkedInScopesForFeature(granted, feature);
           const ok = missing.length === 0;
           const labels: Record<typeof feature, string> = {
             comments: t('digitalMarketing.linkedinContent.scopeStatus.comments', 'Comments'),
             insights: t('digitalMarketing.linkedinContent.scopeStatus.insights', 'Insights'),
             publish: t('digitalMarketing.linkedinContent.scopeStatus.publish', 'Publish'),
+            memberPublish: t(
+              'digitalMarketing.linkedinContent.scopeStatus.memberPublish',
+              'Personal publish',
+            ),
+            memberInsights: t(
+              'digitalMarketing.linkedinContent.scopeStatus.memberInsights',
+              'Personal insights',
+            ),
             pages: t('digitalMarketing.linkedinContent.scopeStatus.pages', 'Pages'),
           };
           return (
@@ -60,7 +87,15 @@ export function LinkedInScopeStatusCards({ accounts }: LinkedInScopeStatusCardsP
               )}
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-slate-800">{labels[feature]}</p>
-                {!ok && (
+                {!ok && feature === 'memberInsights' && (
+                  <p className="mt-0.5 text-slate-600">
+                    {t(
+                      'digitalMarketing.linkedinContent.scopeStatus.memberInsightsBlocked',
+                      'Not available on this LinkedIn app yet (Auth rejects these scopes). Personal stays publish-only.',
+                    )}
+                  </p>
+                )}
+                {!ok && feature !== 'memberInsights' && (
                   <p className="mt-0.5 text-slate-600">
                     {t('digitalMarketing.linkedinContent.scopeStatus.missing', 'Missing')}:{' '}
                     {missing.join(', ')}
@@ -80,7 +115,7 @@ export function LinkedInScopeStatusCards({ accounts }: LinkedInScopeStatusCardsP
           );
         })}
       </div>
-      {granted.length === 0 && (
+      {orgGranted.length === 0 && personGranted.length === 0 && (
         <p className="text-xs text-amber-700">
           {t(
             'digitalMarketing.linkedinContent.scopeStatus.reconnectHint',

@@ -402,7 +402,19 @@ async function youtubeJobs(ctx: Ctx): Promise<AccountJob[]> {
 }
 
 async function linkedinJobs(ctx: Ctx): Promise<AccountJob[]> {
-  const pageIds = await activeAccountIds(ctx, "organization_linkedin_content_accounts", "page_id");
+  // Company Pages only — personal profiles are publish-only and break comments APIs.
+  const { data: accountRows, error: accountErr } = await ctx.admin
+    .from("organization_linkedin_content_accounts")
+    .select("page_id, account_kind")
+    .eq("organization_id", ctx.organizationId)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .limit(MAX_ACCOUNTS_PER_PLATFORM);
+  if (accountErr) throw new Error("account_lookup_failed");
+  const pageIds = ((accountRows ?? []) as Array<{ page_id?: string; account_kind?: string | null }>)
+    .filter((row) => String(row.account_kind ?? "organization") !== "person")
+    .map((row) => str(row.page_id))
+    .filter((id): id is string => Boolean(id));
   const jobs: AccountJob[] = [];
   for (const pageIdParam of pageIds) {
     const resolved = await resolveOrgLinkedInContentForMetrics(ctx.admin, ctx.organizationId, pageIdParam);

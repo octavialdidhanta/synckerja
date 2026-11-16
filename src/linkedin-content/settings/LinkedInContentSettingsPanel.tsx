@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -20,6 +20,11 @@ import {
   type LinkedInPendingPage,
 } from "@/linkedin-content/hooks/useLinkedInContentSettings";
 import type { LinkedInContentOAuthReturnPath } from "@/linkedin-content/settings/linkedinContentSettingsPaths";
+
+function accountTokenMs(raw: string | null | undefined): number {
+  const ms = raw ? new Date(raw).getTime() : NaN;
+  return Number.isFinite(ms) ? ms : 0;
+}
 
 export type LinkedInContentSettingsPanelProps = {
   organizationId: string | null | undefined;
@@ -55,6 +60,21 @@ export function LinkedInContentSettingsPanel({
   const serverConfigured = data?.serverConfigured !== false;
   const accounts = data?.accounts ?? [];
 
+  /** Personal OAuth often revokes older Company Page tokens — nudge reconnect. */
+  const pagesLikelyNeedReconnect = useMemo(() => {
+    const personNewest = accounts
+      .filter((a) => a.is_active && String(a.account_kind ?? "organization") === "person")
+      .reduce((max, a) => Math.max(max, accountTokenMs(a.token_updated_at)), 0);
+    if (personNewest <= 0) return [];
+    return accounts.filter(
+      (a) =>
+        a.is_active &&
+        String(a.account_kind ?? "organization") !== "person" &&
+        accountTokenMs(a.token_updated_at) > 0 &&
+        accountTokenMs(a.token_updated_at) < personNewest,
+    );
+  }, [accounts]);
+
   const loadPendingPages = async () => {
     if (!organizationId) return;
     try {
@@ -82,31 +102,67 @@ export function LinkedInContentSettingsPanel({
     }
 
     if (connected === "1") {
+      const connectKind = searchParams.get("connect_kind");
+      const isPerson = connectKind === "person";
       if (existing === "1") {
         toast.info(
-          t(
-            "digitalMarketing.linkedinContent.reconnectedToast",
-            "This LinkedIn page is already connected. Sign in with a different LinkedIn account to add another.",
-          ),
+          isPerson
+            ? t(
+                "digitalMarketing.linkedinContent.reconnectedPersonalToast",
+                "This LinkedIn personal profile is already connected.",
+              )
+            : t(
+                "digitalMarketing.linkedinContent.reconnectedToast",
+                "This LinkedIn page is already connected. Sign in with a different LinkedIn account to add another.",
+              ),
         );
       } else {
-        toast.success(
-          t("digitalMarketing.linkedinContent.connectedToast", "LinkedIn page connected successfully."),
-        );
+        if (isPerson) {
+          toast.success(
+            t(
+              "digitalMarketing.linkedinContent.connectedPersonalToast",
+              "LinkedIn personal profile connected successfully.",
+            ),
+          );
+          toast.message(
+            t(
+              "digitalMarketing.linkedinContent.connectedPersonalPageReauthHint",
+              "If Company Page insights stop loading, reconnect the LinkedIn page (personal OAuth can revoke older page tokens).",
+            ),
+          );
+        } else {
+          toast.success(
+            t(
+              "digitalMarketing.linkedinContent.connectedToast",
+              "LinkedIn page connected successfully.",
+            ),
+          );
+        }
       }
       searchParams.delete("connected");
       searchParams.delete("existing");
+      searchParams.delete("connect_kind");
       setSearchParams(searchParams, { replace: true });
     }
     if (oauthError) {
       const oauthErrorDesc = searchParams.get("oauth_error_desc") ?? "";
+      const connectKind = searchParams.get("connect_kind");
+      const scopeRejected =
+        oauthError === "invalid_scope" ||
+        oauthError === "invalid_scope_error" ||
+        oauthError === "unauthorized_scope_error";
       const displayMessage =
         oauthError === "OK"
           ? t(
               "digitalMarketing.linkedinContent.oauthErrorGeneric",
               "Sign-in failed while saving LinkedIn tokens. Please try Connect again.",
             )
-          : oauthError === "invalid_scope_error" || oauthError === "unauthorized_scope_error"
+          : scopeRejected && connectKind === "person"
+            ? t(
+                "digitalMarketing.linkedinContent.oauthMemberScopeRejected",
+                "LinkedIn rejected personal-profile permissions. Use Connect personal profile with Share on LinkedIn scopes only (w_member_social). Member insights scopes are not available on this app yet.",
+              )
+            : scopeRejected
             ? t(
                 "digitalMarketing.linkedinContent.oauthScopeNotApproved",
                 "LinkedIn rejected the requested permissions. Ensure Community Management API is approved on your Synckerja Content Insight app, then try Connect again.",
@@ -200,6 +256,30 @@ export function LinkedInContentSettingsPanel({
           </Alert>
         )}
 
+        {pagesLikelyNeedReconnect.length > 0 && (
+          <Alert variant="destructive">
+            <AlertTitle>
+              {t(
+                "digitalMarketing.linkedinContent.pageReauthRequiredTitle",
+                "Company Page needs reconnect",
+              )}
+            </AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p>
+                {t(
+                  "digitalMarketing.linkedinContent.pageReauthRequiredDesc",
+                  "Personal profile was connected more recently than these pages. LinkedIn often revokes older page tokens — click Connect LinkedIn page below, then refresh Performance.",
+                )}
+              </p>
+              <p className="text-xs">
+                {pagesLikelyNeedReconnect
+                  .map((a) => a.display_name || a.label || a.page_id)
+                  .join(", ")}
+              </p>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {accounts.length > 0 && (
           <p className="text-xs text-muted-foreground">
             {t(
@@ -214,15 +294,33 @@ export function LinkedInContentSettingsPanel({
             type="button"
             disabled={!serverConfigured || startOAuth.isPending}
             onClick={() =>
-              startOAuth.mutate(oauthReturnPath, {
-                onError: (e) => toast.error((e as Error).message),
-              })
+              startOAuth.mutate(
+                { returnPath: oauthReturnPath, connectKind: "organization" },
+                { onError: (e) => toast.error((e as Error).message) },
+              )
             }
           >
             {startOAuth.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {accounts.length > 0
+            {accounts.some((a) => String(a.account_kind ?? "organization") !== "person")
               ? t("digitalMarketing.linkedinContent.connectAnotherAccount", "Connect another LinkedIn page")
               : t("digitalMarketing.linkedinContent.connectAccount", "Connect LinkedIn page")}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!serverConfigured || startOAuth.isPending}
+            onClick={() =>
+              startOAuth.mutate(
+                { returnPath: oauthReturnPath, connectKind: "person" },
+                { onError: (e) => toast.error((e as Error).message) },
+              )
+            }
+          >
+            {startOAuth.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {t(
+              "digitalMarketing.linkedinContent.connectPersonalProfile",
+              "Connect personal profile",
+            )}
           </Button>
           {oauthConnected && (
             <Button
@@ -240,9 +338,11 @@ export function LinkedInContentSettingsPanel({
         {accounts.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {t("digitalMarketing.linkedinContent.connectedAccounts", "Connected pages")}
+              {t("digitalMarketing.linkedinContent.connectedAccounts", "Connected accounts")}
             </p>
-            {accounts.map((acc) => (
+            {accounts.map((acc) => {
+              const isPerson = String(acc.account_kind ?? "organization") === "person";
+              return (
               <div
                 key={acc.id}
                 className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2"
@@ -253,7 +353,22 @@ export function LinkedInContentSettingsPanel({
                   ) : null}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{acc.label || acc.display_name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{acc.page_id}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      <span className="mr-1.5 inline-flex rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-600">
+                        {isPerson
+                          ? t("digitalMarketing.linkedinContent.accountKindPersonal", "Personal")
+                          : t("digitalMarketing.linkedinContent.accountKindPage", "Page")}
+                      </span>
+                      {acc.page_id}
+                    </p>
+                    {isPerson ? (
+                      <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                        {t(
+                          "digitalMarketing.linkedinContent.personalInsightsUnavailableHint",
+                          "Connected for publish/schedule. Personal insights stay off Performance until LinkedIn grants member analytics scopes.",
+                        )}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
@@ -283,7 +398,8 @@ export function LinkedInContentSettingsPanel({
                   </Button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

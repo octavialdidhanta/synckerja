@@ -1,5 +1,5 @@
 const LINKEDIN_API_BASE = "https://api.linkedin.com";
-const LINKEDIN_API_VERSION = "202411";
+const LINKEDIN_API_VERSION = "202610";
 
 function linkedInRestHeaders(accessToken: string): Record<string, string> {
   return {
@@ -10,11 +10,59 @@ function linkedInRestHeaders(accessToken: string): Record<string, string> {
   };
 }
 
+export type LinkedInVideoUploadPart = {
+  uploadUrl: string;
+  firstByte: number;
+  lastByte: number;
+};
+
 export type LinkedInVideoUploadInit = {
   uploadUrn: string;
-  uploadUrl: string;
+  uploadToken: string;
+  parts: LinkedInVideoUploadPart[];
+  /** Persisted for resume / finalize. */
   uploadInstructions: Record<string, unknown>;
 };
+
+type InitializeUploadResponse = {
+  value?: {
+    video?: string;
+    uploadToken?: string;
+    uploadUrl?: string;
+    uploadInstructions?: Array<{
+      uploadUrl?: string;
+      firstByte?: number;
+      lastByte?: number;
+    }>;
+  };
+  message?: string;
+};
+
+function parseUploadParts(
+  value: NonNullable<InitializeUploadResponse["value"]>,
+): LinkedInVideoUploadPart[] {
+  const raw = value.uploadInstructions;
+  if (Array.isArray(raw) && raw.length > 0) {
+    return raw
+      .map((part) => {
+        const uploadUrl = String(part.uploadUrl ?? "").trim();
+        const firstByte = Number(part.firstByte ?? 0);
+        const lastByte = Number(part.lastByte ?? -1);
+        if (!uploadUrl || !Number.isFinite(firstByte) || !Number.isFinite(lastByte) || lastByte < firstByte) {
+          return null;
+        }
+        return { uploadUrl, firstByte, lastByte };
+      })
+      .filter((p): p is LinkedInVideoUploadPart => p != null);
+  }
+
+  // Legacy single-URL shape (pre multipart instructions).
+  const legacyUrl = String(value.uploadUrl ?? "").trim();
+  if (legacyUrl) {
+    return [{ uploadUrl: legacyUrl, firstByte: 0, lastByte: Number.MAX_SAFE_INTEGER }];
+  }
+  return [];
+}
 
 export async function initializeLinkedInVideoUpload(
   accessToken: string,
@@ -34,59 +82,89 @@ export async function initializeLinkedInVideoUpload(
     }),
   });
 
-  const json = await res.json().catch(() => ({})) as {
-    value?: {
-      video?: string;
-      uploadUrl?: string;
-      uploadInstructions?: Record<string, unknown>;
-    };
-    message?: string;
-  };
+  const json = await res.json().catch(() => ({})) as InitializeUploadResponse;
 
   if (!res.ok) {
     throw new Error(`linkedin_video_init HTTP ${res.status}: ${json.message ?? "unknown"}`);
   }
 
-  const uploadUrn = String(json.value?.video ?? "").trim();
-  const uploadUrl = String(json.value?.uploadUrl ?? "").trim();
-  if (!uploadUrn || !uploadUrl) throw new Error("linkedin_video_init_missing_fields");
+  const value = json.value ?? {};
+  const uploadUrn = String(value.video ?? "").trim();
+  const uploadToken = String(value.uploadToken ?? "");
+  const parts = parseUploadParts(value);
+  if (!uploadUrn || parts.length === 0) {
+    throw new Error("linkedin_video_init_missing_fields");
+  }
 
   return {
     uploadUrn,
-    uploadUrl,
-    uploadInstructions: json.value?.uploadInstructions ?? {},
+    uploadToken,
+    parts,
+    uploadInstructions: {
+      uploadToken,
+      uploadInstructions: parts,
+    },
   };
 }
 
-export async function uploadLinkedInVideoBytes(
-  uploadUrl: string,
-  accessToken: string,
-  videoBytes: Uint8Array,
-  mimeType: string,
-): Promise<void> {
-  const res = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": mimeType,
-      "Content-Length": String(videoBytes.byteLength),
-    },
-    body: videoBytes,
-  });
+function stripEtagQuotes(etag: string): string {
+  return etag.trim().replace(/^W\//, "").replace(/^"+|"+$/g, "");
+}
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`linkedin_video_upload HTTP ${res.status}: ${text.slice(0, 300)}`);
+/**
+ * PUT each multipart range. Signed upload URLs do not use the OAuth Authorization header.
+ * Returns ETag part IDs in instruction order for finalizeUpload.
+ */
+export async function uploadLinkedInVideoBytes(
+  parts: LinkedInVideoUploadPart[],
+  videoBytes: Uint8Array,
+  _mimeType?: string,
+): Promise<string[]> {
+  const uploadedPartIds: string[] = [];
+  const lastIndex = videoBytes.byteLength - 1;
+
+  for (const part of parts) {
+    const first = Math.max(0, part.firstByte);
+    const last = Math.min(
+      part.lastByte === Number.MAX_SAFE_INTEGER ? lastIndex : part.lastByte,
+      lastIndex,
+    );
+    if (last < first) {
+      throw new Error(`linkedin_video_upload_bad_range:${first}-${last}`);
+    }
+    const chunk = videoBytes.slice(first, last + 1);
+    const res = await fetch(part.uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "Content-Length": String(chunk.byteLength),
+      },
+      body: chunk,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`linkedin_video_upload HTTP ${res.status}: ${text.slice(0, 300)}`);
+    }
+
+    const etag = res.headers.get("etag") ?? res.headers.get("ETag") ?? "";
+    const partId = stripEtagQuotes(etag);
+    if (!partId) {
+      throw new Error("linkedin_video_upload_missing_etag");
+    }
+    uploadedPartIds.push(partId);
   }
+
+  return uploadedPartIds;
 }
 
 export async function finalizeLinkedInVideoUpload(
   accessToken: string,
   uploadUrn: string,
   uploadInstructions: Record<string, unknown>,
+  uploadedPartIds: string[],
 ): Promise<void> {
-  const uploadToken = String(uploadInstructions.uploadToken ?? "").trim();
-  if (!uploadToken) return;
+  const uploadToken = String(uploadInstructions.uploadToken ?? "");
 
   const res = await fetch(`${LINKEDIN_API_BASE}/rest/videos?action=finalizeUpload`, {
     method: "POST",
@@ -95,6 +173,7 @@ export async function finalizeLinkedInVideoUpload(
       finalizeUploadRequest: {
         video: uploadUrn,
         uploadToken,
+        uploadedPartIds,
       },
     }),
   });

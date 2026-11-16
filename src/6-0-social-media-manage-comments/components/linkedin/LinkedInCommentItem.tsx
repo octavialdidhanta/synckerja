@@ -31,7 +31,11 @@ export function LinkedInCommentItem({
   const { t, i18n } = useTranslation();
   const isMobileLayout = useManageCommentsMobileLayout();
   const [showReplies, setShowReplies] = useState(false);
-  const name = comment.author_display_name?.trim() || t('digitalMarketing.manageComments.unknownUser', 'User');
+  const rawName = comment.author_display_name?.trim() || '';
+  // Safety net: never render a raw LinkedIn URN as the author label.
+  const name = rawName && !/^urn:li:/i.test(rawName)
+    ? rawName
+    : t('digitalMarketing.manageComments.unknownUser', 'User');
   const initials = name.slice(0, 2).toUpperCase();
   const timeLabel = formatCommentRelativeTimeFromIso(comment.published_at, i18n.language);
   const isReplyTarget = replyControls.replyToCommentId === comment.id;

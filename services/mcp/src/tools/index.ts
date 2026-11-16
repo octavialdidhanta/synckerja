@@ -28,6 +28,11 @@ export {
   parseCommentsListQuery,
   parseCommentsSummaryQuery,
 } from "./comments/commentsQuery";
+export {
+  linkedinPerformanceInput,
+  linkedinPerformanceResult,
+  parseLinkedInPerformanceQuery,
+} from "./linkedin/performanceQuery";
 export { adsAccountsInput, adsAccountsResult } from "./ads/accountsList";
 export { adsPerformanceDenial, adsPerformanceInput, adsPerformanceResult, parseAdsPerformanceQuery } from "./ads/performanceSummary";
 export { adsBreakdownInput, adsBreakdownResult, parseAdsBreakdownQuery } from "./ads/performanceBreakdown";

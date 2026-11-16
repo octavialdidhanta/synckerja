@@ -9,16 +9,37 @@ export const linkedinContentCorsHeaders: Record<string, string> = {
 
 /** Organic insights, comments, and page admin (Community Management API required). */
 export const LINKEDIN_CONTENT_OAUTH_SCOPES_DEFAULT = [
+  "r_organization_social",
   "r_organization_social_feed",
   "w_organization_social_feed",
   "w_organization_social",
   "rw_organization_admin",
 ].join(" ");
 
+/**
+ * Personal profile connect (Share on LinkedIn). Used only when connect_kind=person.
+ * Do not merge into LINKEDIN_CONTENT_OAUTH_SCOPES_DEFAULT (page path stays org-only).
+ */
+/**
+ * Only request scopes LinkedIn Auth tab accepts on Content Insight.
+ * `r_member_social` / `r_member_postAnalytics` caused invalid_scope (not grantable yet) —
+ * keep them in LINKEDIN_SCOPE_FEATURE_MAP.memberInsights for status UI, not in authorize URL.
+ */
+export const LINKEDIN_CONTENT_MEMBER_OAUTH_SCOPES_DEFAULT = [
+  "w_member_social",
+  "r_basicprofile",
+].join(" ");
+
+export type LinkedInContentConnectKind = "organization" | "person";
+
 export const LINKEDIN_SCOPE_FEATURE_MAP = {
-  insights: ["r_organization_social_feed"] as const,
+  insights: ["r_organization_social"] as const,
   comments: ["r_organization_social_feed", "w_organization_social_feed"] as const,
   publish: ["w_organization_social"] as const,
+  /** Personal profile publish (Share on LinkedIn). Requested via member OAuth only. */
+  memberPublish: ["w_member_social"] as const,
+  /** Personal profile insights (Posts finder + memberCreatorPostAnalytics). */
+  memberInsights: ["r_member_social", "r_member_postAnalytics"] as const,
   pages: ["rw_organization_admin"] as const,
 } as const;
 
@@ -47,6 +68,15 @@ export function missingLinkedInScopesForFeature(
 export function linkedinContentOAuthScopes(): string {
   const explicit = Deno.env.get("LINKEDIN_CONTENT_OAUTH_SCOPES")?.trim();
   return explicit || LINKEDIN_CONTENT_OAUTH_SCOPES_DEFAULT;
+}
+
+export function linkedinContentMemberOAuthScopes(): string {
+  const explicit = Deno.env.get("LINKEDIN_CONTENT_MEMBER_OAUTH_SCOPES")?.trim();
+  return explicit || LINKEDIN_CONTENT_MEMBER_OAUTH_SCOPES_DEFAULT;
+}
+
+export function parseLinkedInConnectKind(raw: unknown): LinkedInContentConnectKind {
+  return String(raw ?? "").trim() === "person" ? "person" : "organization";
 }
 
 export function linkedinContentJson(body: object, status: number): Response {

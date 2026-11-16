@@ -1,15 +1,18 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
+  buildOrganizationUrn,
   fetchLinkedInComments,
   fetchLinkedInOrganizationPosts,
   replyLinkedInComment,
 } from "../../_shared/linkedinContentApi.ts";
+import { hydrateLinkedInCommentAuthors } from "../../_shared/linkedinCommentAuthorHydrate.ts";
 import {
   requireActiveOrg,
   requireLinkedInContentPlatformConfigured,
   linkedinContentJson,
 } from "../../_shared/linkedinContentAuth.ts";
 import { resolveOrgLinkedInContentForMetrics } from "../../_shared/linkedinContentOrgResolver.ts";
+import { mapLinkedInContentAuthFailure } from "../../_shared/linkedinContentAuthError.ts";
 import {
   dismissLinkedInManageCommentsPostHighlight,
   getLinkedInManageCommentsInboxState,
@@ -17,6 +20,12 @@ import {
   syncLinkedInManageCommentsInboundComments,
   syncLinkedInManageCommentsPostBaselines,
 } from "../../_shared/linkedinManageCommentsInboxState.ts";
+
+function linkedInCommentsApiError(msg: string, action: string): Response {
+  const mapped = mapLinkedInContentAuthFailure(msg, "organization");
+  if (mapped) return linkedinContentJson({ ...mapped, action }, 400);
+  return linkedinContentJson({ error: msg, code: "LINKEDIN_CONTENT_API_ERROR", action }, 400);
+}
 
 function sortComments<T extends { published_at: string | null }>(comments: T[], sort: string): T[] {
   const copy = [...comments];
@@ -33,6 +42,7 @@ function mapCommentRow(row: {
   post_id: string;
   text: string;
   author_name: string | null;
+  author_avatar_url: string | null;
   like_count: number;
   reply_count: number;
   parent_comment_id: string | null;
@@ -46,7 +56,7 @@ function mapCommentRow(row: {
     post_id: row.post_id,
     text: row.text,
     author_display_name: row.author_name,
-    author_avatar_url: null,
+    author_avatar_url: row.author_avatar_url,
     like_count: row.like_count,
     reply_count: row.reply_count,
     parent_comment_id: row.parent_comment_id,
@@ -54,6 +64,23 @@ function mapCommentRow(row: {
     is_channel_owner: row.is_owner,
     can_reply: row.can_reply,
   };
+}
+
+async function fetchAndHydrateComments(
+  accessToken: string,
+  postId: string,
+  pageId: string,
+  account: { label: string; display_name: string | null; thumbnail_url: string | null },
+) {
+  const comments = await fetchLinkedInComments(accessToken, postId, pageId);
+  const pageLabel = String(account.display_name ?? account.label ?? "").trim() ||
+    `LinkedIn ${pageId}`;
+  return hydrateLinkedInCommentAuthors(comments, {
+    accessToken,
+    pageUrn: buildOrganizationUrn(pageId),
+    pageLabel,
+    pageThumbnailUrl: account.thumbnail_url,
+  });
 }
 
 function parsePostBaselines(body: Record<string, unknown>) {
@@ -193,7 +220,7 @@ export async function handleLinkedInComments(
         }, 200);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        return linkedinContentJson({ error: msg, code: "LINKEDIN_CONTENT_API_ERROR", action }, 400);
+        return linkedInCommentsApiError(msg, action);
       }
     }
 
@@ -202,7 +229,12 @@ export async function handleLinkedInComments(
       if (!postId) return linkedinContentJson({ error: "Missing post_id" }, 400);
       const sort = String(body.sort ?? "newest");
       try {
-        const comments = await fetchLinkedInComments(accessToken, postId, resolvedPageId);
+        const comments = await fetchAndHydrateComments(
+          accessToken,
+          postId,
+          resolvedPageId,
+          account,
+        );
         const topLevel = comments.filter((c) => !c.parent_comment_id);
         return linkedinContentJson({
           comments: sortComments(topLevel.map(mapCommentRow), sort),
@@ -210,7 +242,7 @@ export async function handleLinkedInComments(
         }, 200);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        return linkedinContentJson({ error: msg, code: "LINKEDIN_CONTENT_API_ERROR", action }, 400);
+        return linkedInCommentsApiError(msg, action);
       }
     }
 
@@ -222,12 +254,17 @@ export async function handleLinkedInComments(
       }
       const sort = String(body.sort ?? "newest");
       try {
-        const comments = await fetchLinkedInComments(accessToken, postId, resolvedPageId);
+        const comments = await fetchAndHydrateComments(
+          accessToken,
+          postId,
+          resolvedPageId,
+          account,
+        );
         const replies = comments.filter((c) => c.parent_comment_id === commentId);
         return linkedinContentJson({ comments: sortComments(replies.map(mapCommentRow), sort) }, 200);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        return linkedinContentJson({ error: msg, code: "LINKEDIN_CONTENT_API_ERROR", action }, 400);
+        return linkedInCommentsApiError(msg, action);
       }
     }
 
@@ -252,7 +289,7 @@ export async function handleLinkedInComments(
         }, 200);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        return linkedinContentJson({ error: msg, code: "LINKEDIN_CONTENT_API_ERROR", action }, 400);
+        return linkedInCommentsApiError(msg, action);
       }
     }
 

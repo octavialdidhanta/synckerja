@@ -17,6 +17,8 @@ type LinkRow = {
   url: string;
   external_post_id: string | null;
   social_media_plan_id: string;
+  /** LinkedIn page id that published this link (multi-page guard). */
+  platform_account_open_id: string | null;
 };
 
 type PlanRow = {
@@ -98,13 +100,24 @@ export async function loadLinkedInPlanLinks(
 ): Promise<LinkRow[]> {
   const { data: links } = await admin
     .from("social_media_links")
-    .select("id, url, external_post_id, social_media_plan_id, platform")
+    .select("id, url, external_post_id, social_media_plan_id, platform, platform_account_open_id")
     .ilike("platform", "linkedin");
 
   const rows = (links ?? []).filter((l) => {
     const platform = String((l as { platform?: string }).platform ?? "").toLowerCase();
     return platform.includes("linkedin");
-  }) as LinkRow[];
+  }).map((l) => {
+    const row = l as LinkRow & { platform_account_open_id?: string | null };
+    return {
+      id: String(row.id),
+      url: String(row.url ?? ""),
+      external_post_id: row.external_post_id != null ? String(row.external_post_id) : null,
+      social_media_plan_id: String(row.social_media_plan_id),
+      platform_account_open_id: row.platform_account_open_id != null
+        ? String(row.platform_account_open_id).trim() || null
+        : null,
+    } satisfies LinkRow;
+  });
 
   if (rows.length === 0) return [];
 
@@ -239,6 +252,18 @@ export async function backfillLinkPostIds(
 ): Promise<void> {
   const now = new Date().toISOString();
   for (const m of matches) {
+    const { data: existing } = await admin
+      .from("social_media_links")
+      .select("platform_account_open_id")
+      .eq("id", m.link_id)
+      .maybeSingle();
+    const ownedBy = String(
+      (existing as { platform_account_open_id?: string | null } | null)
+        ?.platform_account_open_id ?? "",
+    ).trim();
+    // Never re-attribute a link owned by another LinkedIn page (multi-page bleed).
+    if (ownedBy && ownedBy !== pageId) continue;
+
     await admin
       .from("social_media_links")
       .update({

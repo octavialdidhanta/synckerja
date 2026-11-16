@@ -49,6 +49,23 @@ describe('social publish path lock', () => {
     expect(pull).toBeGreaterThan(photo);
   });
 
+  it('runs LinkedIn carousel before the Reel/Drive video path', () => {
+    const linkedin = source('supabase/functions/_shared/scheduledPosts/executeLinkedInScheduledPost.ts');
+    const carousel = source(
+      'supabase/functions/_shared/scheduledPosts/executeLinkedInCarouselScheduledPost.ts',
+    );
+    const api = source('supabase/functions/_shared/linkedInContent/linkedinImagePublishApi.ts');
+    const branch = linkedin.indexOf('shouldExecuteLinkedInCarousel(');
+    const drive = linkedin.indexOf('shouldCancelScheduleDueToDriveMismatch(');
+    const video = linkedin.indexOf('resolveVideoBytesForUpload(');
+    expect(branch).toBeGreaterThan(-1);
+    expect(drive).toBeGreaterThan(branch);
+    expect(video).toBeGreaterThan(drive);
+    expect(carousel).toContain('linkedin_publish_path=carousel');
+    expect(api).toContain('/rest/images?action=initializeUpload');
+    expect(api).toContain('multiImage');
+  });
+
   it('does not upload a shared video buffer in parallel or label waiting rows as downloading', () => {
     const bulk = source('supabase/functions/_shared/scheduledPosts/runPlanBulkPostNow.ts');
     const drive = source('supabase/functions/_shared/scheduledPosts/googleDriveVideoDownload.ts');

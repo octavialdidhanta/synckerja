@@ -209,7 +209,9 @@ export function useSocialMediaInsightReportData(args: {
       }
     }
     if (li?.oauthConnected && li.accounts.length > 0) {
-      for (const acc of li.accounts.filter((a) => a.is_active)) {
+      for (const acc of li.accounts.filter(
+        (a) => a.is_active && String(a.account_kind ?? "organization") !== "person",
+      )) {
         targets.push({
           platform: "linkedin",
           accountId: acc.page_id,

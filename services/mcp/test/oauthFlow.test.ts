@@ -108,6 +108,7 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     listInboxMessages: async () => [],
     readInboxSummary: async () => [],
     readSocialComments: async () => { throw new Error("unused"); },
+    readLinkedInPerformance: async () => { throw new Error("unused"); },
     listAdsAccounts: async () => [],
     listAdsPerformance: async () => {
       throw new Error("unused");

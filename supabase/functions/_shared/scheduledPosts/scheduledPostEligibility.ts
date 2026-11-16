@@ -82,7 +82,17 @@ export function isPlanEligibleForFacebookAutoSchedule(plan: PlanEligibilityInput
   return isPlanEligibleForReelAutoSchedule(plan);
 }
 
+export function getLinkedInPlanEligibilityMissingReasons(plan: PlanEligibilityInput): string[] {
+  if (!isCarouselContentType(plan.content_type_name)) {
+    return getPlanEligibilityMissingReasons(plan);
+  }
+  return getTikTokPlanEligibilityMissingReasons(plan);
+}
+
 export function isPlanEligibleForLinkedInAutoSchedule(plan: PlanEligibilityInput): boolean {
+  if (isCarouselContentType(plan.content_type_name)) {
+    return isPlanEligibleForTikTokCarouselSchedule(plan);
+  }
   return isPlanEligibleForReelAutoSchedule(plan);
 }
 

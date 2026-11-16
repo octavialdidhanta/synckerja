@@ -18,6 +18,7 @@ import {
   LEAD_MAGNET_PAGE_PATH,
   LIVECHAT_PAGE_PATH,
   MANAGE_COMMENTS_PAGE_PATH,
+  LINKEDIN_PERFORMANCE_PAGE_PATH,
   THINKING_LAB_PAGE_PATH,
   OKR_PAGE_PATH,
   VISITS_PAGE_PATH,
@@ -41,6 +42,7 @@ export type McpToolName =
   | "inbox.summary"
   | "comments.list"
   | "comments.summary"
+  | "linkedin.performance"
   | "ads.accounts.list"
   | "ads.performance.summary"
   | "ads.performance.breakdown"
@@ -281,6 +283,14 @@ const TOOL_DEFINITIONS: McpTool[] = [
     scopes: ["comments:read"],
     moduleKey: "digitalMarketing",
     pagePath: MANAGE_COMMENTS_PAGE_PATH,
+  },
+  {
+    name: "linkedin.performance",
+    description:
+      "Read organic LinkedIn Company Page performance for the organization locked in this session (same data as Social Media Performance → LinkedIn). Call this when the user asks how LinkedIn posts are performing, followers, views, likes, comments, shares, or engagement. Returns each connected Company Page with summary totals and post rows. Personal LinkedIn profiles are excluded (insights not available on this app). Omit dates for the last 30 days in Asia/Jakarta; optional date_start and date_end are YYYY-MM-DD (both or neither). Optional page_id limits to one Company Page. Optional limit is 1 to 50 posts per page (default 25). Read only. Follow how_to_read. If status is error after connecting a personal profile, reconnect the Company Page in LinkedIn settings.",
+    scopes: ["comments:read"],
+    moduleKey: "digitalMarketing",
+    pagePath: LINKEDIN_PERFORMANCE_PAGE_PATH,
   },
   {
     name: "ads.accounts.list",

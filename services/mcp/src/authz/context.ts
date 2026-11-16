@@ -13,6 +13,7 @@ export const OKR_PAGE_PATH = "/okr";
 export const LEADS_PAGE_PATH = "/omnichannel/leads";
 export const LIVECHAT_PAGE_PATH = "/omnichannel/livechat";
 export const MANAGE_COMMENTS_PAGE_PATH = "/digital-marketing/social-media-performance/manage-comments";
+export const LINKEDIN_PERFORMANCE_PAGE_PATH = "/digital-marketing/social-media-performance/linkedin";
 export const GOOGLE_ADS_PAGE_PATH = "/digital-marketing/google-ads";
 export const META_ADS_PAGE_PATH = "/digital-marketing/meta-ads";
 export const TIKTOK_ADS_PAGE_PATH = "/digital-marketing/tiktok-ads";
@@ -148,6 +149,7 @@ export function buildAuthContext(input: {
     LEADS_PAGE_PATH,
     LIVECHAT_PAGE_PATH,
     MANAGE_COMMENTS_PAGE_PATH,
+    LINKEDIN_PERFORMANCE_PAGE_PATH,
     ...ADS_PAGE_PATHS,
     INCOME_PAGE_PATH,
     EXPENSES_PAGE_PATH,

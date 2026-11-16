@@ -1,6 +1,10 @@
 import { encryptLinkedInContentToken } from "../../_shared/linkedinContentConfigCrypto.ts";
 import { saveLinkedInPageConnection } from "../../_shared/linkedinContentConnectionSave.ts";
-import { linkedinContentOAuthScopes } from "../../_shared/linkedinContentAuth.ts";
+import {
+  linkedinContentOAuthScopes,
+  linkedinContentMemberOAuthScopes,
+  parseLinkedInConnectKind,
+} from "../../_shared/linkedinContentAuth.ts";
 import {
   LINKEDIN_CONTENT_OAUTH_RETURN_PATHS,
   appPublicOrigin,
@@ -10,6 +14,7 @@ import {
 import {
   exchangeLinkedInContentAuthCode,
   fetchLinkedInAdministeredPages,
+  fetchLinkedInAuthenticatedMember,
 } from "../../_shared/linkedinContentApi.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -68,12 +73,15 @@ export async function handleLinkedInOAuthCallback(req: Request): Promise<Respons
 
   const { data: stateRow, error: stateErr } = await admin
     .from("linkedin_content_oauth_states")
-    .select("id, organization_id, user_id, expires_at, return_path")
+    .select("id, organization_id, user_id, expires_at, return_path, connect_kind")
     .eq("state_token", state)
     .maybeSingle();
 
   const oauthReturnPath = resolveOAuthReturnPath(
     stateRow?.return_path != null ? String(stateRow.return_path) : null,
+  );
+  const connectKind = parseLinkedInConnectKind(
+    (stateRow as { connect_kind?: string } | null)?.connect_kind,
   );
 
   if (stateErr || !stateRow?.id) {
@@ -106,6 +114,40 @@ export async function handleLinkedInOAuthCallback(req: Request): Promise<Respons
   const organizationId = String(stateRow.organization_id);
   const userId = String(stateRow.user_id);
 
+  if (connectKind === "person") {
+    let member;
+    try {
+      member = await fetchLinkedInAuthenticatedMember(tokenData.access_token);
+    } catch (e) {
+      const msg = sanitizeOAuthError(e instanceof Error ? e.message : "no_linkedin_member");
+      console.error("linkedin-content-api oauth callback member:", msg);
+      return redirectDefault(
+        `?oauth_error=${encodeURIComponent(msg || "no_linkedin_member")}`,
+        oauthReturnPath,
+      );
+    }
+
+    const grantedScopes = linkedinContentMemberOAuthScopes().split(/\s+/).filter(Boolean);
+    try {
+      const { isExistingAccount } = await saveLinkedInPageConnection(admin, {
+        organizationId,
+        userId,
+        page: member,
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        expiresIn: tokenData.expires_in,
+        grantedScopes,
+        accountKind: "person",
+      });
+      const query = new URLSearchParams({ connected: "1", connect_kind: "person" });
+      if (isExistingAccount) query.set("existing", "1");
+      return redirectDefault(`?${query.toString()}`, oauthReturnPath);
+    } catch (e) {
+      console.error("linkedin-content-api oauth callback save member:", e);
+      return redirectDefault("?oauth_error=save_connection_failed", oauthReturnPath);
+    }
+  }
+
   let pages;
   try {
     pages = await fetchLinkedInAdministeredPages(tokenData.access_token);
@@ -131,6 +173,7 @@ export async function handleLinkedInOAuthCallback(req: Request): Promise<Respons
         refreshToken: tokenData.refresh_token,
         expiresIn: tokenData.expires_in,
         grantedScopes,
+        accountKind: "organization",
       });
       const query = isExistingAccount ? "?connected=1&existing=1" : "?connected=1";
       return redirectDefault(query, oauthReturnPath);

@@ -28,6 +28,10 @@ import {
   parseLinkedInGrantedScopes,
 } from '@/linkedin-content/constants/linkedinOAuthScopes';
 import { LINKEDIN_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH } from '@/linkedin-content/settings/linkedinContentSettingsPaths';
+import {
+  resolveLinkedInContentInitialPageId,
+  writeLinkedInContentLastPageId,
+} from '@/linkedin-content/lib/linkedinContentLastPageId';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
 
@@ -56,14 +60,24 @@ function LinkedInManageCommentsPageContent() {
     [],
   );
 
-  const accounts = useMemo(() => settingsQuery.data?.accounts ?? [], [settingsQuery.data?.accounts]);
+  const accounts = useMemo(
+    () =>
+      (settingsQuery.data?.accounts ?? []).filter(
+        (a) => String(a.account_kind ?? 'organization') !== 'person',
+      ),
+    [settingsQuery.data?.accounts],
+  );
 
   useEffect(() => {
-    if (!pageId && accounts.length > 0) {
-      const def = accounts.find((a) => a.is_default) ?? accounts[0];
-      setPageId(def.page_id);
-    }
-  }, [accounts, pageId]);
+    if (!organizationId || accounts.length === 0) return;
+    const active = accounts.filter((a) => a.is_active);
+    if (active.length === 0) return;
+    if (pageId && active.some((a) => a.page_id === pageId)) return;
+    const next = resolveLinkedInContentInitialPageId(organizationId, active);
+    if (!next) return;
+    setPageId(next);
+    writeLinkedInContentLastPageId(organizationId, next);
+  }, [organizationId, accounts, pageId]);
 
   useEffect(() => {
     setPostFilter('all');
@@ -127,9 +141,10 @@ function LinkedInManageCommentsPageContent() {
   const handlePageChange = useCallback(
     (nextPageId: string) => {
       setPageId(nextPageId);
+      if (organizationId) writeLinkedInContentLastPageId(organizationId, nextPageId);
       setSearchParams({}, { replace: true });
     },
-    [setSearchParams],
+    [organizationId, setSearchParams],
   );
 
   const rawPageLoadPending = gatePending || (canManage && settingsQuery.isPending);

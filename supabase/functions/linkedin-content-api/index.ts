@@ -35,6 +35,7 @@ const CONFIG_ACTIONS = new Set([
   "disconnect",
   "setDefaultAccount",
   "deleteAccount",
+  "spikeMemberInsights",
 ]);
 
 Deno.serve(async (req: Request) => {

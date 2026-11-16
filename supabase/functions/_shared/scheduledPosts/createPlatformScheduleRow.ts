@@ -1,11 +1,15 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveMetaContentAccount } from "../metaContentAuth.ts";
 import { facebookPublishScopesOk } from "../metaPlatformScopes.ts";
-import { buildOrganizationUrn } from "../linkedinContentApi.ts";
+import { buildLinkedInAuthorUrn } from "../linkedinContentApi.ts";
 import {
   parseLinkedInGrantedScopes,
   missingLinkedInScopesForFeature,
 } from "../linkedinContentAuth.ts";
+import {
+  linkedInPublishScopeFeature,
+  normalizeLinkedInAccountKind,
+} from "../linkedinContentOrgResolver.ts";
 import { tiktokContentScopesIncludePublish } from "../tiktokContentAuth.ts";
 import {
   parseYouTubeOAuthScopes,
@@ -400,7 +404,7 @@ export async function insertPlatformScheduleForTarget(
     case "LinkedIn": {
       const { data: accountRow } = await admin
         .from("organization_linkedin_content_accounts")
-        .select("label, display_name, granted_scopes")
+        .select("label, display_name, granted_scopes, account_kind")
         .eq("organization_id", args.organizationId)
         .eq("page_id", accountId)
         .eq("is_active", true)
@@ -408,14 +412,21 @@ export async function insertPlatformScheduleForTarget(
 
       if (!accountRow) throw new Error("linkedin_account_not_found");
 
+      const accountKind = normalizeLinkedInAccountKind(
+        (accountRow as { account_kind?: string }).account_kind,
+      );
       const granted = parseLinkedInGrantedScopes(accountRow.granted_scopes);
-      if (missingLinkedInScopesForFeature(granted, "publish").length > 0) {
+      if (
+        missingLinkedInScopesForFeature(granted, linkedInPublishScopeFeature(accountKind))
+          .length > 0
+      ) {
         throw new Error("publish_scopes_not_granted");
       }
 
       const providerConfig: LinkedInProviderConfig = {
         page_id: accountId,
-        organization_urn: buildOrganizationUrn(accountId),
+        account_kind: accountKind,
+        organization_urn: buildLinkedInAuthorUrn(accountKind, accountId),
         account_label: accountLabel ||
           String(accountRow.display_name ?? accountRow.label ?? "LinkedIn"),
         ...(args.employeeId ? { employee_id: args.employeeId } : {}),

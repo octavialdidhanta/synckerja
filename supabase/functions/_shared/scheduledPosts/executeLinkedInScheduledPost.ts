@@ -1,6 +1,14 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildOrganizationUrn } from "../linkedinContentApi.ts";
-import { getLinkedInContentAccessToken } from "../linkedinContentOrgResolver.ts";
+import { buildLinkedInAuthorUrn } from "../linkedinContentApi.ts";
+import {
+  linkedInPublishScopesOk,
+  normalizeLinkedInAccountKind,
+  resolveLinkedInPublishAccount,
+} from "../linkedinContentOrgResolver.ts";
+import {
+  isLinkedInContentAuthFailure,
+  linkedInContentReauthErrorMessage,
+} from "../linkedinContentAuthError.ts";
 import {
   buildLinkedInPostUrl,
   createLinkedInVideoPost,
@@ -8,8 +16,10 @@ import {
   initializeLinkedInVideoUpload,
   uploadLinkedInVideoBytes,
 } from "../linkedinContent/linkedinVideoPublishApi.ts";
-import { parseLinkedInGrantedScopes } from "../linkedinContentAuth.ts";
-import { downloadGoogleDriveVideo } from "./googleDriveVideoDownload.ts";
+import {
+  executeLinkedInCarouselScheduledPost,
+  shouldExecuteLinkedInCarousel,
+} from "./executeLinkedInCarouselScheduledPost.ts";
 import {
   isPlanEligibleForLinkedInAutoSchedule,
   shouldCancelScheduleDueToDriveMismatch,
@@ -17,13 +27,6 @@ import {
 import { resolveVideoBytesForUpload, type SharedPublishContext } from "./sharedPublishContext.ts";
 import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 import type { LinkedInProviderConfig, ScheduledPostRow } from "./scheduledPostTypes.ts";
-
-const LINKEDIN_PUBLISH_SCOPES = ["w_organization_social"] as const;
-
-function linkedInScopesIncludePublish(granted: string[]): boolean {
-  const grantedSet = new Set(granted.map((s) => s.toLowerCase()));
-  return LINKEDIN_PUBLISH_SCOPES.some((s) => grantedSet.has(s.toLowerCase()));
-}
 
 type PlanRow = {
   id: string;
@@ -83,12 +86,31 @@ async function upsertLinkedInLink(
     employeeId?: string;
   },
 ): Promise<void> {
+  // Multi-page: one link row per LinkedIn page_id (never overwrite another page's link).
   const { data: existing } = await admin
     .from("social_media_links")
     .select("id")
     .eq("social_media_plan_id", plan.id)
     .eq("platform", "LinkedIn")
+    .eq("platform_account_open_id", args.pageId)
     .maybeSingle();
+
+  let existingId = existing?.id as string | undefined;
+  if (!existingId) {
+    // Claim a single legacy LinkedIn row with empty open_id (pre–multi-page), if any.
+    const { data: legacyRows } = await admin
+      .from("social_media_links")
+      .select("id, platform_account_open_id")
+      .eq("social_media_plan_id", plan.id)
+      .eq("platform", "LinkedIn");
+    const legacy = (legacyRows ?? []).find((row) => {
+      const ownedBy = String(
+        (row as { platform_account_open_id?: string | null }).platform_account_open_id ?? "",
+      ).trim();
+      return !ownedBy;
+    });
+    existingId = legacy?.id as string | undefined;
+  }
 
   const payload = {
     platform: "LinkedIn",
@@ -99,8 +121,8 @@ async function upsertLinkedInLink(
     updated_at: new Date().toISOString(),
   };
 
-  if (existing?.id) {
-    await admin.from("social_media_links").update(payload).eq("id", existing.id);
+  if (existingId) {
+    await admin.from("social_media_links").update(payload).eq("id", existingId);
   } else {
     await admin.from("social_media_links").insert({ ...payload, social_media_plan_id: plan.id });
     if (!plan.post_link_created_by && args.employeeId) {
@@ -119,8 +141,32 @@ export async function executeLinkedInScheduledPost(
   schedule: ScheduledPostRow,
   sharedCtx?: SharedPublishContext,
 ): Promise<{ published_url: string; external_post_id: string | null }> {
+  try {
+    return await executeLinkedInScheduledPostInner(admin, schedule, sharedCtx);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!isLinkedInContentAuthFailure(msg) && !/^linkedin_reauth_required:/i.test(msg)) {
+      throw e instanceof Error ? e : new Error(msg);
+    }
+    const cfg = schedule.provider_config as LinkedInProviderConfig;
+    const kind = normalizeLinkedInAccountKind(cfg.account_kind);
+    throw new Error(`linkedin_reauth_required: ${linkedInContentReauthErrorMessage(kind)}`);
+  }
+}
+
+async function executeLinkedInScheduledPostInner(
+  admin: SupabaseClient,
+  schedule: ScheduledPostRow,
+  sharedCtx?: SharedPublishContext,
+): Promise<{ published_url: string; external_post_id: string | null }> {
   const plan = await loadPlan(admin, schedule.social_media_plan_id);
   if (!plan) throw new Error("plan_not_found");
+
+  // Photo carousel must run before Reel/Drive checks (no Drive bytes for carousel).
+  if (shouldExecuteLinkedInCarousel(schedule, plan)) {
+    return executeLinkedInCarouselScheduledPost(admin, schedule, plan);
+  }
+
   if (!isPlanEligibleForLinkedInAutoSchedule(planEligibilityInput(plan))) {
     throw new Error("plan_not_eligible");
   }
@@ -132,30 +178,29 @@ export async function executeLinkedInScheduledPost(
   const pageId = String(cfg.page_id ?? "").trim();
   if (!pageId) throw new Error("missing_page_id");
 
-  const accessToken = await getLinkedInContentAccessToken(
+  const publishAccount = await resolveLinkedInPublishAccount(
     admin,
     schedule.organization_id,
     pageId,
   );
-  if (!accessToken) {
+  if (!publishAccount) {
     throw new Error("linkedin_token_missing: Re-authorize LinkedIn in Digital Marketing settings");
   }
 
-  const { data: accountRow } = await admin
-    .from("organization_linkedin_content_accounts")
-    .select("label, display_name, granted_scopes")
-    .eq("organization_id", schedule.organization_id)
-    .eq("page_id", pageId)
-    .maybeSingle();
-
-  const grantedScopes = parseLinkedInGrantedScopes(accountRow?.granted_scopes);
-  if (!linkedInScopesIncludePublish(grantedScopes)) {
+  const accountKind = normalizeLinkedInAccountKind(
+    cfg.account_kind ?? publishAccount.accountKind,
+  );
+  if (!linkedInPublishScopesOk(publishAccount.grantedScopes, accountKind)) {
     throw new Error("publish_scopes_not_granted");
   }
 
-  const organizationUrn = String(cfg.organization_urn ?? buildOrganizationUrn(pageId));
+  const accessToken = publishAccount.accessToken;
+  const authorUrn = String(
+    cfg.organization_urn?.trim() ||
+      buildLinkedInAuthorUrn(accountKind, pageId),
+  );
   const accountLabel = String(
-    cfg.account_label ?? accountRow?.display_name ?? accountRow?.label ?? "LinkedIn",
+    cfg.account_label ?? publishAccount.accountLabel ?? "LinkedIn",
   );
   const commentary = schedule.caption?.trim() || schedule.title?.trim() || "";
 
@@ -181,7 +226,7 @@ export async function executeLinkedInScheduledPost(
   if (!uploadUrn) {
     const init = await initializeLinkedInVideoUpload(
       accessToken,
-      organizationUrn,
+      authorUrn,
       videoBytes.byteLength,
     );
     uploadUrn = init.uploadUrn;
@@ -189,16 +234,22 @@ export async function executeLinkedInScheduledPost(
     providerConfig = await persistLinkedInProviderConfig(admin, schedule.id, providerConfig, {
       linkedin_upload_urn: uploadUrn,
       linkedin_upload_instructions: uploadInstructions,
-      organization_urn: organizationUrn,
+      organization_urn: authorUrn,
+      account_kind: accountKind,
     });
 
-    await uploadLinkedInVideoBytes(init.uploadUrl, accessToken, videoBytes, mimeType);
-    await finalizeLinkedInVideoUpload(accessToken, uploadUrn, uploadInstructions);
+    const uploadedPartIds = await uploadLinkedInVideoBytes(init.parts, videoBytes, mimeType);
+    await finalizeLinkedInVideoUpload(
+      accessToken,
+      uploadUrn,
+      uploadInstructions,
+      uploadedPartIds,
+    );
   }
 
   const { postUrn } = await createLinkedInVideoPost(
     accessToken,
-    organizationUrn,
+    authorUrn,
     uploadUrn,
     commentary,
   );

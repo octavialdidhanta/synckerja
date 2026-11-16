@@ -24,6 +24,11 @@ import {
   LINKEDIN_CONTENT_DIGITAL_MARKETING_BASE_PATH,
   LINKEDIN_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH,
 } from "@/linkedin-content/settings/linkedinContentSettingsPaths";
+import {
+  filterLinkedInPerformanceNavAccounts,
+  resolveLinkedInContentInitialPageId,
+  writeLinkedInContentLastPageId,
+} from "@/linkedin-content/lib/linkedinContentLastPageId";
 import { LinkedInContentPerformancePageSkeleton } from "@/6-0-social-media-performance/skeletons/LinkedInContentPerformancePageSkeleton";
 import { LinkedInContentAccountNav } from "@/6-0-social-media-performance/components/LinkedInContentAccountNav";
 import { LinkedInContentSummaryBar } from "@/6-0-social-media-performance/components/LinkedInContentSummaryBar";
@@ -87,17 +92,19 @@ function LinkedInContentPerformancePageContent() {
   const dateStart = dateRange.start;
   const dateEnd = dateRange.end;
 
-  const activeAccounts = useMemo(
-    () => (settings?.accounts ?? []).filter((a) => a.is_active),
-    [settings?.accounts],
-  );
+  const activeAccounts = useMemo(() => {
+    // Fase 5/8 gate: person only in Performance nav once memberInsights scopes are granted.
+    return filterLinkedInPerformanceNavAccounts(settings?.accounts ?? []);
+  }, [settings?.accounts]);
 
   useEffect(() => {
-    if (!pageId && activeAccounts.length > 0) {
-      const def = activeAccounts.find((a) => a.is_default) ?? activeAccounts[0];
-      setPageId(def.page_id);
-    }
-  }, [activeAccounts, pageId]);
+    if (!organizationId || activeAccounts.length === 0) return;
+    if (pageId && activeAccounts.some((a) => a.page_id === pageId)) return;
+    const next = resolveLinkedInContentInitialPageId(organizationId, activeAccounts);
+    if (!next) return;
+    setPageId(next);
+    writeLinkedInContentLastPageId(organizationId, next);
+  }, [organizationId, activeAccounts, pageId]);
 
   const postsQuery = useLinkedInContentPostsQuery({
     organizationId,
@@ -203,6 +210,7 @@ function LinkedInContentPerformancePageContent() {
                         pageId={pageId}
                         onPageIdChange={(next) => {
                           setPageId(next);
+                          if (organizationId) writeLinkedInContentLastPageId(organizationId, next);
                           if (isSettingsView) {
                             navigate(LINKEDIN_CONTENT_DIGITAL_MARKETING_BASE_PATH);
                           }
@@ -276,12 +284,31 @@ function LinkedInContentPerformancePageContent() {
                                     <AlertTitle>
                                       {t("digitalMarketing.linkedinContent.error", "Failed to load posts")}
                                     </AlertTitle>
-                                    <AlertDescription>
-                                      {(postsQuery.error as Error)?.message ??
-                                        t(
-                                          "digitalMarketing.linkedinContent.errorGeneric",
-                                          "An error occurred while loading LinkedIn posts.",
-                                        )}
+                                    <AlertDescription className="space-y-2">
+                                      <p>
+                                        {(postsQuery.error as Error)?.message ??
+                                          t(
+                                            "digitalMarketing.linkedinContent.errorGeneric",
+                                            "An error occurred while loading LinkedIn posts.",
+                                          )}
+                                      </p>
+                                      {(postsQuery.error as { code?: string } | null)?.code ===
+                                        "LINKEDIN_CONTENT_REAUTH_REQUIRED" ||
+                                      /reconnect|revoked|authenticate/i.test(
+                                        String((postsQuery.error as Error)?.message ?? ""),
+                                      ) ? (
+                                        <p>
+                                          <Link
+                                            to={LINKEDIN_CONTENT_DIGITAL_MARKETING_SETTINGS_PATH}
+                                            className="font-medium text-primary underline"
+                                          >
+                                            {t(
+                                              "digitalMarketing.linkedinContent.openSettingsReconnect",
+                                              "Open LinkedIn settings to reconnect",
+                                            )}
+                                          </Link>
+                                        </p>
+                                      ) : null}
                                     </AlertDescription>
                                   </Alert>
                                 </div>

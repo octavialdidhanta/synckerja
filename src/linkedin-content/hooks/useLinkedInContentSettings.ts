@@ -3,9 +3,13 @@ import { parseEdgeFunctionError } from "@/tiktok-ads/lib/parseEdgeFunctionError"
 import { supabase } from "@/shared/lib/supabaseClient";
 import type { LinkedInContentOAuthReturnPath } from "@/linkedin-content/settings/linkedinContentSettingsPaths";
 
+export type LinkedInContentAccountKind = "organization" | "person";
+
 export type LinkedInContentAccountRow = {
   id: string;
   page_id: string;
+  /** organization = Company Page; person = member profile (page_id = person id). */
+  account_kind?: LinkedInContentAccountKind | null;
   label: string;
   display_name: string | null;
   thumbnail_url: string | null;
@@ -13,6 +17,9 @@ export type LinkedInContentAccountRow = {
   sort_order: number;
   is_active: boolean;
   granted_scopes?: string[] | null;
+  /** From connection_tokens — used to detect page tokens older than a fresh personal connect. */
+  token_updated_at?: string | null;
+  access_token_expires_at?: string | null;
 };
 
 export type LinkedInPendingPage = {
@@ -64,13 +71,23 @@ export function useLinkedInContentSettings(
   const invalidate = () => queryClient.invalidateQueries({ queryKey });
 
   const startOAuth = useMutation({
-    mutationFn: async (returnPath?: LinkedInContentOAuthReturnPath) => {
+    mutationFn: async (args?: {
+      returnPath?: LinkedInContentOAuthReturnPath;
+      connectKind?: LinkedInContentAccountKind;
+    } | LinkedInContentOAuthReturnPath) => {
       if (!organizationId) throw new Error("No organization");
+      const opts = typeof args === "string"
+        ? { returnPath: args as LinkedInContentOAuthReturnPath, connectKind: "organization" as const }
+        : {
+          returnPath: args?.returnPath,
+          connectKind: args?.connectKind === "person" ? "person" as const : "organization" as const,
+        };
       const { data, error } = await supabase.functions.invoke("linkedin-content-api", {
         body: {
           action: "oauthStart",
           organization_id: organizationId,
-          ...(returnPath ? { return_path: returnPath } : {}),
+          connect_kind: opts.connectKind,
+          ...(opts.returnPath ? { return_path: opts.returnPath } : {}),
         },
       });
       if (error) throw await parseEdgeFunctionError(error, data);

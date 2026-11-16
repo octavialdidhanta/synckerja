@@ -67,11 +67,16 @@ export type FacebookProviderConfig = {
 
 export type LinkedInProviderConfig = {
   page_id: string;
+  /** Author/owner URN: urn:li:organization:… or urn:li:person:… */
   organization_urn?: string;
+  /** organization = Company Page; person = member profile. */
+  account_kind?: "organization" | "person";
   account_label?: string;
   employee_id?: string;
   linkedin_upload_urn?: string;
   linkedin_upload_instructions?: Record<string, unknown>;
+  /** Image URNs uploaded for a carousel (before the Posts API create). */
+  linkedin_image_urns?: string[];
   linkedin_post_urn?: string;
 };
 

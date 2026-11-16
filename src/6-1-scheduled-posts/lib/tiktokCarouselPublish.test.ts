@@ -158,7 +158,7 @@ describe('TikTok carousel eligibility', () => {
       ...carouselPlan,
       carousel_image_count: 0,
     })).toBe(false);
-    expect(isPlanEligibleForLinkedInAutoSchedule(carouselPlan)).toBe(false);
+    expect(isPlanEligibleForLinkedInAutoSchedule(carouselPlan)).toBe(true);
     expect(isPlanEligibleForReelAutoSchedule(carouselPlan)).toBe(false);
     expect(isPlanEligibleForAutoSchedule(carouselPlan)).toBe(false);
     expect(isPlanEligibleForPublish(carouselPlan)).toBe(false);

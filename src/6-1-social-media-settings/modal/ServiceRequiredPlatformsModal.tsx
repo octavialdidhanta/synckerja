@@ -15,6 +15,10 @@ import {
   getPlatformSettingsPath,
   isOAuthRequiredPlatform,
 } from '@/6-1-scheduled-posts/lib/platformOAuthConfig';
+import {
+  resolveLinkedInPublishInitialAccountId,
+  writeLinkedInContentLastPublishAccountId,
+} from '@/linkedin-content/lib/linkedinContentLastPublishAccountId';
 import { toast } from 'sonner';
 
 const PLATFORM_OPTIONS = [
@@ -139,6 +143,39 @@ export const ServiceRequiredPlatformsModal: React.FC<ServiceRequiredPlatformsMod
     }
   }, [availableOAuthAccounts, formData.platform_account_id, usesOAuthAccounts, editingPlatform]);
 
+  // LinkedIn add-row: preselect last publish account (incl. person) or kind-aware default.
+  useEffect(() => {
+    if (!isOpen || editingPlatform) return;
+    if (formData.platform !== 'LinkedIn') return;
+    if (formData.platform_account_id) return;
+    if (!organizationId || availableOAuthAccounts.length === 0) return;
+
+    const resolved = resolveLinkedInPublishInitialAccountId(
+      organizationId,
+      availableOAuthAccounts.map((acc) => ({
+        page_id: acc.accountId,
+        is_default: acc.isDefault,
+        is_active: acc.isActive,
+        account_kind: acc.accountKind ?? 'organization',
+        sort_order: acc.sortOrder,
+      })),
+    );
+    if (!resolved) return;
+    if (!availableOAuthAccounts.some((acc) => acc.accountId === resolved)) return;
+    setFormData((prev) =>
+      prev.platform === 'LinkedIn' && !prev.platform_account_id
+        ? { ...prev, platform_account_id: resolved }
+        : prev,
+    );
+  }, [
+    isOpen,
+    editingPlatform,
+    formData.platform,
+    formData.platform_account_id,
+    organizationId,
+    availableOAuthAccounts,
+  ]);
+
   useEffect(() => {
     if (usesOAuthAccounts || !formData.social_media_name_id || editingPlatform) return;
     const stillAvailable = availableManualNames.some(
@@ -207,6 +244,9 @@ export const ServiceRequiredPlatformsModal: React.FC<ServiceRequiredPlatformsMod
           updates.platform_account_label = selectedOAuth?.accountLabel ?? null;
           updates.social_media_name_id = null;
           updates.custom_platform_name = null;
+          if (formData.platform === 'LinkedIn' && organizationId && formData.platform_account_id) {
+            writeLinkedInContentLastPublishAccountId(organizationId, formData.platform_account_id);
+          }
         } else if (formData.useCustom) {
           updates.social_media_name_id = null;
           updates.custom_platform_name = formData.custom_platform_name || null;
@@ -232,6 +272,9 @@ export const ServiceRequiredPlatformsModal: React.FC<ServiceRequiredPlatformsMod
         if (usesOAuthAccounts) {
           data.platform_account_id = formData.platform_account_id;
           data.platform_account_label = selectedOAuth?.accountLabel ?? null;
+          if (formData.platform === 'LinkedIn' && organizationId && formData.platform_account_id) {
+            writeLinkedInContentLastPublishAccountId(organizationId, formData.platform_account_id);
+          }
         } else if (formData.useCustom) {
           data.custom_platform_name = formData.custom_platform_name || null;
         } else {
@@ -308,9 +351,12 @@ export const ServiceRequiredPlatformsModal: React.FC<ServiceRequiredPlatformsMod
                 ) : oauthAccounts.length > 0 && availableOAuthAccounts.length > 0 ? (
                   <Select
                     value={formData.platform_account_id}
-                    onValueChange={(value) =>
-                      setFormData((prev) => ({ ...prev, platform_account_id: value }))
-                    }
+                    onValueChange={(value) => {
+                      setFormData((prev) => ({ ...prev, platform_account_id: value }));
+                      if (formData.platform === 'LinkedIn' && organizationId && value) {
+                        writeLinkedInContentLastPublishAccountId(organizationId, value);
+                      }
+                    }}
                     disabled={isSaving}
                   >
                     <SelectTrigger id="platform_account_id">

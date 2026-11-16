@@ -3,20 +3,114 @@ import {
   decryptLinkedInContentToken,
   encryptLinkedInContentToken,
 } from "./linkedinContentConfigCrypto.ts";
-import { readPlatformLinkedInContentOAuth } from "./linkedinContentAuth.ts";
-import { refreshLinkedInContentAccessToken } from "./linkedinContentApi.ts";
+import {
+  missingLinkedInScopesForFeature,
+  parseLinkedInGrantedScopes,
+  readPlatformLinkedInContentOAuth,
+} from "./linkedinContentAuth.ts";
+import {
+  buildLinkedInAuthorUrn,
+  refreshLinkedInContentAccessToken,
+} from "./linkedinContentApi.ts";
+
+export type LinkedInContentAccountKind = "organization" | "person";
+export type LinkedInPublishScopeFeature = "publish" | "memberPublish";
 
 export type LinkedInContentAccountRow = {
   id: string;
   organization_id: string;
   page_id: string;
+  account_kind?: LinkedInContentAccountKind | string | null;
   label: string;
   display_name: string | null;
   thumbnail_url: string | null;
   is_default: boolean;
   is_active: boolean;
   sort_order: number;
+  granted_scopes?: unknown;
 };
+
+export function isLinkedInPersonAccount(
+  account: Pick<LinkedInContentAccountRow, "account_kind"> | null | undefined,
+): boolean {
+  return String(account?.account_kind ?? "organization") === "person";
+}
+
+export function normalizeLinkedInAccountKind(
+  raw: unknown,
+): LinkedInContentAccountKind {
+  return String(raw ?? "").trim() === "person" ? "person" : "organization";
+}
+
+export function linkedInPublishScopeFeature(
+  accountKind: LinkedInContentAccountKind,
+): LinkedInPublishScopeFeature {
+  return accountKind === "person" ? "memberPublish" : "publish";
+}
+
+export type LinkedInPublishAccount = {
+  accessToken: string;
+  pageId: string;
+  accountKind: LinkedInContentAccountKind;
+  authorUrn: string;
+  accountLabel: string;
+  grantedScopes: string[];
+  scopeFeature: LinkedInPublishScopeFeature;
+};
+
+/** Resolve token + author URN for Reel/carousel publish (org page or personal member). */
+export async function resolveLinkedInPublishAccount(
+  admin: SupabaseClient,
+  organizationId: string,
+  pageIdParam: string,
+): Promise<LinkedInPublishAccount | null> {
+  const pageId = String(pageIdParam ?? "").trim();
+  if (!pageId) return null;
+
+  const { data: row } = await admin
+    .from("organization_linkedin_content_accounts")
+    .select("page_id, account_kind, label, display_name, granted_scopes, is_active")
+    .eq("organization_id", organizationId)
+    .eq("page_id", pageId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (!row?.page_id) return null;
+
+  const accountKind = normalizeLinkedInAccountKind(
+    (row as { account_kind?: string }).account_kind,
+  );
+  const accessToken = await getLinkedInContentAccessToken(admin, organizationId, pageId);
+  if (!accessToken) return null;
+
+  const grantedScopes = parseLinkedInGrantedScopes(
+    (row as { granted_scopes?: unknown }).granted_scopes,
+  );
+  const accountLabel = String(
+    (row as { display_name?: string | null }).display_name ??
+      (row as { label?: string | null }).label ??
+      "LinkedIn",
+  );
+
+  return {
+    accessToken,
+    pageId,
+    accountKind,
+    authorUrn: buildLinkedInAuthorUrn(accountKind, pageId),
+    accountLabel,
+    grantedScopes,
+    scopeFeature: linkedInPublishScopeFeature(accountKind),
+  };
+}
+
+export function linkedInPublishScopesOk(
+  grantedScopes: string[],
+  accountKind: LinkedInContentAccountKind,
+): boolean {
+  return missingLinkedInScopesForFeature(
+    grantedScopes,
+    linkedInPublishScopeFeature(accountKind),
+  ).length === 0;
+}
 
 type TokenRow = {
   access_token_enc: string;
@@ -28,6 +122,7 @@ export async function getLinkedInContentAccessToken(
   admin: SupabaseClient,
   organizationId: string,
   pageId: string,
+  options?: { forceRefresh?: boolean },
 ): Promise<string | null> {
   const { data: row } = await admin
     .from("organization_linkedin_content_connection_tokens")
@@ -41,9 +136,10 @@ export async function getLinkedInContentAccessToken(
   const expiresAtMs = tokenRow.access_token_expires_at
     ? new Date(String(tokenRow.access_token_expires_at)).getTime()
     : null;
-  const needsRefresh = expiresAtMs != null &&
-    Number.isFinite(expiresAtMs) &&
-    expiresAtMs < Date.now() + 60_000;
+  const needsRefresh = options?.forceRefresh === true ||
+    (expiresAtMs != null &&
+      Number.isFinite(expiresAtMs) &&
+      expiresAtMs < Date.now() + 60_000);
 
   if (!needsRefresh) {
     try {
@@ -93,11 +189,26 @@ export async function getLinkedInContentAccessToken(
   return refreshed.access_token;
 }
 
+/** Org Company Page metrics/comments only — never returns person accounts. */
 export async function resolveOrgLinkedInContentForMetrics(
   admin: SupabaseClient,
   organizationId: string,
   pageIdParam?: string | null,
 ): Promise<{ accessToken: string; account: LinkedInContentAccountRow } | null> {
+  const resolved = await resolveLinkedInContentForMetrics(admin, organizationId, pageIdParam, {
+    allowPerson: false,
+  });
+  return resolved;
+}
+
+/** Performance metrics: organization pages and (when allowPerson) personal profiles. */
+export async function resolveLinkedInContentForMetrics(
+  admin: SupabaseClient,
+  organizationId: string,
+  pageIdParam?: string | null,
+  options?: { allowPerson?: boolean },
+): Promise<{ accessToken: string; account: LinkedInContentAccountRow } | null> {
+  const allowPerson = options?.allowPerson === true;
   let account: LinkedInContentAccountRow | null = null;
 
   if (pageIdParam) {
@@ -118,6 +229,7 @@ export async function resolveOrgLinkedInContentForMetrics(
       .eq("organization_id", organizationId)
       .eq("is_active", true)
       .eq("is_default", true)
+      .eq("account_kind", "organization")
       .maybeSingle();
     account = (defaultRow as LinkedInContentAccountRow | null) ?? null;
   }
@@ -128,6 +240,7 @@ export async function resolveOrgLinkedInContentForMetrics(
       .select("*")
       .eq("organization_id", organizationId)
       .eq("is_active", true)
+      .eq("account_kind", "organization")
       .order("sort_order", { ascending: true })
       .limit(1)
       .maybeSingle();
@@ -135,6 +248,7 @@ export async function resolveOrgLinkedInContentForMetrics(
   }
 
   if (!account?.page_id) return null;
+  if (isLinkedInPersonAccount(account) && !allowPerson) return null;
 
   const accessToken = await getLinkedInContentAccessToken(admin, organizationId, account.page_id);
   if (!accessToken) return null;

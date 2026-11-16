@@ -34,15 +34,19 @@ export function LinkedInAutoScheduleSection(props: Props) {
     () =>
       (settings?.accounts ?? [])
         .filter((a) => a.is_active)
-        .map((a) => ({
-          id: a.page_id,
-          label: a.display_name || a.label || a.page_id,
-          publishScopesOk:
-            missingLinkedInScopesForFeature(
-              Array.isArray(a.granted_scopes) ? a.granted_scopes : [],
-              'publish',
-            ).length === 0,
-        })),
+        .map((a) => {
+          const isPerson = String(a.account_kind ?? 'organization') === 'person';
+          const labelBase = a.display_name || a.label || a.page_id;
+          return {
+            id: a.page_id,
+            label: isPerson ? `${labelBase} (Personal)` : labelBase,
+            publishScopesOk:
+              missingLinkedInScopesForFeature(
+                Array.isArray(a.granted_scopes) ? a.granted_scopes : [],
+                isPerson ? 'memberPublish' : 'publish',
+              ).length === 0,
+          };
+        }),
     [settings?.accounts],
   );
 
@@ -65,11 +69,11 @@ export function LinkedInAutoScheduleSection(props: Props) {
       activeSchedule={activeSchedule}
       reconnectHint={t(
         'digitalMarketing.scheduledPosts.linkedinReconnectPublish',
-        'Reconnect LinkedIn to grant w_organization_social.',
+        'Reconnect LinkedIn page in settings to grant w_organization_social.',
       )}
       emptyAccountsHint={t(
         'digitalMarketing.scheduledPosts.connectLinkedInAccount',
-        'Connect a LinkedIn company page in settings.',
+        'Connect a LinkedIn company page or personal profile in settings.',
       )}
       buildPublishBody={({ accountId, accountLabel, scheduledAtIso, caption, title, employeeId }) => ({
         page_id: accountId,

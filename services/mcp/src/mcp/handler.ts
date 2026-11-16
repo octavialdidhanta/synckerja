@@ -98,6 +98,9 @@ import {
   commentsSummaryResult,
   parseCommentsListQuery,
   parseCommentsSummaryQuery,
+  linkedinPerformanceInput,
+  linkedinPerformanceResult,
+  parseLinkedInPerformanceQuery,
   inboxConversationsInput,
   inboxConversationsResult,
   inboxMessagesInput,
@@ -356,6 +359,10 @@ export type McpReadDeps = {
   listInboxMessages: (ctx: McpAuthContext, query: InboxMessagesQuery) => Promise<InboxMessageRow[]>;
   readInboxSummary: (ctx: McpAuthContext, query: InboxSummaryQuery) => Promise<InboxSummaryRow[]>;
   readSocialComments: (ctx: McpAuthContext, query: CommentsQuery) => Promise<CommentsSource>;
+  readLinkedInPerformance: (
+    ctx: McpAuthContext,
+    query: import("../tools/linkedin/performanceQuery").LinkedInPerformanceQuery,
+  ) => Promise<import("../tools/linkedin/performanceQuery").LinkedInPerformanceSource>;
   listAdsAccounts: (ctx: McpAuthContext) => Promise<AdsAccountRow[]>;
   listAdsPerformance: (
     ctx: McpAuthContext,
@@ -775,6 +782,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "inbox.summary": inboxSummaryInput,
   "comments.list": commentsListInput,
   "comments.summary": commentsSummaryInput,
+  "linkedin.performance": linkedinPerformanceInput,
   "ads.accounts.list": adsAccountsInput,
   "ads.performance.summary": adsPerformanceInput,
   "ads.performance.breakdown": adsBreakdownInput,
@@ -944,6 +952,11 @@ async function runTool(
       const query = parseCommentsSummaryQuery(args);
       if (!query) throw new Error("invalid_input");
       return commentsSummaryResult(ctx, query, deps.readSocialComments);
+    }
+    case "linkedin.performance": {
+      const query = parseLinkedInPerformanceQuery(args);
+      if (!query) throw new Error("invalid_input");
+      return linkedinPerformanceResult(ctx, query, deps.readLinkedInPerformance);
     }
     case "ads.accounts.list":
       return adsAccountsResult(ctx, deps.listAdsAccounts);

@@ -15,6 +15,10 @@ type LinkedInContentAccountNavProps = {
   className?: string;
 };
 
+function kindRank(kind: string | null | undefined): number {
+  return String(kind ?? "organization") === "person" ? 1 : 0;
+}
+
 export function LinkedInContentAccountNav({
   accounts,
   pageId,
@@ -24,22 +28,30 @@ export function LinkedInContentAccountNav({
   className,
 }: LinkedInContentAccountNavProps) {
   const { t } = useTranslation();
+  const ordered = [...accounts].sort((a, b) => {
+    const kindOrder = kindRank(a.account_kind) - kindRank(b.account_kind);
+    if (kindOrder !== 0) return kindOrder;
+    const defaultOrder = Number(Boolean(b.is_default)) - Number(Boolean(a.is_default));
+    if (defaultOrder !== 0) return defaultOrder;
+    return (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0);
+  });
 
   return (
     <CollapsibleContentAccountNav
       storageKey={COLLAPSED_STORAGE_KEY}
-      sectionLabel={t("digitalMarketing.linkedinContent.accounts", "Pages")}
+      sectionLabel={t("digitalMarketing.linkedinContent.accounts", "Accounts")}
       collapseLabel={t(
         "digitalMarketing.linkedinContent.collapsePages",
-        "Collapse pages",
+        "Collapse accounts",
       )}
-      expandLabel={t("digitalMarketing.linkedinContent.expandPages", "Expand pages")}
+      expandLabel={t("digitalMarketing.linkedinContent.expandPages", "Expand accounts")}
       settingsLabel={t("digitalMarketing.linkedinContent.settings", "Settings")}
       settingsActive={settingsActive}
       onSettingsSelect={onSettingsSelect}
       className={className}
-      accounts={accounts.map((acc) => {
+      accounts={ordered.map((acc) => {
         const active = acc.page_id === pageId;
+        const isPerson = String(acc.account_kind ?? "organization") === "person";
         const label = acc.label || acc.display_name || acc.page_id;
 
         return (
@@ -65,7 +77,12 @@ export function LinkedInContentAccountNav({
             ) : (
               <Linkedin className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
             )}
-            <span className="truncate">{label}</span>
+            <span className="min-w-0 flex-1 truncate">{label}</span>
+            {isPerson ? (
+              <span className="shrink-0 rounded bg-slate-100 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide text-slate-600">
+                {t("digitalMarketing.linkedinContent.accountKindPersonal", "Personal")}
+              </span>
+            ) : null}
           </button>
         );
       })}

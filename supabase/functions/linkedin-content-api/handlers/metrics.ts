@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
+  missingLinkedInScopesForFeature,
+  parseLinkedInGrantedScopes,
   requireActiveOrg,
   requireLinkedInContentPlatformConfigured,
   linkedinContentJson,
@@ -7,9 +9,20 @@ import {
 import {
   buildLinkedInPostUrl,
   fetchLinkedInFollowerCount,
+  fetchLinkedInMemberPosts,
   fetchLinkedInOrganizationPosts,
+  fetchMemberCreatorPostAnalytics,
+  fetchShareImpressionCounts,
 } from "../../_shared/linkedinContentApi.ts";
-import { resolveOrgLinkedInContentForMetrics } from "../../_shared/linkedinContentOrgResolver.ts";
+import {
+  getLinkedInContentAccessToken,
+  isLinkedInPersonAccount,
+  resolveLinkedInContentForMetrics,
+} from "../../_shared/linkedinContentOrgResolver.ts";
+import {
+  isLinkedInContentAuthFailure,
+  linkedInContentReauthErrorMessage,
+} from "../../_shared/linkedinContentAuthError.ts";
 import {
   backfillLinkPostIds,
   buildPlanMatchIndex,
@@ -17,10 +30,11 @@ import {
   loadPlanDetails,
   loadLinkedInPlanLinks,
   matchPostToPlan,
+  parseLinkedInPostIdFromUrl,
 } from "../../_shared/linkedinContentPlanMatcher.ts";
 
 const CACHE_TTL_MINUTES = 15;
-const METRICS_CACHE_KEY = "post-list-v1";
+const METRICS_CACHE_KEY = "post-list-v2"; // v2: impressionCount → view_count
 const MAX_LOOKBACK_DAYS = 365;
 
 function formatDateYmd(d: Date): string {
@@ -77,13 +91,31 @@ export async function handleLinkedInMetrics(
     const forceRefresh = body.force_refresh === true;
     const now = new Date();
 
-    const resolved = await resolveOrgLinkedInContentForMetrics(admin, organizationId, pageIdParam);
+    const resolved = await resolveLinkedInContentForMetrics(admin, organizationId, pageIdParam, {
+      allowPerson: true,
+    });
     if (!resolved) {
       return linkedinContentJson({ error: "LinkedIn Content not connected or no page configured" }, 400);
     }
 
     const { accessToken, account } = resolved;
     const pageId = account.page_id;
+    const isPerson = isLinkedInPersonAccount(account);
+
+    if (isPerson) {
+      const granted = parseLinkedInGrantedScopes(
+        (account as { granted_scopes?: unknown }).granted_scopes,
+      );
+      const missingInsights = missingLinkedInScopesForFeature(granted, "memberInsights");
+      if (missingInsights.length > 0) {
+        return linkedinContentJson({
+          error:
+            "Personal LinkedIn insights are not available yet (LinkedIn does not grant r_member_social / r_member_postAnalytics on this app). Select a Company Page for post insights.",
+          code: "LINKEDIN_MEMBER_INSIGHTS_UNAVAILABLE",
+          missing_scopes: missingInsights,
+        }, 400);
+      }
+    }
 
     if (!forceRefresh) {
       const { data: cached } = await admin
@@ -102,23 +134,120 @@ export async function handleLinkedInMetrics(
       }
     }
 
+    const fetchPostsForToken = async (token: string) => {
+      if (isPerson) {
+        return {
+          posts: await fetchLinkedInMemberPosts(token, pageId, dateStart, dateEnd),
+          audienceCount: null as number | null,
+        };
+      }
+      const [orgPosts, followers] = await Promise.all([
+        fetchLinkedInOrganizationPosts(token, pageId, dateStart, dateEnd),
+        fetchLinkedInFollowerCount(token, pageId),
+      ]);
+      return { posts: orgPosts, audienceCount: followers };
+    };
+
     let posts;
     let audienceCount: number | null = null;
     try {
-      [posts, audienceCount] = await Promise.all([
-        fetchLinkedInOrganizationPosts(accessToken, pageId, dateStart, dateEnd),
-        fetchLinkedInFollowerCount(accessToken, pageId),
-      ]);
+      ({ posts, audienceCount } = await fetchPostsForToken(accessToken));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("linkedin-content-api getMetrics fetchPosts:", msg);
-      return linkedinContentJson({ error: msg, code: "LINKEDIN_CONTENT_API_ERROR" }, 400);
+      if (isPerson && /partnerApiPostsExternal|FINDER-author|Not enough permissions/i.test(msg)) {
+        return linkedinContentJson({
+          error:
+            "Personal LinkedIn insights are not available yet (LinkedIn rejected member post finder). Select a Company Page for post insights.",
+          code: "LINKEDIN_MEMBER_INSIGHTS_UNAVAILABLE",
+          linkedin_error: msg,
+        }, 400);
+      }
+      if (isLinkedInContentAuthFailure(msg)) {
+        // Person OAuth can revoke sibling page tokens; try refresh once before asking reconnect.
+        const kind = isPerson ? "person" : "organization";
+        const refreshed = await getLinkedInContentAccessToken(admin, organizationId, pageId, {
+          forceRefresh: true,
+        });
+        if (refreshed && refreshed !== accessToken) {
+          try {
+            ({ posts, audienceCount } = await fetchPostsForToken(refreshed));
+          } catch (retryErr) {
+            const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+            console.error("linkedin-content-api getMetrics fetchPosts after refresh:", retryMsg);
+            return linkedinContentJson({
+              error: linkedInContentReauthErrorMessage(kind),
+              code: "LINKEDIN_CONTENT_REAUTH_REQUIRED",
+              linkedin_error: retryMsg,
+            }, 400);
+          }
+        } else {
+          return linkedinContentJson({
+            error: linkedInContentReauthErrorMessage(kind),
+            code: "LINKEDIN_CONTENT_REAUTH_REQUIRED",
+            linkedin_error: msg,
+          }, 400);
+        }
+      } else {
+        return linkedinContentJson({ error: msg, code: "LINKEDIN_CONTENT_API_ERROR" }, 400);
+      }
     }
 
     const links = await loadLinkedInPlanLinks(admin, organizationId);
     const matchIndex = buildPlanMatchIndex(links);
     const planIds = [...new Set(links.map((l) => l.social_media_plan_id))];
     const planMap = await loadPlanDetails(admin, planIds);
+
+    // Finder can lag (esp. video still PROCESSING). Merge Synckerja-published links missing
+    // from /rest/posts so Performance stays read-after-write — scoped to this page only.
+    const seenPostIds = new Set(posts.map((p) => String(p.id ?? "").trim()).filter(Boolean));
+    for (const link of links) {
+      const ownedBy = String(link.platform_account_open_id ?? "").trim();
+      if (ownedBy && ownedBy !== pageId) continue;
+      // Unscoped legacy links: only merge onto the org default page to avoid multi-page bleed.
+      if (!ownedBy && !account.is_default) continue;
+      const id = String(link.external_post_id ?? "").trim()
+        || parseLinkedInPostIdFromUrl(link.url)
+        || "";
+      if (!id || seenPostIds.has(id)) continue;
+      seenPostIds.add(id);
+      const plan = planMap.get(link.social_media_plan_id);
+      const postedMs = plan?.actual_post_date
+        ? new Date(plan.actual_post_date).getTime()
+        : Date.now();
+      posts.push({
+        id,
+        title: id,
+        published_at: new Date(
+          Number.isFinite(postedMs) ? postedMs : Date.now(),
+        ).toISOString(),
+        thumbnail_url: null,
+        view_count: 0,
+        like_count: 0,
+        comment_count: 0,
+        share_count: 0,
+      });
+    }
+    posts.sort((a, b) => {
+      const ta = a.published_at ? new Date(a.published_at).getTime() : 0;
+      const tb = b.published_at ? new Date(b.published_at).getTime() : 0;
+      return tb - ta;
+    });
+
+    // Fill impressions for merge stubs (and any finder row still at 0). Soft-fail inside helper.
+    const needImpressionIds = posts
+      .map((p) => String(p.id ?? "").trim())
+      .filter((id, i) => Boolean(id) && !(Number(posts[i]?.view_count) > 0));
+    if (needImpressionIds.length > 0) {
+      const impressionMap = isPerson
+        ? await fetchMemberCreatorPostAnalytics(accessToken, needImpressionIds, "IMPRESSION")
+        : await fetchShareImpressionCounts(accessToken, pageId, needImpressionIds);
+      for (const post of posts) {
+        const id = String(post.id ?? "").trim();
+        if (!id || Number(post.view_count) > 0) continue;
+        post.view_count = impressionMap.get(id) ?? 0;
+      }
+    }
 
     const backfillMatches: Array<{ link_id: string; post_id: string }> = [];
     const rows = posts.map((post) => {

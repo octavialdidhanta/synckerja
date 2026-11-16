@@ -24,7 +24,7 @@ export function LinkedInContentSummaryBar({ summary, audienceCount, isLoading = 
   const cards = [
     {
       label: t("digitalMarketing.linkedinContent.summaryFollowers", "Followers"),
-      value: formatCount(audienceCount ?? 0),
+      value: audienceCount == null ? "—" : formatCount(audienceCount),
     },
     {
       label: t("digitalMarketing.linkedinContent.summaryPosts", "Posts"),

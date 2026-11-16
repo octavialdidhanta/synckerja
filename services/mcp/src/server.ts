@@ -106,6 +106,7 @@ import { aiEmployeeBriefGet, aiEmployeeBriefUpdate, aiEmployeeChat, aiEmployeeCo
 import { listProductKnowledge } from "./db/productKnowledge";
 import { listInboxConversations, listInboxMessages, readInboxSummary } from "./db/inbox";
 import { readSocialComments } from "./db/socialComments";
+import { readLinkedInPerformance } from "./db/linkedinPerformance";
 
 const config = loadConfig();
 const admin = createAdmin(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -131,6 +132,7 @@ const app = createApp({
   listInboxMessages: (ctx, query) => listInboxMessages(admin, ctx, query),
   readInboxSummary: (ctx, query) => readInboxSummary(admin, ctx, query),
   readSocialComments: (ctx, query) => readSocialComments(config, ctx, query),
+  readLinkedInPerformance: (ctx, query) => readLinkedInPerformance(config, ctx, query),
   listAdsAccounts: (ctx) => listAdsAccounts(admin, ctx),
   listAdsPerformance: (ctx, query) => listAdsPerformance(config, ctx, query),
   listAdsBreakdown: (ctx, query) => listAdsBreakdown(config, ctx, query),

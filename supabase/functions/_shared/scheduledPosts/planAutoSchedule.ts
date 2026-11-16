@@ -199,16 +199,20 @@ async function checkAccountPublishReady(
     case "LinkedIn": {
       const { data: acc } = await admin
         .from("organization_linkedin_content_accounts")
-        .select("page_id, is_active, granted_scopes")
+        .select("page_id, is_active, granted_scopes, account_kind")
         .eq("organization_id", organizationId)
         .eq("page_id", id)
         .eq("is_active", true)
         .maybeSingle();
       if (!acc) return { connected: false, scopesOk: false };
       const scopes = parseLinkedInGrantedScopes(acc.granted_scopes);
+      const scopeFeature =
+        String((acc as { account_kind?: string }).account_kind ?? "") === "person"
+          ? "memberPublish"
+          : "publish";
       return {
         connected: true,
-        scopesOk: missingLinkedInScopesForFeature(scopes, "publish").length === 0,
+        scopesOk: missingLinkedInScopesForFeature(scopes, scopeFeature).length === 0,
       };
     }
     default:

@@ -2,6 +2,8 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   LINKEDIN_CONTENT_OAUTH_RETURN_PATHS,
   linkedinContentOAuthScopes,
+  linkedinContentMemberOAuthScopes,
+  parseLinkedInConnectKind,
   readPlatformLinkedInContentOAuth,
   requireOrgAdmin,
   requireLinkedInContentPlatformConfigured,
@@ -35,6 +37,7 @@ export async function handleLinkedInOAuthStart(
 
   const returnPathRaw = body.return_path != null ? String(body.return_path).trim() : "";
   const returnPath = LINKEDIN_CONTENT_OAUTH_RETURN_PATHS.has(returnPathRaw) ? returnPathRaw : null;
+  const connectKind = parseLinkedInConnectKind(body.connect_kind);
 
   const stateToken = randomUrlSafe(32);
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
@@ -44,6 +47,7 @@ export async function handleLinkedInOAuthStart(
     user_id: userId,
     state_token: stateToken,
     expires_at: expiresAt,
+    connect_kind: connectKind,
     ...(returnPath ? { return_path: returnPath } : {}),
   });
   if (stateErr) {
@@ -52,12 +56,15 @@ export async function handleLinkedInOAuthStart(
   }
 
   const redirectUri = linkedinContentOAuthRedirectUri();
+  const scope = connectKind === "person"
+    ? linkedinContentMemberOAuthScopes()
+    : linkedinContentOAuthScopes();
   const params = new URLSearchParams({
     response_type: "code",
     client_id: oauth.clientId,
     redirect_uri: redirectUri,
     state: stateToken,
-    scope: linkedinContentOAuthScopes(),
+    scope,
   });
 
   return linkedinContentJson({

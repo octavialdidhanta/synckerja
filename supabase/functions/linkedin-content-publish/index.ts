@@ -19,7 +19,12 @@ import {
   mcpScheduleUserId,
 } from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
 import {
-  getPlanEligibilityMissingReasons,
+  carouselMediaSnapshot,
+  loadCarouselStoragePaths,
+} from "../_shared/scheduledPosts/carouselImagePaths.ts";
+import {
+  getLinkedInPlanEligibilityMissingReasons,
+  isCarouselContentType,
   isPlanEligibleForLinkedInAutoSchedule,
 } from "../_shared/scheduledPosts/scheduledPostEligibility.ts";
 
@@ -129,12 +134,16 @@ Deno.serve(async (req: Request) => {
     return linkedinContentJson({ error: "Plan not found" }, 404);
   }
 
+  const contentTypeName = plan.content_type?.name ?? null;
+  const carousel = isCarouselContentType(contentTypeName);
+  const carouselPaths = carousel ? await loadCarouselStoragePaths(admin, planId) : [];
   const eligibility = {
     post_date: plan.post_date,
     approved: plan.approved,
     production_approved: plan.production_approved,
     google_drive_link: plan.google_drive_link,
-    content_type_name: plan.content_type?.name ?? null,
+    content_type_name: contentTypeName,
+    carousel_image_count: carousel ? carouselPaths.length : undefined,
   };
 
   if (action === "schedule" || action === "post_now") {
@@ -147,7 +156,7 @@ Deno.serve(async (req: Request) => {
     if (!isPlanEligibleForLinkedInAutoSchedule(eligibility)) {
       return linkedinContentJson({
         error: "plan_not_eligible",
-        missing: getPlanEligibilityMissingReasons(eligibility),
+        missing: getLinkedInPlanEligibilityMissingReasons(eligibility),
       }, 400);
     }
 
@@ -159,7 +168,9 @@ Deno.serve(async (req: Request) => {
       : String(body.scheduled_at ?? "").trim();
     if (!scheduledAtRaw) return linkedinContentJson({ error: "Missing scheduled_at" }, 400);
 
-    const driveLink = plan.google_drive_link?.trim() ?? "";
+    const driveLink = carousel
+      ? carouselMediaSnapshot(carouselPaths)
+      : (plan.google_drive_link?.trim() ?? "");
 
     let inserted;
     try {
@@ -173,6 +184,7 @@ Deno.serve(async (req: Request) => {
         userId,
         action: action as "schedule" | "post_now",
         scheduledAtIso: scheduledAtRaw,
+        mediaSource: carousel ? "carousel_images" : null,
         target: {
           platform: "LinkedIn",
           account_id: pageId,
