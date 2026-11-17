@@ -7,6 +7,7 @@ import {
 } from "../tools/content/briefMarkdown";
 import { parseStoredBrief, type BriefStoryboard } from "../tools/content/briefRead";
 import { BRIEF_HOW_TO_READ } from "../tools/content/briefsGet";
+import { listBriefVoiceRowIndexes } from "./briefVoice";
 
 type Session = { userId: string; organizationId: string };
 
@@ -221,5 +222,19 @@ export async function getContentBrief(
   if (error) throw briefRpcError(error.message ?? "");
   const row = asRows<ContentBriefStored>(data)[0];
   if (!row) throw new Error("not_found");
-  return toContentBriefDetail(row);
+  const detail = toContentBriefDetail(row);
+  try {
+    const voiced = await listBriefVoiceRowIndexes(admin, ctx, id);
+    if (!detail.storyboard || voiced.size === 0) return detail;
+    let index = 0;
+    for (const sequence of detail.storyboard.sequences) {
+      for (const shot of sequence.shots) {
+        shot.has_voice = voiced.has(index);
+        index += 1;
+      }
+    }
+  } catch {
+    // Voice list is additive; brief text still returns if the clips RPC is unavailable.
+  }
+  return detail;
 }

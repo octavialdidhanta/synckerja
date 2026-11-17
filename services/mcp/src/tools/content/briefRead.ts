@@ -13,6 +13,8 @@ export type BriefShot = {
   element: string;
   tagging: string;
   has_image: boolean;
+  /** True when a VO audio clip exists for this shot index (no download URL here). */
+  has_voice?: boolean;
   extra?: Record<string, string>;
 };
 

@@ -8,10 +8,12 @@ import { acceptTaggedNarration, narrationWithoutTags, resolveTaggedNarration, vo
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-synckerja-internal-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Max-Age": "86400",
 };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const BUCKET = "brief-visual-images";
 const STS_MODEL = "eleven_multilingual_sts_v2";
@@ -43,22 +45,51 @@ Deno.serve(async (req: Request) => {
     if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
     const token = authHeader.slice("Bearer ".length);
     const supabaseAdmin = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
-    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
-    if (userError || !userData.user) return json({ error: "Invalid token" }, 401);
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("active_organization_id")
-      .eq("user_id", userData.user.id)
-      .maybeSingle();
-    const orgId = profile?.active_organization_id ? String(profile.active_organization_id) : "";
-    if (!orgId) return json({ error: "No active organization" }, 400);
-    const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+    const internalHeader = (req.headers.get("x-synckerja-internal-secret") ?? "").trim();
+    const internalSecret = (Deno.env.get("SCHEDULED_POSTS_INTERNAL_SECRET") ?? "").trim();
+    let userId: string;
+    let orgId: string;
+    let body: Record<string, unknown>;
+
+    if (internalHeader) {
+      if (!internalSecret || internalHeader !== internalSecret) return json({ error: "Unauthorized" }, 401);
+      body = await req.json().catch(() => ({})) as Record<string, unknown>;
+      const action = String(body.action ?? "").trim();
+      // MCP may only call tts over the internal door; other actions stay on the user JWT path.
+      if (action !== "tts") return json({ error: "Unauthorized" }, 401);
+      const organizationId = String(body.organization_id ?? "").trim();
+      const mcpUserId = String(body.user_id ?? "").trim();
+      if (!UUID_RE.test(organizationId) || !UUID_RE.test(mcpUserId)) return json({ error: "Unauthorized" }, 401);
+      const { data: member, error: memberError } = await supabaseAdmin
+        .from("user_organizations")
+        .select("user_id")
+        .eq("user_id", mcpUserId)
+        .eq("organization_id", organizationId)
+        .or("is_active.is.null,is_active.eq.true")
+        .maybeSingle();
+      if (memberError || !member) return json({ error: "Forbidden" }, 403);
+      userId = mcpUserId;
+      orgId = organizationId;
+    } else {
+      const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+      if (userError || !userData.user) return json({ error: "Invalid token" }, 401);
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("active_organization_id")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      orgId = profile?.active_organization_id ? String(profile.active_organization_id) : "";
+      if (!orgId) return json({ error: "No active organization" }, 400);
+      userId = userData.user.id;
+      body = await req.json().catch(() => ({})) as Record<string, unknown>;
+    }
+
     if (body.action === "sync") return await syncVoiceUsage(supabaseAdmin, orgId, String(body.planId ?? ""), json);
     if (body.action === "describe") return await describeVoice(supabaseAdmin, orgId, json);
-    if (body.action === "tag") return await tagNarration(supabaseAdmin, orgId, userData.user.id, body, json);
-    if (body.action === "tts") return await speakText(supabaseAdmin, orgId, userData.user.id, body, json);
-    if (body.action === "sts") return await restyleVideo(supabaseAdmin, orgId, userData.user.id, body, json);
-    if (body.action === "delete_clip") return await deleteVoiceClip(supabaseAdmin, orgId, userData.user.id, body, json);
+    if (body.action === "tag") return await tagNarration(supabaseAdmin, orgId, userId, body, json);
+    if (body.action === "tts") return await speakText(supabaseAdmin, orgId, userId, body, json);
+    if (body.action === "sts") return await restyleVideo(supabaseAdmin, orgId, userId, body, json);
+    if (body.action === "delete_clip") return await deleteVoiceClip(supabaseAdmin, orgId, userId, body, json);
     return json({ error: "Permintaan suara tidak dikenal" }, 400);
   } catch (error) {
     console.error("generate-brief-voice", error);

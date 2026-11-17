@@ -5,6 +5,7 @@ import { createAdmin } from "./db/admin";
 import { isActiveMember, loadConsentIdentity, verifySupabaseUser } from "./db/identity";
 import { listContentPlans } from "./db/listContentPlans";
 import { createContentBrief, getContentBrief, listContentCatalog } from "./db/contentBriefs";
+import { generateBriefVoiceClip, listBriefVoiceClips } from "./db/briefVoice";
 import { attachLeadMagnetDelivery, listLeadMagnetDrafts } from "./db/leadMagnet";
 import {
   checkThinkingExecution,
@@ -165,6 +166,8 @@ const app = createApp({
   createContentPlan: (ctx, input) => createContentPlan(admin, ctx, input),
   createContentBrief: (ctx, input) => createContentBrief(admin, ctx, input),
   getContentBrief: (ctx, id) => getContentBrief(admin, ctx, id),
+  listBriefVoiceClips: (ctx, planId) => listBriefVoiceClips(admin, config.supabaseUrl, ctx, planId),
+  generateBriefVoiceClip: (ctx, input) => generateBriefVoiceClip(admin, config, ctx, input),
   listLeadMagnetDrafts: (ctx, campaignId) => listLeadMagnetDrafts(admin, ctx, campaignId),
   attachLeadMagnetDelivery: (ctx, input) => attachLeadMagnetDelivery(admin, config.supabaseUrl, ctx, input),
   listThinkingMasters: (ctx) => listThinkingMasters(admin, ctx),

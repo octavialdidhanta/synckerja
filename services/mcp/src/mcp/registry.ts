@@ -80,6 +80,8 @@ export type McpToolName =
   | "content.plans.create"
   | "content.briefs.create"
   | "content.briefs.get"
+  | "content.briefs.voice.list"
+  | "content.briefs.voice.generate"
   | "content.plans.update"
   | "okr.objectives.create"
   | "okr.objectives.update"
@@ -583,8 +585,24 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "content.briefs.get",
     description:
-      "Read one content plan's full brief for the organization locked in this session. Requires id from content.plans.list or content.calendar.list. Returns title, status, approval, production status, post date, content type, category, subcategory, feature, pillar, PIC name, the storyboard grouped by sequence (timing, visual, vo, scene, element, tagging, and any other column), notes outside the table, voice over, characters, locations, properties, caption, and whether a Drive file exists and whether it is published. Image paths, Drive links, and published links are not returned. Read only. Call this before content.plans.update so nothing is overwritten blindly, and to compare briefs of ads that perform well or badly before writing a new brief with content.briefs.create. Follow how_to_read.",
+      "Read one content plan's full brief for the organization locked in this session. Requires id from content.plans.list or content.calendar.list. Returns title, status, approval, production status, post date, content type, category, subcategory, feature, pillar, PIC name, the storyboard grouped by sequence (timing, visual, vo, scene, element, tagging, has_voice, and any other column), notes outside the table, voice over, characters, locations, properties, caption, and whether a Drive file exists and whether it is published. Image paths, Drive links, and published links are not returned. has_voice means an ElevenLabs VO file exists for that shot; download URLs come from content.briefs.voice.list. Read only. Call this before content.plans.update so nothing is overwritten blindly, and to compare briefs of ads that perform well or badly before writing a new brief with content.briefs.create. Follow how_to_read.",
     scopes: ["content:read"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "content.briefs.voice.list",
+    description:
+      "List downloadable ElevenLabs VO audio clips for one content plan in the organization locked in this session. Requires plan_id from content.plans.list or content.calendar.list. Returns each VO clip's row_index, file_name, spoken_text, created_at, and download_url (public HTTPS). Tap download_url on phone to play or save. Does not include seedance/STS clips. Empty clips means no VO has been generated yet. Read only. Follow how_to_read.",
+    scopes: ["content:read"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "content.briefs.voice.generate",
+    description:
+      "Generate one ElevenLabs VO clip for a storyboard row of a content plan in the organization locked in this session, using the organization's Voice AI settings. Requires plan_id and row_index (0-based shot index). Optional text overrides the vo cell; when omitted, uses that row's vo or the plan voice_over. Only the plan PIC can generate. Returns the new clip with download_url. One row per call. Follow how_to_read.",
+    scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
   },
@@ -1131,6 +1149,7 @@ const MUTATING_TOOLS = new Set<McpToolName>([
   "finance.expenses.update",
   "content.plans.create",
   "content.briefs.create",
+  "content.briefs.voice.generate",
   "content.plans.update",
   "content.plans.schedule",
   "okr.objectives.create",

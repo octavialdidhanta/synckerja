@@ -229,6 +229,14 @@ export type AppDeps = {
   ) => Promise<ContentPlanRow>;
   createContentBrief: (ctx: McpAuthContext, input: ContentBriefWrite) => Promise<ContentBriefRecord>;
   getContentBrief: (ctx: McpAuthContext, id: string) => Promise<ContentBriefDetail>;
+  listBriefVoiceClips: (
+    ctx: McpAuthContext,
+    planId: string,
+  ) => Promise<import("../tools/content/briefsVoiceList").BriefVoiceListResult>;
+  generateBriefVoiceClip: (
+    ctx: McpAuthContext,
+    input: import("../tools/content/briefsVoiceGenerate").GenerateBriefVoiceInput,
+  ) => Promise<import("../tools/content/briefsVoiceGenerate").GenerateBriefVoiceResult>;
   listLeadMagnetDrafts: (ctx: McpAuthContext, campaignId: string | null) => Promise<LeadMagnetDraft[]>;
   attachLeadMagnetDelivery: (
     ctx: McpAuthContext,

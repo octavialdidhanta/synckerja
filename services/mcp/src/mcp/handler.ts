@@ -145,6 +145,10 @@ import {
   createBriefResult,
   getBriefInput,
   getBriefResult,
+  listBriefVoiceInput,
+  listBriefVoiceResult,
+  generateBriefVoiceInput,
+  generateBriefVoiceResult,
   cyclesInput,
   cyclesResult,
   departmentsInput,
@@ -467,6 +471,14 @@ export type McpReadDeps = {
   ) => Promise<ContentPlanRow>;
   createContentBrief: (ctx: McpAuthContext, input: ContentBriefWrite) => Promise<ContentBriefRecord>;
   getContentBrief: (ctx: McpAuthContext, id: string) => Promise<ContentBriefDetail>;
+  listBriefVoiceClips: (
+    ctx: McpAuthContext,
+    planId: string,
+  ) => Promise<import("../tools/content/briefsVoiceList").BriefVoiceListResult>;
+  generateBriefVoiceClip: (
+    ctx: McpAuthContext,
+    input: import("../tools/content/briefsVoiceGenerate").GenerateBriefVoiceInput,
+  ) => Promise<import("../tools/content/briefsVoiceGenerate").GenerateBriefVoiceResult>;
   listLeadMagnetDrafts: (ctx: McpAuthContext, campaignId: string | null) => Promise<LeadMagnetDraft[]>;
   attachLeadMagnetDelivery: (
     ctx: McpAuthContext,
@@ -820,6 +832,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "content.plans.create": createPlanInput,
   "content.briefs.create": createBriefInput,
   "content.briefs.get": getBriefInput,
+  "content.briefs.voice.list": listBriefVoiceInput,
+  "content.briefs.voice.generate": generateBriefVoiceInput,
   "content.plans.update": updatePlanSchema,
   "okr.objectives.create": createObjectiveInput,
   "okr.objectives.update": updateObjectiveSchema,
@@ -1279,6 +1293,10 @@ async function runTool(
     }
     case "content.briefs.get":
       return getBriefResult(ctx, requiredString(args.id), deps.getContentBrief);
+    case "content.briefs.voice.list":
+      return listBriefVoiceResult(ctx, args, deps.listBriefVoiceClips);
+    case "content.briefs.voice.generate":
+      return generateBriefVoiceResult(ctx, args, deps.generateBriefVoiceClip, deps.getContentBrief);
     case "content.plans.update":
       if (!updatePlanInput.safeParse(args).success) throw new Error("invalid_input");
       return updatePlanResult(

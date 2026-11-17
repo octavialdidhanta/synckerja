@@ -100,6 +100,8 @@ export type { InventoryPurchaseOrderInput } from "./inventory/purchaseOrderCreat
 export { createPlanInput, createPlanResult } from "./content/plansCreate";
 export { createBriefInput, createBriefResult } from "./content/briefsCreate";
 export { getBriefInput, getBriefResult } from "./content/briefsGet";
+export { listBriefVoiceInput, listBriefVoiceResult } from "./content/briefsVoiceList";
+export { generateBriefVoiceInput, generateBriefVoiceResult } from "./content/briefsVoiceGenerate";
 export { updatePlanInput, updatePlanResult, updatePlanSchema } from "./content/plansUpdate";
 export { createObjectiveInput, createObjectiveResult } from "./okr/objectivesCreate";
 export { updateObjectiveInput, updateObjectiveResult, updateObjectiveSchema } from "./okr/objectivesUpdate";
