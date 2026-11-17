@@ -22,6 +22,7 @@ function asRow(data: unknown): DriveLinkRow | null {
 }
 
 function driveLinkError(message: string): Error {
+  if (message.includes("not_approved")) return new Error("not_approved");
   if (message.includes("not_found")) return new Error("not_found");
   if (message.includes("not_a_member") || message.includes("forbidden")) return new Error("forbidden");
   if (message.includes("invalid_input")) return new Error("invalid_input");

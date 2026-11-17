@@ -35,6 +35,7 @@ export type SetPlanDriveLinkResult = {
 
 export const PLAN_DRIVE_LINK_HOW_TO_READ =
   "google_drive_link is the Google Drive file or folder saved on this content plan. " +
+  "The plan must be approved first, the same rule as the Google Drive Link cell in Office; an unapproved plan returns not_approved and nothing is saved. " +
   "A new or different link moves production_status to Need Review, the same way pasting the link in Office does. " +
   "The signed-in member becomes PIC Production unless that role was already assigned from task steps. " +
   "During Request Revision, the same file or folder URL is stored without moving back to Need Review. " +
