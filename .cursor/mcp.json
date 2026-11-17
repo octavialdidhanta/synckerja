@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "synckerja-office": {
-      "url": "https://mcp.synckerja.com/mcp"
+      "url": "https://mcp.synckerja.com/mcp?rev=drive-link-v1"
     }
   }
 }

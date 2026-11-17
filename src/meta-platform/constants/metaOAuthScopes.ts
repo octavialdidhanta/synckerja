@@ -63,8 +63,6 @@ export const META_PENDING_APP_REVIEW_SCOPES = [
   'pages_read_user_content',
   'instagram_manage_insights',
   'pages_read_engagement',
-  'read_insights',
-  'instagram_content_publish',
   'pages_manage_posts',
   'business_management',
 ] as const;
