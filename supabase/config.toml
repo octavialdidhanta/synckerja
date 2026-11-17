@@ -135,6 +135,9 @@ verify_jwt = false
 [functions.google-drive-file-thumbnail]
 verify_jwt = false
 
+[functions.google-drive-media-token]
+verify_jwt = false
+
 [functions.google-drive-resumable-upload]
 verify_jwt = false
 

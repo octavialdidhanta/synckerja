@@ -9,12 +9,14 @@ import {
   cacheControlForReviewResource,
   parseSupabaseJwtFromRequest,
   resolveDriveAccessFromJwt,
+  resolveDriveAccessFromMediaToken,
   resolveDriveAccessFromReviewToken,
 } from "../_shared/googleDriveReviewAccess.ts";
 
 /**
  * Returns Drive file thumbnail bytes using stored Google OAuth.
- * Auth: Supabase JWT / supabase_token OR public review_token + file_id.
+ * Auth: media_token (file-scoped) OR Supabase JWT header (supabase_token query is legacy)
+ * OR public review_token + file_id.
  */
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -91,6 +93,7 @@ Deno.serve(async (req: Request) => {
     const url = new URL(req.url);
     const jwt = parseSupabaseJwtFromRequest(req, url);
     const reviewToken = url.searchParams.get("review_token")?.trim() ?? "";
+    const mediaToken = url.searchParams.get("media_token")?.trim() ?? "";
 
     const fileIdRaw = url.searchParams.get("file_id")?.trim() ?? "";
     if (!fileIdRaw || !/^[a-zA-Z0-9-_]+$/.test(fileIdRaw)) {
@@ -113,7 +116,21 @@ Deno.serve(async (req: Request) => {
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     let accessToken: string;
-    if (jwt) {
+    if (mediaToken) {
+      const resolved = await resolveDriveAccessFromMediaToken(
+        supabaseAdmin,
+        mediaToken,
+        fileIdRaw,
+        LOG_PREFIX,
+      );
+      if (!resolved.ok) {
+        return new Response(resolved.message, {
+          status: resolved.status,
+          headers: { ...corsHeaders, "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }
+      accessToken = resolved.accessToken;
+    } else if (jwt) {
       const resolved = await resolveDriveAccessFromJwt(supabaseAdmin, jwt, LOG_PREFIX);
       if (!resolved.ok) {
         return new Response(resolved.message, {

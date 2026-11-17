@@ -26,6 +26,7 @@ import {
   Play,
 } from 'lucide-react';
 import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
+import { buildDriveMediaUrl, getDriveMediaToken } from '@/6-1-dashboard/utils/driveMediaToken';
 import { publicReviewRpc } from './publicReviewRpc';
 import SocialMediaLinksDialog from '../modal/SocialMediaLinksDialog';
 import { format } from 'date-fns';
@@ -728,12 +729,20 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
     }
     let cancelled = false;
 
-    const applyPoster = (accessToken: string | undefined, reviewToken: string | undefined) => {
+    const applyPoster = async (accessToken: string | undefined, reviewToken: string | undefined) => {
       if (cancelled) return;
+      if (accessToken) {
+        // Never put the session JWT in a URL (it lands in edge logs); use a file-scoped media token.
+        const mediaToken = await getDriveMediaToken(driveFileId);
+        if (cancelled) return;
+        setDrivePreviewPosterUrl(
+          mediaToken ? buildDriveMediaUrl('google-drive-file-thumbnail', driveFileId, mediaToken) : null,
+        );
+        return;
+      }
       const thumb = new URL(`${SUPABASE_URL}/functions/v1/google-drive-file-thumbnail`);
       thumb.searchParams.set('file_id', driveFileId);
-      if (accessToken) thumb.searchParams.set('supabase_token', accessToken);
-      else if (reviewToken) thumb.searchParams.set('review_token', reviewToken);
+      if (reviewToken) thumb.searchParams.set('review_token', reviewToken);
       else {
         setDrivePreviewPosterUrl(null);
         return;
@@ -743,10 +752,10 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
 
     if (isLoggedIn) {
       void supabase.auth.getSession().then(({ data: { session } }) => {
-        applyPoster(session?.access_token, undefined);
+        void applyPoster(session?.access_token, undefined);
       });
       const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-        applyPoster(session?.access_token, undefined);
+        void applyPoster(session?.access_token, undefined);
       });
       return () => {
         cancelled = true;
@@ -755,7 +764,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
     }
 
     if (token) {
-      applyPoster(undefined, token);
+      void applyPoster(undefined, token);
     } else {
       setDrivePreviewPosterUrl(null);
     }
@@ -774,23 +783,21 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
     }
     let cancelled = false;
     setVideoStreamReady(false);
-    const applySession = (accessToken: string | undefined) => {
+    const applySession = async (accessToken: string | undefined) => {
       if (cancelled) return;
-      if (accessToken) {
-        const media = new URL(`${SUPABASE_URL}/functions/v1/google-drive-file-media`);
-        media.searchParams.set('file_id', driveFileId);
-        media.searchParams.set('supabase_token', accessToken);
-        setGoogleStreamUrl(media.toString());
-      } else {
-        setGoogleStreamUrl(null);
-      }
+      // Never put the session JWT in a URL (it lands in edge logs); use a file-scoped media token.
+      const mediaToken = accessToken ? await getDriveMediaToken(driveFileId) : null;
+      if (cancelled) return;
+      setGoogleStreamUrl(
+        mediaToken ? buildDriveMediaUrl('google-drive-file-media', driveFileId, mediaToken) : null,
+      );
       setVideoStreamReady(true);
     };
     void supabase.auth.getSession().then(({ data: { session } }) => {
-      applySession(session?.access_token);
+      void applySession(session?.access_token);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      applySession(session?.access_token);
+      void applySession(session?.access_token);
     });
     return () => {
       cancelled = true;

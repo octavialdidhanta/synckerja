@@ -13,7 +13,8 @@ import {
 } from "../utils/previewUtils";
 import { useDriveFileThumbnailMeta } from "../hook/useDriveFileThumbnailMeta";
 import { useGoogleDriveFileGrant } from "../hook/useGoogleDriveFileGrant";
-import { supabase, SUPABASE_URL } from "@/shared/lib/supabaseClient";
+import { supabase } from "@/shared/lib/supabaseClient";
+import { buildDriveMediaUrl, getDriveMediaToken } from "@/6-1-dashboard/utils/driveMediaToken";
 
 /**
  * Google Drive file preview in-app: video or image scaled to fill the available box (object-contain).
@@ -76,18 +77,14 @@ export const GoogleDriveFilePreview: React.FC<{
     let cancelled = false;
     setSessionChecked(false);
 
-    const applySession = (accessToken: string | undefined) => {
+    const applySession = async (accessToken: string | undefined) => {
       if (cancelled) return;
-      if (accessToken) {
-        const media = new URL(`${SUPABASE_URL}/functions/v1/google-drive-file-media`);
-        media.searchParams.set("file_id", fileId);
-        media.searchParams.set("supabase_token", accessToken);
-        setGoogleStreamUrl(media.toString());
-
-        const thumb = new URL(`${SUPABASE_URL}/functions/v1/google-drive-file-thumbnail`);
-        thumb.searchParams.set("file_id", fileId);
-        thumb.searchParams.set("supabase_token", accessToken);
-        setAuthedThumbnailUrl(thumb.toString());
+      // Never put the session JWT in a URL (it lands in edge logs); use a file-scoped media token.
+      const mediaToken = accessToken ? await getDriveMediaToken(fileId) : null;
+      if (cancelled) return;
+      if (mediaToken) {
+        setGoogleStreamUrl(buildDriveMediaUrl("google-drive-file-media", fileId, mediaToken));
+        setAuthedThumbnailUrl(buildDriveMediaUrl("google-drive-file-thumbnail", fileId, mediaToken));
       } else {
         setGoogleStreamUrl(null);
         setAuthedThumbnailUrl(null);
@@ -96,11 +93,11 @@ export const GoogleDriveFilePreview: React.FC<{
     };
 
     void supabase.auth.getSession().then(({ data: { session } }) => {
-      applySession(session?.access_token);
+      void applySession(session?.access_token);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      applySession(session?.access_token);
+      void applySession(session?.access_token);
     });
 
     return () => {

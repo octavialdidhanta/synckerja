@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getValidGoogleDriveAccessToken } from "./googleDriveAccess.ts";
+import { getDriveMediaTokenKey, verifyDriveMediaToken } from "./driveMediaToken.ts";
 
 export function extractGoogleDriveFileId(url: string): string | null {
   if (!url?.trim()) return null;
@@ -34,6 +35,32 @@ export async function resolveDriveAccessFromJwt(
   if (!accessToken) {
     return { ok: false, message: tokenErr ?? "No Google access", status: 400 };
   }
+  return { ok: true, accessToken };
+}
+
+/** Short-lived, file-scoped `media_token` (minted by google-drive-media-token). */
+export async function resolveDriveAccessFromMediaToken(
+  supabaseAdmin: SupabaseClient,
+  mediaToken: string,
+  fileIdRaw: string,
+  logPrefix: string,
+): Promise<DriveAccessResolveResult> {
+  const key = await getDriveMediaTokenKey();
+  if (!key) return { ok: false, message: "Server configuration error", status: 500 };
+  const check = await verifyDriveMediaToken(key, mediaToken, fileIdRaw);
+  if (!check.ok) {
+    return {
+      ok: false,
+      message: check.reason === "expired" ? "Media link expired" : "Invalid media link",
+      status: check.reason === "file_mismatch" ? 403 : 401,
+    };
+  }
+  const { accessToken, error } = await getValidGoogleDriveAccessToken(
+    supabaseAdmin,
+    check.userId,
+    logPrefix,
+  );
+  if (!accessToken) return { ok: false, message: error ?? "No Google access", status: 400 };
   return { ok: true, accessToken };
 }
 
