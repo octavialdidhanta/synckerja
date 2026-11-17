@@ -45,6 +45,30 @@ function upscaleGoogleDriveThumbnailUrl(url: string): string {
   return url;
 }
 
+/**
+ * Public "anyone with the link" thumbnail. Link-shared files owned by another Google account
+ * are invisible to the office account ("File not found") but still have a public thumbnail.
+ * Returns null unless Google answers with an image.
+ */
+async function fetchSharedDriveThumbnail(fileId: string): Promise<Response | null> {
+  const id = encodeURIComponent(fileId);
+  const candidates = [
+    `https://lh3.googleusercontent.com/d/${id}=w2000`,
+    `https://drive.google.com/thumbnail?id=${id}&sz=w2000`,
+  ];
+  for (const u of candidates) {
+    try {
+      const res = await fetch(u, { redirect: "follow" });
+      const ct = res.headers.get("content-type") ?? "";
+      if (res.ok && res.body && ct.toLowerCase().startsWith("image/")) return res;
+      await res.body?.cancel();
+    } catch {
+      /* try next candidate */
+    }
+  }
+  return null;
+}
+
 const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
   <rect fill="#e5e5e5" width="100%" height="100%"/>
@@ -130,6 +154,13 @@ Deno.serve(async (req: Request) => {
     const meta = (await metaRes.json()) as Record<string, unknown>;
     if (!metaRes.ok) {
       console.error(`${LOG_PREFIX}: Drive meta`, JSON.stringify(meta).slice(0, 200));
+      const shared = await fetchSharedDriveThumbnail(fileIdRaw);
+      if (shared) {
+        const out = new Headers(corsHeaders);
+        out.set("Content-Type", shared.headers.get("content-type") ?? "image/jpeg");
+        out.set("Cache-Control", cacheControl);
+        return new Response(shared.body, { status: 200, headers: out });
+      }
       const mapped = mapGoogleDriveApiFailure(metaRes.status, meta, fileIdRaw);
       if (mapped.body.code === "DRIVE_GRANT_REQUIRED") {
         const out = new Headers(corsHeaders);
