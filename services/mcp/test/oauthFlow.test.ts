@@ -258,6 +258,15 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     updateContentPlan: async () => {
       throw new Error("unused");
     },
+    listBriefVoiceClips: async () => {
+      throw new Error("unused");
+    },
+    generateBriefVoiceClip: async () => {
+      throw new Error("unused");
+    },
+    setContentPlanDriveLink: async () => {
+      throw new Error("unused");
+    },
     createCompanyObjective: async () => {
       throw new Error("unused");
     },

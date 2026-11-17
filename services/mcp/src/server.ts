@@ -59,6 +59,7 @@ import { listCatalogSuppliers } from "./db/inventorySuppliers";
 import { listRecipeCosts } from "./db/recipeCosts";
 import { createRecipeDraft, listRecipeDrafts } from "./db/recipeDrafts";
 import { listAdsAudience, listAdsBreakdown, listAdsPerformance, listAdsSegments } from "./db/adsPerformance";
+import { setContentPlanDriveLink } from "./db/planDriveLink";
 import {
   createCompanyObjective,
   createContentPlan,
@@ -197,6 +198,7 @@ const app = createApp({
   saveThinkingPlan: (ctx, input) => saveThinkingPlan(admin, ctx, input),
   saveThinkingPlanDirect: (ctx, input) => saveThinkingPlanDirect(admin, ctx, input),
   updateContentPlan: (ctx, input) => updateContentPlan(admin, ctx, input.id, input),
+  setContentPlanDriveLink: (ctx, input) => setContentPlanDriveLink(admin, ctx, input),
   createCompanyObjective: (ctx, input) => createCompanyObjective(admin, ctx, input),
   updateObjective: (ctx, input) => updateObjective(admin, ctx, input),
   createDepartmentObjective: (ctx, input) => createDepartmentObjective(admin, ctx, input),

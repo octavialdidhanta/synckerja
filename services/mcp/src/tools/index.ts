@@ -103,6 +103,7 @@ export { getBriefInput, getBriefResult } from "./content/briefsGet";
 export { listBriefVoiceInput, listBriefVoiceResult } from "./content/briefsVoiceList";
 export { generateBriefVoiceInput, generateBriefVoiceResult } from "./content/briefsVoiceGenerate";
 export { updatePlanInput, updatePlanResult, updatePlanSchema } from "./content/plansUpdate";
+export { setPlanDriveLinkInput, setPlanDriveLinkResult } from "./content/planDriveLink";
 export { createObjectiveInput, createObjectiveResult } from "./okr/objectivesCreate";
 export { updateObjectiveInput, updateObjectiveResult, updateObjectiveSchema } from "./okr/objectivesUpdate";
 export { createDepartmentObjectiveInput, createDepartmentObjectiveResult } from "./okr/departmentCreate";

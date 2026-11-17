@@ -275,6 +275,10 @@ export type AppDeps = {
     ctx: McpAuthContext,
     input: { id: string; title: string | null; postDate: string | null; brief: string | null },
   ) => Promise<ContentPlanRow>;
+  setContentPlanDriveLink: (
+    ctx: McpAuthContext,
+    input: import("../tools/content/planDriveLink").SetPlanDriveLinkInput,
+  ) => Promise<import("../tools/content/planDriveLink").SetPlanDriveLinkResult>;
   createCompanyObjective: (
     ctx: McpAuthContext,
     input: { cycleId: string; title: string; whyImportant: string | null; status: string | null },
@@ -528,8 +532,8 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "brief-voice-v1",
-      tools: ["content.briefs.voice.list", "content.briefs.voice.generate"],
+      rev: "drive-link-v1",
+      tools: ["content.plans.media.set_link"],
     }),
   );
 

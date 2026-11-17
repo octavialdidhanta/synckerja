@@ -83,6 +83,7 @@ export type McpToolName =
   | "content.briefs.voice.list"
   | "content.briefs.voice.generate"
   | "content.plans.update"
+  | "content.plans.media.set_link"
   | "okr.objectives.create"
   | "okr.objectives.update"
   | "okr.objectives.department.create"
@@ -610,6 +611,14 @@ const TOOL_DEFINITIONS: McpTool[] = [
     name: "content.plans.update",
     description:
       "Update the title, post date, or short brief of one content plan in the organization locked in this session. The brief stays at most 4000 characters. A brief change is accepted when the signed-in member is that plan's PIC. If the plan has no PIC yet, that member becomes the PIC. A storyboard belongs in content.briefs.create. Does not change approval, production status, completion, or published links.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "content.plans.media.set_link",
+    description:
+      "Save one Google Drive file or folder URL on a content plan in the organization locked in this session. Requires plan_id from content.plans.list or content.calendar.list, and url (https://drive.google.com file or folder). A new or different link sets production status to Need Review and can assign the signed-in member as PIC Production, the same way pasting the link in Office does. Does not approve, schedule, publish, or clear an existing link. Follow how_to_read.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
@@ -1151,6 +1160,7 @@ const MUTATING_TOOLS = new Set<McpToolName>([
   "content.briefs.create",
   "content.briefs.voice.generate",
   "content.plans.update",
+  "content.plans.media.set_link",
   "content.plans.schedule",
   "okr.objectives.create",
   "okr.objectives.update",
