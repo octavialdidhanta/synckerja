@@ -14,6 +14,8 @@ export type TikTokAdsMetricsResponse = {
     impressions: number;
     clicks: number;
     reach: number;
+    cpc?: number | null;
+    cpm?: number | null;
     currency: string;
   };
   entity: TikTokAdsMetricEntity;

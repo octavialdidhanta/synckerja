@@ -246,6 +246,9 @@ verify_jwt = false
 [functions.tiktok-ads-metrics]
 verify_jwt = false
 
+[functions.tiktok-ads-ad-thumbnails]
+verify_jwt = false
+
 # MCP ads performance. SCHEDULED_POSTS_INTERNAL_SECRET, checked inside. The bearer is not compared to SUPABASE_SERVICE_ROLE_KEY.
 [functions.mcp-ads-performance]
 verify_jwt = false

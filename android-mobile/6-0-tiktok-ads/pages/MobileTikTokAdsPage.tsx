@@ -29,6 +29,7 @@ import {
   tiktokAdsAllTimeDateRange,
 } from "@/tiktok-ads/lib/clampTikTokAdsDateRange";
 import { toTikTokAdsMetricsDateRangePayload } from "@/tiktok-ads/lib/toTikTokAdsMetricsDateRangePayload";
+import { resolveTikTokAdsCurrency } from "@/tiktok-ads/metrics/formatTikTokMetricValue";
 import { useOmnichannelSurveySettingsAdmin } from "@/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { useTikTokAdsReportingEnabled } from "@/tiktok-ads/hooks/useTikTokAdsReportingEnabled";
 import { useTikTokAdsSettings } from "@/tiktok-ads/hooks/useTikTokAdsSettings";
@@ -37,6 +38,10 @@ import {
   useTikTokAdsMetricsQuery,
   type TikTokAdsMetricEntity,
 } from "@/tiktok-ads/hooks/useTikTokAdsMetricsQuery";
+import {
+  mergeTikTokAdThumbnails,
+  useTikTokAdThumbnails,
+} from "@/tiktok-ads/hooks/useTikTokAdThumbnails";
 import { useTikTokAdsColumnSets } from "@/tiktok-ads/hooks/useTikTokAdsColumnSets";
 import { useTikTokAdsMetricsPreferences } from "@/tiktok-ads/hooks/useTikTokAdsMetricsPreferences";
 import {
@@ -248,6 +253,18 @@ function MobileTikTokAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean 
     const rows = metricsQuery.data?.rows ?? [];
     return sortTikTokAdsRows(rows, { field: sortFieldValue, direction: sort.direction }, entity);
   }, [metricsQuery.data?.rows, sortFieldValue, sort.direction, entity]);
+
+  const thumbnailQuery = useTikTokAdThumbnails({
+    organizationId,
+    advertiserId,
+    entity,
+    rows: sortedRows,
+    enabled: entity === "ad",
+  });
+  const tableRows = useMemo(
+    () => mergeTikTokAdThumbnails(sortedRows, thumbnailQuery.data),
+    [sortedRows, thumbnailQuery.data],
+  );
 
   const handleSortFieldChange = useCallback(
     (field: string) => {
@@ -531,9 +548,12 @@ function MobileTikTokAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean 
                       {reportingEnabled && accountReadyForMetrics ? (
                         <MobileTikTokAdsMetricsTable
                           entity={entity}
-                          rows={sortedRows}
+                          rows={tableRows}
                           metricItems={metricItems}
-                          currencyCode={metricsQuery.data?.summary?.currency ?? null}
+                          currencyCode={resolveTikTokAdsCurrency(
+                            metricsQuery.data?.summary?.currency,
+                            sortedRows,
+                          )}
                           isLoading={tableLoading && !metricsQuery.data}
                         />
                       ) : null}

@@ -215,3 +215,35 @@ export function resolveTikTokAdsMetricItems(
   const map = new Map(getTikTokAdsMetricsForEntity(entity).map((m) => [m.key, m]));
   return selectedKeys.map((k) => map.get(k)).filter((m): m is TikTokAdsMetricCatalogItem => Boolean(m));
 }
+
+function moveMetricBeside<T extends { key: string }>(
+  items: T[],
+  key: string,
+  afterKey: string | null,
+): T[] {
+  const from = items.findIndex((item) => item.key === key);
+  if (from < 0) return items;
+  const next = items.slice();
+  const [item] = next.splice(from, 1);
+  if (!item) return items;
+  if (afterKey == null) {
+    next.unshift(item);
+    return next;
+  }
+  const after = next.findIndex((entry) => entry.key === afterKey);
+  if (after < 0) {
+    next.splice(Math.min(from, next.length), 0, item);
+    return next;
+  }
+  next.splice(after + 1, 0, item);
+  return next;
+}
+
+/** Spend beside Campaign, Reach beside Spend, CPM beside Impressions. */
+export function orderTikTokAdsMetricColumns<T extends { key: string }>(items: T[]): T[] {
+  return moveMetricBeside(
+    moveMetricBeside(moveMetricBeside(items, "spend", null), "reach", "spend"),
+    "cpm",
+    "impressions",
+  );
+}

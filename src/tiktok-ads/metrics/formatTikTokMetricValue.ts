@@ -32,7 +32,10 @@ export function formatTikTokMetricValue(
   }
 
   if (kind === "currency") {
-    const code = (currencyCode ?? "USD").toUpperCase();
+    const code = tiktokAdsCurrencyCode(currencyCode) ?? (currencyCode == null || String(currencyCode).trim() === "" ? "USD" : null);
+    if (!code) {
+      return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(n);
+    }
     try {
       return new Intl.NumberFormat(undefined, {
         style: "currency",
@@ -40,7 +43,7 @@ export function formatTikTokMetricValue(
         maximumFractionDigits: code === "IDR" ? 0 : 2,
       }).format(n);
     } catch {
-      return `${code} ${n.toFixed(2)}`;
+      return new Intl.NumberFormat(undefined, { maximumFractionDigits: code === "IDR" ? 0 : 2 }).format(n);
     }
   }
 
@@ -49,6 +52,28 @@ export function formatTikTokMetricValue(
   }
 
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
+}
+
+const ISO_CURRENCY = /^[A-Z]{3}$/;
+
+export function tiktokAdsCurrencyCode(value: unknown): string | null {
+  const code = String(value ?? "").trim().toUpperCase();
+  return ISO_CURRENCY.test(code) ? code : null;
+}
+
+/** TikTok account totals often return currency "-". Campaign rows carry the real code (IDR). */
+export function resolveTikTokAdsCurrency(
+  summaryCurrency: unknown,
+  rows: ReadonlyArray<Record<string, unknown>> | null | undefined,
+  fallback = "IDR",
+): string {
+  const fromSummary = tiktokAdsCurrencyCode(summaryCurrency);
+  if (fromSummary) return fromSummary;
+  for (const row of rows ?? []) {
+    const code = tiktokAdsCurrencyCode(row.currency);
+    if (code) return code;
+  }
+  return fallback;
 }
 
 export function parseMetricNumber(value: unknown): number | null {

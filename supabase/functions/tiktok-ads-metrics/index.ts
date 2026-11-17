@@ -13,6 +13,7 @@ import {
   mcpServiceInternalUserId,
 } from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
 import {
+  attachTikTokAdThumbnails,
   fetchTikTokIntegratedReport,
   type TikTokMetricEntity,
 } from "../_shared/tiktokAdsApi.ts";
@@ -31,8 +32,8 @@ import {
 } from "../_shared/monthlyReportAttribution.ts";
 
 const CACHE_TTL_MINUTES = 10;
-const METRICS_CACHE_KEY = "integrated-report-v1";
-const MONTHLY_CACHE_KEY = "monthly-spend-v2";
+const METRICS_CACHE_KEY = "integrated-report-v3";
+const MONTHLY_CACHE_KEY = "monthly-spend-v3";
 const MAX_LOOKBACK_DAYS = 365;
 
 type MetricEntity = TikTokMetricEntity;
@@ -192,7 +193,7 @@ async function handleMonthlySpendBreakdown(
   const periodSummary = buildChannelPeriodSummary(months);
   const currency = String(
     (await fetchTikTokIntegratedReport(accessToken, advertiserId, "campaign", dateStart, dateEnd))
-      .summary.currency ?? "USD",
+      .summary.currency ?? "IDR",
   );
 
   const payload = {
@@ -340,7 +341,7 @@ Deno.serve(async (req: Request) => {
     const reportRows = aggregateTikTokRowsByService(rows, unmappedLabel);
     return tiktokAdsJson({
       rows: reportRows,
-      currency_code: summary.currency ?? "USD",
+      currency_code: summary.currency ?? "IDR",
       date_start: dateStart,
       date_end: dateEnd,
     }, 200);
@@ -409,6 +410,9 @@ Deno.serve(async (req: Request) => {
       dateEnd,
     );
   }
+  if (entity === "ad") {
+    await attachTikTokAdThumbnails(accessToken, account.advertiser_id, rows);
+  }
 
   const payload = {
     rows,
@@ -417,7 +421,9 @@ Deno.serve(async (req: Request) => {
       impressions: summary.impressions,
       clicks: summary.clicks,
       reach: summary.reach,
-      currency: summary.currency ?? "USD",
+      cpc: summary.cpc,
+      cpm: summary.cpm,
+      currency: summary.currency ?? "IDR",
     },
     entity,
     advertiser_id: account.advertiser_id,

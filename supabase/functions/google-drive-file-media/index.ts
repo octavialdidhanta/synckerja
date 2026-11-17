@@ -3,6 +3,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   DRIVE_GRANT_REQUIRED_HEADER,
+  buildPublicDriveMediaUrl,
+  getGoogleDriveServerApiKey,
   mapGoogleDriveApiFailure,
 } from "../_shared/googleDriveAccess.ts";
 import {
@@ -29,6 +31,47 @@ const corsHeaders: Record<string, string> = {
 };
 
 const LOG_PREFIX = "google-drive-file-media";
+
+const MEDIA_HEADERS = [
+  "content-type",
+  "content-length",
+  "content-range",
+  "accept-ranges",
+  "etag",
+  "last-modified",
+];
+
+function streamMedia(source: Response, headers: Headers): Response {
+  for (const name of MEDIA_HEADERS) {
+    const value = source.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  return new Response(source.body, { status: source.status, headers });
+}
+
+function isPlayableMedia(response: Response): boolean {
+  const type = (response.headers.get("content-type") ?? "").toLowerCase();
+  return type.startsWith("video/") || type.startsWith("audio/") || type === "application/octet-stream";
+}
+
+/** Public "anyone with the link" download. Returns null when the body is not a media file. */
+async function fetchSharedDriveFile(fileId: string, range: string | null): Promise<Response | null> {
+  const headers: Record<string, string> = {};
+  if (range) headers.Range = range;
+
+  const candidates = [
+    `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download&confirm=t`,
+  ];
+  const apiKey = getGoogleDriveServerApiKey();
+  if (apiKey) candidates.push(buildPublicDriveMediaUrl(fileId, apiKey));
+
+  for (const url of candidates) {
+    const response = await fetch(url, { headers, redirect: "follow" });
+    if (response.ok && isPlayableMedia(response)) return response;
+    await response.body?.cancel();
+  }
+  return null;
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -110,10 +153,19 @@ Deno.serve(async (req: Request) => {
     out.set("Cache-Control", reviewToken ? reviewCache : "private, max-age=300");
 
     if (!driveRes.ok) {
+      // Link-shared files are often invisible to the office Google account ("File not found")
+      // but are still playable from the public download URL.
+      const shared = await fetchSharedDriveFile(fileIdRaw, range);
+      if (shared) {
+        await driveRes.body?.cancel();
+        return streamMedia(shared, out);
+      }
+      out.set("Cache-Control", "no-store");
       try {
         const errJson = (await driveRes.clone().json()) as Record<string, unknown>;
         const mapped = mapGoogleDriveApiFailure(driveRes.status, errJson, fileIdRaw);
         if (mapped.body.code === "DRIVE_GRANT_REQUIRED") {
+          await driveRes.body?.cancel();
           out.set(DRIVE_GRANT_REQUIRED_HEADER, "DRIVE_GRANT_REQUIRED");
           out.set("Content-Type", "text/plain; charset=utf-8");
           return new Response(String(mapped.body.error ?? "Grant required"), {
@@ -126,23 +178,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const passthrough = [
-      "content-type",
-      "content-length",
-      "content-range",
-      "accept-ranges",
-      "etag",
-      "last-modified",
-    ];
-    for (const name of passthrough) {
-      const v = driveRes.headers.get(name);
-      if (v) out.set(name, v);
-    }
-
-    return new Response(driveRes.body, {
-      status: driveRes.status,
-      headers: out,
-    });
+    return streamMedia(driveRes, out);
   } catch (e) {
     const err = e as Error;
     console.error(`${LOG_PREFIX}:`, err.message);

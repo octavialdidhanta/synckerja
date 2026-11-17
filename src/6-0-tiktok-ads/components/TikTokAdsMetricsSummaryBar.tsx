@@ -3,7 +3,7 @@ import { useTikTokAdsReportTargetProgress } from "@/6-0-digital-marketing-shared
 import type { DmReportTargetProgress } from "@/6-0-digital-marketing-shared/dmReportTargetTypes";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { formatTikTokMetricValue } from "@/tiktok-ads/metrics/formatTikTokMetricValue";
+import { formatTikTokMetricValue, resolveTikTokAdsCurrency } from "@/tiktok-ads/metrics/formatTikTokMetricValue";
 import type { TikTokAdsMetricEntity } from "@/tiktok-ads/hooks/useTikTokAdsMetricsQuery";
 import type { TikTokAdsMetricsRow } from "@/tiktok-ads/hooks/useTikTokAdsMetricsQuery";
 import type { TikTokAdsMetricCatalogItem } from "@/tiktok-ads/metrics/tiktokAdsMetricCatalog";
@@ -140,7 +140,7 @@ export function TikTokAdsMetricsSummaryBar({
     tableMetricKeys: slots,
   });
 
-  const currencyCode = summary?.currency ?? "IDR";
+  const currencyCode = resolveTikTokAdsCurrency(summary?.currency, rows, "IDR");
 
   const { previousRange, previousTotals, compareLoading, compareError } =
     useTikTokAdsSummaryPeriodCompare({

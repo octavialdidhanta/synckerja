@@ -10,6 +10,7 @@ import {
   formatTikTokCtr,
   formatTikTokMetricValue,
   parseMetricNumber,
+  resolveTikTokAdsCurrency,
 } from "@/tiktok-ads/metrics/formatTikTokMetricValue";
 
 /** Metrics available as table columns (catalog + campaign service columns). */
@@ -88,6 +89,8 @@ export function buildTikTokAdsSummaryTotals(
     clicks: number;
     reach?: number;
     currency: string;
+    cpc?: number | null;
+    cpm?: number | null;
   } | null | undefined,
   rows: TikTokAdsMetricsRow[],
   entity: TikTokAdsMetricEntity,
@@ -106,16 +109,18 @@ export function buildTikTokAdsSummaryTotals(
 
   const cpa =
     attribution.hasLeads && attribution.convertedLeads > 0 ? spend / attribution.convertedLeads : null;
+  const reportedCpc = parseMetricNumber(summary.cpc);
+  const reportedCpm = parseMetricNumber(summary.cpm);
 
   return {
     spend,
     impressions,
     clicks,
     reach,
-    currency: summary.currency ?? "IDR",
+    currency: resolveTikTokAdsCurrency(summary.currency, rows, "IDR"),
     ctr: computeSummaryCtr(clicks, impressions),
-    cpc: computeSummaryCpc(spend, clicks),
-    cpm: computeSummaryCpm(spend, impressions),
+    cpc: reportedCpc ?? computeSummaryCpc(spend, clicks),
+    cpm: reportedCpm ?? computeSummaryCpm(spend, impressions),
     convertedLeads: attribution.hasLeads ? attribution.convertedLeads : null,
     cpa,
   };

@@ -4,7 +4,10 @@ import { cn } from "@/shared/lib/utils";
 import type { TikTokAdsMetricEntity } from "@/tiktok-ads/hooks/useTikTokAdsMetricsQuery";
 import type { TikTokAdsMetricsRow } from "@/tiktok-ads/hooks/useTikTokAdsMetricsQuery";
 import { formatTikTokMetricValue } from "@/tiktok-ads/metrics/formatTikTokMetricValue";
-import type { TikTokAdsMetricCatalogItem } from "@/tiktok-ads/metrics/tiktokAdsMetricCatalog";
+import {
+  orderTikTokAdsMetricColumns,
+  type TikTokAdsMetricCatalogItem,
+} from "@/tiktok-ads/metrics/tiktokAdsMetricCatalog";
 import {
   tiktokAdsRowDisplayName,
   tiktokAdsRowReactKey,
@@ -66,6 +69,7 @@ export function MobileTikTokAdsMetricsTable({
   const thClass =
     "sticky top-0 z-10 whitespace-nowrap border-b border-border bg-muted/80 px-3 py-2 text-left text-xs font-medium text-muted-foreground backdrop-blur-sm";
   const tdClass = "whitespace-nowrap border-b border-border/60 px-3 py-2.5 text-sm align-middle";
+  const orderedMetricItems = orderTikTokAdsMetricColumns(metricItems);
 
   if (isLoading) {
     return (
@@ -129,7 +133,7 @@ export function MobileTikTokAdsMetricsTable({
                 {col.label}
               </th>
             ))}
-            {metricItems.map((m) => (
+            {orderedMetricItems.map((m) => (
               <th key={m.key} className={cn(thClass, "text-right")}>
                 {t(m.labelKey, m.defaultLabel)}
               </th>
@@ -164,16 +168,32 @@ export function MobileTikTokAdsMetricsTable({
                       className={cn(
                         tdClass,
                         alignRight && "text-right tabular-nums",
-                        col.key === "name" && "max-w-[11rem] truncate font-medium",
+                        col.key === "name" &&
+                          (entity === "ad"
+                            ? "w-[14rem] max-w-[14rem] font-medium"
+                            : "max-w-[11rem] truncate font-medium"),
+                        col.key === "adgroup" && entity === "ad" && "w-[10rem] max-w-[10rem] truncate",
                         col.key === "service" && "max-w-[8rem] truncate",
                       )}
                       title={text}
                     >
-                      {text}
+                      {entity === "ad" && col.key === "name" && String(r.thumbnail_url ?? "").trim() ? (
+                        <span className="flex min-w-0 items-center gap-2">
+                          <img
+                            src={String(r.thumbnail_url)}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                            className="h-8 w-8 shrink-0 rounded object-cover"
+                          />
+                          <span className="min-w-0 flex-1 truncate">{text}</span>
+                        </span>
+                      ) : (
+                        text
+                      )}
                     </td>
                   );
                 })}
-                {metricItems.map((m) => (
+                {orderedMetricItems.map((m) => (
                   <td
                     key={m.key}
                     className={cn(tdClass, "text-right tabular-nums")}

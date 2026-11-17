@@ -35,6 +35,10 @@ import {
   type TikTokAdsMetricEntity,
   type TikTokAdsMetricsRow,
 } from "@/tiktok-ads/hooks/useTikTokAdsMetricsQuery";
+import {
+  mergeTikTokAdThumbnails,
+  useTikTokAdThumbnails,
+} from "@/tiktok-ads/hooks/useTikTokAdThumbnails";
 import { TikTokAdsSettingsPanel } from "@/tiktok-ads/settings/TikTokAdsSettingsPanel";
 import {
   TIKTOK_ADS_DIGITAL_MARKETING_BASE_PATH,
@@ -44,6 +48,7 @@ import { TikTokAdsMetricsPageSkeleton } from "@/6-0-tiktok-ads/skeletons/TikTokA
 import { TikTokAdsEntityNav, type TikTokAdsNavAccount } from "@/6-0-tiktok-ads/components/TikTokAdsEntityNav";
 import { TikTokAdsMetricsSummaryBar } from "@/6-0-tiktok-ads/components/TikTokAdsMetricsSummaryBar";
 import { TikTokAdsMetricsTable } from "@/6-0-tiktok-ads/components/TikTokAdsMetricsTable";
+import { resolveTikTokAdsCurrency } from "@/tiktok-ads/metrics/formatTikTokMetricValue";
 import { TikTokAdsMetricsTableFooter } from "@/6-0-tiktok-ads/components/TikTokAdsMetricsTableFooter";
 import { TikTokAdsModifyColumnsDialog } from "@/6-0-tiktok-ads/components/TikTokAdsModifyColumnsDialog";
 import { TikTokAdsDateRangePicker } from "@/6-0-tiktok-ads/components/TikTokAdsDateRangePicker";
@@ -315,6 +320,18 @@ function TikTokAdsMetricsPageContent() {
     const rows = metricsQuery.data?.rows ?? [];
     return sortTikTokAdsRows(rows, { field: sortFieldValue, direction: sort.direction }, entity);
   }, [metricsQuery.data?.rows, sortFieldValue, sort.direction, entity]);
+
+  const thumbnailQuery = useTikTokAdThumbnails({
+    organizationId,
+    advertiserId,
+    entity,
+    rows: sortedRows,
+    enabled: entity === "ad",
+  });
+  const tableRows = useMemo(
+    () => mergeTikTokAdThumbnails(sortedRows, thumbnailQuery.data),
+    [sortedRows, thumbnailQuery.data],
+  );
 
   const handleSortFieldChange = (field: string) => {
     const kind = getTikTokAdsSortColumnKind(field);
@@ -684,11 +701,12 @@ function TikTokAdsMetricsPageContent() {
                                     <div className="min-h-0 flex-1 overflow-hidden">
                                       <TikTokAdsMetricsTable
                                         entity={entity}
-                                        rows={sortedRows}
+                                        rows={tableRows}
                                         metricItems={metricItems}
-                                        currencyCode={
-                                          metricsQuery.data?.summary?.currency ?? null
-                                        }
+                                        currencyCode={resolveTikTokAdsCurrency(
+                                          metricsQuery.data?.summary?.currency,
+                                          sortedRows,
+                                        )}
                                         isLoading={metricsTableLoading}
                                         canEditServiceMapping={
                                           entity === "campaign" && canManage

@@ -19,7 +19,10 @@ import {
 import type { TikTokAdsMetricEntity } from "@/tiktok-ads/hooks/useTikTokAdsMetricsQuery";
 import type { TikTokAdsMetricsRow } from "@/tiktok-ads/hooks/useTikTokAdsMetricsQuery";
 import { formatTikTokMetricValue } from "@/tiktok-ads/metrics/formatTikTokMetricValue";
-import type { TikTokAdsMetricCatalogItem } from "@/tiktok-ads/metrics/tiktokAdsMetricCatalog";
+import {
+  orderTikTokAdsMetricColumns,
+  type TikTokAdsMetricCatalogItem,
+} from "@/tiktok-ads/metrics/tiktokAdsMetricCatalog";
 import {
   tiktokAdsRowDisplayName,
   tiktokAdsRowReactKey,
@@ -202,16 +205,41 @@ export function TikTokAdsMetricsTable({
             {
               key: "name",
               label: t("digitalMarketing.tiktokAds.name", "Name"),
-              render: (row) => tiktokAdsRowDisplayName(row, entity),
+              cellClassName: "w-[22rem] max-w-[22rem] overflow-hidden",
+              render: (row) => {
+                const text = tiktokAdsRowDisplayName(row, entity);
+                const thumb = String((row as Record<string, unknown>).thumbnail_url ?? "").trim();
+                return (
+                  <div className="flex w-[22rem] max-w-[22rem] items-center gap-2">
+                    {thumb ? (
+                      <span className="flex h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
+                        <img src={thumb} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+                      </span>
+                    ) : null}
+                    <span className="min-w-0 flex-1 truncate font-medium" title={text}>
+                      {text}
+                    </span>
+                  </div>
+                );
+              },
             },
             {
               key: "adgroup",
               label: t("digitalMarketing.tiktokAds.adgroupColumn", "Ad group"),
-              render: (row) => tiktokAdsRowSecondaryName(row, entity) ?? "—",
+              cellClassName: "w-[14rem] max-w-[14rem] overflow-hidden",
+              render: (row) => {
+                const text = tiktokAdsRowSecondaryName(row, entity) ?? "—";
+                return (
+                  <div className="w-[14rem] max-w-[14rem] truncate" title={text}>
+                    {text}
+                  </div>
+                );
+              },
             },
           ];
 
-  const colSpan = identityCols.length + metricItems.length;
+  const orderedMetricItems = orderTikTokAdsMetricColumns(metricItems);
+  const colSpan = identityCols.length + orderedMetricItems.length;
   const metricColClass = "min-w-[5.5rem] whitespace-nowrap px-3 text-right";
 
   return (
@@ -227,15 +255,17 @@ export function TikTokAdsMetricsTable({
                     className={cn(
                       thBase,
                       h.cellClassName?.includes("text-right") ? "text-right" : undefined,
-                      h.key === "name" && entity !== "campaign" ? "min-w-[10rem]" : undefined,
-                      h.key === "campaign" || h.key === "adgroup" ? "min-w-[6.5rem]" : undefined,
+                      h.key === "name" && entity === "adgroup" ? "min-w-[10rem]" : undefined,
+                      h.key === "name" && entity === "ad" ? "w-[22rem] max-w-[22rem]" : undefined,
+                      h.key === "campaign" ? "min-w-[6.5rem]" : undefined,
+                      h.key === "adgroup" && entity === "ad" ? "w-[14rem] max-w-[14rem]" : undefined,
                     )}
                     title={h.headerTitle}
                   >
                     {h.label}
                   </th>
                 ))}
-                {metricItems.map((m) => (
+                {orderedMetricItems.map((m) => (
                   <th key={m.key} className={cn(thBase, metricColClass, "text-right")}>
                     {t(m.labelKey, m.defaultLabel)}
                   </th>
@@ -274,7 +304,7 @@ export function TikTokAdsMetricsTable({
                           {col.render(row)}
                         </td>
                       ))}
-                      {metricItems.map((m) => (
+                      {orderedMetricItems.map((m) => (
                         <td
                           key={m.key}
                           className={cn("p-2 align-middle tabular-nums", metricColClass)}

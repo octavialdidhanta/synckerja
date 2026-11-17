@@ -130,13 +130,11 @@ function getCommentAccent(commentId: string): (typeof COMMENT_ACCENT_COLORS)[num
  */
 function ReviewFitVideo({
   src,
-  poster,
   fallbackPortrait,
   videoRef,
   onError,
 }: {
   src: string;
-  poster?: string;
   fallbackPortrait: boolean;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   onError: () => void;
@@ -199,7 +197,6 @@ function ReviewFitVideo({
         ref={videoRef}
         key={src}
         src={src}
-        poster={poster}
         className="review-fit-video-mobile pointer-events-none block h-auto w-full max-w-none bg-neutral-950"
         style={{
           width: '100%',
@@ -208,7 +205,7 @@ function ReviewFitVideo({
         }}
         controls={false}
         playsInline
-        preload={poster ? 'none' : 'metadata'}
+        preload="metadata"
         controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
         disablePictureInPicture
         disableRemotePlayback
@@ -1622,7 +1619,6 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                       return (
                         <ReviewFitVideo
                           src={reviewVideoSrc}
-                          poster={drivePreviewPosterUrl ?? undefined}
                           fallbackPortrait={videoFallbackPortrait}
                           videoRef={videoRef}
                           onError={() => {
