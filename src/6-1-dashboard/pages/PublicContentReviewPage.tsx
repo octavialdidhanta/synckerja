@@ -35,7 +35,6 @@ import { devLog } from '@/shared/lib/logger';
 import {
   extractGoogleDriveFileId,
   getEmbedUrl,
-  getDirectVideoUrl,
   getFolderEmbedUrl,
   getYouTubeEmbedUrl,
   isFolderLink,
@@ -126,37 +125,41 @@ function getCommentAccent(commentId: string): (typeof COMMENT_ACCENT_COLORS)[num
 }
 
 /**
- * Full width of card, intrinsic aspect (no crop). Mobile HTML5: hide native controls overlay only.
+ * Full width of card, intrinsic aspect (no crop).
+ * One play mark when paused, tap to play or pause, and a thin seek line on the bottom edge.
  */
 function ReviewFitVideo({
   src,
   poster,
   fallbackPortrait,
-  useMobileHtml5Video,
   videoRef,
   onError,
 }: {
   src: string;
   poster?: string;
   fallbackPortrait: boolean;
-  /** When true: hide native player chrome (mobile web). */
-  useMobileHtml5Video: boolean;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   onError: () => void;
 }) {
   const [intrinsicAspect, setIntrinsicAspect] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     setIntrinsicAspect(null);
     setIsPlaying(false);
+    setProgress(0);
   }, [src]);
 
   useEffect(() => {
-    if (!useMobileHtml5Video) return;
     const video = videoRef.current;
     if (!video) return;
-    const sync = () => setIsPlaying(!video.paused && !video.ended);
+    const sync = () => {
+      setIsPlaying(!video.paused && !video.ended);
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        setProgress(video.currentTime / video.duration);
+      }
+    };
     sync();
     video.addEventListener('play', sync);
     video.addEventListener('pause', sync);
@@ -168,7 +171,7 @@ function ReviewFitVideo({
       video.removeEventListener('ended', sync);
       video.removeEventListener('timeupdate', sync);
     };
-  }, [src, useMobileHtml5Video, videoRef]);
+  }, [src, videoRef]);
 
   const fallbackAspect = fallbackPortrait ? 9 / 16 : 16 / 9;
   const aspectRatio = intrinsicAspect ?? fallbackAspect;
@@ -180,60 +183,70 @@ function ReviewFitVideo({
     else video.pause();
   };
 
-  const videoElement = (
-    <video
-      ref={videoRef}
-      key={src}
-      src={src}
-      poster={poster}
-      className={cn(
-        'block h-auto w-full max-w-none touch-pan-y bg-neutral-950',
-        useMobileHtml5Video && 'review-fit-video-mobile',
-      )}
-      style={{
-        width: '100%',
-        aspectRatio,
-        height: 'auto',
-        touchAction: 'pan-y',
-      }}
-      controls={useMobileHtml5Video ? false : true}
-      playsInline
-      preload={poster ? 'none' : 'metadata'}
-      controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
-      disablePictureInPicture={useMobileHtml5Video}
-      disableRemotePlayback={useMobileHtml5Video}
-      onClick={useMobileHtml5Video ? togglePlayback : undefined}
-      onPlay={(e) => {
-        setIsPlaying(true);
-        if (useMobileHtml5Video) e.currentTarget.blur();
-      }}
-      onPause={() => setIsPlaying(false)}
-      onEnded={() => setIsPlaying(false)}
-      onLoadedMetadata={(e) => {
-        const v = e.currentTarget;
-        if (v.videoWidth > 0 && v.videoHeight > 0) {
-          setIntrinsicAspect(v.videoWidth / v.videoHeight);
-        }
-      }}
-      onError={onError}
-    />
-  );
-
-  if (!useMobileHtml5Video) return videoElement;
+  const seek = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    const video = videoRef.current;
+    if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    video.currentTime = ratio * video.duration;
+    setProgress(ratio);
+  };
 
   return (
-    <div className="relative w-full">
-      {videoElement}
+    <div className="relative w-full touch-pan-y">
+      <video
+        ref={videoRef}
+        key={src}
+        src={src}
+        poster={poster}
+        className="review-fit-video-mobile pointer-events-none block h-auto w-full max-w-none bg-neutral-950"
+        style={{
+          width: '100%',
+          aspectRatio,
+          height: 'auto',
+        }}
+        controls={false}
+        playsInline
+        preload={poster ? 'none' : 'metadata'}
+        controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
+        disablePictureInPicture
+        disableRemotePlayback
+        onPlay={(e) => {
+          setIsPlaying(true);
+          e.currentTarget.blur();
+        }}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+        onLoadedMetadata={(e) => {
+          const v = e.currentTarget;
+          if (v.videoWidth > 0 && v.videoHeight > 0) {
+            setIntrinsicAspect(v.videoWidth / v.videoHeight);
+          }
+        }}
+        onError={onError}
+      />
+      <button
+        type="button"
+        className="absolute inset-0 z-10 cursor-pointer touch-pan-y"
+        aria-label={isPlaying ? 'Pause' : 'Play'}
+        onClick={togglePlayback}
+      />
       {!isPlaying ? (
-        <div
-          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+        <span
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
           aria-hidden
         >
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/45 shadow-sm">
-            <Play className="ml-0.5 h-6 w-6 fill-white text-white" />
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/40">
+            <Play className="ml-0.5 h-7 w-7 fill-white text-white" />
           </span>
-        </div>
+        </span>
       ) : null}
+      <div className="absolute inset-x-0 bottom-0 z-20 h-6 touch-none" onPointerDown={seek}>
+        <div className="absolute inset-x-0 bottom-0 h-0.5 bg-white/30">
+          <div className="h-full bg-white" style={{ width: `${Math.min(100, progress * 100)}%` }} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -386,10 +399,8 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-  const [videoUseIframe, setVideoUseIframe] = useState(false);
   const [videoLoadFailed, setVideoLoadFailed] = useState(false);
-  const [mobileIframeFallback, setMobileIframeFallback] = useState(false);
-  const [activeMobileStreamUrl, setActiveMobileStreamUrl] = useState('');
+  const [useSecondaryStream, setUseSecondaryStream] = useState(false);
   const [googleStreamUrl, setGoogleStreamUrl] = useState<string | null>(null);
   const [publicReviewStreamUrl, setPublicReviewStreamUrl] = useState<string | null>(null);
   /** True after HEAD probe confirms guest stream endpoint returns 2xx. */
@@ -632,10 +643,8 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
 
   // Reset video state when link changes
   useEffect(() => {
-    setVideoUseIframe(false);
     setVideoLoadFailed(false);
-    setMobileIframeFallback(false);
-    setActiveMobileStreamUrl('');
+    setUseSecondaryStream(false);
     setGoogleStreamUrl(null);
     setPublicReviewStreamUrl(null);
     setPublicReviewStreamOk(false);
@@ -1146,23 +1155,10 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   const embedUrl = getEmbedUrl(link);
   const folderEmbedUrl = isFolderLink(link) ? getFolderEmbedUrl(link) : '';
   const youtubeEmbedUrl = isYouTubeLink(link) ? getYouTubeEmbedUrl(link) : '';
-  const directVideoUrl = isFileLink(link) ? getDirectVideoUrl(link) : '';
-  const publicReviewStreamActive = publicReviewStreamOk && publicReviewStreamUrl;
-  const hasProxiedStream = Boolean(googleStreamUrl || publicReviewStreamActive);
-  const effectiveVideoUrl = googleStreamUrl || publicReviewStreamActive || directVideoUrl;
-  /**
-   * Mobile: prefer edge proxy (hide overlay). Logged-in also gets review_token URL on /review/:token.
-   * Fallback to Drive iframe only if HTML5 proxy fails.
-   */
-  const mobileProxyStreamUrl = googleStreamUrl || publicReviewStreamUrl || '';
-  const useMobileProxyPlayer = isMobileViewport && isFileLink(link) && Boolean(driveFileId);
-  const useMobileHtml5Video = isMobileViewport && Boolean(mobileProxyStreamUrl) && !mobileIframeFallback;
-
-  useEffect(() => {
-    setActiveMobileStreamUrl(googleStreamUrl || publicReviewStreamUrl || '');
-    setVideoLoadFailed(false);
-    setMobileIframeFallback(false);
-  }, [googleStreamUrl, publicReviewStreamUrl]);
+  const primaryStreamUrl = googleStreamUrl || '';
+  const secondaryStreamUrl = publicReviewStreamOk ? publicReviewStreamUrl || '' : '';
+  const reviewVideoSrc =
+    (useSecondaryStream ? secondaryStreamUrl : primaryStreamUrl) || secondaryStreamUrl || primaryStreamUrl;
 
   useEffect(() => {
     setCarouselPreviewIndex(0);
@@ -1597,107 +1593,9 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                   </div>
                     );
                   }
-                  if (isFileLink(link) && embedUrl) {
-                    return (
-                  (() => {
-                    if (useMobileProxyPlayer) {
-                      const waitingStream =
-                        !mobileProxyStreamUrl &&
-                        ((isLoggedIn && !videoStreamReady) || (!isLoggedIn && !videoStreamReady));
-                      if (waitingStream) {
-                        return (
-                          <div
-                            className="relative flex min-h-[200px] w-full max-w-full items-center justify-center overflow-hidden bg-neutral-950 text-sm text-gray-400"
-                            style={videoPlaceholderStyle}
-                            aria-busy
-                          >
-                            {drivePreviewPosterUrl ? (
-                              <img
-                                src={drivePreviewPosterUrl}
-                                alt=""
-                                className="absolute inset-0 h-full w-full object-contain"
-                                decoding="async"
-                                fetchPriority="high"
-                              />
-                            ) : null}
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/25">
-                              <Loader2 className="h-6 w-6 animate-spin text-white/90" aria-hidden />
-                            </div>
-                            <span className="sr-only">{t('publicReview.loading', 'Loading...')}</span>
-                          </div>
-                        );
-                      }
-                      if (mobileIframeFallback || videoLoadFailed || !mobileProxyStreamUrl) {
-                        if (embedUrl) {
-                          return (
-                            <ReviewDriveEmbedIframe
-                              src={embedUrl}
-                              title={t('publicReview.preview.driveTitle', 'Preview')}
-                              style={videoPlaceholderStyle}
-                            />
-                          );
-                        }
-                        return (
-                          <div
-                            className="relative flex min-h-[200px] w-full max-w-full items-center justify-center overflow-hidden bg-neutral-950"
-                            style={videoPlaceholderStyle}
-                          >
-                            {drivePreviewPosterUrl ? (
-                              <img
-                                src={drivePreviewPosterUrl}
-                                alt=""
-                                className="absolute inset-0 h-full w-full object-contain"
-                                decoding="async"
-                              />
-                            ) : null}
-                            <div className="relative z-10 px-4 py-6 text-center">
-                              <p className="text-sm text-white/90 mb-4">
-                                {t('publicReview.preview.unavailable', 'Preview not available')}
-                              </p>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => window.open(link, '_blank')}
-                              >
-                                <ExternalLink className="h-4 w-4 mr-2" />
-                                {t('publicReview.preview.openLink', 'Open link')}
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return (
-                        <ReviewFitVideo
-                          src={activeMobileStreamUrl || mobileProxyStreamUrl}
-                          poster={drivePreviewPosterUrl ?? undefined}
-                          fallbackPortrait={videoFallbackPortrait}
-                          useMobileHtml5Video
-                          videoRef={videoRef}
-                          onError={() => {
-                            if (
-                              publicReviewStreamUrl &&
-                              activeMobileStreamUrl !== publicReviewStreamUrl
-                            ) {
-                              setActiveMobileStreamUrl(publicReviewStreamUrl);
-                              return;
-                            }
-                            setMobileIframeFallback(true);
-                          }}
-                        />
-                      );
-                    }
-
-                    const guestStreamProbing = !isLoggedIn && Boolean(driveFileId) && !videoStreamReady;
-                    const preferIframeForGuest =
-                      !isLoggedIn && videoStreamReady && !publicReviewStreamOk;
-                    const useIframe =
-                      !useMobileHtml5Video &&
-                      (videoUseIframe ||
-                        videoLoadFailed ||
-                        !effectiveVideoUrl ||
-                        preferIframeForGuest ||
-                        !hasProxiedStream);
-                    if (guestStreamProbing) {
+                  if (isFileLink(link) && (embedUrl || driveFileId)) {
+                    const waitingStream = Boolean(driveFileId) && !videoStreamReady && !reviewVideoSrc;
+                    if (waitingStream) {
                       return (
                         <div
                           className="relative flex min-h-[200px] w-full max-w-full items-center justify-center overflow-hidden bg-neutral-950 text-sm text-gray-400"
@@ -1720,71 +1618,49 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                         </div>
                       );
                     }
-                    if (useIframe) {
+                    if (reviewVideoSrc && !videoLoadFailed) {
                       return (
-                        <ReviewDriveEmbedIframe
-                          src={embedUrl}
-                          title={t('publicReview.preview.driveTitle', 'Preview')}
-                          style={videoPlaceholderStyle}
+                        <ReviewFitVideo
+                          src={reviewVideoSrc}
+                          poster={drivePreviewPosterUrl ?? undefined}
+                          fallbackPortrait={videoFallbackPortrait}
+                          videoRef={videoRef}
+                          onError={() => {
+                            if (
+                              !useSecondaryStream &&
+                              secondaryStreamUrl &&
+                              secondaryStreamUrl !== reviewVideoSrc
+                            ) {
+                              setUseSecondaryStream(true);
+                              return;
+                            }
+                            setVideoLoadFailed(true);
+                          }}
                         />
                       );
                     }
-                    if (useMobileHtml5Video && driveFileId && !videoStreamReady) {
-                      return (
+                    return (
+                      <div className="w-full">
                         <div
-                          className="flex min-h-[200px] w-full max-w-full items-center justify-center text-sm text-gray-400"
+                          className="relative overflow-hidden bg-neutral-950"
                           style={videoPlaceholderStyle}
                         >
-                          <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
-                          <span className="sr-only">{t('publicReview.loading', 'Loading...')}</span>
+                          {drivePreviewPosterUrl ? (
+                            <img
+                              src={drivePreviewPosterUrl}
+                              alt=""
+                              className="absolute inset-0 h-full w-full object-contain"
+                              decoding="async"
+                            />
+                          ) : null}
                         </div>
-                      );
-                    }
-                    if (useMobileHtml5Video && (videoLoadFailed || !effectiveVideoUrl)) {
-                      if (embedUrl && !isMobileViewport) {
-                        return (
-                          <ReviewDriveEmbedIframe
-                            src={embedUrl}
-                            title={t('publicReview.preview.driveTitle', 'Preview')}
-                            style={videoPlaceholderStyle}
-                          />
-                        );
-                      }
-                      return (
-                        <div className="text-center px-4 py-6">
-                          <p className="text-sm text-gray-700 mb-4">
-                            {t('publicReview.preview.unavailable', 'Preview not available')}
-                          </p>
-                          <Button variant="outline" size="sm" onClick={() => window.open(link, '_blank')}>
+                        <div className="flex justify-center px-3 py-2">
+                          <Button variant="ghost" size="sm" onClick={() => window.open(link, '_blank')}>
                             <ExternalLink className="h-4 w-4 mr-2" />
                             {t('publicReview.preview.openLink', 'Open link')}
                           </Button>
                         </div>
-                      );
-                    }
-                    return (
-                      <ReviewFitVideo
-                        src={effectiveVideoUrl}
-                        poster={drivePreviewPosterUrl ?? undefined}
-                        fallbackPortrait={videoFallbackPortrait}
-                        useMobileHtml5Video={useMobileHtml5Video}
-                        videoRef={videoRef}
-                        onError={() => {
-                          if (useMobileHtml5Video) setVideoLoadFailed(true);
-                          else setVideoUseIframe(true);
-                        }}
-                      />
-                    );
-                  })()
-                    );
-                  }
-                  if (embedUrl && extractGoogleDriveFileId(link)) {
-                    return (
-                      <ReviewDriveEmbedIframe
-                        src={embedUrl}
-                        title={t('publicReview.preview.driveTitle', 'Preview')}
-                        style={videoPlaceholderStyle}
-                      />
+                      </div>
                     );
                   }
                   return (

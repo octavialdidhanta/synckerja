@@ -798,7 +798,7 @@ body.google-picker-host-open [aria-label="Dialog backdrop"] {
   pointer-events: none !important;
 }
 
-/* Public /review mobile HTML5 — suppress native player chrome (Android Chrome overlay). */
+/* Public /review video — suppress native player chrome so only the page's play mark and seek line show. */
 video.review-fit-video-mobile {
   -webkit-appearance: none;
   appearance: none;
