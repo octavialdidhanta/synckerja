@@ -27,7 +27,7 @@ export type GenerateBriefVoiceResult = {
 export const BRIEF_VOICE_GENERATE_HOW_TO_READ =
   "Generates one ElevenLabs VO clip for a storyboard row using the organization's Voice AI settings. " +
   "Only the plan PIC can generate. If text is omitted, the vo cell for that row_index is used (or voice_over when the row has no vo). " +
-  "download_url is a public HTTPS link: tap it on phone to save. One row per call. Existing clips for other rows are unchanged; call content.briefs.voice.list to see all.";
+  "download_url is a public HTTPS link for a phone tap. A desktop agent calls content.briefs.voice.get for the MP3 bytes. One row per call. Existing clips for other rows are unchanged; call content.briefs.voice.list to see all.";
 
 export type GenerateBriefVoice = (
   ctx: McpAuthContext,

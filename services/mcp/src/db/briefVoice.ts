@@ -5,6 +5,12 @@ import {
   type GenerateBriefVoiceInput,
   type GenerateBriefVoiceResult,
 } from "../tools/content/briefsVoiceGenerate";
+import { mp3FileName, readMp3, VOICE_GET_MAX_BYTES } from "../tools/content/briefVoiceMp3";
+import {
+  BRIEF_VOICE_GET_HOW_TO_READ,
+  type BriefVoiceGetResult,
+  type GetBriefVoiceInput,
+} from "../tools/content/briefsVoiceGet";
 import {
   BRIEF_VOICE_LIST_HOW_TO_READ,
   type BriefVoiceClipPublic,
@@ -183,5 +189,62 @@ export async function generateBriefVoiceClip(
     clip,
     tagged_text: body?.taggedText ?? null,
     how_to_read: BRIEF_VOICE_GENERATE_HOW_TO_READ,
+  };
+}
+
+function pickClip(rows: ClipRow[], input: GetBriefVoiceInput): ClipRow | null {
+  if (input.clipId) return rows.find((row) => row.id === input.clipId) ?? null;
+  if (input.rowIndex == null) return null;
+  return rows.find((row) => row.row_index === input.rowIndex) ?? null;
+}
+
+async function storedByteLength(admin: SupabaseClient, storagePath: string): Promise<number | null> {
+  const slash = storagePath.lastIndexOf("/");
+  const folder = slash >= 0 ? storagePath.slice(0, slash) : "";
+  const name = slash >= 0 ? storagePath.slice(slash + 1) : storagePath;
+  const { data, error } = await admin.storage.from(BUCKET).list(folder, { search: name, limit: 100 });
+  if (error || !data) return null;
+  const match = data.find((item) => item.name === name);
+  const size = Number(match?.metadata?.size);
+  return Number.isFinite(size) ? size : null;
+}
+
+/** One VO file, read on the server and returned as MP3 bytes. Reuses the org-locked list RPC. */
+export async function getBriefVoiceClip(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: GetBriefVoiceInput,
+): Promise<BriefVoiceGetResult> {
+  const { data, error } = await admin.rpc("mcp_list_brief_voice_clips", {
+    ...sessionArgs(ctx),
+    p_plan_id: input.planId,
+  });
+  if (error) throw briefVoiceError(error.message ?? "");
+  const row = pickClip(asRows<ClipRow>(data), input);
+  if (!row?.storage_path) throw new Error("not_found");
+
+  const knownSize = await storedByteLength(admin, row.storage_path);
+  if (knownSize != null && knownSize > VOICE_GET_MAX_BYTES) throw new Error("clip_too_large");
+
+  const downloaded = await admin.storage.from(BUCKET).download(row.storage_path);
+  if (downloaded.error || !downloaded.data) throw new Error("not_found");
+  const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
+  if (bytes.byteLength > VOICE_GET_MAX_BYTES) throw new Error("clip_too_large");
+  const mp3 = readMp3(bytes);
+  if (!mp3) throw new Error("clip_not_mp3");
+
+  return {
+    plan_id: input.planId,
+    clip: {
+      id: row.id,
+      row_index: row.row_index,
+      file_name: mp3FileName(row.file_name, row.row_index),
+      spoken_text: row.spoken_text?.trim() || null,
+      mime_type: mp3.mimeType,
+      duration_seconds: mp3.durationSeconds,
+      byte_length: bytes.byteLength,
+      audio_base64: Buffer.from(bytes).toString("base64"),
+    },
+    how_to_read: BRIEF_VOICE_GET_HOW_TO_READ,
   };
 }

@@ -81,6 +81,7 @@ export type McpToolName =
   | "content.briefs.create"
   | "content.briefs.get"
   | "content.briefs.voice.list"
+  | "content.briefs.voice.get"
   | "content.briefs.voice.generate"
   | "content.plans.update"
   | "content.plans.media.set_link"
@@ -586,7 +587,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "content.briefs.get",
     description:
-      "Read one content plan's full brief for the organization locked in this session. Requires id from content.plans.list or content.calendar.list. Returns title, status, approval, production status, post date, content type, category, subcategory, feature, pillar, PIC name, the storyboard grouped by sequence (timing, visual, vo, scene, element, tagging, has_voice, and any other column), notes outside the table, voice over, characters, locations, properties, caption, and whether a Drive file exists and whether it is published. Image paths, Drive links, and published links are not returned. has_voice means an ElevenLabs VO file exists for that shot; download URLs come from content.briefs.voice.list. Read only. Call this before content.plans.update so nothing is overwritten blindly, and to compare briefs of ads that perform well or badly before writing a new brief with content.briefs.create. Follow how_to_read.",
+      "Read one content plan's full brief for the organization locked in this session. Requires id from content.plans.list or content.calendar.list. Returns title, status, approval, production status, post date, content type, category, subcategory, feature, pillar, PIC name, the storyboard grouped by sequence (timing, visual, vo, scene, element, tagging, has_voice, and any other column), notes outside the table, voice over, characters, locations, properties, caption, and whether a Drive file exists and whether it is published. Image paths, Drive links, and published links are not returned. has_voice means an ElevenLabs VO file exists for that shot; the clip list is content.briefs.voice.list and the MP3 bytes are content.briefs.voice.get. Read only. Call this before content.plans.update so nothing is overwritten blindly, and to compare briefs of ads that perform well or badly before writing a new brief with content.briefs.create. Follow how_to_read.",
     scopes: ["content:read"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
@@ -594,7 +595,15 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "content.briefs.voice.list",
     description:
-      "List downloadable ElevenLabs VO audio clips for one content plan in the organization locked in this session. Requires plan_id from content.plans.list or content.calendar.list. Returns each VO clip's row_index, file_name, spoken_text, created_at, and download_url (public HTTPS). Tap download_url on phone to play or save. Does not include seedance/STS clips. Empty clips means no VO has been generated yet. Read only. Follow how_to_read.",
+      "List ElevenLabs VO audio clips for one content plan in the organization locked in this session. Requires plan_id from content.plans.list or content.calendar.list. Returns each VO clip's id, row_index, file_name, spoken_text, created_at, and download_url (public HTTPS for a phone tap). To save the file on a computer, call content.briefs.voice.get. Does not include seedance/STS clips. Empty clips means no VO has been generated yet. Read only. Follow how_to_read.",
+    scopes: ["content:read"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "content.briefs.voice.get",
+    description:
+      "Download one ElevenLabs VO clip for a content plan in the organization locked in this session. Requires plan_id and exactly one of clip_id or row_index (0-based; the newest clip for that shot). Returns file_name, spoken_text, mime_type audio/mpeg, estimated duration_seconds, and audio_base64. The server reads the file. Do not fetch a Supabase URL. One clip per call, at most 1 MB. Does not generate, delete, or change the clip. Read only. Follow how_to_read.",
     scopes: ["content:read"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,

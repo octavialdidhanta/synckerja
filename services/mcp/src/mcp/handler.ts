@@ -147,6 +147,8 @@ import {
   getBriefResult,
   listBriefVoiceInput,
   listBriefVoiceResult,
+  getBriefVoiceInput,
+  getBriefVoiceResult,
   generateBriefVoiceInput,
   generateBriefVoiceResult,
   cyclesInput,
@@ -477,6 +479,10 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     planId: string,
   ) => Promise<import("../tools/content/briefsVoiceList").BriefVoiceListResult>;
+  getBriefVoiceClip: (
+    ctx: McpAuthContext,
+    input: import("../tools/content/briefsVoiceGet").GetBriefVoiceInput,
+  ) => Promise<import("../tools/content/briefsVoiceGet").BriefVoiceGetResult>;
   generateBriefVoiceClip: (
     ctx: McpAuthContext,
     input: import("../tools/content/briefsVoiceGenerate").GenerateBriefVoiceInput,
@@ -839,6 +845,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "content.briefs.create": createBriefInput,
   "content.briefs.get": getBriefInput,
   "content.briefs.voice.list": listBriefVoiceInput,
+  "content.briefs.voice.get": getBriefVoiceInput,
   "content.briefs.voice.generate": generateBriefVoiceInput,
   "content.plans.media.set_link": setPlanDriveLinkInput,
   "content.plans.update": updatePlanSchema,
@@ -1302,6 +1309,8 @@ async function runTool(
       return getBriefResult(ctx, requiredString(args.id), deps.getContentBrief);
     case "content.briefs.voice.list":
       return listBriefVoiceResult(ctx, args, deps.listBriefVoiceClips);
+    case "content.briefs.voice.get":
+      return getBriefVoiceResult(ctx, args, deps.getBriefVoiceClip);
     case "content.briefs.voice.generate":
       return generateBriefVoiceResult(ctx, args, deps.generateBriefVoiceClip, deps.getContentBrief);
     case "content.plans.media.set_link":

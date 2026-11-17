@@ -126,7 +126,11 @@ describe("mcp http gate", () => {
     }));
     const response = await app.request("http://localhost:8787/health");
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true });
+    expect(await response.json()).toEqual({
+      ok: true,
+      rev: "voice-get-v1",
+      tools: ["content.briefs.voice.get"],
+    });
     expect(lookedUp).toBe(false);
   });
 

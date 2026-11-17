@@ -233,6 +233,10 @@ export type AppDeps = {
     ctx: McpAuthContext,
     planId: string,
   ) => Promise<import("../tools/content/briefsVoiceList").BriefVoiceListResult>;
+  getBriefVoiceClip: (
+    ctx: McpAuthContext,
+    input: import("../tools/content/briefsVoiceGet").GetBriefVoiceInput,
+  ) => Promise<import("../tools/content/briefsVoiceGet").BriefVoiceGetResult>;
   generateBriefVoiceClip: (
     ctx: McpAuthContext,
     input: import("../tools/content/briefsVoiceGenerate").GenerateBriefVoiceInput,
@@ -532,8 +536,8 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "drive-link-v1",
-      tools: ["content.plans.media.set_link"],
+      rev: "voice-get-v1",
+      tools: ["content.briefs.voice.get"],
     }),
   );
 

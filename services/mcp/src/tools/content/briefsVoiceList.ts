@@ -25,9 +25,10 @@ export type BriefVoiceListResult = {
 
 export const BRIEF_VOICE_LIST_HOW_TO_READ =
   "clips are existing ElevenLabs VO files for this content plan (kind vo only). " +
-  "row_index is the storyboard shot index starting at 0. download_url is a public HTTPS link: open or tap it to play or save the audio on phone. " +
+  "row_index is the storyboard shot index starting at 0. download_url is a public HTTPS link for a phone tap. " +
+  "A desktop agent that cannot open that link calls content.briefs.voice.get with plan_id and row_index or clip_id to receive the MP3 bytes. " +
   "storage paths are not returned. Empty clips means no VO has been generated yet in Office (or via content.briefs.voice.generate). " +
-  "Use content.briefs.get for the script text; use this tool for download links.";
+  "Use content.briefs.get for the script text; use this tool for the clip list.";
 
 export type ListBriefVoiceClips = (
   ctx: McpAuthContext,

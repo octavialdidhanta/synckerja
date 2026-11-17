@@ -261,6 +261,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     listBriefVoiceClips: async () => {
       throw new Error("unused");
     },
+    getBriefVoiceClip: async () => {
+      throw new Error("unused");
+    },
     generateBriefVoiceClip: async () => {
       throw new Error("unused");
     },

@@ -378,7 +378,15 @@ async function speakText(supabaseAdmin: Admin, orgId: string, userId: string, bo
   if (!response.ok) return json({ error: await elevenError(response) }, response.status);
   const creditCost = exactCreditCostFromHeader(response.headers.get("character-cost"));
   const bytes = new Uint8Array(await response.arrayBuffer());
-  const clip = await storeClip(supabaseAdmin, orgId, planId, { kind: "vo", rowIndex, videoId: null, bytes, spokenText: narration, creditCost });
+  const clip = await storeClip(supabaseAdmin, orgId, planId, {
+    kind: "vo",
+    rowIndex,
+    videoId: null,
+    bytes,
+    spokenText: narration,
+    creditCost,
+    audioFormat: TTS_AUDIO,
+  });
   if (clip.error) return json({ error: clip.error }, 500);
   await recordContentUsage(supabaseAdmin, {
     organizationId: orgId,
@@ -527,7 +535,9 @@ async function restyleVideo(supabaseAdmin: Admin, orgId: string, userId: string,
   return json({ clip: clip.row, outputFormat: converted.outputFormat });
 }
 
+type StoredAudioFormat = { ext: "mp3" | "wav"; contentType: "audio/mpeg" | "audio/wav" };
 type StsAudioFormat = { ext: "wav"; contentType: "audio/wav" };
+const TTS_AUDIO: StoredAudioFormat = { ext: "mp3", contentType: "audio/mpeg" };
 
 function pcmToWav(pcm: Uint8Array, sampleRate: number, channels = 1, bitsPerSample = 16): Uint8Array {
   const dataSize = pcm.byteLength;
@@ -658,7 +668,7 @@ async function storeClip(
     bytes: Uint8Array;
     spokenText?: string | null;
     creditCost?: number | null;
-    audioFormat?: StsAudioFormat;
+    audioFormat?: StoredAudioFormat;
   },
 ) {
   const id = crypto.randomUUID();
