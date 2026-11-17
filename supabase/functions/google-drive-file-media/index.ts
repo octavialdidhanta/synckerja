@@ -11,6 +11,7 @@ import {
   cacheControlForReviewResource,
   parseSupabaseJwtFromRequest,
   resolveDriveAccessFromJwt,
+  resolveDriveAccessFromMediaToken,
   resolveDriveAccessFromReviewToken,
 } from "../_shared/googleDriveReviewAccess.ts";
 
@@ -19,7 +20,8 @@ import {
  * Supports Range for HTML5 video seeking.
  *
  * Auth (one of):
- * - Supabase JWT via Authorization header or query `supabase_token` (dashboard / logged-in preview)
+ * - Query `media_token` (short-lived, file-scoped; minted by google-drive-media-token) — dashboard / logged-in preview
+ * - Supabase JWT via Authorization header (query `supabase_token` is legacy: it leaks the session into logs)
  * - Public review link via query `review_token` + `file_id` (/review/{token} guest preview)
  */
 const corsHeaders: Record<string, string> = {
@@ -92,6 +94,7 @@ Deno.serve(async (req: Request) => {
     const url = new URL(req.url);
     const jwt = parseSupabaseJwtFromRequest(req, url);
     const reviewToken = url.searchParams.get("review_token")?.trim() ?? "";
+    const mediaToken = url.searchParams.get("media_token")?.trim() ?? "";
 
     const fileIdRaw = url.searchParams.get("file_id")?.trim() ?? "";
     if (!fileIdRaw || !/^[a-zA-Z0-9-_]+$/.test(fileIdRaw)) {
@@ -108,7 +111,16 @@ Deno.serve(async (req: Request) => {
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     let accessToken: string;
-    if (jwt) {
+    if (mediaToken) {
+      const resolved = await resolveDriveAccessFromMediaToken(
+        supabaseAdmin,
+        mediaToken,
+        fileIdRaw,
+        LOG_PREFIX,
+      );
+      if (!resolved.ok) return textError(resolved.message, resolved.status);
+      accessToken = resolved.accessToken;
+    } else if (jwt) {
       const resolved = await resolveDriveAccessFromJwt(supabaseAdmin, jwt, LOG_PREFIX);
       if (!resolved.ok) return textError(resolved.message, resolved.status);
       accessToken = resolved.accessToken;
