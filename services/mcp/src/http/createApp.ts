@@ -528,8 +528,8 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "linkedin-performance-v1",
-      tools: ["linkedin.performance"],
+      rev: "brief-voice-v1",
+      tools: ["content.briefs.voice.list", "content.briefs.voice.generate"],
     }),
   );
 
