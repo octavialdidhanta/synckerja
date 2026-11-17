@@ -536,8 +536,8 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "voice-get-v1",
-      tools: ["content.briefs.voice.get"],
+      rev: "drive-link-approval-v1",
+      tools: ["content.plans.media.set_link"],
     }),
   );
 

@@ -34,6 +34,32 @@ describe("content.plans.media.set_link registry", () => {
   });
 });
 
+const approvalSql = readFileSync(
+  new URL("../../../supabase/migrations/20261117160000_mcp_drive_link_requires_approval.sql", import.meta.url),
+  "utf8",
+);
+
+describe("mcp_set_content_plan_drive_link approval rule", () => {
+  it("rejects an unapproved plan before any update, like the Office Drive Link cell", () => {
+    expect(approvalSql).toContain("IF NOT COALESCE(v_plan.approved, false) THEN");
+    expect(approvalSql).toContain("RAISE EXCEPTION 'not_approved'");
+    expect(approvalSql.indexOf("'not_approved'")).toBeLessThan(approvalSql.indexOf("UPDATE public.social_media_plans"));
+    expect(approvalSql).toContain("SECURITY DEFINER");
+    expect(approvalSql).toContain("plan.organization_id = p_organization_id");
+    expect(approvalSql).toContain("TO service_role");
+    expect(approvalSql).not.toMatch(/GRANT EXECUTE[^;]*(anon|authenticated)/);
+  });
+
+  it("maps not_approved to its own error and documents it", async () => {
+    const blocked = { rpc: vi.fn(async () => ({ data: null, error: { message: "not_approved" } })) };
+    await expect(
+      setContentPlanDriveLink(blocked as never, me, { planId, url: fileUrl }),
+    ).rejects.toThrow("not_approved");
+    const tool = MCP_TOOLS.find((item) => item.name === "content.plans.media.set_link");
+    expect(tool?.description).toContain("not_approved");
+  });
+});
+
 describe("mcp_set_content_plan_drive_link SQL", () => {
   it("is locked to the session organization and to service_role", () => {
     expect(sql).toContain("SECURITY DEFINER");

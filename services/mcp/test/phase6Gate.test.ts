@@ -128,8 +128,8 @@ describe("mcp http gate", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       ok: true,
-      rev: "voice-get-v1",
-      tools: ["content.briefs.voice.get"],
+      rev: "drive-link-approval-v1",
+      tools: ["content.plans.media.set_link"],
     });
     expect(lookedUp).toBe(false);
   });

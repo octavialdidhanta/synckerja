@@ -627,7 +627,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "content.plans.media.set_link",
     description:
-      "Save one Google Drive file or folder URL on a content plan in the organization locked in this session. Requires plan_id from content.plans.list or content.calendar.list, and url (https://drive.google.com file or folder). A new or different link sets production status to Need Review and can assign the signed-in member as PIC Production, the same way pasting the link in Office does. Does not approve, schedule, publish, or clear an existing link. Follow how_to_read.",
+      "Save one Google Drive file or folder URL on a content plan in the organization locked in this session. Requires plan_id from content.plans.list or content.calendar.list, and url (https://drive.google.com file or folder). The plan must already be approved (approved true in content.briefs.get), the same rule as Office; otherwise it returns not_approved and saves nothing. A new or different link sets production status to Need Review and can assign the signed-in member as PIC Production, the same way pasting the link in Office does. Does not approve, schedule, publish, or clear an existing link. Follow how_to_read.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
