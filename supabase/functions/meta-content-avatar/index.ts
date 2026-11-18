@@ -17,10 +17,11 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Max-Age": "86400",
 };
 
-function parseSupabaseJwt(req: Request, url: URL): string {
+/** Authorization header only: a session JWT in the query string ends up in edge logs. */
+function parseSupabaseJwt(req: Request): string {
   const auth = req.headers.get("Authorization")?.trim() ?? "";
   if (auth.startsWith("Bearer ")) return auth.slice("Bearer ".length).trim();
-  return url.searchParams.get("supabase_token")?.trim() ?? "";
+  return "";
 }
 
 function textError(message: string, status: number): Response {
@@ -61,7 +62,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const admin = createClient(supabaseUrl, serviceRoleKey);
-    const jwt = parseSupabaseJwt(req, url);
+    const jwt = parseSupabaseJwt(req);
     if (!jwt) return textError("Unauthorized", 401);
 
     const userRes = await getUserFromBearer(admin, `Bearer ${jwt}`);
