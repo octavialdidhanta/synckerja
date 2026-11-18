@@ -220,3 +220,35 @@ describe("org drive migration", () => {
     expect(sql).toContain("AND sp.status = 'pending'");
   });
 });
+
+describe("upload errors tell any AI what to do next", () => {
+  it("tool errors start with the code and add a next step", async () => {
+    const blocked = vi.fn(async () => Response.json({ error: "production_locked" }, { status: 409 }));
+    const err = await startMediaUpload(config, me, { planId, fileName: "a.mp4", sizeBytes: 20_000, mimeType: null }, blocked as never).then(() => new Error("expected failure"), (e: unknown) => e as Error);
+    expect(err.message.startsWith("production_locked: ")).toBe(true);
+    expect(err.message).toContain("Request Revision");
+    expect(err.message).toContain("Do not request the revision yourself");
+    const notConnected = vi.fn(async () => Response.json({ error: "not_connected" }, { status: 409 }));
+    const err2 = await startMediaUpload(config, me, { planId, fileName: "a.mp4", sizeBytes: 20_000, mimeType: null }, notConnected as never).then(() => new Error("expected failure"), (e: unknown) => e as Error);
+    expect(err2.message).toContain("Google Drive org");
+  });
+
+  it("every known code has guidance; unknown codes fall back safely", async () => {
+    const { uploadNextStep } = await import("../src/tools/content/mediaUpload");
+    for (const code of ["not_found", "forbidden", "invalid_input", "not_approved", "production_locked", "not_video_content", "not_connected", "reconnect_required", "busy", "upload_start_failed", "unknown_ticket", "already_done", "expired", "invalid_content_range", "out_of_order", "chunk_too_large", "chunk_not_multiple_of_256k", "empty_body", "google_unreachable", "google_missing_file_id", "link_not_approved"]) {
+      expect(uploadNextStep(code).length).toBeGreaterThan(20);
+      expect(uploadNextStep(code)).not.toContain(code === "google_unreachable" ? "XXX" : "undefined");
+    }
+    expect(uploadNextStep("google_http_503")).toBe(uploadNextStep("google_unreachable"));
+    expect(uploadNextStep("size_mismatch")).toContain("size_mismatch");
+  });
+
+  it("chunk answers include next_step", async () => {
+    const skip = ticketAdmin(baseRow);
+    const res = await putUploadChunk(skip.admin as never, config, TICKET, `bytes ${8 * MB}-${16 * MB - 1}/${20 * MB}`, new Uint8Array(8 * MB), vi.fn() as never);
+    expect(res.body).toMatchObject({ error: "out_of_order", received_bytes: 0 });
+    expect(String(res.body.next_step)).toContain("received_bytes");
+    const unknown = await putUploadChunk(ticketAdmin(null).admin as never, config, TICKET, null, new Uint8Array(10), vi.fn() as never);
+    expect(unknown).toMatchObject({ status: 404, body: { error: "unknown_ticket" } });
+  });
+});

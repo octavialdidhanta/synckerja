@@ -5,6 +5,8 @@ import {
   MEDIA_UPLOAD_CHUNK_BYTES,
   MEDIA_UPLOAD_GRANULARITY,
   MEDIA_VERSIONS_HOW_TO_READ,
+  uploadNextStep,
+  uploadToolError,
   type ListMediaVersionsResult,
   type StartMediaUploadInput,
   type StartMediaUploadResult,
@@ -82,7 +84,7 @@ export async function startMediaUpload(
   );
   if (status >= 400 || typeof json.ticket !== "string") {
     const code = typeof json.error === "string" && START_ERRORS.has(json.error) ? json.error : "upload_start_failed";
-    throw new Error(code);
+    throw uploadToolError(code);
   }
   const uploadUrl = `${config.publicUrl}/uploads/${json.ticket}`;
   return {
@@ -110,14 +112,14 @@ export async function listMediaVersions(admin: SupabaseClient, ctx: Session, pla
     .eq("id", planId)
     .eq("organization_id", ctx.organizationId)
     .maybeSingle();
-  if (!plan) throw new Error("not_found");
+  if (!plan) throw uploadToolError("not_found");
   const { data, error } = await admin
     .from("content_plan_media_versions")
     .select("version_no, status, drive_file_id, drive_folder_id, source, size_bytes, created_at, completed_at")
     .eq("social_media_plan_id", planId)
     .eq("organization_id", ctx.organizationId)
     .order("version_no", { ascending: false });
-  if (error) throw new Error("request_failed");
+  if (error) throw uploadToolError("request_failed");
   const activeId = fileIdFromLink((plan as { google_drive_link: string | null }).google_drive_link);
   const rows = (data ?? []) as Array<{
     version_no: number;
@@ -163,6 +165,10 @@ type TicketRow = {
 };
 
 export type UploadHttpResult = { status: number; body: Record<string, unknown> };
+
+function httpError(status: number, code: string, extra: Record<string, unknown> = {}): UploadHttpResult {
+  return { status, body: { error: code, next_step: uploadNextStep(code), ...extra } };
+}
 
 export type ParsedRange = { start: number; end: number; total: number };
 
@@ -220,7 +226,7 @@ async function finishVersion(
     { action: "finish", version_id: row.version_id, file_id: fileId, apply_link: true },
     fetchImpl,
   );
-  if (status >= 400) return { status: 409, body: { error: typeof json.error === "string" ? json.error : "finish_failed" } };
+  if (status >= 400) return httpError(409, typeof json.error === "string" ? json.error : "finish_failed");
   return {
     status: 200,
     body: {
@@ -229,14 +235,19 @@ async function finishVersion(
       google_drive_link: json.google_drive_link,
       link_applied: json.link_applied === true,
       production_status: json.production_status ?? null,
-      ...(json.link_error ? { link_error: json.link_error } : {}),
+      ...(json.link_error
+        ? {
+          link_error: json.link_error,
+          next_step: uploadNextStep(json.link_error === "not_approved" ? "link_not_approved" : String(json.link_error)),
+        }
+        : {}),
     },
   };
 }
 
 export async function getUploadStatus(admin: SupabaseClient, ticket: string): Promise<UploadHttpResult> {
   const row = await loadTicket(admin, ticket);
-  if (!row) return { status: 404, body: { error: "not_found" } };
+  if (!row) return httpError(404, "unknown_ticket");
   return {
     status: 200,
     body: {
@@ -257,16 +268,16 @@ export async function putUploadChunk(
   fetchImpl: typeof fetch = fetch,
 ): Promise<UploadHttpResult> {
   const row = await loadTicket(admin, ticket);
-  if (!row) return { status: 404, body: { error: "not_found" } };
-  if (row.completed_at) return { status: 409, body: { error: "already_done" } };
-  if (new Date(row.expires_at).getTime() < Date.now()) return { status: 410, body: { error: "expired" } };
+  if (!row) return httpError(404, "unknown_ticket");
+  if (row.completed_at) return httpError(409, "already_done");
+  if (new Date(row.expires_at).getTime() < Date.now()) return httpError(410, "expired");
 
   const total = Number(row.total_bytes);
   const range = parseContentRange(contentRange, body.byteLength, total);
-  if (range === "invalid") return { status: 400, body: { error: "invalid_content_range", total_bytes: total } };
+  if (range === "invalid") return httpError(400, "invalid_content_range", { total_bytes: total });
   const problem = chunkProblem(range, Number(row.received_bytes));
   if (problem) {
-    return { status: 409, body: { error: problem, received_bytes: Number(row.received_bytes), total_bytes: total } };
+    return httpError(409, problem, { received_bytes: Number(row.received_bytes), total_bytes: total });
   }
 
   let res: Response;
@@ -277,7 +288,7 @@ export async function putUploadChunk(
       body: body as Uint8Array<ArrayBuffer>,
     });
   } catch {
-    return { status: 502, body: { error: "google_unreachable", received_bytes: Number(row.received_bytes) } };
+    return httpError(502, "google_unreachable", { received_bytes: Number(row.received_bytes) });
   }
 
   if (res.status === 308) {
@@ -289,11 +300,11 @@ export async function putUploadChunk(
 
   if (res.status === 200 || res.status === 201) {
     const json = (await res.json().catch(() => ({}))) as { id?: string };
-    if (!json.id) return { status: 502, body: { error: "google_missing_file_id" } };
+    if (!json.id) return httpError(502, "google_missing_file_id");
     await admin.from("content_plan_media_upload_tickets").update({ received_bytes: total }).eq("id", row.id);
     return finishVersion(config, row, json.id, fetchImpl);
   }
 
   await res.body?.cancel();
-  return { status: 502, body: { error: `google_http_${res.status}`, received_bytes: Number(row.received_bytes) } };
+  return httpError(502, `google_http_${res.status}`, { received_bytes: Number(row.received_bytes) });
 }
