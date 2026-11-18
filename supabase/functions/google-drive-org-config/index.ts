@@ -48,7 +48,31 @@ Deno.serve(async (req: Request) => {
       .eq("organization_id", organizationId)
       .maybeSingle();
     const canManage = await isOrgOwnerOrAdmin(admin, userId, organizationId);
+    // For the "Hubungkan AI" help page: proof that an AI has used this org, and that one has uploaded.
+    const [{ data: lastCall }, { data: lastAiUpload }] = await Promise.all([
+      admin
+        .from("mcp_tool_calls")
+        .select("created_at")
+        .eq("organization_id", organizationId)
+        .eq("outcome", "ok")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      admin
+        .from("content_plan_media_versions")
+        .select("completed_at")
+        .eq("organization_id", organizationId)
+        .eq("source", "mcp")
+        .eq("status", "ready")
+        .order("completed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
     return orgDriveJson({
+      ai: {
+        lastToolCallAt: lastCall?.created_at ?? null,
+        lastUploadAt: lastAiUpload?.completed_at ?? null,
+      },
       connected: Boolean(conn?.is_active),
       accountEmail: conn?.google_account_email ?? null,
       connectedAt: conn?.oauth_connected_at ?? null,
