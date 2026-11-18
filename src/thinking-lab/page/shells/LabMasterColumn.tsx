@@ -55,8 +55,9 @@ export function LabMasterComposer({
             )}
           </p>
         </div>
-        <div className="shrink-0 space-y-1 text-sm font-medium text-foreground">
-          {t("thinkingLab.catalog.label", "Kategori")}
+        <div className="shrink-0 text-sm font-medium text-foreground">
+          <span className="mb-2 block">{t("thinkingLab.catalog.label", "Kategori")}</span>
+          <div className="space-y-1 font-normal">
           <MasterCatalogPicker
             value={newCatalog}
             catalogs={catalogs.data ?? []}
@@ -74,6 +75,7 @@ export function LabMasterComposer({
               setNewAudience(draft.audience);
             }}
           />
+          </div>
         </div>
         <label className="shrink-0 space-y-1 text-sm font-medium text-foreground">
           {t("thinkingLab.master.prior", "Old belief (false belief)")}

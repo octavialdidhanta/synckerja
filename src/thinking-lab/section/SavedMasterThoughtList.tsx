@@ -102,14 +102,21 @@ export function SavedMasterThoughtList({ masters, catalogs, catalogPending, onOp
         {t("thinkingLab.saved.title", "Saved Master Thoughts")}
       </h2>
       <div className="scrollbar-hide nested-scroll-touch-chain min-h-0 flex-1 overflow-auto rounded-md border border-border [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <table className="w-full min-w-[640px] border-collapse text-sm">
+        <table className="w-full min-w-[720px] table-fixed border-collapse text-sm">
+          <colgroup>
+            <col className="w-[14%]" />
+            <col className="w-[50%]" />
+            <col className="w-[22%]" />
+            <col className="w-[9%]" />
+            <col className="w-[5%]" />
+          </colgroup>
           <thead>
             <tr className="border-b border-border">
-              <th className={`${HEAD} w-[22%]`}>{t("thinkingLab.catalog.label", "Kategori")}</th>
-              <th className={HEAD}>{t("thinkingLab.saved.newBelief", "New belief")}</th>
-              <th className={HEAD}>{t("thinkingLab.master.shiftFrom", "Old belief to shift")}</th>
-              <th className={`${HEAD} w-28`}>{t("thinkingLab.saved.updatedColumn", "Updated")}</th>
-              <th className={`${HEAD} w-14 text-center`}>{t("thinkingLab.saved.action", "Action")}</th>
+              <th className={`${HEAD} w-[14%]`}>{t("thinkingLab.catalog.label", "Kategori")}</th>
+              <th className={`${HEAD} w-[50%]`}>{t("thinkingLab.saved.newBelief", "New belief")}</th>
+              <th className={`${HEAD} w-[22%]`}>{t("thinkingLab.master.shiftFrom", "Old belief to shift")}</th>
+              <th className={`${HEAD} w-[9%]`}>{t("thinkingLab.saved.updatedColumn", "Updated")}</th>
+              <th className={`${HEAD} w-[5%] text-center`}>{t("thinkingLab.saved.action", "Action")}</th>
             </tr>
           </thead>
           <tbody>
@@ -130,10 +137,10 @@ export function SavedMasterThoughtList({ masters, catalogs, catalogPending, onOp
                       <span className="mt-0.5 block break-words text-xs text-muted-foreground">{summary.extra}</span>
                     ) : null}
                   </td>
-                  <td className={CELL}>
+                  <td className={`${CELL} break-words`}>
                     <button
                       type="button"
-                      className="break-words text-left font-medium leading-snug text-foreground hover:underline"
+                      className="block w-full break-words text-left font-medium leading-snug text-foreground hover:underline"
                       onClick={() => onOpen(row.id)}
                     >
                       {savedTitle(row)}

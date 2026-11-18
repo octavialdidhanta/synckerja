@@ -419,7 +419,7 @@ export function WhatsAppInboxPage() {
         </div>
         {showSkeleton ? (
           <div
-            className="absolute inset-0 z-20 overflow-hidden bg-surface-muted"
+            className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-surface-muted"
             aria-busy
             aria-label={t('pageAccess.loading', 'Loading…')}
           >
