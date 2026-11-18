@@ -96,6 +96,31 @@ export function isPlanEligibleForLinkedInAutoSchedule(plan: PlanEligibilityInput
   return isPlanEligibleForReelAutoSchedule(plan);
 }
 
+export function getThreadsPlanEligibilityMissingReasons(plan: PlanEligibilityInput): string[] {
+  const reasons: string[] = [];
+  if (!plan.post_date) reasons.push("post_date");
+  if (!plan.approved) reasons.push("approved");
+  if (!plan.production_approved) reasons.push("production_approved");
+  if (isReelContentType(plan.content_type_name)) {
+    const link = plan.google_drive_link?.trim() ?? "";
+    if (!link) reasons.push("google_drive_link");
+    else if (!isGoogleDriveFileLink(link)) reasons.push("google_drive_file");
+    return reasons;
+  }
+  if (!isCarouselContentType(plan.content_type_name)) {
+    reasons.push("content_type_reel");
+    return reasons;
+  }
+  const imageCount = plan.carousel_image_count ?? 0;
+  if (imageCount < 1) reasons.push("carousel_images");
+  else if (imageCount > CAROUSEL_PUBLISH_IMAGE_LIMIT) reasons.push("carousel_image_limit");
+  return reasons;
+}
+
+export function isPlanEligibleForThreadsAutoSchedule(plan: PlanEligibilityInput): boolean {
+  return getThreadsPlanEligibilityMissingReasons(plan).length === 0;
+}
+
 export function isPlanEligibleForReelAutoSchedule(plan: PlanEligibilityInput): boolean {
   if (!plan.post_date) return false;
   if (!plan.approved) return false;

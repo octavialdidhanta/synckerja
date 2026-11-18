@@ -1,3 +1,5 @@
+import type { ThreadsFeedPublishLimitPayload } from "./threadsFeedPublishReadiness.ts";
+
 const THREADS_GRAPH_BASE = "https://graph.threads.net/v1.0";
 
 type GraphError = { error?: { message?: string; code?: number } };
@@ -222,6 +224,20 @@ export async function canThreadsTokenPublishReplies(
     console.warn("canThreadsTokenPublishReplies:", e);
     return false;
   }
+}
+
+/** Feed-post quota. Reply quota is included in the payload and is not a pass by itself. */
+export async function fetchThreadsFeedPublishLimit(
+  threadsUserId: string,
+  accessToken: string,
+): Promise<ThreadsFeedPublishLimitPayload> {
+  const userId = threadsUserId?.trim() || "me";
+  return threadsGet<ThreadsFeedPublishLimitPayload>(
+    threadsUrl(`${userId}/threads_publishing_limit`, {
+      fields: "quota_usage,config,reply_quota_usage,reply_config",
+    }),
+    accessToken,
+  );
 }
 
 function isThreadsReplyPermissionError(message: string): boolean {

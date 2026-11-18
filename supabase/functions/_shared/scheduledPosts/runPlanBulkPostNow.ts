@@ -88,6 +88,7 @@ function accountIdOf(row: ScheduledPostRow): string {
       config.instagram_business_account_id ??
       config.facebook_page_id ??
       config.page_id ??
+      config.threads_user_id ??
       "",
   );
 }

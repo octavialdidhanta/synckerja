@@ -75,3 +75,28 @@ export function isPlanEligibleForPublish(
 export function isPlanEligibleForAutoSchedule(plan: PlanAutoScheduleEligibilityInput): boolean {
   return isPlanEligibleForPublish(plan);
 }
+
+export function getThreadsPlanEligibilityMissingReasons(plan: PlanAutoScheduleEligibilityInput): string[] {
+  const missing: string[] = [];
+  if (!plan.post_date) missing.push('post_date');
+  if (!plan.approved) missing.push('approved');
+  if (!plan.production_approved) missing.push('production_approved');
+  if (isReelContentType(plan.content_type_name)) {
+    const link = plan.google_drive_link?.trim() ?? '';
+    if (!link) missing.push('google_drive_link');
+    else if (!isFileLink(link)) missing.push('google_drive_file');
+    return missing;
+  }
+  if (!isCarouselContentType(plan.content_type_name)) {
+    missing.push('content_type_reel');
+    return missing;
+  }
+  const imageCount = plan.carousel_image_count ?? 0;
+  if (imageCount < 1) missing.push('carousel_images');
+  else if (imageCount > CAROUSEL_PUBLISH_IMAGE_LIMIT) missing.push('carousel_image_limit');
+  return missing;
+}
+
+export function isPlanEligibleForThreadsAutoSchedule(plan: PlanAutoScheduleEligibilityInput): boolean {
+  return getThreadsPlanEligibilityMissingReasons(plan).length === 0;
+}

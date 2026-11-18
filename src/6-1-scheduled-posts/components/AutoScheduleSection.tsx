@@ -15,6 +15,7 @@ type Props = {
   tiktokCarouselOnly?: boolean;
   tiktokReady?: boolean;
   carouselPreviewUrls?: string[];
+  carouselImageCount?: number;
   serviceId?: string | null;
   requiredPlatforms: ServiceRequiredPlatform[];
   headerTitle?: React.ReactNode;
@@ -27,6 +28,7 @@ export function AutoScheduleSection({
   tiktokCarouselOnly = false,
   tiktokReady = false,
   carouselPreviewUrls,
+  carouselImageCount = 0,
   nativeAppLayout = false,
   ...rest
 }: Props) {
@@ -38,6 +40,7 @@ export function AutoScheduleSection({
       tiktokCarouselOnly={tiktokCarouselOnly}
       tiktokReady={tiktokReady}
       carouselPreviewUrls={carouselPreviewUrls}
+      carouselImageCount={carouselImageCount}
     />
   );
 }

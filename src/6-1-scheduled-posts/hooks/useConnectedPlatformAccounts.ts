@@ -1,4 +1,7 @@
 import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/shared/lib/supabaseClient';
+import { listThreadsScheduleAccounts } from '../../../supabase/functions/_shared/scheduledPosts/threadsScheduleAccounts.ts';
 import { useLinkedInContentSettings } from '@/linkedin-content/hooks/useLinkedInContentSettings';
 import { missingLinkedInScopesForFeature } from '@/linkedin-content/constants/linkedinOAuthScopes';
 import { useMetaContentConfig } from '@/meta-content/hooks/useMetaContentConfig';
@@ -34,6 +37,33 @@ export function useConnectedPlatformAccounts(organizationId: string | null | und
   const youtubeSettings = useYouTubeContentSettings(organizationId, { enabled });
   const linkedinSettings = useLinkedInContentSettings(organizationId, { enabled });
   const metaConfig = useMetaContentConfig(organizationId);
+  const threadsAccounts = useQuery({
+    queryKey: ['threads-schedule-accounts', organizationId],
+    enabled,
+    queryFn: async () => {
+      if (!organizationId) return [];
+      const { data, error } = await supabase
+        .from('organization_instagram_accounts')
+        .select('threads_user_id, threads_username, instagram_username, instagram_name, has_threads, is_active')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true)
+        .eq('has_threads', true)
+        .not('threads_access_token_enc', 'is', null)
+        .neq('threads_access_token_enc', '');
+      if (error) throw error;
+      return listThreadsScheduleAccounts(
+        (data ?? []).map((row) => ({
+          threads_user_id: row.threads_user_id,
+          threads_username: row.threads_username,
+          instagram_username: row.instagram_username,
+          instagram_name: row.instagram_name,
+          has_threads: row.has_threads === true,
+          is_active: row.is_active === true,
+          threads_access_token_enc: 'present',
+        })),
+      );
+    },
+  });
 
   const accounts = useMemo((): ConnectedPlatformAccount[] => {
     const list: ConnectedPlatformAccount[] = [];
@@ -80,6 +110,16 @@ export function useConnectedPlatformAccounts(organizationId: string | null | und
       });
     }
 
+    for (const acc of threadsAccounts.data ?? []) {
+      list.push({
+        platform: 'Threads',
+        accountId: acc.accountId,
+        accountLabel: acc.accountLabel,
+        publishScopesOk: true,
+        isActive: true,
+      });
+    }
+
     for (const acc of metaConfig.data?.accounts ?? []) {
       const metaKey = normalizeMetaPlatformKey(acc.platform);
       if (!metaKey) continue;
@@ -109,13 +149,14 @@ export function useConnectedPlatformAccounts(organizationId: string | null | und
       }
       return a.accountLabel.localeCompare(b.accountLabel);
     });
-  }, [tiktokSettings.data, youtubeSettings.data, linkedinSettings.data, metaConfig.data?.accounts]);
+  }, [tiktokSettings.data, youtubeSettings.data, linkedinSettings.data, metaConfig.data?.accounts, threadsAccounts.data]);
 
   const isLoading =
     tiktokSettings.isPending ||
     youtubeSettings.isPending ||
     linkedinSettings.isPending ||
-    metaConfig.isPending;
+    metaConfig.isPending ||
+    threadsAccounts.isPending;
 
   const getAccountsForPlatform = (platform: string): ConnectedPlatformAccount[] =>
     accounts.filter((acc) => acc.platform === platform.trim());

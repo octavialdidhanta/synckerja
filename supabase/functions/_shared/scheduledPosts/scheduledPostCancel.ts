@@ -51,6 +51,8 @@ function providerConfigAccountField(platform: string): string | null {
       return "instagram_business_account_id";
     case "LinkedIn":
       return "page_id";
+    case "Threads":
+      return "threads_user_id";
     default:
       return null;
   }

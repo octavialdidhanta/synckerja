@@ -9,7 +9,8 @@ export type PlatformPublishFunction =
   | 'youtube-content-publish'
   | 'meta-content-publish'
   | 'meta-story-publish'
-  | 'linkedin-content-publish';
+  | 'linkedin-content-publish'
+  | 'threads-content-publish';
 
 async function invokePlatformPublish(
   functionName: PlatformPublishFunction,

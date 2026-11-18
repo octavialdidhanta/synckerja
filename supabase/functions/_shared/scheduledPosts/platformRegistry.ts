@@ -11,6 +11,7 @@ export const PLATFORM_SCHEDULE_REGISTRY: Record<string, PlatformScheduleCapabili
   Facebook: { deliveryMode: "api_auto", implemented: true },
   YouTube: { deliveryMode: "api_auto", implemented: true },
   LinkedIn: { deliveryMode: "api_auto", implemented: true },
+  Threads: { deliveryMode: "api_auto", implemented: true },
 };
 
 export function normalizeSchedulePlatform(platform: string): string {

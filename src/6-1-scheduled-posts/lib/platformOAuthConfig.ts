@@ -4,6 +4,7 @@ export const OAUTH_REQUIRED_PLATFORMS = [
   'Instagram',
   'Facebook',
   'LinkedIn',
+  'Threads',
 ] as const;
 
 export type OAuthRequiredPlatform = (typeof OAUTH_REQUIRED_PLATFORMS)[number];
@@ -21,6 +22,7 @@ export const PLATFORM_SETTINGS_PATHS: Record<string, string> = {
   Instagram: '/digital-marketing/social-media-performance/instagram/settings',
   Facebook: '/digital-marketing/social-media-performance/facebook/settings',
   LinkedIn: '/digital-marketing/social-media-performance/linkedin/settings',
+  Threads: '/digital-marketing/social-media-performance/threads',
 };
 
 export function isOAuthRequiredPlatform(platform: string): boolean {

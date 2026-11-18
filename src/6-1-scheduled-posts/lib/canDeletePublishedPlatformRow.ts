@@ -36,6 +36,12 @@ export function canDeletePublishedPlatformRow(
   schedule: ScheduledPost | null,
   links: LinkLike[],
 ): boolean {
-  if (target.platform !== 'YouTube' && target.platform !== 'TikTok' && target.platform !== 'Instagram' && target.platform !== 'Facebook') return false;
+  if (
+    target.platform !== 'YouTube' &&
+    target.platform !== 'TikTok' &&
+    target.platform !== 'Instagram' &&
+    target.platform !== 'Facebook' &&
+    target.platform !== 'Threads'
+  ) return false;
   return canDeleteForPlatform(target.platform, target.accountId, schedule, links);
 }

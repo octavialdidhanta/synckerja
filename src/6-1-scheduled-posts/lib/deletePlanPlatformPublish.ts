@@ -33,6 +33,8 @@ export async function deletePlanPlatformPublish(args: {
     body.instagram_business_account_id = args.accountId;
   } else if (platform === 'Facebook') {
     body.facebook_page_id = args.accountId;
+  } else if (platform === 'Threads') {
+    body.threads_user_id = args.accountId;
   } else {
     throw new Error(`delete_not_supported:${platform}`);
   }

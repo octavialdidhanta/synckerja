@@ -9,6 +9,8 @@ import {
 import { handleThreadsConfig } from "./handlers/config.ts";
 import { handleThreadsMetrics } from "./handlers/metrics.ts";
 import { handleThreadsComments } from "./handlers/comments.ts";
+import { handleThreadsPublishImageProbe } from "./handlers/publishImage.ts";
+import { handleThreadsPublishReadiness } from "./handlers/publishReadiness.ts";
 
 const COMMENT_ACTIONS = new Set([
   "getInboxState",
@@ -61,6 +63,14 @@ Deno.serve(async (req: Request) => {
 
   if (action === "getMetrics") {
     return await handleThreadsMetrics(admin, userRes.userId, body);
+  }
+
+  if (action === "publishReadiness") {
+    return await handleThreadsPublishReadiness(admin, userRes.userId, body);
+  }
+
+  if (action === "publishImageProbe") {
+    return await handleThreadsPublishImageProbe(admin, userRes.userId, body);
   }
 
   if (CONFIG_ACTIONS.has(action)) {

@@ -781,6 +781,7 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
                 tiktokCarouselOnly={carouselPlan}
                 tiktokReady={carouselReady}
                 carouselPreviewUrls={carouselPreviewUrls}
+                carouselImageCount={carouselImages.length}
                 serviceId={planData?.service_id ?? null}
                 requiredPlatforms={requiredPlatforms}
                 nativeAppLayout={nativeApp}

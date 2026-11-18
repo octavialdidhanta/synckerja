@@ -27,6 +27,7 @@ const PLATFORM_OPTIONS = [
   'YouTube',
   'Facebook',
   'LinkedIn',
+  'Threads',
   'Twitter',
   'Shopee',
   'Tokopedia',

@@ -66,6 +66,7 @@ type Props = {
   bulkRunning?: boolean;
   reconnectHint: string | null;
   actionsDisabled?: boolean;
+  statusNote?: string | null;
   /** When false, the actions column scrolls away with the other columns. */
   pinActions?: boolean;
 };
@@ -90,6 +91,7 @@ export function RequiredPlatformScheduleRow({
   bulkRunning = false,
   reconnectHint,
   actionsDisabled = false,
+  statusNote = null,
   pinActions = true,
 }: Props) {
   const { t } = useTranslation();
@@ -162,6 +164,9 @@ export function RequiredPlatformScheduleRow({
         <div className="space-y-0.5">
           <p className="text-sm font-medium leading-tight text-foreground">{platform}</p>
           <p className="text-xs text-muted-foreground">{accountLabel}</p>
+          {statusNote ? (
+            <p className="text-xs text-amber-800">{statusNote}</p>
+          ) : null}
         </div>
       </div>
 

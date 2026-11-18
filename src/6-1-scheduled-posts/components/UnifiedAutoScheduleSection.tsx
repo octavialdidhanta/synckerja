@@ -47,6 +47,7 @@ import {
 import { DEFAULT_YOUTUBE_SCHEDULE_PRIVACY } from '../lib/youtubeSchedulePrivacy';
 import { DEFAULT_TIKTOK_SCHEDULE_PRIVACY } from '../lib/tiktokSchedulePrivacy';
 import { useUpsertPlanScheduleManualLock } from '../hooks/usePlanScheduleManualLocks';
+import { showThreadsScheduleRow, threadsPhotoCountNote } from '../lib/threadsScheduleRow';
 
 type Props = {
   organizationId: string;
@@ -61,6 +62,7 @@ type Props = {
   tiktokCarouselOnly?: boolean;
   tiktokReady?: boolean;
   carouselPreviewUrls?: string[];
+  carouselImageCount?: number;
   serviceId?: string | null;
   requiredPlatforms: ServiceRequiredPlatform[];
   headerTitle?: React.ReactNode;
@@ -76,7 +78,8 @@ function isCarouselPhotoPlatform(platform: string): boolean {
     platform === 'TikTok' ||
     platform === 'Instagram' ||
     platform === 'Facebook' ||
-    platform === 'LinkedIn'
+    platform === 'LinkedIn' ||
+    platform === 'Threads'
   );
 }
 
@@ -122,6 +125,7 @@ export function UnifiedAutoScheduleSection({
   tiktokCarouselOnly = false,
   tiktokReady = false,
   carouselPreviewUrls,
+  carouselImageCount = 0,
   serviceId,
   requiredPlatforms,
   headerTitle,
@@ -206,15 +210,23 @@ export function UnifiedAutoScheduleSection({
   const fieldLabel = 'text-[11px] font-medium uppercase tracking-wide text-muted-foreground';
 
   const scheduleRows = schedules ?? [];
+  const threadsVisible = showThreadsScheduleRow(tiktokCarouselOnly, carouselImageCount);
+  const threadsCountNote = tiktokCarouselOnly ? threadsPhotoCountNote(carouselImageCount) : null;
   const visibleTargets = useMemo(() => {
-    if (!tiktokCarouselOnly) return targets;
-    return targets.filter((target) => target.platform !== 'YouTube');
-  }, [targets, tiktokCarouselOnly]);
+    return targets.filter((target) => {
+      if (target.platform === 'Threads') return threadsVisible;
+      if (!tiktokCarouselOnly) return true;
+      return target.platform !== 'YouTube';
+    });
+  }, [targets, tiktokCarouselOnly, threadsVisible]);
   const actionTargets = useMemo(() => {
-    if (!tiktokCarouselOnly) return targets;
+    const rows = targets.filter(
+      (target) => target.platform !== 'Threads' || (threadsVisible && !threadsCountNote),
+    );
+    if (!tiktokCarouselOnly) return rows;
     if (!tiktokReady) return [];
-    return targets.filter((target) => isCarouselPhotoPlatform(target.platform));
-  }, [targets, tiktokCarouselOnly, tiktokReady]);
+    return rows.filter((target) => isCarouselPhotoPlatform(target.platform));
+  }, [targets, tiktokCarouselOnly, tiktokReady, threadsVisible, threadsCountNote]);
   const { eligible: bulkEligible } = useMemo(
     () => getBulkEligibleTargets(actionTargets, scheduleRows),
     [actionTargets, scheduleRows],
@@ -645,9 +657,11 @@ export function UnifiedAutoScheduleSection({
                       onDelete={() => setDeleteTarget(target)}
                       canDelete={rowCanDelete}
                       actionsDisabled={
-                        tiktokCarouselOnly &&
-                        (!isCarouselPhotoPlatform(target.platform) || !tiktokReady)
+                        (tiktokCarouselOnly &&
+                          (!isCarouselPhotoPlatform(target.platform) || !tiktokReady)) ||
+                        (target.platform === 'Threads' && Boolean(threadsCountNote))
                       }
+                      statusNote={target.platform === 'Threads' ? threadsCountNote : null}
                       isSchedulePending={isSchedulePending}
                       isPostNowPending={isPostNowPending}
                       isCancelPending={isCancelPending}
