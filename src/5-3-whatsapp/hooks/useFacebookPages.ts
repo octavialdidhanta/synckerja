@@ -37,12 +37,14 @@ export function useFacebookPages() {
   const disconnectMutation = useMutation({
     mutationFn: async (pageRowId: string) => {
       if (!organizationId) throw new Error('No organization selected');
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('organization_facebook_pages')
         .delete()
         .eq('id', pageRowId)
-        .eq('organization_id', organizationId);
+        .eq('organization_id', organizationId)
+        .select('id');
       if (error) throw error;
+      if (!data?.length) throw new Error('Hanya owner atau admin yang bisa memutus koneksi.');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['facebook-pages', organizationId] });

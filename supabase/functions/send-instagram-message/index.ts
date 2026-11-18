@@ -230,6 +230,13 @@ Deno.serve(async (req: Request) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
+    // Token columns are not readable with the caller's JWT (column privileges). Access is still
+    // checked with the user-scoped client above; only the token read for that org uses service role.
+    const secrets = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     if (userError || !user) {
       console.log("send-instagram-message: invalid token", userError?.message);
@@ -382,7 +389,7 @@ Deno.serve(async (req: Request) => {
             );
           }
         }
-        const { data: igAcc } = await supabase
+        const { data: igAcc } = await secrets
           .from("organization_instagram_accounts")
           .select("facebook_page_id, page_access_token")
           .eq("organization_id", conv.organization_id)
@@ -430,7 +437,7 @@ Deno.serve(async (req: Request) => {
     // 2) Fallback only when no conversation_id: organization_meta_config + /me/accounts
     if (!resolved) {
       const tryOrg = async (oid: string) => {
-        const { data, error } = await supabase
+        const { data, error } = await secrets
           .from("organization_meta_config")
           .select("organization_id, meta_access_token, meta_business_manager_id, instagram_business_account_id, facebook_page_id")
           .eq("organization_id", oid)

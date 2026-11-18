@@ -43,10 +43,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
+    // Service role: every query below filters by the verified user.id explicitly, and the Meta token
+    // columns are not readable with the caller's JWT anymore (column privileges).
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } } }
     );
 
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
@@ -56,6 +57,12 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const body = (await req.json().catch(() => ({}))) as {
+      action?: string;
+      organization_id?: string;
+      instagram_business_account_id?: string;
+    };
 
     const { data: profile } = await supabase
       .from("profiles")
@@ -118,6 +125,21 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ error: "No active organization or Meta token not configured. Connect Account Connect (WhatsApp) first." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Page tokens are as powerful as the account itself: only owner/admin may list or connect.
+    const { data: roleRows } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("organization_id", resolvedOrgId)
+      .in("role", ["owner", "admin"])
+      .limit(1);
+    if (!roleRows?.length) {
+      return new Response(
+        JSON.stringify({ error: "Hanya owner atau admin yang bisa menghubungkan Instagram." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -224,8 +246,72 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // action "connect": store the chosen account with its page token here on the server. The browser
+    // never receives page tokens (it used to, and then wrote them back to the table itself).
+    if (body.action === "connect") {
+      const igId = String(body.instagram_business_account_id ?? "").trim();
+      const targetOrg = String(body.organization_id ?? "").trim();
+      if (!igId || !targetOrg || targetOrg !== orgId) {
+        return new Response(
+          JSON.stringify({ error: "organization_id must be your active organization, and instagram_business_account_id is required." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (targetOrg !== resolvedOrgId) {
+        const { data: targetRole } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("organization_id", targetOrg)
+          .in("role", ["owner", "admin"])
+          .limit(1);
+        if (!targetRole?.length) {
+          return new Response(
+            JSON.stringify({ error: "Hanya owner atau admin yang bisa menghubungkan Instagram." }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+      const chosen = accounts.find((a) => a.id === igId);
+      if (!chosen) {
+        return new Response(
+          JSON.stringify({ error: "Akun Instagram tidak ditemukan di Meta untuk token ini." }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const verifyToken = `ig_${targetOrg.replace(/-/g, "").slice(0, 8)}_${Math.random().toString(36).slice(2, 14)}`;
+      const { data: saved, error: saveError } = await supabase
+        .from("organization_instagram_accounts")
+        .upsert(
+          {
+            organization_id: targetOrg,
+            instagram_business_account_id: chosen.id,
+            facebook_page_id: chosen.page_id ?? null,
+            page_access_token: chosen.access_token ?? null,
+            instagram_username: chosen.username ?? null,
+            instagram_name: chosen.name ?? null,
+            verify_token: verifyToken,
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "organization_id,instagram_business_account_id", ignoreDuplicates: false },
+        )
+        .select("id, organization_id, instagram_business_account_id, facebook_page_id, has_page_access_token, instagram_username, instagram_name, verify_token, is_active, created_at, updated_at")
+        .single();
+      if (saveError) {
+        return new Response(
+          JSON.stringify({ error: saveError.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      return new Response(
+        JSON.stringify({ account: saved }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
-      JSON.stringify({ accounts }),
+      JSON.stringify({ accounts: accounts.map(({ access_token: _token, ...rest }) => rest) }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {

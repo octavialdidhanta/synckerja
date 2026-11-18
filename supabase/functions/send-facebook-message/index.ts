@@ -157,6 +157,13 @@ Deno.serve(async (req: Request) => {
       { global: { headers: { Authorization: authHeader } } },
     );
 
+    // Token columns are not readable with the caller's JWT (column privileges). Access is still
+    // checked with the user-scoped client above; only the token read for that org uses service role.
+    const secrets = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     if (userError || !user) {
       return new Response(JSON.stringify({ error: "Invalid token" }), {
@@ -251,7 +258,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const { data: fbPage } = await supabase
+    const { data: fbPage } = await secrets
       .from("organization_facebook_pages")
       .select("page_access_token")
       .eq("organization_id", conv.organization_id)

@@ -1,7 +1,8 @@
 export interface WhatsAppConfig {
   id: string;
   organization_id: string;
-  meta_access_token: string;
+  /** True when a shared Meta token is stored. The token itself is never sent to the browser. */
+  has_meta_access_token: boolean;
   meta_business_manager_id: string | null;
   whatsapp_business_account_id: string;
   verify_token: string;
@@ -46,7 +47,8 @@ export interface WhatsAppAccount {
   whatsapp_business_account_id: string;
   /** Required; column is NOT NULL in organization_whatsapp_accounts. */
   phone_number_id: string;
-  meta_access_token: string | null;
+  /** True when this number has a Meta token stored. The token itself is never sent to the browser. */
+  has_meta_access_token: boolean;
   display_phone_number: string | null;
   whatsapp_business_name: string | null;
   name_status: string | null;
@@ -65,7 +67,7 @@ export interface WhatsAppAccount {
 export interface WhatsAppAccountUpsert {
   whatsapp_business_account_id: string;
   phone_number_id: string;
-  /** Optional: use shared org token when empty. */
+  /** New token typed by an owner/admin; empty keeps the stored one (or uses the shared org token). */
   meta_access_token?: string | null;
   display_phone_number?: string | null;
   whatsapp_business_name?: string | null;

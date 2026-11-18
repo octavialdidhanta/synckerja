@@ -21,6 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
+import { setConnectionSecret } from "@/shared/lib/connectionSecrets";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -130,19 +131,21 @@ export const VoiceAIConfigSection: React.FC = () => {
         speed: nextSpeed,
         daily_limit: nextLimit,
       };
-      if (apiKeyInput.trim()) {
-        payload.elevenlabs_api_key = apiKeyInput.trim();
-        payload.api_key_configured = true;
+      let rowId = configRow?.id ?? null;
+      if (rowId) {
+        const { error } = await supabase.from("organization_voice_ai_config").update(payload).eq("id", rowId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from("organization_voice_ai_config")
+          .insert({ ...payload, organization_id: organizationId, api_key_configured: false })
+          .select("id")
+          .single();
+        if (error) throw error;
+        rowId = data.id as string;
       }
-      const query = configRow?.id
-        ? supabase.from("organization_voice_ai_config").update(payload).eq("id", configRow.id)
-        : supabase.from("organization_voice_ai_config").insert({
-            ...payload,
-            organization_id: organizationId,
-            api_key_configured: true,
-          });
-      const { error } = await query;
-      if (error) throw error;
+      // The key itself goes through the owner/admin-only RPC; the browser can never read it back.
+      if (apiKeyInput.trim()) await setConnectionSecret("voice_ai_elevenlabs", rowId, apiKeyInput.trim());
       setApiKeyInput("");
       setEditing(false);
       const { data, error: describeError } = await supabase.functions.invoke("generate-brief-voice", { body: { action: "describe" } });
@@ -176,9 +179,10 @@ export const VoiceAIConfigSection: React.FC = () => {
     if (!configRow?.id) return;
     setIsRemoving(true);
     try {
+      await setConnectionSecret("voice_ai_elevenlabs", configRow.id, null);
       const { error } = await supabase
         .from("organization_voice_ai_config")
-        .update({ elevenlabs_api_key: null, api_key_configured: false, voice_name: null })
+        .update({ voice_name: null })
         .eq("id", configRow.id);
       if (error) throw error;
       setConfirmRemove(false);

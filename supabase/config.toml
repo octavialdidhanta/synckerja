@@ -315,6 +315,9 @@ verify_jwt = false
 [functions.share-caption-suggest]
 verify_jwt = false
 
+[functions.whatsapp-phone-lookup]
+verify_jwt = false
+
 # TikTok Shop: user JWT validated inside; OAuth callback has no JWT.
 [functions.tiktok-shop-oauth-start]
 verify_jwt = false
