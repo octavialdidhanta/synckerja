@@ -2,6 +2,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { addMonths } from "https://esm.sh/date-fns@2";
+import { midtransCoreApiBaseUrl } from "./midtransEnv.ts";
+import { finalPaymentStatus, verifyMidtransTransaction } from "./midtransVerify.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,9 +38,38 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    const notification = await req.json();
+    // The body is untrusted (this URL is public). It only names the order; every status field
+    // below comes from Midtrans' own Core API answer, signature-checked (see midtransVerify.ts).
+    const notification = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const order_id = typeof notification.order_id === "string" ? notification.order_id.trim() : "";
+
+    const reject = (status: number, error: string) =>
+      new Response(JSON.stringify({ error }), {
+        status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+
+    if (!order_id) return reject(400, "Missing order_id");
+
+    const { data: payment, error: paymentError } = await supabase
+      .from("payments")
+      .select("*")
+      .eq("order_id", order_id)
+      .single();
+
+    if (paymentError || !payment) return reject(404, "Payment not found");
+
+    const verified = await verifyMidtransTransaction({
+      orderId: order_id,
+      expectedAmount: payment.amount,
+      serverKey: (Deno.env.get("MIDTRANS_SERVER_KEY") ?? "").trim(),
+      coreApiBaseUrl: midtransCoreApiBaseUrl(),
+    });
+    if (!verified.ok) {
+      console.warn("Midtrans webhook rejected:", order_id, verified.reason);
+      return reject(verified.httpStatus, "Payment could not be verified with Midtrans");
+    }
     const {
-      order_id,
       transaction_status,
       transaction_id,
       fraud_status,
@@ -47,38 +78,9 @@ Deno.serve(async (req) => {
       payment_type,
       bank,
       approval_code,
-    } = notification;
+    } = verified.status;
 
-    if (!order_id) {
-      throw new Error("Missing order_id in notification");
-    }
-
-    const { data: payment, error: paymentError } = await supabase
-      .from("payments")
-      .select("*")
-      .eq("order_id", order_id)
-      .single();
-
-    if (paymentError || !payment) {
-      throw new Error(`Payment not found for order_id: ${order_id}`);
-    }
-
-    let finalStatus = "pending";
-    if (
-      transaction_status === "settlement" ||
-      transaction_status === "capture" ||
-      transaction_status === "success"
-    ) {
-      finalStatus = "success";
-    } else if (transaction_status === "pending") {
-      finalStatus = "pending";
-    } else if (
-      transaction_status === "cancel" ||
-      transaction_status === "expire" ||
-      transaction_status === "deny"
-    ) {
-      finalStatus = "failed";
-    }
+    const finalStatus = finalPaymentStatus(transaction_status, fraud_status);
 
     const { error: updateError } = await supabase
       .from("payments")
