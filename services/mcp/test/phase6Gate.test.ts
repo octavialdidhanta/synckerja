@@ -128,7 +128,7 @@ describe("mcp http gate", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       ok: true,
-      rev: "org-drive-upload-v1",
+      rev: "org-drive-upload-v2",
       tools: ["content.plans.media.upload.start", "content.plans.media.versions.list"],
     });
     expect(lookedUp).toBe(false);

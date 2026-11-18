@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { McpServiceConfig } from "../config";
-import { MEDIA_UPLOAD_CHUNK_BYTES } from "../tools/content/mediaUpload";
+import { MEDIA_UPLOAD_CHUNK_BYTES, uploadNextStep } from "../tools/content/mediaUpload";
 import type { McpAuthContext } from "../authz/context";
 import { AuthzError } from "../authz/errors";
 import type { ContentPlanRow } from "../db/listContentPlans";
@@ -546,7 +546,7 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "org-drive-upload-v1",
+      rev: "org-drive-upload-v2",
       tools: ["content.plans.media.upload.start", "content.plans.media.versions.list"],
     }),
   );
@@ -623,10 +623,10 @@ export function createApp(deps: AppDeps) {
   // The ticket in the path is the credential (hashed in the DB, single version, expires in 6 hours).
   app.put("/uploads/:ticket", async (c) => {
     const declared = Number(c.req.header("content-length") ?? "0");
-    if (declared > MEDIA_UPLOAD_CHUNK_BYTES) return c.json({ error: "chunk_too_large" }, 413);
+    if (declared > MEDIA_UPLOAD_CHUNK_BYTES) return c.json({ error: "chunk_too_large", next_step: uploadNextStep("chunk_too_large") }, 413);
     const buffer = new Uint8Array(await c.req.arrayBuffer());
-    if (buffer.byteLength === 0) return c.json({ error: "empty_body" }, 400);
-    if (buffer.byteLength > MEDIA_UPLOAD_CHUNK_BYTES) return c.json({ error: "chunk_too_large" }, 413);
+    if (buffer.byteLength === 0) return c.json({ error: "empty_body", next_step: uploadNextStep("empty_body") }, 400);
+    if (buffer.byteLength > MEDIA_UPLOAD_CHUNK_BYTES) return c.json({ error: "chunk_too_large", next_step: uploadNextStep("chunk_too_large") }, 413);
     const result = await deps.putMediaUploadChunk(c.req.param("ticket"), c.req.header("content-range") ?? null, buffer);
     return c.json(result.body, result.status as 200);
   });
