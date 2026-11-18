@@ -105,6 +105,12 @@ export { getBriefVoiceInput, getBriefVoiceResult } from "./content/briefsVoiceGe
 export { generateBriefVoiceInput, generateBriefVoiceResult } from "./content/briefsVoiceGenerate";
 export { updatePlanInput, updatePlanResult, updatePlanSchema } from "./content/plansUpdate";
 export { setPlanDriveLinkInput, setPlanDriveLinkResult } from "./content/planDriveLink";
+export {
+  listMediaVersionsInput,
+  listMediaVersionsResult,
+  startMediaUploadInput,
+  startMediaUploadResult,
+} from "./content/mediaUpload";
 export { createObjectiveInput, createObjectiveResult } from "./okr/objectivesCreate";
 export { updateObjectiveInput, updateObjectiveResult, updateObjectiveSchema } from "./okr/objectivesUpdate";
 export { createDepartmentObjectiveInput, createDepartmentObjectiveResult } from "./okr/departmentCreate";

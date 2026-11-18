@@ -85,6 +85,8 @@ export type McpToolName =
   | "content.briefs.voice.generate"
   | "content.plans.update"
   | "content.plans.media.set_link"
+  | "content.plans.media.upload.start"
+  | "content.plans.media.versions.list"
   | "okr.objectives.create"
   | "okr.objectives.update"
   | "okr.objectives.department.create"
@@ -621,6 +623,22 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Update the title, post date, or short brief of one content plan in the organization locked in this session. The brief stays at most 4000 characters. A brief change is accepted when the signed-in member is that plan's PIC. If the plan has no PIC yet, that member becomes the PIC. A storyboard belongs in content.briefs.create. Does not change approval, production status, completion, or published links.",
     scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "content.plans.media.upload.start",
+    description:
+      "Start uploading a finished video (MP4, MOV, WebM or M4V, up to 512 MB) for one content plan in the organization locked in this session. The video is stored in the organization's own Google Drive, in a subfolder for the plan, as the next version (v1, v2, ...). Requires plan_id, file_name and size_bytes (exact file size). The plan must be approved and its production not yet approved, the same rules as uploading in Office; the organization Drive must be connected by the owner. Returns upload_url: send the bytes there with HTTP PUT exactly as how_to_upload says (from your own shell; the url is a one-time ticket, no auth header). When the last chunk arrives the new version becomes the plan's video and production goes to Need Review. Errors: not_approved, production_locked, not_video_content, not_connected, reconnect_required, not_found. Use this instead of set_link when you rendered the video yourself.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "content.plans.media.versions.list",
+    description:
+      "List the videos uploaded for one content plan into the organization Google Drive (newest first) and which one is active on the plan. Requires plan_id. Follow how_to_read.",
+    scopes: ["content:read"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
   },
@@ -1170,6 +1188,7 @@ const MUTATING_TOOLS = new Set<McpToolName>([
   "content.briefs.voice.generate",
   "content.plans.update",
   "content.plans.media.set_link",
+  "content.plans.media.upload.start",
   "content.plans.schedule",
   "okr.objectives.create",
   "okr.objectives.update",

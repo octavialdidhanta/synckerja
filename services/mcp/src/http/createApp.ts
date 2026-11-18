@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { McpServiceConfig } from "../config";
+import { MEDIA_UPLOAD_CHUNK_BYTES } from "../tools/content/mediaUpload";
 import type { McpAuthContext } from "../authz/context";
 import { AuthzError } from "../authz/errors";
 import type { ContentPlanRow } from "../db/listContentPlans";
@@ -283,6 +284,15 @@ export type AppDeps = {
     ctx: McpAuthContext,
     input: import("../tools/content/planDriveLink").SetPlanDriveLinkInput,
   ) => Promise<import("../tools/content/planDriveLink").SetPlanDriveLinkResult>;
+  startMediaUpload: import("../tools/content/mediaUpload").StartMediaUpload;
+  listMediaVersions: import("../tools/content/mediaUpload").ListMediaVersions;
+  /** PUT/GET /uploads/<ticket>: one-time upload tickets from content.plans.media.upload.start. */
+  putMediaUploadChunk: (
+    ticket: string,
+    contentRange: string | null,
+    body: Uint8Array,
+  ) => Promise<{ status: number; body: Record<string, unknown> }>;
+  getMediaUploadStatus: (ticket: string) => Promise<{ status: number; body: Record<string, unknown> }>;
   createCompanyObjective: (
     ctx: McpAuthContext,
     input: { cycleId: string; title: string; whyImportant: string | null; status: string | null },
@@ -536,8 +546,8 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "drive-link-approval-v1",
-      tools: ["content.plans.media.set_link"],
+      rev: "org-drive-upload-v1",
+      tools: ["content.plans.media.upload.start", "content.plans.media.versions.list"],
     }),
   );
 
@@ -608,6 +618,22 @@ export function createApp(deps: AppDeps) {
       if (error instanceof OAuthError) return oauthError(error);
       throw error;
     }
+  });
+
+  // The ticket in the path is the credential (hashed in the DB, single version, expires in 6 hours).
+  app.put("/uploads/:ticket", async (c) => {
+    const declared = Number(c.req.header("content-length") ?? "0");
+    if (declared > MEDIA_UPLOAD_CHUNK_BYTES) return c.json({ error: "chunk_too_large" }, 413);
+    const buffer = new Uint8Array(await c.req.arrayBuffer());
+    if (buffer.byteLength === 0) return c.json({ error: "empty_body" }, 400);
+    if (buffer.byteLength > MEDIA_UPLOAD_CHUNK_BYTES) return c.json({ error: "chunk_too_large" }, 413);
+    const result = await deps.putMediaUploadChunk(c.req.param("ticket"), c.req.header("content-range") ?? null, buffer);
+    return c.json(result.body, result.status as 200);
+  });
+
+  app.get("/uploads/:ticket", async (c) => {
+    const result = await deps.getMediaUploadStatus(c.req.param("ticket"));
+    return c.json(result.body, result.status as 200);
   });
 
   app.all("/mcp", async (c) => {

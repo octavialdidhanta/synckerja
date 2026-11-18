@@ -652,3 +652,15 @@ export async function uploadVideoToGoogleDriveResumable(args: {
 }
 
 export { MAX_VIDEO_BYTES };
+
+/**
+ * Send a browser File to an existing Google resumable upload URL (8 MB chunks, retries, resume).
+ * Used by the organization Drive upload (the URL comes from content-plan-media-upload).
+ */
+export async function putFileToDriveUploadUrl(
+  uploadUrl: string,
+  file: File,
+  onProgress?: (p: DriveResumableUploadProgress) => void,
+): Promise<string> {
+  return putResumableChunks(uploadUrl, { kind: "file", file }, onProgress);
+}

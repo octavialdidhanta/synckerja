@@ -138,6 +138,18 @@ verify_jwt = false
 [functions.google-drive-media-token]
 verify_jwt = false
 
+[functions.google-drive-org-oauth-start]
+verify_jwt = false
+
+[functions.google-drive-org-oauth-callback]
+verify_jwt = false
+
+[functions.google-drive-org-config]
+verify_jwt = false
+
+[functions.content-plan-media-upload]
+verify_jwt = false
+
 [functions.google-drive-resumable-upload]
 verify_jwt = false
 

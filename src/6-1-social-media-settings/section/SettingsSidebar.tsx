@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Calendar, Sparkles, Image, Scan, Clapperboard, AudioLines, Palette } from 'lucide-react';
+import { Shield, Calendar, Sparkles, Image, Scan, Clapperboard, AudioLines, Palette, HardDrive } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 
@@ -63,6 +63,13 @@ const settingsSections = [
     title: 'Canva',
     description: 'Connect a Canva account for the AI employee',
     icon: Palette,
+    status: 'active'
+  },
+  {
+    id: 'google-drive',
+    title: 'Google Drive org',
+    description: 'Where content videos are stored for this organization',
+    icon: HardDrive,
     status: 'active'
   }
 ];
