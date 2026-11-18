@@ -11,6 +11,7 @@ import { executeInstagramScheduledPost } from "./platforms/instagram.ts";
 import { executeFacebookScheduledPost } from "./platforms/facebook.ts";
 import { executeYouTubeScheduledPost } from "./platforms/youtube.ts";
 import { executeLinkedInScheduledPost } from "./platforms/linkedin.ts";
+import { executeThreadsScheduledPost } from "./executeThreadsScheduledPost.ts";
 import type { ScheduledPostRow } from "./scheduledPostTypes.ts";
 import type { SharedPublishContext } from "./sharedPublishContext.ts";
 
@@ -55,6 +56,8 @@ export async function executeScheduledPost(
       return executeYouTubeScheduledPost(admin, schedule, sharedCtx);
     case "LinkedIn":
       return executeLinkedInScheduledPost(admin, schedule, sharedCtx);
+    case "Threads":
+      return executeThreadsScheduledPost(admin, schedule);
     default:
       throw new Error(
         buildScheduleStubError("not_implemented", platform, schedule.delivery_mode ?? "unknown"),

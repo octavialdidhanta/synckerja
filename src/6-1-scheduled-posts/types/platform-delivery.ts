@@ -4,6 +4,7 @@ export const PLATFORM_DELIVERY_CONFIG = {
   Facebook: { deliveryMode: 'api_auto' as const, scheduleReady: true },
   YouTube: { deliveryMode: 'api_auto' as const, scheduleReady: true },
   LinkedIn: { deliveryMode: 'api_auto' as const, scheduleReady: true },
+  Threads: { deliveryMode: 'api_auto' as const, scheduleReady: true },
 } as const;
 
 export type PlatformDeliveryKey = keyof typeof PLATFORM_DELIVERY_CONFIG;

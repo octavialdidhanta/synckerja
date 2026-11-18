@@ -14,6 +14,8 @@ export function getEdgeFunctionForPlatform(platform: string): PlatformPublishFun
       return 'meta-content-publish';
     case 'LinkedIn':
       return 'linkedin-content-publish';
+    case 'Threads':
+      return 'threads-content-publish';
     default:
       throw new Error(`unsupported_platform:${platform}`);
   }
@@ -73,6 +75,12 @@ export function buildPlatformPublishPayload(
       return {
         ...base,
         page_id: args.accountId,
+        scheduled_at: args.scheduledAtIso,
+      };
+    case 'Threads':
+      return {
+        ...base,
+        threads_user_id: args.accountId,
         scheduled_at: args.scheduledAtIso,
       };
     default:

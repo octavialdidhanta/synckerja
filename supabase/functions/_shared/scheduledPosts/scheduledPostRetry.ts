@@ -86,6 +86,11 @@ export function isTransientPublishErrorForPlatform(platform: string, message: st
       return isTransientMetaPublishError(message);
     case "LinkedIn":
       return isTransientLinkedInPublishError(message);
+    case "Threads": {
+      const threadsMessage = message.toLowerCase();
+      return isTransientScheduledPublishError(message) ||
+        threadsMessage.includes("threads_container_not_ready");
+    }
     default:
       return isTransientScheduledPublishError(message);
   }

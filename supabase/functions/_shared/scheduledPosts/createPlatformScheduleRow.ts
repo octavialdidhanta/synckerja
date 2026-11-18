@@ -15,6 +15,7 @@ import {
   parseYouTubeOAuthScopes,
   youtubeContentScopesIncludeUpload,
 } from "../youtubeContentAuth.ts";
+import { getThreadsAccessToken } from "../threadsContentAuth.ts";
 import { assertPlatformCanSchedule } from "./platformRegistry.ts";
 import { cancelPendingSchedulesForPlatformAccount } from "./scheduledPostCancel.ts";
 import {
@@ -27,6 +28,7 @@ import {
   type InstagramProviderConfig,
   type FacebookProviderConfig,
   type LinkedInProviderConfig,
+  type ThreadsProviderConfig,
 } from "./scheduledPostTypes.ts";
 import {
   DEFAULT_YOUTUBE_SCHEDULE_PRIVACY,
@@ -81,6 +83,7 @@ function scheduleMatchesAccount(
     config.instagram_business_account_id,
     config.facebook_page_id,
     config.page_id,
+    config.threads_user_id,
   ].some((value) => String(value ?? "").trim() === accountId);
 }
 
@@ -449,6 +452,43 @@ export async function insertPlatformScheduleForTarget(
         .insert({
           ...baseInsert,
           platform: "LinkedIn",
+          privacy_level: DEFAULT_PRIVACY_LEVEL,
+          provider_config: providerConfig,
+        })
+        .select("*")
+        .single();
+
+      if (error || !data) throw new Error(error?.message ?? "schedule_insert_failed");
+      return data as ScheduledPostRow;
+    }
+
+    case "Threads": {
+      const accessToken = await getThreadsAccessToken(admin, args.organizationId, accountId);
+      if (!accessToken) throw new Error("threads_account_not_found");
+
+      const providerConfig: ThreadsProviderConfig = {
+        threads_user_id: accountId,
+        account_label: accountLabel,
+        ...(args.employeeId ? { employee_id: args.employeeId } : {}),
+      };
+
+      const reused = await reuseUnpublishedSchedule(
+        admin,
+        args,
+        "Threads",
+        accountId,
+        DEFAULT_PRIVACY_LEVEL,
+        providerConfig,
+      );
+      if (reused) return reused;
+
+      await cancelPendingSchedulesForPlatformAccount(admin, args.planId, "Threads", accountId);
+
+      const { data, error } = await admin
+        .from("social_media_scheduled_posts")
+        .insert({
+          ...baseInsert,
+          platform: "Threads",
           privacy_level: DEFAULT_PRIVACY_LEVEL,
           provider_config: providerConfig,
         })

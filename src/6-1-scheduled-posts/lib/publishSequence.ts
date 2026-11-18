@@ -4,6 +4,7 @@ export const PUBLISH_PLATFORM_ORDER = [
   "LinkedIn",
   "TikTok",
   "YouTube",
+  "Threads",
 ] as const;
 
 export type PublishAttemptOutcome = "published" | "failed" | "retry_wait" | "in_progress";

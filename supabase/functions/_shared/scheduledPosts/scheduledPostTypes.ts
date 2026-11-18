@@ -65,6 +65,12 @@ export type FacebookProviderConfig = {
   publish_step?: string;
 };
 
+export type ThreadsProviderConfig = {
+  threads_user_id: string;
+  account_label?: string;
+  employee_id?: string;
+};
+
 export type LinkedInProviderConfig = {
   page_id: string;
   /** Author/owner URN: urn:li:organization:… or urn:li:person:… */

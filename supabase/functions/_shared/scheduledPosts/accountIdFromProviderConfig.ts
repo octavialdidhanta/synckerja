@@ -14,6 +14,8 @@ export function getAccountIdFromProviderConfig(
       return String(cfg.facebook_page_id ?? "").trim() || null;
     case "LinkedIn":
       return String(cfg.page_id ?? "").trim() || null;
+    case "Threads":
+      return String(cfg.threads_user_id ?? "").trim() || null;
     default:
       return null;
   }

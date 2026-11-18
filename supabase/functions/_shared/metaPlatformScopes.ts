@@ -100,6 +100,7 @@ export const THREADS_OAUTH_SCOPE_LIST = [
   "threads_read_replies",
   "threads_manage_replies",
   "threads_content_publish",
+  "threads_delete",
 ] as const;
 
 export function hasThreadsScopes(granted: string[]): boolean {

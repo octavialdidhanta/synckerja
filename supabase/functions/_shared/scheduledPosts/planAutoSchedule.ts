@@ -7,11 +7,14 @@ import {
   resolveScheduledAtUtc,
 } from "./resolveScheduledAtWib.ts";
 import { loadCarouselStoragePaths } from "./carouselImagePaths.ts";
+import { CAROUSEL_PUBLISH_IMAGE_LIMIT } from "../tiktokCarouselImageUrl.ts";
+import { isGoogleDriveFileLink } from "./googleDrivePublicVideoUrl.ts";
 import {
   getPlanEligibilityMissingReasons,
   getTikTokPlanEligibilityMissingReasons,
   isCarouselContentType,
   isPlanEligibleForAutoSchedule,
+  isReelContentType,
   isPlanEligibleForTikTokCarouselSchedule,
   type PlanAutoScheduleEligibilityInput,
 } from "./scheduledPostEligibility.ts";
@@ -21,6 +24,7 @@ import { youtubeContentScopesIncludeUpload, parseYouTubeOAuthScopes } from "../y
 import { missingScopesForFeature, facebookPublishScopesOk } from "../metaPlatformScopes.ts";
 import { resolveMetaContentAccount } from "../metaContentAuth.ts";
 import { missingLinkedInScopesForFeature, parseLinkedInGrantedScopes } from "../linkedinContentAuth.ts";
+import { getThreadsAccessToken } from "../threadsContentAuth.ts";
 
 export type AutoScheduleSkipReason =
   | "manual_lock"
@@ -64,7 +68,7 @@ type ScheduleRow = {
   platform_account_id: string | null;
 };
 
-const AUTO_PLATFORMS = new Set(["TikTok", "YouTube", "Instagram", "Facebook", "LinkedIn"]);
+const AUTO_PLATFORMS = new Set(["TikTok", "YouTube", "Instagram", "Facebook", "LinkedIn", "Threads"]);
 
 function getEdgeFunctionForPlatform(platform: string): string | null {
   switch (platform.trim()) {
@@ -78,6 +82,8 @@ function getEdgeFunctionForPlatform(platform: string): string | null {
       return "meta-content-publish";
     case "LinkedIn":
       return "linkedin-content-publish";
+    case "Threads":
+      return "threads-content-publish";
     default:
       return null;
   }
@@ -121,6 +127,8 @@ function buildPublishBody(
       return { ...base, facebook_page_id: args.accountId };
     case "LinkedIn":
       return { ...base, page_id: args.accountId };
+    case "Threads":
+      return { ...base, threads_user_id: args.accountId };
     default:
       throw new Error(`unsupported_platform:${platform}`);
   }
@@ -214,6 +222,11 @@ async function checkAccountPublishReady(
         connected: true,
         scopesOk: missingLinkedInScopesForFeature(scopes, scopeFeature).length === 0,
       };
+    }
+    case "Threads": {
+      const token = await getThreadsAccessToken(admin, organizationId, id);
+      const ready = Boolean(token);
+      return { connected: ready, scopesOk: ready };
     }
     default:
       return { connected: false, scopesOk: false };
@@ -321,8 +334,9 @@ export async function runPlanAutoSchedule(
   };
 
   const carouselMode = isCarouselContentType(eligibility.content_type_name);
+  let carouselPaths: string[] = [];
   if (carouselMode) {
-    const carouselPaths = await loadCarouselStoragePaths(admin, opts.planId);
+    carouselPaths = await loadCarouselStoragePaths(admin, opts.planId);
     const carouselEligibility: PlanAutoScheduleEligibilityInput = {
       ...eligibility,
       carousel_image_count: carouselPaths.length,
@@ -415,11 +429,27 @@ export async function runPlanAutoSchedule(
 
   for (const target of targets) {
     const lockKey = `${target.platform}::${target.platform_account_id}`;
+    const driveLink = String(eligibility.google_drive_link ?? "").trim();
+    const threadsReelReady = isReelContentType(eligibility.content_type_name) &&
+      isGoogleDriveFileLink(driveLink);
+    const threadsCarouselReady = carouselMode &&
+      carouselPaths.length >= 1 &&
+      carouselPaths.length <= CAROUSEL_PUBLISH_IMAGE_LIMIT;
+    if (target.platform === "Threads" && !threadsReelReady && !threadsCarouselReady) {
+      skipped.push({
+        platform: target.platform,
+        platform_account_id: target.platform_account_id,
+        reason: "platform_not_supported",
+      });
+      continue;
+    }
+
     if (
       carouselMode &&
       target.platform !== "TikTok" &&
       target.platform !== "Instagram" &&
-      target.platform !== "Facebook"
+      target.platform !== "Facebook" &&
+      target.platform !== "Threads"
     ) {
       skipped.push({
         platform: target.platform,
