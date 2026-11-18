@@ -181,14 +181,15 @@ export async function resolveDriveAccessFromReviewToken(
   return { ok: false, message: "Preview stream unavailable", status: 503 };
 }
 
-export function parseSupabaseJwtFromRequest(req: Request, url: URL): string | null {
+/**
+ * Supabase session JWT from the Authorization header only. The old `supabase_token` query
+ * parameter is no longer accepted: it put the full session into edge logs (see driveMediaToken.ts).
+ */
+export function parseSupabaseJwtFromRequest(req: Request, _url?: URL): string | null {
   const authHeader = req.headers.get("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    const t = authHeader.replace(/^Bearer\s+/i, "").trim();
-    if (t) return t;
-  }
-  const q = url.searchParams.get("supabase_token")?.trim();
-  return q || null;
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  const t = authHeader.replace(/^Bearer\s+/i, "").trim();
+  return t || null;
 }
 
 /** CDN-friendly cache for public review URLs (token is part of the URL). */

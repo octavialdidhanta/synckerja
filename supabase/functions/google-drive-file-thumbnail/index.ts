@@ -15,7 +15,7 @@ import {
 
 /**
  * Returns Drive file thumbnail bytes using stored Google OAuth.
- * Auth: media_token (file-scoped) OR Supabase JWT header (supabase_token query is legacy)
+ * Auth: media_token (file-scoped) OR Supabase JWT in the Authorization header (the old supabase_token query is rejected)
  * OR public review_token + file_id.
  */
 const corsHeaders: Record<string, string> = {

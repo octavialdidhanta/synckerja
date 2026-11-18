@@ -21,7 +21,7 @@ import {
  *
  * Auth (one of):
  * - Query `media_token` (short-lived, file-scoped; minted by google-drive-media-token) — dashboard / logged-in preview
- * - Supabase JWT via Authorization header (query `supabase_token` is legacy: it leaks the session into logs)
+ * - Supabase JWT via Authorization header only (the old `supabase_token` query is rejected: it leaked the session into logs)
  * - Public review link via query `review_token` + `file_id` (/review/{token} guest preview)
  */
 const corsHeaders: Record<string, string> = {
