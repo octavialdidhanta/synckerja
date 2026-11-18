@@ -28,6 +28,7 @@ import { useOmnichannelSurveySettingsAdmin } from '@/features/customer-survey/ho
 import { MetaContentAccountNav } from '@/6-0-social-media-performance/components/MetaContentAccountNav';
 import { useMetaContentConfig } from '@/meta-content/hooks/useMetaContentConfig';
 import { useMetaContentCommentPostsQuery } from '@/meta-content/hooks/useMetaContentCommentPostsQuery';
+import { useMetaContentAvatarObjectUrl } from '@/meta-content/lib/useMetaContentAvatarObjectUrl';
 import { useMetaAdsSettings } from '@/meta-ads/hooks/useMetaAdsSettings';
 import { missingScopesForFeature } from '@/meta-platform/constants/metaOAuthScopes';
 import type { MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
@@ -113,11 +114,19 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
     platformAccounts.length > 0 &&
     missingCommentScopes.includes('pages_read_user_content');
 
+  // Stored avatar_url is often empty for Instagram; fetch the profile photo the same way the account nav does.
+  const fetchedAccountAvatarUrl = useMetaContentAvatarObjectUrl({
+    organizationId,
+    platform,
+    accountId,
+    enabled: Boolean(organizationId && accountId && canManage && !gatePending && !selectedAccount?.avatar_url),
+  });
+
   const postsQuery = useMetaContentCommentPostsQuery({
     organizationId,
     platform,
     accountId,
-    accountAvatarUrl: selectedAccount?.avatar_url ?? null,
+    accountAvatarUrl: selectedAccount?.avatar_url || fetchedAccountAvatarUrl || null,
     accountLabel: selectedAccount?.account_label ?? null,
     enabled:
       Boolean(organizationId && accountId && canManage && !gatePending) &&
