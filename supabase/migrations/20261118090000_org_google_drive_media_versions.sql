@@ -286,6 +286,7 @@ VOLATILE
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
+#variable_conflict use_column
 DECLARE
   v_version public.content_plan_media_versions%ROWTYPE;
   v_plan public.social_media_plans%ROWTYPE;
