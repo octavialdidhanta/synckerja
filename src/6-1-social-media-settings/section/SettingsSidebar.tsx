@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Calendar, Sparkles, Image, Scan, Clapperboard, AudioLines, Palette, HardDrive } from 'lucide-react';
+import { Shield, Calendar, Sparkles, Image, Scan, Clapperboard, AudioLines, Palette, HardDrive, Bot } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 
@@ -70,6 +70,13 @@ const settingsSections = [
     title: 'Google Drive org',
     description: 'Where content videos are stored for this organization',
     icon: HardDrive,
+    status: 'active'
+  },
+  {
+    id: 'ai-connect',
+    title: 'Hubungkan AI',
+    description: 'Let Claude, ChatGPT, or another AI work in Synckerja',
+    icon: Bot,
     status: 'active'
   }
 ];

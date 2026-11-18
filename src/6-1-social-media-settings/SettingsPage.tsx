@@ -17,6 +17,7 @@ import { DigitalAssetsSection } from './section/DigitalAssetsSection';
 import { DetectFromImageSection } from './section/DetectFromImageSection';
 import { CanvaSettingsSection } from '@/canva/settings/CanvaSettingsSection';
 import { GoogleDriveOrgSection } from './section/GoogleDriveOrgSection';
+import { AiConnectSection } from './section/AiConnectSection';
 import { ComingSoonSection } from './section/ComingSoonSection';
 import { ApprovalAccessModal } from './modal/ApprovalAccessModal';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
@@ -77,7 +78,9 @@ export const SettingsPage: React.FC = () => {
           searchParams.has('drive_connected') ||
           searchParams.has('drive_oauth_error')
         ? 'google-drive'
-        : 'approval-access',
+        : searchParams.get('section') === 'ai-connect'
+          ? 'ai-connect'
+          : 'approval-access',
   );
   const [activeMainTab, setActiveMainTab] = useState('settings');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -102,6 +105,8 @@ export const SettingsPage: React.FC = () => {
       searchParams.has('drive_oauth_error')
     ) {
       setActiveSection('google-drive');
+    } else if (searchParams.get('section') === 'ai-connect') {
+      setActiveSection('ai-connect');
     }
   }, [searchParams]);
 
@@ -210,6 +215,13 @@ export const SettingsPage: React.FC = () => {
         );
       case 'google-drive':
         return <GoogleDriveOrgSection organizationId={organizationId} />;
+      case 'ai-connect':
+        return (
+          <AiConnectSection
+            organizationId={organizationId}
+            onOpenDriveSettings={() => setActiveSection('google-drive')}
+          />
+        );
       default:
         return <ComingSoonSection />;
     }

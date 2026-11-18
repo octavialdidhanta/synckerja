@@ -18,6 +18,8 @@ export type OrgDriveSettings = {
   oauthConfigured?: boolean;
   encryptionReady?: boolean;
   redirectUri?: string;
+  /** Missing on servers deployed before the "Hubungkan AI" page. */
+  ai?: { lastToolCallAt: string | null; lastUploadAt: string | null };
 };
 
 export type ContentPlanMediaVersion = {
