@@ -13,6 +13,7 @@ import {
 } from "../send-instagram-message/omnichannelAssigneeGate.ts";
 import { isMetaTokenInvalidError, META_TOKEN_RECONNECT_MESSAGE } from "../_shared/metaTokenError.ts";
 import { metaGraphVersion } from "../_shared/metaPlatformScopes.ts";
+import { loadReplyContext } from "../_shared/replyContext.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -341,7 +342,10 @@ Deno.serve(async (req: Request) => {
       created_at: now,
     };
     if (hasMedia && mediaLink) insertPayload.media_url = mediaLink;
-    if (replyToMid) insertPayload.reply_to_platform_message_id = replyToMid;
+    if (replyToMid) {
+      insertPayload.reply_to_platform_message_id = replyToMid;
+      Object.assign(insertPayload, await loadReplyContext(supabase, "facebook_messages", conversationId, replyToMid));
+    }
 
     const insertResult = await supabase.from("facebook_messages").insert(insertPayload).select().single();
     let insertedMessage = insertResult.data ?? null;
