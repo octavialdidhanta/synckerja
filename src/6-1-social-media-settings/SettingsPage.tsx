@@ -16,6 +16,7 @@ import { VoiceAIConfigSection } from './section/VoiceAIConfigSection';
 import { DigitalAssetsSection } from './section/DigitalAssetsSection';
 import { DetectFromImageSection } from './section/DetectFromImageSection';
 import { CanvaSettingsSection } from '@/canva/settings/CanvaSettingsSection';
+import { GoogleDriveOrgSection } from './section/GoogleDriveOrgSection';
 import { ComingSoonSection } from './section/ComingSoonSection';
 import { ApprovalAccessModal } from './modal/ApprovalAccessModal';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
@@ -72,7 +73,11 @@ export const SettingsPage: React.FC = () => {
     searchParams.has('canva_connected') ||
     searchParams.has('canva_oauth_error')
       ? 'canva'
-      : 'approval-access',
+      : searchParams.get('section') === 'google-drive' ||
+          searchParams.has('drive_connected') ||
+          searchParams.has('drive_oauth_error')
+        ? 'google-drive'
+        : 'approval-access',
   );
   const [activeMainTab, setActiveMainTab] = useState('settings');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -91,6 +96,12 @@ export const SettingsPage: React.FC = () => {
       searchParams.has('canva_oauth_error')
     ) {
       setActiveSection('canva');
+    } else if (
+      searchParams.get('section') === 'google-drive' ||
+      searchParams.has('drive_connected') ||
+      searchParams.has('drive_oauth_error')
+    ) {
+      setActiveSection('google-drive');
     }
   }, [searchParams]);
 
@@ -197,6 +208,8 @@ export const SettingsPage: React.FC = () => {
         return (
           <CanvaSettingsSection organizationId={organizationId} canManage={canManageCanva} />
         );
+      case 'google-drive':
+        return <GoogleDriveOrgSection organizationId={organizationId} />;
       default:
         return <ComingSoonSection />;
     }

@@ -121,7 +121,7 @@ Deno.serve(async (req: Request) => {
       if (!resolved.ok) return textError(resolved.message, resolved.status);
       accessToken = resolved.accessToken;
     } else if (jwt) {
-      const resolved = await resolveDriveAccessFromJwt(supabaseAdmin, jwt, LOG_PREFIX);
+      const resolved = await resolveDriveAccessFromJwt(supabaseAdmin, jwt, LOG_PREFIX, fileIdRaw);
       if (!resolved.ok) return textError(resolved.message, resolved.status);
       accessToken = resolved.accessToken;
     } else if (reviewToken) {

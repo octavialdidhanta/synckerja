@@ -37,6 +37,7 @@ import {
 } from '@/shared/lib/googleDrivePicker';
 import { triggerPlanAutoSchedule } from '@/6-1-scheduled-posts/lib/triggerPlanAutoSchedule';
 import { presentCanvaCreditQuota } from '@/canva/canvaCreditQuota';
+import { ContentPlanMediaVersionsPanel } from '../org-drive/ContentPlanMediaVersionsPanel';
 
 const CAROUSEL_MAX_IMAGES = 10;
 
@@ -1411,6 +1412,22 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
               </CollapsibleContent>
             </Collapsible>
           )}
+            {!isCarouselMode && socialMediaPlanId && (
+              <ContentPlanMediaVersionsPanel
+                planId={socialMediaPlanId}
+                organizationId={organizationId}
+                savedLink={googleDriveLink}
+                productionApproved={productionApproved}
+                onUseLink={(link) => setCurrentLink(link)}
+                onApprovedLinkSwitched={(link) => {
+                  setCurrentLink(link);
+                  if (organizationId) {
+                    void queryClient.invalidateQueries({ queryKey: ['social-media-plans', organizationId] });
+                  }
+                  void queryClient.invalidateQueries({ queryKey: ['social-media-plan', socialMediaPlanId] });
+                }}
+              />
+            )}
             {/* Comments panel - flexible height, no horizontal scroll */}
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <OptimizedCommentPanel

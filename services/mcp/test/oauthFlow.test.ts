@@ -270,6 +270,18 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     setContentPlanDriveLink: async () => {
       throw new Error("unused");
     },
+    startMediaUpload: async () => {
+      throw new Error("unused");
+    },
+    listMediaVersions: async () => {
+      throw new Error("unused");
+    },
+    putMediaUploadChunk: async () => {
+      throw new Error("unused");
+    },
+    getMediaUploadStatus: async () => {
+      throw new Error("unused");
+    },
     createCompanyObjective: async () => {
       throw new Error("unused");
     },

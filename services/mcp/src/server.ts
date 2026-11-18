@@ -60,6 +60,7 @@ import { listRecipeCosts } from "./db/recipeCosts";
 import { createRecipeDraft, listRecipeDrafts } from "./db/recipeDrafts";
 import { listAdsAudience, listAdsBreakdown, listAdsPerformance, listAdsSegments } from "./db/adsPerformance";
 import { setContentPlanDriveLink } from "./db/planDriveLink";
+import { getUploadStatus, listMediaVersions, putUploadChunk, startMediaUpload } from "./db/mediaUpload";
 import {
   createCompanyObjective,
   createContentPlan,
@@ -200,6 +201,10 @@ const app = createApp({
   saveThinkingPlanDirect: (ctx, input) => saveThinkingPlanDirect(admin, ctx, input),
   updateContentPlan: (ctx, input) => updateContentPlan(admin, ctx, input.id, input),
   setContentPlanDriveLink: (ctx, input) => setContentPlanDriveLink(admin, ctx, input),
+  startMediaUpload: (ctx, input) => startMediaUpload(config, ctx, input),
+  listMediaVersions: (ctx, planId) => listMediaVersions(admin, ctx, planId),
+  putMediaUploadChunk: (ticket, contentRange, body) => putUploadChunk(admin, config, ticket, contentRange, body),
+  getMediaUploadStatus: (ticket) => getUploadStatus(admin, ticket),
   createCompanyObjective: (ctx, input) => createCompanyObjective(admin, ctx, input),
   updateObjective: (ctx, input) => updateObjective(admin, ctx, input),
   createDepartmentObjective: (ctx, input) => createDepartmentObjective(admin, ctx, input),

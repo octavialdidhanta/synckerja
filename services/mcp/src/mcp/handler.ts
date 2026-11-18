@@ -232,6 +232,10 @@ import {
   updatePlanSchema,
   setPlanDriveLinkInput,
   setPlanDriveLinkResult,
+  listMediaVersionsInput,
+  listMediaVersionsResult,
+  startMediaUploadInput,
+  startMediaUploadResult,
   visitsInput,
   visitsResult,
   whoamiInput,
@@ -529,6 +533,8 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     input: import("../tools/content/planDriveLink").SetPlanDriveLinkInput,
   ) => Promise<import("../tools/content/planDriveLink").SetPlanDriveLinkResult>;
+  startMediaUpload: import("../tools/content/mediaUpload").StartMediaUpload;
+  listMediaVersions: import("../tools/content/mediaUpload").ListMediaVersions;
   createCompanyObjective: (
     ctx: McpAuthContext,
     input: { cycleId: string; title: string; whyImportant: string | null; status: string | null },
@@ -848,6 +854,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "content.briefs.voice.get": getBriefVoiceInput,
   "content.briefs.voice.generate": generateBriefVoiceInput,
   "content.plans.media.set_link": setPlanDriveLinkInput,
+  "content.plans.media.upload.start": startMediaUploadInput,
+  "content.plans.media.versions.list": listMediaVersionsInput,
   "content.plans.update": updatePlanSchema,
   "okr.objectives.create": createObjectiveInput,
   "okr.objectives.update": updateObjectiveSchema,
@@ -1315,6 +1323,10 @@ async function runTool(
       return generateBriefVoiceResult(ctx, args, deps.generateBriefVoiceClip, deps.getContentBrief);
     case "content.plans.media.set_link":
       return setPlanDriveLinkResult(ctx, args, deps.setContentPlanDriveLink);
+    case "content.plans.media.upload.start":
+      return startMediaUploadResult(ctx, args, deps.startMediaUpload);
+    case "content.plans.media.versions.list":
+      return listMediaVersionsResult(ctx, args, deps.listMediaVersions);
     case "content.plans.update":
       if (!updatePlanInput.safeParse(args).success) throw new Error("invalid_input");
       return updatePlanResult(

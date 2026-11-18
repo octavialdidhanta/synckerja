@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getValidGoogleDriveAccessToken } from "./googleDriveAccess.ts";
 import { getDriveMediaTokenKey, verifyDriveMediaToken } from "./driveMediaToken.ts";
+import { isActiveOrgMember, resolveOrgDriveTokenForFile } from "./orgDrive/access.ts";
 
 export function extractGoogleDriveFileId(url: string): string | null {
   if (!url?.trim()) return null;
@@ -17,15 +18,35 @@ export type DriveAccessResolveResult =
   | { ok: true; accessToken: string }
   | { ok: false; message: string; status: number };
 
+/**
+ * Files uploaded through the organization Drive are opened with the ORG token, for members of that org.
+ * Returns null when the file is not an org upload (caller keeps its previous behaviour).
+ */
+async function orgDriveAccessForMember(
+  supabaseAdmin: SupabaseClient,
+  userId: string,
+  fileId: string | undefined,
+): Promise<DriveAccessResolveResult | null> {
+  if (!fileId) return null;
+  const org = await resolveOrgDriveTokenForFile(supabaseAdmin, fileId);
+  if (!org) return null;
+  if (!(await isActiveOrgMember(supabaseAdmin, userId, org.organizationId))) return null;
+  return { ok: true, accessToken: org.accessToken };
+}
+
 export async function resolveDriveAccessFromJwt(
   supabaseAdmin: SupabaseClient,
   jwt: string,
   logPrefix: string,
+  fileId?: string,
 ): Promise<DriveAccessResolveResult> {
   const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(jwt);
   if (userError || !user) {
     return { ok: false, message: "Invalid or expired session", status: 401 };
   }
+
+  const orgAccess = await orgDriveAccessForMember(supabaseAdmin, user.id, fileId);
+  if (orgAccess) return orgAccess;
 
   const { accessToken, error: tokenErr } = await getValidGoogleDriveAccessToken(
     supabaseAdmin,
@@ -55,6 +76,8 @@ export async function resolveDriveAccessFromMediaToken(
       status: check.reason === "file_mismatch" ? 403 : 401,
     };
   }
+  const orgAccess = await orgDriveAccessForMember(supabaseAdmin, check.userId, fileIdRaw);
+  if (orgAccess) return orgAccess;
   const { accessToken, error } = await getValidGoogleDriveAccessToken(
     supabaseAdmin,
     check.userId,
@@ -99,6 +122,12 @@ export async function resolveDriveAccessFromReviewToken(
   const planFileId = extractGoogleDriveFileId(planLink);
   if (!planFileId || planFileId !== fileIdRaw) {
     return { ok: false, message: "File does not match review content", status: 403 };
+  }
+
+  // Uploaded through the org Drive for THIS plan: open it with the org token.
+  const orgFile = await resolveOrgDriveTokenForFile(supabaseAdmin, fileIdRaw);
+  if (orgFile && orgFile.planId === String(tokenRow.social_media_plan_id)) {
+    return { ok: true, accessToken: orgFile.accessToken };
   }
 
   const candidateUserIds: string[] = [];
