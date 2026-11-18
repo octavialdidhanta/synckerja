@@ -605,7 +605,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "content.briefs.voice.get",
     description:
-      "Download one ElevenLabs VO clip for a content plan in the organization locked in this session. Requires plan_id and exactly one of clip_id or row_index (0-based; the newest clip for that shot). Returns file_name, spoken_text, mime_type audio/mpeg, estimated duration_seconds, and audio_base64. The server reads the file. Do not fetch a Supabase URL. One clip per call, at most 1 MB. Does not generate, delete, or change the clip. Read only. Follow how_to_read.",
+      "Get one ElevenLabs VO clip for a content plan in the organization locked in this session, ready to save on a computer. Requires plan_id and exactly one of clip_id or row_index (0-based; the newest clip for that shot). Returns file_name, spoken_text, mime_type audio/mpeg, estimated duration_seconds, byte_length, and download_url: a link on mcp.synckerja.com that serves this one MP3 for 15 minutes without an auth header. Save it with a plain HTTP GET (for example curl -o). Do not fetch a Supabase URL. Optional include_base64 adds the bytes inline (at most 1 MB) for clients that cannot make HTTP requests. One clip per call. Does not generate, delete, or change the clip. Read only. Follow how_to_read.",
     scopes: ["content:read"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { getBriefVoiceClip } from "../src/db/briefVoice";
+import { voiceDownloadKey } from "../src/tools/content/voiceDownload";
 import { MCP_TOOLS } from "../src/mcp/registry";
 import { mp3FileName, readMp3, VOICE_GET_MAX_BYTES } from "../src/tools/content/briefVoiceMp3";
 import { getBriefVoiceInput } from "../src/tools/content/briefsVoiceGet";
@@ -7,6 +8,7 @@ import { getBriefVoiceInput } from "../src/tools/content/briefsVoiceGet";
 const me = { userId: "11111111-1111-4111-8111-111111111111", organizationId: "22222222-2222-4222-8222-222222222222" };
 const planId = "78a62cc4-1886-4d4c-8112-6095a079425e";
 const clipId = "b5b22dec-2f9e-4440-9fb0-56e43925e4ab";
+const signer = { key: voiceDownloadKey("test-secret-at-least-16"), publicUrl: "https://mcp.synckerja.com" };
 
 function cbrMp3(audioBytes: number): Uint8Array {
   const bytes = new Uint8Array(10 + audioBytes);
@@ -63,7 +65,7 @@ describe("content.briefs.voice.get", () => {
     expect(readMp3(Uint8Array.from([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0]))).toBeNull();
   });
 
-  it("returns the newest MP3 bytes and hides the storage path", async () => {
+  it("returns the newest MP3 bytes on request and hides the storage path", async () => {
     const file = cbrMp3(16000);
     const { admin } = adminFor(
       [
@@ -72,42 +74,42 @@ describe("content.briefs.voice.get", () => {
       ],
       file,
     );
-    const result = await getBriefVoiceClip(admin as never, me, { planId, clipId: null, rowIndex: 0 });
+    const result = await getBriefVoiceClip(admin as never, me, { planId, clipId: null, rowIndex: 0, includeBase64: true }, signer);
     expect(result.clip.id).toBe(clipId);
     expect(result.clip.file_name).toBe("vo-1.mp3");
     expect(result.clip.mime_type).toBe("audio/mpeg");
     expect(result.clip.duration_seconds).toBe(1);
     expect(result.clip.byte_length).toBe(file.byteLength);
-    expect(Buffer.from(result.clip.audio_base64, "base64")).toEqual(Buffer.from(file));
+    expect(Buffer.from(result.clip.audio_base64!, "base64")).toEqual(Buffer.from(file));
     expect(result.clip).not.toHaveProperty("storage_path");
-    expect(result.clip).not.toHaveProperty("download_url");
+    expect(result.clip.download_url).toMatch(/^https:\/\/mcp\.synckerja\.com\/downloads\/voice\//);
     expect(JSON.stringify(result.clip)).not.toContain("supabase");
   });
 
-  it("refuses a file over 1 MB before download and a non-mp3 after download", async () => {
+  it("refuses base64 over 1 MB before download and a non-mp3 after download", async () => {
     const huge = adminFor([row], cbrMp3(32), VOICE_GET_MAX_BYTES + 1);
     await expect(
-      getBriefVoiceClip(huge.admin as never, me, { planId, clipId, rowIndex: null }),
+      getBriefVoiceClip(huge.admin as never, me, { planId, clipId, rowIndex: null, includeBase64: true }, signer),
     ).rejects.toThrow("clip_too_large");
     expect(huge.download).not.toHaveBeenCalled();
 
     const wav = adminFor([row], Uint8Array.from([0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4]));
     await expect(
-      getBriefVoiceClip(wav.admin as never, me, { planId, clipId, rowIndex: null }),
+      getBriefVoiceClip(wav.admin as never, me, { planId, clipId, rowIndex: null, includeBase64: true }, signer),
     ).rejects.toThrow("clip_not_mp3");
   });
 
   it("maps a missing clip and a membership error", async () => {
     const empty = adminFor([], cbrMp3(32));
     await expect(
-      getBriefVoiceClip(empty.admin as never, me, { planId, clipId: null, rowIndex: 3 }),
+      getBriefVoiceClip(empty.admin as never, me, { planId, clipId: null, rowIndex: 3, includeBase64: true }, signer),
     ).rejects.toThrow("not_found");
     const denied = {
       rpc: vi.fn(async () => ({ data: null, error: { message: "not_a_member" } })),
       storage: { from: () => ({ list: async () => ({ data: [], error: null }), download: async () => ({ data: null, error: {} }) }) },
     };
     await expect(
-      getBriefVoiceClip(denied as never, me, { planId, clipId: null, rowIndex: 0 }),
+      getBriefVoiceClip(denied as never, me, { planId, clipId: null, rowIndex: 0, includeBase64: true }, signer),
     ).rejects.toThrow("forbidden");
   });
 });

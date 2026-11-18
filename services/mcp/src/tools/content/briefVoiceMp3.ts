@@ -29,8 +29,8 @@ function findFrame(bytes: Uint8Array, start: number): number {
 }
 
 /** True when the bytes are an MP3 (including an MP3 mislabeled as .wav). Duration is a CBR estimate. */
-export function readMp3(bytes: Uint8Array): Mp3Info | null {
-  if (bytes.length < 4 || bytes.length > VOICE_GET_MAX_BYTES) return null;
+export function readMp3(bytes: Uint8Array, maxBytes: number = VOICE_GET_MAX_BYTES): Mp3Info | null {
+  if (bytes.length < 4 || bytes.length > maxBytes) return null;
   const id3 = id3v2Bytes(bytes);
   const frameAt = findFrame(bytes, id3 > 0 && id3 < bytes.length ? id3 : 0);
   if (frameAt < 0 || frameAt + 3 >= bytes.length) return null;
