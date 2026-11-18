@@ -12,6 +12,13 @@ import {
   type GetBriefVoiceInput,
 } from "../tools/content/briefsVoiceGet";
 import {
+  mintVoiceDownloadToken,
+  verifyVoiceDownloadToken,
+  voiceDownloadNextStep,
+  voiceDownloadUrl,
+  VOICE_DOWNLOAD_MAX_BYTES,
+} from "../tools/content/voiceDownload";
+import {
   BRIEF_VOICE_LIST_HOW_TO_READ,
   type BriefVoiceClipPublic,
   type BriefVoiceListResult,
@@ -209,29 +216,58 @@ async function storedByteLength(admin: SupabaseClient, storagePath: string): Pro
   return Number.isFinite(size) ? size : null;
 }
 
-/** One VO file, read on the server and returned as MP3 bytes. Reuses the org-locked list RPC. */
+export type VoiceDownloadSigner = {
+  key: Buffer;
+  publicUrl: string;
+  now?: () => number;
+};
+
+async function listClipRows(admin: SupabaseClient, ctx: Session, planId: string): Promise<ClipRow[]> {
+  const { data, error } = await admin.rpc("mcp_list_brief_voice_clips", {
+    ...sessionArgs(ctx),
+    p_plan_id: planId,
+  });
+  if (error) throw briefVoiceError(error.message ?? "");
+  return asRows<ClipRow>(data);
+}
+
+async function readClipBytes(admin: SupabaseClient, storagePath: string, maxBytes: number): Promise<Uint8Array> {
+  const knownSize = await storedByteLength(admin, storagePath);
+  if (knownSize != null && knownSize > maxBytes) throw new Error("clip_too_large");
+  const downloaded = await admin.storage.from(BUCKET).download(storagePath);
+  if (downloaded.error || !downloaded.data) throw new Error("not_found");
+  const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
+  if (bytes.byteLength > maxBytes) throw new Error("clip_too_large");
+  return bytes;
+}
+
+/**
+ * One VO clip: metadata plus a 15-minute download link on the MCP host (the file never passes
+ * through the model). audio_base64 only when the caller asks for it and the clip is at most 1 MB.
+ * Reuses the org-locked list RPC.
+ */
 export async function getBriefVoiceClip(
   admin: SupabaseClient,
   ctx: Session,
   input: GetBriefVoiceInput,
+  signer: VoiceDownloadSigner,
 ): Promise<BriefVoiceGetResult> {
-  const { data, error } = await admin.rpc("mcp_list_brief_voice_clips", {
-    ...sessionArgs(ctx),
-    p_plan_id: input.planId,
-  });
-  if (error) throw briefVoiceError(error.message ?? "");
-  const row = pickClip(asRows<ClipRow>(data), input);
+  const row = pickClip(await listClipRows(admin, ctx, input.planId), input);
   if (!row?.storage_path) throw new Error("not_found");
 
-  const knownSize = await storedByteLength(admin, row.storage_path);
-  if (knownSize != null && knownSize > VOICE_GET_MAX_BYTES) throw new Error("clip_too_large");
-
-  const downloaded = await admin.storage.from(BUCKET).download(row.storage_path);
-  if (downloaded.error || !downloaded.data) throw new Error("not_found");
-  const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
-  if (bytes.byteLength > VOICE_GET_MAX_BYTES) throw new Error("clip_too_large");
-  const mp3 = readMp3(bytes);
+  const bytes = await readClipBytes(
+    admin,
+    row.storage_path,
+    input.includeBase64 ? VOICE_GET_MAX_BYTES : VOICE_DOWNLOAD_MAX_BYTES,
+  );
+  const mp3 = readMp3(bytes, VOICE_DOWNLOAD_MAX_BYTES);
   if (!mp3) throw new Error("clip_not_mp3");
+
+  const { token, expiresAt } = mintVoiceDownloadToken(
+    signer.key,
+    { userId: ctx.userId, organizationId: ctx.organizationId, planId: input.planId, clipId: row.id },
+    signer.now?.() ?? Date.now(),
+  );
 
   return {
     plan_id: input.planId,
@@ -243,8 +279,45 @@ export async function getBriefVoiceClip(
       mime_type: mp3.mimeType,
       duration_seconds: mp3.durationSeconds,
       byte_length: bytes.byteLength,
-      audio_base64: Buffer.from(bytes).toString("base64"),
+      download_url: voiceDownloadUrl(signer.publicUrl, token),
+      download_expires_at: new Date(expiresAt * 1000).toISOString(),
+      ...(input.includeBase64 ? { audio_base64: Buffer.from(bytes).toString("base64") } : {}),
     },
     how_to_read: BRIEF_VOICE_GET_HOW_TO_READ,
   };
+}
+
+export type VoiceDownloadResponse =
+  | { status: 200; fileName: string; bytes: Uint8Array }
+  | { status: number; body: { error: string; next_step: string } };
+
+function downloadError(status: number, code: string): VoiceDownloadResponse {
+  return { status, body: { error: code, next_step: voiceDownloadNextStep(code) } };
+}
+
+/** GET /downloads/voice/<token>: verify the link, re-check membership, then serve the MP3. */
+export async function downloadVoiceClip(
+  admin: SupabaseClient,
+  key: Buffer,
+  token: string,
+  nowMs: number = Date.now(),
+): Promise<VoiceDownloadResponse> {
+  const check = verifyVoiceDownloadToken(key, token, nowMs);
+  if (!check.ok) return check.reason === "expired" ? downloadError(410, "expired") : downloadError(404, "unknown_link");
+  const { userId, organizationId, planId, clipId } = check.claims;
+
+  try {
+    const rows = await listClipRows(admin, { userId, organizationId }, planId);
+    const row = rows.find((item) => item.id === clipId);
+    if (!row?.storage_path) return downloadError(404, "not_found");
+    const bytes = await readClipBytes(admin, row.storage_path, VOICE_DOWNLOAD_MAX_BYTES);
+    if (!readMp3(bytes, VOICE_DOWNLOAD_MAX_BYTES)) return downloadError(422, "clip_not_mp3");
+    return { status: 200, fileName: mp3FileName(row.file_name, row.row_index), bytes };
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "request_failed";
+    if (code === "forbidden") return downloadError(403, "forbidden");
+    if (code === "not_found") return downloadError(404, "not_found");
+    if (code === "clip_too_large") return downloadError(413, "clip_too_large");
+    return downloadError(502, "request_failed");
+  }
 }

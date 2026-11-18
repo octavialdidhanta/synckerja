@@ -282,6 +282,10 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     getMediaUploadStatus: async () => {
       throw new Error("unused");
     },
+    downloadVoiceClip: async (token) =>
+      token === "v1.good.sig"
+        ? { status: 200, fileName: "vo 1/../x.mp3", bytes: Uint8Array.from([0xff, 0xfb, 0x90, 0x00]) }
+        : { status: 410, body: { error: "expired", next_step: "call again" } },
     createCompanyObjective: async () => {
       throw new Error("unused");
     },
@@ -685,5 +689,18 @@ describe("oauth and mcp http flow", () => {
     const response = await consent(app, requestId, "org-other");
     expect(response.status).toBe(403);
     expect(store.codes.size).toBe(0);
+  });
+  it("serves a VO download link as an MP3 attachment and returns JSON guidance on errors", async () => {
+    const { app } = appFor(new MemoryGrantStore());
+    const ok = await app.request("http://localhost:8787/downloads/voice/v1.good.sig");
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("content-type")).toBe("audio/mpeg");
+    expect(ok.headers.get("cache-control")).toBe("no-store");
+    expect(ok.headers.get("content-disposition")).toBe('attachment; filename="vo_1_.._x.mp3"');
+    expect(new Uint8Array(await ok.arrayBuffer())).toEqual(Uint8Array.from([0xff, 0xfb, 0x90, 0x00]));
+
+    const expired = await app.request("http://localhost:8787/downloads/voice/v1.old.sig");
+    expect(expired.status).toBe(410);
+    expect(await expired.json()).toEqual({ error: "expired", next_step: "call again" });
   });
 });

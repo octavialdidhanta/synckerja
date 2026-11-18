@@ -5,7 +5,8 @@ import { createAdmin } from "./db/admin";
 import { isActiveMember, loadConsentIdentity, verifySupabaseUser } from "./db/identity";
 import { listContentPlans } from "./db/listContentPlans";
 import { createContentBrief, getContentBrief, listContentCatalog } from "./db/contentBriefs";
-import { generateBriefVoiceClip, getBriefVoiceClip, listBriefVoiceClips } from "./db/briefVoice";
+import { downloadVoiceClip, generateBriefVoiceClip, getBriefVoiceClip, listBriefVoiceClips } from "./db/briefVoice";
+import { voiceDownloadKey } from "./tools/content/voiceDownload";
 import { attachLeadMagnetDelivery, listLeadMagnetDrafts } from "./db/leadMagnet";
 import {
   checkThinkingExecution,
@@ -113,6 +114,7 @@ import { readLinkedInPerformance } from "./db/linkedinPerformance";
 
 const config = loadConfig();
 const admin = createAdmin(config.supabaseUrl, config.supabaseServiceRoleKey);
+const voiceKey = voiceDownloadKey(config.jwtSecret);
 const app = createApp({
   config,
   store: new SupabaseGrantStore(admin),
@@ -169,7 +171,8 @@ const app = createApp({
   createContentBrief: (ctx, input) => createContentBrief(admin, ctx, input),
   getContentBrief: (ctx, id) => getContentBrief(admin, ctx, id),
   listBriefVoiceClips: (ctx, planId) => listBriefVoiceClips(admin, config.supabaseUrl, ctx, planId),
-  getBriefVoiceClip: (ctx, input) => getBriefVoiceClip(admin, ctx, input),
+  getBriefVoiceClip: (ctx, input) =>
+    getBriefVoiceClip(admin, ctx, input, { key: voiceKey, publicUrl: config.publicUrl }),
   generateBriefVoiceClip: (ctx, input) => generateBriefVoiceClip(admin, config, ctx, input),
   listLeadMagnetDrafts: (ctx, campaignId) => listLeadMagnetDrafts(admin, ctx, campaignId),
   attachLeadMagnetDelivery: (ctx, input) => attachLeadMagnetDelivery(admin, config.supabaseUrl, ctx, input),
@@ -205,6 +208,7 @@ const app = createApp({
   listMediaVersions: (ctx, planId) => listMediaVersions(admin, ctx, planId),
   putMediaUploadChunk: (ticket, contentRange, body) => putUploadChunk(admin, config, ticket, contentRange, body),
   getMediaUploadStatus: (ticket) => getUploadStatus(admin, ticket),
+  downloadVoiceClip: (token) => downloadVoiceClip(admin, voiceKey, token),
   createCompanyObjective: (ctx, input) => createCompanyObjective(admin, ctx, input),
   updateObjective: (ctx, input) => updateObjective(admin, ctx, input),
   createDepartmentObjective: (ctx, input) => createDepartmentObjective(admin, ctx, input),

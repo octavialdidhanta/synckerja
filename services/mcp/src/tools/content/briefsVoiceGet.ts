@@ -6,6 +6,7 @@ export const getBriefVoiceInput = z
     plan_id: z.string().uuid(),
     clip_id: z.string().uuid().optional(),
     row_index: z.number().int().min(0).max(59).optional(),
+    include_base64: z.boolean().optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -20,6 +21,7 @@ export type GetBriefVoiceInput = {
   planId: string;
   clipId: string | null;
   rowIndex: number | null;
+  includeBase64: boolean;
 };
 
 export type BriefVoiceGetClip = {
@@ -30,7 +32,11 @@ export type BriefVoiceGetClip = {
   mime_type: "audio/mpeg";
   duration_seconds: number | null;
   byte_length: number;
-  audio_base64: string;
+  /** GET this within 15 minutes; no auth header. Served from the MCP host so AI sandboxes can reach it. */
+  download_url: string;
+  download_expires_at: string;
+  /** Only when include_base64 is true and the clip is at most 1 MB. */
+  audio_base64?: string;
 };
 
 export type BriefVoiceGetResult = {
@@ -40,13 +46,16 @@ export type BriefVoiceGetResult = {
 };
 
 export const BRIEF_VOICE_GET_HOW_TO_READ =
-  "One ElevenLabs VO clip as MP3 bytes for this content plan. " +
+  "One ElevenLabs VO clip for this content plan. " +
   "Call content.briefs.voice.list first, then pass plan_id and exactly one of clip_id or row_index. " +
-  "row_index returns the newest clip for that shot. audio_base64 is the file: decode it and save file_name into the content vo folder. " +
-  "Do not open download_url from the list tool; the server already read the file. " +
+  "row_index returns the newest clip for that shot. " +
+  "To save the file, GET download_url within 15 minutes and write it to file_name in the content's vo folder, " +
+  "for example: curl -fsSL -o \"vo/<file_name>\" \"<download_url>\". No auth header is needed: the link only opens this one clip and expires. " +
+  "If the link expired, call this tool again. Error responses are JSON with error and next_step. " +
+  "Do not use download_url from content.briefs.voice.list on a computer; its host is often blocked. " +
   "mime_type is audio/mpeg. duration_seconds is estimated from the MP3 bitrate; confirm with ffprobe before cutting. " +
-  "One clip per call. A file over 1 MB returns clip_too_large. A file that is not MP3 returns clip_not_mp3. " +
-  "storage paths are not returned. This does not generate, delete, or change the clip.";
+  "Set include_base64 true only if you cannot make HTTP requests: audio_base64 then carries the file (at most 1 MB, otherwise clip_too_large). " +
+  "A file that is not MP3 returns clip_not_mp3. Storage paths are not returned. This does not generate, delete, or change the clip.";
 
 export type GetBriefVoiceClip = (
   ctx: McpAuthContext,
@@ -64,5 +73,6 @@ export function getBriefVoiceResult(
     planId: parsed.data.plan_id,
     clipId: parsed.data.clip_id ?? null,
     rowIndex: parsed.data.row_index ?? null,
+    includeBase64: parsed.data.include_base64 === true,
   });
 }

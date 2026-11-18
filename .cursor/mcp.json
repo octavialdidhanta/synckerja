@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "synckerja-office": {
-      "url": "https://mcp.synckerja.com/mcp?rev=org-drive-upload-v2"
+      "url": "https://mcp.synckerja.com/mcp?rev=voice-download-v1"
     }
   }
 }

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { McpServiceConfig } from "../config";
 import { MEDIA_UPLOAD_CHUNK_BYTES, uploadNextStep } from "../tools/content/mediaUpload";
+import type { VoiceDownloadResponse } from "../db/briefVoice";
 import type { McpAuthContext } from "../authz/context";
 import { AuthzError } from "../authz/errors";
 import type { ContentPlanRow } from "../db/listContentPlans";
@@ -293,6 +294,8 @@ export type AppDeps = {
     body: Uint8Array,
   ) => Promise<{ status: number; body: Record<string, unknown> }>;
   getMediaUploadStatus: (ticket: string) => Promise<{ status: number; body: Record<string, unknown> }>;
+  /** GET /downloads/voice/<token>: 15-minute signed links from content.briefs.voice.get. */
+  downloadVoiceClip: (token: string) => Promise<VoiceDownloadResponse>;
   createCompanyObjective: (
     ctx: McpAuthContext,
     input: { cycleId: string; title: string; whyImportant: string | null; status: string | null },
@@ -546,8 +549,8 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "org-drive-upload-v2",
-      tools: ["content.plans.media.upload.start", "content.plans.media.versions.list"],
+      rev: "voice-download-v1",
+      tools: ["content.plans.media.upload.start", "content.plans.media.versions.list", "content.briefs.voice.get"],
     }),
   );
 
@@ -634,6 +637,27 @@ export function createApp(deps: AppDeps) {
   app.get("/uploads/:ticket", async (c) => {
     const result = await deps.getMediaUploadStatus(c.req.param("ticket"));
     return c.json(result.body, result.status as 200);
+  });
+
+  // The signed token in the path is the credential: one VO clip, 15 minutes, membership re-checked.
+  app.get("/downloads/voice/:token", async (c) => {
+    const result = await deps.downloadVoiceClip(c.req.param("token"));
+    if (!("bytes" in result)) {
+      c.header("Cache-Control", "no-store");
+      return c.json(result.body, result.status as 404);
+    }
+    const safeName = result.fileName.replace(/[^A-Za-z0-9._-]/g, "_") || "vo.mp3";
+    return new Response(result.bytes as Uint8Array<ArrayBuffer>, {
+      status: 200,
+      headers: {
+        "Content-Type": "audio/mpeg",
+        "Content-Length": String(result.bytes.byteLength),
+        "Content-Disposition": `attachment; filename="${safeName}"`,
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
   });
 
   app.all("/mcp", async (c) => {
