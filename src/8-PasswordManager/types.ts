@@ -3,6 +3,7 @@ export interface Password {
   title: string;
   username: string;
   password: string;
+  passwordStrength: "weak" | "medium" | "strong";
   url?: string;
   category: string;
   notes?: string;

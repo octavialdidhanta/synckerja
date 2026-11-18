@@ -8,6 +8,7 @@ interface PasswordListProps {
   onEdit: (password: Password) => void;
   onDelete: (id: string) => void;
   onToggleFavorite: (id: string) => void;
+  onReveal: (id: string) => Promise<string>;
 }
 
 export const PasswordList: React.FC<PasswordListProps> = ({
@@ -16,6 +17,7 @@ export const PasswordList: React.FC<PasswordListProps> = ({
   onEdit,
   onDelete,
   onToggleFavorite,
+  onReveal,
 }) => {
   if (passwords.length === 0) {
     return (
@@ -38,6 +40,7 @@ export const PasswordList: React.FC<PasswordListProps> = ({
           onEdit={onEdit}
           onDelete={onDelete}
           onToggleFavorite={onToggleFavorite}
+          onReveal={onReveal}
         />
       ))}
     </div>

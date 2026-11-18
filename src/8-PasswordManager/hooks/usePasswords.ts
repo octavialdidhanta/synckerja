@@ -3,7 +3,20 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import { useCurrentUser } from "@/shared/hooks/useCurrentUser";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useToast } from "@/shared/components/ui/use-toast";
+import { parseEdgeFunctionError } from "@/tiktok-ads/lib/parseEdgeFunctionError";
 import type { Password, PasswordFormData, Category } from "../types";
+
+const PASSWORD_LIST_COLUMNS = `
+  id, title, username, url, notes, is_favorite, created_at, updated_at, password_strength,
+  password_categories!inner(id, name, icon)
+`;
+
+type PasswordStrength = Password["passwordStrength"];
+
+function asStrength(value: unknown): PasswordStrength {
+  if (value === "weak" || value === "medium" || value === "strong") return value;
+  return "weak";
+}
 
 /** General first, then alphabetical — predictable defaults and Add Password dropdown */
 function sortPasswordCategories(list: Category[]): Category[] {
@@ -62,12 +75,7 @@ export const usePasswords = () => {
     try {
       const { data, error } = await supabase
         .from("passwords")
-        .select(
-          `
-          *,
-          password_categories!inner(id, name, icon)
-        `,
-        )
+        .select(PASSWORD_LIST_COLUMNS)
         .eq("user_id", user.id)
         .eq("organization_id", organizationId)
         .order("created_at", { ascending: false });
@@ -80,7 +88,8 @@ export const usePasswords = () => {
           id: item.id as string,
           title: item.title as string,
           username: item.username as string,
-          password: item.password as string,
+          password: "",
+          passwordStrength: asStrength(item.password_strength),
           url: (item.url as string) || undefined,
           category: pc?.id || "general",
           notes: (item.notes as string) || undefined,
@@ -100,25 +109,36 @@ export const usePasswords = () => {
     }
   };
 
+  const callVault = async (body: Record<string, unknown>) => {
+    const { data, error } = await supabase.functions.invoke("password-vault", { body });
+    if (error) throw await parseEdgeFunctionError(error, data);
+    const payload = data as { error?: string; password?: string };
+    if (payload?.error) throw await parseEdgeFunctionError(null, payload);
+    return payload;
+  };
+
+  const revealPassword = async (id: string) => {
+    const payload = await callVault({ action: "reveal", id });
+    const password = String(payload.password ?? "");
+    if (!password) throw new Error("password_unavailable");
+    return password;
+  };
+
   const addPassword = async (data: PasswordFormData) => {
     if (!user || !organizationId) return;
 
     try {
-      const { error } = await supabase.from("passwords").insert([
-        {
-          user_id: user.id,
-          organization_id: organizationId,
-          title: data.title,
-          username: data.username,
-          password: data.password,
-          url: data.url || null,
-          category_id: data.category,
-          notes: data.notes || null,
-          is_favorite: data.isFavorite,
-        },
-      ]);
-
-      if (error) throw error;
+      await callVault({
+        action: "save",
+        organization_id: organizationId,
+        title: data.title,
+        username: data.username,
+        password: data.password,
+        url: data.url || null,
+        category_id: data.category,
+        notes: data.notes || null,
+        is_favorite: data.isFavorite,
+      });
 
       toast({
         title: "Success",
@@ -140,23 +160,18 @@ export const usePasswords = () => {
     if (!user || !organizationId) return;
 
     try {
-      const { error } = await supabase
-        .from("passwords")
-        .update({
-          title: data.title,
-          username: data.username,
-          password: data.password,
-          url: data.url || null,
-          category_id: data.category,
-          notes: data.notes || null,
-          is_favorite: data.isFavorite,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id)
-        .eq("user_id", user.id)
-        .eq("organization_id", organizationId);
-
-      if (error) throw error;
+      await callVault({
+        action: "update",
+        id,
+        organization_id: organizationId,
+        title: data.title,
+        username: data.username,
+        password: data.password,
+        url: data.url || null,
+        category_id: data.category,
+        notes: data.notes || null,
+        is_favorite: data.isFavorite,
+      });
 
       toast({
         title: "Success",
@@ -292,6 +307,7 @@ export const usePasswords = () => {
     updatePassword,
     deletePassword,
     toggleFavorite,
+    revealPassword,
     refetch: fetchPasswords,
   };
 };
