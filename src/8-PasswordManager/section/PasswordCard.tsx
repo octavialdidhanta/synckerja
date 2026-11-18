@@ -15,7 +15,6 @@ import {
 import { useToast } from "@/shared/components/ui/use-toast";
 import type { Password, Category } from "../types";
 import { cn } from "@/shared/lib/utils";
-import { getPasswordStrength } from "./PasswordStrengthMeter";
 
 interface PasswordCardProps {
   password: Password;
@@ -23,6 +22,7 @@ interface PasswordCardProps {
   onEdit: (password: Password) => void;
   onDelete: (id: string) => void;
   onToggleFavorite: (id: string) => void;
+  onReveal: (id: string) => Promise<string>;
 }
 
 export const PasswordCard: React.FC<PasswordCardProps> = ({
@@ -31,9 +31,11 @@ export const PasswordCard: React.FC<PasswordCardProps> = ({
   onEdit,
   onDelete,
   onToggleFavorite,
+  onReveal,
 }) => {
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
+  const [revealedPassword, setRevealedPassword] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const copyToClipboard = async (text: string, field: string) => {
@@ -55,7 +57,44 @@ export const PasswordCard: React.FC<PasswordCardProps> = ({
     return category ? category.name : categoryId;
   };
 
-  const strength = getPasswordStrength(password.password);
+  const loadPassword = async () => {
+    if (revealedPassword != null) return revealedPassword;
+    const value = await onReveal(password.id);
+    setRevealedPassword(value);
+    return value;
+  };
+
+  const togglePassword = async () => {
+    if (showPassword) {
+      setShowPassword(false);
+      return;
+    }
+    try {
+      await loadPassword();
+      setShowPassword(true);
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to reveal password",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const copyPassword = async () => {
+    try {
+      const value = await loadPassword();
+      await copyToClipboard(value, "password");
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to copy to clipboard",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const strength = password.passwordStrength;
   const strengthColors = {
     weak: "border-destructive/30 bg-destructive/10 text-destructive",
     medium: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200",
@@ -117,7 +156,7 @@ export const PasswordCard: React.FC<PasswordCardProps> = ({
           <div className="min-w-0 flex-1">
             <p className="text-[10px] leading-none text-muted-foreground">Password</p>
             <p className="mt-0.5 font-mono text-sm leading-tight">
-              {showPassword ? password.password : "••••••••••••"}
+              {showPassword && revealedPassword != null ? revealedPassword : "••••••••••••"}
             </p>
           </div>
           <div className="flex flex-shrink-0 gap-0.5">
@@ -125,7 +164,7 @@ export const PasswordCard: React.FC<PasswordCardProps> = ({
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={() => setShowPassword(!showPassword)}
+              onClick={() => void togglePassword()}
             >
               {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
             </Button>
@@ -133,7 +172,7 @@ export const PasswordCard: React.FC<PasswordCardProps> = ({
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={() => copyToClipboard(password.password, "password")}
+              onClick={() => void copyPassword()}
             >
               {copiedField === "password" ? (
                 <Check className="h-3.5 w-3.5 text-emerald-600" />

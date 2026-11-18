@@ -1,5 +1,6 @@
 import type React from "react";
 import { useState, useMemo } from "react";
+import { useToast } from "@/shared/components/ui/use-toast";
 import {
   PasswordStats,
   SearchAndFilter,
@@ -10,7 +11,6 @@ import {
   PasswordListFooter,
 } from "../section";
 import type { Password, PasswordFormData } from "../types";
-import { getPasswordStrength } from "../section/PasswordStrengthMeter";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +33,7 @@ import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { Loader2 } from "lucide-react";
 
 const PasswordManagerPage: React.FC = () => {
+  const { toast } = useToast();
   const {
     passwords,
     categories,
@@ -41,6 +42,7 @@ const PasswordManagerPage: React.FC = () => {
     updatePassword,
     deletePassword,
     toggleFavorite,
+    revealPassword,
   } = usePasswords();
 
   const showContent = useDebouncedReady(!loading, 200);
@@ -83,8 +85,8 @@ const PasswordManagerPage: React.FC = () => {
   }, [passwords, searchQuery, selectedCategory, isShowingFavorites]);
 
   const stats = useMemo(() => {
-    const strongCount = passwords.filter((p) => getPasswordStrength(p.password) === "strong").length;
-    const weakCount = passwords.filter((p) => getPasswordStrength(p.password) === "weak").length;
+    const strongCount = passwords.filter((p) => p.passwordStrength === "strong").length;
+    const weakCount = passwords.filter((p) => p.passwordStrength === "weak").length;
     const favoriteCount = passwords.filter((p) => p.isFavorite).length;
 
     return {
@@ -100,9 +102,19 @@ const PasswordManagerPage: React.FC = () => {
     setDialogOpen(true);
   };
 
-  const handleEditPassword = (password: Password) => {
-    setEditingPassword(password);
-    setDialogOpen(true);
+  const handleEditPassword = async (password: Password) => {
+    try {
+      const revealed = await revealPassword(password.id);
+      setEditingPassword({ ...password, password: revealed });
+      setDialogOpen(true);
+    } catch {
+      setEditingPassword(null);
+      toast({
+        title: "Error",
+        description: "Failed to reveal password",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSavePassword = async (data: PasswordFormData) => {
@@ -215,6 +227,7 @@ const PasswordManagerPage: React.FC = () => {
                           onEdit={handleEditPassword}
                           onDelete={handleDeletePassword}
                           onToggleFavorite={toggleFavorite}
+                          onReveal={revealPassword}
                         />
                       </div>
                     </div>
@@ -243,7 +256,10 @@ const PasswordManagerPage: React.FC = () => {
       <AddPasswordDialog
         key={`${editingPassword?.id || "new"}-${dialogOpen ? "open" : "closed"}`}
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditingPassword(null);
+        }}
         onSave={handleSavePassword}
         editPassword={editingPassword}
         categories={categoriesWithCounts}
