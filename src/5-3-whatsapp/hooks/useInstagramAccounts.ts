@@ -7,7 +7,8 @@ export interface InstagramAccountRow {
   organization_id: string;
   instagram_business_account_id: string;
   facebook_page_id: string | null;
-  page_access_token: string | null;
+  /** True when the page token is stored. The token itself is never sent to the browser. */
+  has_page_access_token: boolean;
   instagram_username: string | null;
   instagram_name: string | null;
   verify_token: string;
@@ -24,14 +25,17 @@ export interface InstagramAccountRow {
   updated_at: string;
 }
 
-/** Account from list-instagram-accounts (with access_token for connect). */
+/** Account from list-instagram-accounts. Page tokens stay on the server (connect happens there too). */
 export interface InstagramAccountFromApi {
   id: string;
   username: string | null;
   name: string | null;
   page_id: string | null;
-  access_token: string | null;
 }
+
+/** Every organization_instagram_accounts column the browser may read (page token is server-only). */
+export const INSTAGRAM_ACCOUNT_COLUMNS =
+  'id, organization_id, instagram_business_account_id, facebook_page_id, has_page_access_token, instagram_username, instagram_name, verify_token, is_active, created_at, updated_at, facebook_page_name, granted_scopes, has_instagram, threads_user_id, threads_username, threads_profile_picture_url, has_threads, threads_token_expires_at, threads_verify_token, threads_dm_inbox_primary';
 
 export function useInstagramAccounts() {
   const { organizationId } = useCurrentOrg();
@@ -44,7 +48,7 @@ export function useInstagramAccounts() {
       if (!organizationId) return [];
       const { data, error } = await supabase
         .from('organization_instagram_accounts')
-        .select('*')
+        .select(INSTAGRAM_ACCOUNT_COLUMNS)
         .eq('organization_id', organizationId)
         .eq('is_active', true)
         .order('created_at', { ascending: true });
@@ -56,27 +60,24 @@ export function useInstagramAccounts() {
   const connectMutation = useMutation({
     mutationFn: async (account: InstagramAccountFromApi) => {
       if (!organizationId) throw new Error('No organization selected');
-      const verifyToken = `ig_${organizationId.replace(/-/g, '').slice(0, 8)}_${Math.random().toString(36).slice(2, 14)}`;
-      const { data, error } = await supabase
-        .from('organization_instagram_accounts')
-        .upsert(
-          {
-            organization_id: organizationId,
-            instagram_business_account_id: account.id,
-            facebook_page_id: account.page_id ?? null,
-            page_access_token: account.access_token ?? null,
-            instagram_username: account.username ?? null,
-            instagram_name: account.name ?? null,
-            verify_token: verifyToken,
-            is_active: true,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'organization_id,instagram_business_account_id', ignoreDuplicates: false }
-        )
-        .select()
-        .single();
-      if (error) throw error;
-      return data as InstagramAccountRow;
+      // The server looks the page token up at Meta and stores it; the browser never handles it.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/list-instagram-accounts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: 'connect',
+          organization_id: organizationId,
+          instagram_business_account_id: account.id,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { account?: InstagramAccountRow; error?: string };
+      if (!res.ok || !json.account) throw new Error(json?.error ?? 'Failed to connect Instagram account');
+      return json.account;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['instagram-accounts', organizationId] });
@@ -86,12 +87,14 @@ export function useInstagramAccounts() {
   const disconnectMutation = useMutation({
     mutationFn: async (accountId: string) => {
       if (!organizationId) throw new Error('No organization selected');
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('organization_instagram_accounts')
         .delete()
         .eq('id', accountId)
-        .eq('organization_id', organizationId);
+        .eq('organization_id', organizationId)
+        .select('id');
       if (error) throw error;
+      if (!data?.length) throw new Error('Hanya owner atau admin yang bisa memutus koneksi.');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['instagram-accounts', organizationId] });

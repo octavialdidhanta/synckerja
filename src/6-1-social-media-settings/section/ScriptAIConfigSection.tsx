@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/components/ui/select';
+import { setConnectionSecret } from '@/shared/lib/connectionSecrets';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useScriptAIConfig, type ScriptAIConfigRow } from '@/6-1-script-generator/hooks/useScriptAIConfig';
@@ -265,14 +266,6 @@ export const ScriptAIConfigSection: React.FC = () => {
         is_active: true,
       };
 
-      if (apiKeyInput.trim()) {
-        payload.google_ai_api_key = apiKeyInput.trim();
-        payload.api_key_configured = true;
-      }
-      if (openaiKeyInput.trim()) {
-        payload.openai_api_key = openaiKeyInput.trim();
-        payload.openai_api_key_configured = true;
-      }
 
       let saved: ScriptAIConfigRow | null = null;
       if (configRow?.id) {
@@ -289,8 +282,8 @@ export const ScriptAIConfigSection: React.FC = () => {
         const insertPayload = {
           ...payload,
           organization_id: organizationId,
-          api_key_configured: !!apiKeyInput.trim(),
-          openai_api_key_configured: !!openaiKeyInput.trim(),
+          api_key_configured: false,
+          openai_api_key_configured: false,
         };
         const { data, error } = await supabase
           .from('organization_script_ai_config')
@@ -303,6 +296,18 @@ export const ScriptAIConfigSection: React.FC = () => {
       }
 
       if (!saved) throw new Error('Konfigurasi tidak tersimpan');
+      // Keys go through the owner/admin-only RPC (the browser can never read them back), then re-read the flags.
+      if (apiKeyInput.trim() || openaiKeyInput.trim()) {
+        if (apiKeyInput.trim()) await setConnectionSecret('script_ai_google', saved.id, apiKeyInput.trim());
+        if (openaiKeyInput.trim()) await setConnectionSecret('script_ai_openai', saved.id, openaiKeyInput.trim());
+        const { data: refreshed, error: refreshError } = await supabase
+          .from('organization_script_ai_config')
+          .select(CONFIG_SELECT)
+          .eq('id', saved.id)
+          .single();
+        if (refreshError) throw refreshError;
+        saved = refreshed as ScriptAIConfigRow;
+      }
       const nextProvider = resolveTextAIProvider(saved);
       setDailyLimit(saved.daily_limit ?? 50);
       setTextAiProvider(nextProvider);
@@ -342,10 +347,6 @@ export const ScriptAIConfigSection: React.FC = () => {
         claude_model: normalizeClaudePdfModel(claudeModel),
         claude_pdf_daily_limit: limit,
       };
-      if (claudeKeyInput.trim()) {
-        payload.claude_api_key = claudeKeyInput.trim();
-        payload.claude_api_key_configured = true;
-      }
       let saved: ScriptAIConfigRow | null = null;
       if (configRow?.id) {
         const { data, error } = await supabase
@@ -365,7 +366,7 @@ export const ScriptAIConfigSection: React.FC = () => {
             is_active: false,
             api_key_configured: false,
             openai_api_key_configured: false,
-            claude_api_key_configured: !!claudeKeyInput.trim(),
+            claude_api_key_configured: false,
           })
           .select(CLAUDE_CONFIG_SELECT)
           .single();
@@ -373,6 +374,16 @@ export const ScriptAIConfigSection: React.FC = () => {
         saved = data as ScriptAIConfigRow | null;
       }
       if (!saved) throw new Error('Konfigurasi Claude tidak tersimpan');
+      if (claudeKeyInput.trim()) {
+        await setConnectionSecret('script_ai_claude', saved.id, claudeKeyInput.trim());
+        const { data: refreshed, error: refreshError } = await supabase
+          .from('organization_script_ai_config')
+          .select(CLAUDE_CONFIG_SELECT)
+          .eq('id', saved.id)
+          .single();
+        if (refreshError) throw refreshError;
+        saved = refreshed as ScriptAIConfigRow;
+      }
       setClaudeKeyInput('');
       setClaudeModel(normalizeClaudePdfModel(saved.claude_model));
       setClaudePdfLimit(Math.min(200, Math.max(1, Number(saved.claude_pdf_daily_limit) || 20)));
@@ -394,11 +405,7 @@ export const ScriptAIConfigSection: React.FC = () => {
     if (!configRow?.id || !organizationId) return;
     setIsRemovingApiKey(true);
     try {
-      const { error } = await supabase
-        .from('organization_script_ai_config')
-        .update({ claude_api_key: null, claude_api_key_configured: false })
-        .eq('id', configRow.id);
-      if (error) throw error;
+      await setConnectionSecret('script_ai_claude', configRow.id, null);
       setShowRemoveClaudeConfirm(false);
       setClaudeKeyInput('');
       queryClient.invalidateQueries({ queryKey: ['script-ai-config', organizationId] });
@@ -415,16 +422,7 @@ export const ScriptAIConfigSection: React.FC = () => {
     if (!configRow?.id || !organizationId) return;
     setIsRemovingApiKey(true);
     try {
-      const { error } = await supabase
-        .from('organization_script_ai_config')
-        .update(
-          provider === 'openai'
-            ? { openai_api_key: null, openai_api_key_configured: false }
-            : { google_ai_api_key: null, api_key_configured: false },
-        )
-        .eq('id', configRow.id);
-
-      if (error) throw error;
+      await setConnectionSecret(provider === 'openai' ? 'script_ai_openai' : 'script_ai_google', configRow.id, null);
 
       setShowRemoveApiKeyConfirm(false);
       queryClient.invalidateQueries({ queryKey: ['script-ai-config', organizationId] });

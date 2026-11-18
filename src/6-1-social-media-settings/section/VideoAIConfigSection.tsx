@@ -13,6 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
+import { setConnectionSecret } from "@/shared/lib/connectionSecrets";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -97,19 +98,21 @@ export const VideoAIConfigSection: React.FC = () => {
         provider,
         daily_limit: Math.max(1, Number(dailyLimit) || 20),
       };
-      if (apiKeyInput.trim()) {
-        payload.byteplus_api_key = apiKeyInput.trim();
-        payload.api_key_configured = true;
+      let rowId = configRow?.id ?? null;
+      if (rowId) {
+        const { error } = await supabase.from("organization_video_ai_config").update(payload).eq("id", rowId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from("organization_video_ai_config")
+          .insert({ ...payload, organization_id: organizationId, api_key_configured: false })
+          .select("id")
+          .single();
+        if (error) throw error;
+        rowId = data.id as string;
       }
-      const query = configRow?.id
-        ? supabase.from("organization_video_ai_config").update(payload).eq("id", configRow.id)
-        : supabase.from("organization_video_ai_config").insert({
-            ...payload,
-            organization_id: organizationId,
-            api_key_configured: Boolean(apiKeyInput.trim()),
-          });
-      const { error } = await query;
-      if (error) throw error;
+      // The key itself goes through the owner/admin-only RPC; the browser can never read it back.
+      if (apiKeyInput.trim()) await setConnectionSecret("video_ai_byteplus", rowId, apiKeyInput.trim());
       setApiKeyInput("");
       await queryClient.invalidateQueries({ queryKey: ["video-ai-config", organizationId] });
       toast.success(t("videoAi.settings.saved", "Konfigurasi video berhasil disimpan"));
@@ -124,11 +127,7 @@ export const VideoAIConfigSection: React.FC = () => {
     if (!configRow?.id) return;
     setIsRemoving(true);
     try {
-      const { error } = await supabase
-        .from("organization_video_ai_config")
-        .update({ byteplus_api_key: null, api_key_configured: false })
-        .eq("id", configRow.id);
-      if (error) throw error;
+      await setConnectionSecret("video_ai_byteplus", configRow.id, null);
       setConfirmRemove(false);
       await queryClient.invalidateQueries({ queryKey: ["video-ai-config", organizationId] });
       toast.success(t("videoAi.settings.keyRemoved", "API key berhasil dihapus"));

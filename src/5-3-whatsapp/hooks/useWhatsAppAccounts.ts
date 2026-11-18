@@ -3,8 +3,31 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { toast } from 'sonner';
 import type { WhatsAppAccount, WhatsAppAccountUpsert } from '../types';
+import { applySharedWhatsAppToken, setConnectionSecret } from '@/shared/lib/connectionSecrets';
+
+/** Every organization_whatsapp_accounts column the browser may read (meta_access_token is server-only). */
+export const WHATSAPP_ACCOUNT_COLUMNS =
+  'id, organization_id, whatsapp_business_account_id, phone_number_id, has_meta_access_token, display_phone_number, whatsapp_business_name, name_status, is_active, created_at, updated_at, verify_token, connection_mode, coexistence_onboarded_at, contacts_sync_request_id, history_sync_request_id, history_sync_status, history_sync_progress, history_sync_error, disconnected_reason, capi_dataset_id';
+
+const OWNER_ADMIN_DISCONNECT = 'Hanya owner atau admin yang bisa memutus koneksi.';
 
 const MAX_ACCOUNTS_PER_ORG = 5;
+
+/**
+ * Stores the token through the owner/admin RPC: a typed token wins; otherwise, when the number has
+ * none yet, it reuses the org's shared token on the server. The browser never sees either token.
+ */
+async function applyToken(account: WhatsAppAccount, typedToken: string, needsShared: boolean): Promise<WhatsAppAccount> {
+  if (typedToken) {
+    await setConnectionSecret('whatsapp_account_token', account.id, typedToken);
+    return { ...account, has_meta_access_token: true };
+  }
+  if (needsShared) {
+    const applied = await applySharedWhatsAppToken(account.id);
+    return { ...account, has_meta_access_token: applied || account.has_meta_access_token };
+  }
+  return account;
+}
 
 export function useWhatsAppAccounts() {
   const { organizationId } = useCurrentOrg();
@@ -17,7 +40,7 @@ export function useWhatsAppAccounts() {
       if (!organizationId) return [];
       const { data, error } = await supabase
         .from('organization_whatsapp_accounts')
-        .select('*')
+        .select(WHATSAPP_ACCOUNT_COLUMNS)
         .eq('organization_id', organizationId)
         .order('updated_at', { ascending: false });
       if (error) throw error;
@@ -29,19 +52,31 @@ export function useWhatsAppAccounts() {
     mutationFn: async ({
       accountId,
       payload,
-      sharedToken,
+      hasSharedToken,
     }: {
       accountId: string | null;
       payload: WhatsAppAccountUpsert;
-      sharedToken: string | null;
+      /** The org has a shared Meta token stored (organization_meta_config.has_meta_access_token). */
+      hasSharedToken: boolean;
     }) => {
       if (!organizationId) throw new Error('No organization selected');
       const wabaId = payload.whatsapp_business_account_id.trim();
       const pnId = payload.phone_number_id.trim();
       if (!wabaId || !pnId) throw new Error('WhatsApp Business Account ID and Phone Number ID are required');
 
-      const token = (payload.meta_access_token?.trim() || sharedToken?.trim() || '').trim();
-      if (!token) throw new Error('Access token required (fill token or set shared token in org config)');
+      const typedToken = payload.meta_access_token?.trim() || '';
+      let currentHasToken = false;
+      if (accountId) {
+        const { data: current } = await supabase
+          .from('organization_whatsapp_accounts')
+          .select('has_meta_access_token')
+          .eq('id', accountId)
+          .maybeSingle();
+        currentHasToken = (current as { has_meta_access_token?: boolean } | null)?.has_meta_access_token === true;
+      }
+      if (!typedToken && !currentHasToken && !hasSharedToken) {
+        throw new Error('Access token required (fill token or set shared token in org config)');
+      }
 
       if (!accountId) {
         const { data: list } = await supabase
@@ -66,7 +101,6 @@ export function useWhatsAppAccounts() {
         organization_id: organizationId,
         whatsapp_business_account_id: wabaId,
         phone_number_id: pnId,
-        meta_access_token: token || null,
         display_phone_number: payload.display_phone_number?.trim() || null,
         whatsapp_business_name: payload.whatsapp_business_name?.trim() || null,
         is_active: true,
@@ -88,20 +122,20 @@ export function useWhatsAppAccounts() {
           .from('organization_whatsapp_accounts')
           .update(updateRow)
           .eq('id', accountId)
-          .select()
+          .select(WHATSAPP_ACCOUNT_COLUMNS)
           .single();
         if (error) throw error;
-        return data as WhatsAppAccount;
+        return applyToken(data as WhatsAppAccount, typedToken, !currentHasToken);
       }
 
       const insertRow = { ...baseRow, verify_token: verifyToken };
       const { data, error } = await supabase
         .from('organization_whatsapp_accounts')
         .insert(insertRow)
-        .select()
+        .select(WHATSAPP_ACCOUNT_COLUMNS)
         .single();
       if (error) throw error;
-      return data as WhatsAppAccount;
+      return applyToken(data as WhatsAppAccount, typedToken, true);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-accounts', organizationId] });
@@ -115,12 +149,14 @@ export function useWhatsAppAccounts() {
   const deleteMutation = useMutation({
     mutationFn: async (accountId: string) => {
       if (!organizationId) throw new Error('No organization selected');
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('organization_whatsapp_accounts')
         .delete()
         .eq('id', accountId)
-        .eq('organization_id', organizationId);
+        .eq('organization_id', organizationId)
+        .select('id');
       if (error) throw error;
+      if (!data?.length) throw new Error(OWNER_ADMIN_DISCONNECT);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-accounts', organizationId] });
@@ -153,7 +189,7 @@ export function useWhatsAppAccounts() {
         .update(updates)
         .eq('id', accountId)
         .eq('organization_id', organizationId)
-        .select()
+        .select(WHATSAPP_ACCOUNT_COLUMNS)
         .single();
       if (error) throw error;
       return data as WhatsAppAccount;

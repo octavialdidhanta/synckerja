@@ -3,6 +3,11 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { toast } from 'sonner';
 import type { WhatsAppConfig, WhatsAppConfigUpsert } from '../types';
+import { setConnectionSecret } from '@/shared/lib/connectionSecrets';
+
+/** Every organization_meta_config column the browser may read (meta_access_token is server-only). */
+export const META_CONFIG_COLUMNS =
+  'id, organization_id, has_meta_access_token, meta_business_manager_id, whatsapp_business_account_id, verify_token, phone_number_id, display_phone_number, whatsapp_business_name, name_status, facebook_page_id, facebook_verify_token, instagram_business_account_id, instagram_verify_token, is_active, created_by, created_at, updated_at, instagram_username, instagram_name';
 
 export function useWhatsAppConfig() {
   const { organizationId } = useCurrentOrg();
@@ -15,7 +20,7 @@ export function useWhatsAppConfig() {
       if (!organizationId) return null;
       const { data: metaData, error } = await supabase
         .from('organization_meta_config')
-        .select('*')
+        .select(META_CONFIG_COLUMNS)
         .eq('organization_id', organizationId)
         .maybeSingle();
       if (error) throw error;
@@ -39,7 +44,7 @@ export function useWhatsAppConfig() {
       const hasNewToken = payload.meta_access_token.trim() !== '';
       const { data: existingRow } = await supabase
         .from('organization_meta_config')
-        .select('*')
+        .select(META_CONFIG_COLUMNS)
         .eq('organization_id', organizationId)
         .maybeSingle();
       const existing = existingRow as WhatsAppConfig | null;
@@ -65,7 +70,7 @@ export function useWhatsAppConfig() {
           .from('organization_meta_config')
           .update(updatePayload)
           .eq('organization_id', organizationId)
-          .select()
+          .select(META_CONFIG_COLUMNS)
           .single();
         if (error) throw error;
         const verifyTokenToSync = (payload.verify_token?.trim() || existing.verify_token)?.trim();
@@ -90,7 +95,6 @@ export function useWhatsAppConfig() {
       const row: Record<string, unknown> = {
         organization_id: organizationId,
         whatsapp_business_account_id: payload.whatsapp_business_account_id,
-        meta_access_token: payload.meta_access_token,
         meta_business_manager_id: payload.meta_business_manager_id?.trim() || null,
         verify_token: '',
         phone_number_id: payload.phone_number_id ?? null,
@@ -104,9 +108,13 @@ export function useWhatsAppConfig() {
       const { data, error } = await supabase
         .from('organization_meta_config')
         .upsert(row, { onConflict: 'organization_id', ignoreDuplicates: false })
-        .select()
+        .select(META_CONFIG_COLUMNS)
         .single();
       if (error) throw error;
+      if (hasNewToken) {
+        await setConnectionSecret('meta_config_token', (data as WhatsAppConfig).id, payload.meta_access_token.trim());
+        (data as WhatsAppConfig).has_meta_access_token = true;
+      }
       const verifyTokenToSync = payload.verify_token?.trim();
       if (verifyTokenToSync) {
         const { data: first } = await supabase
@@ -138,11 +146,13 @@ export function useWhatsAppConfig() {
   const disconnectMutation = useMutation({
     mutationFn: async () => {
       if (!organizationId) throw new Error('No organization selected');
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('organization_meta_config')
         .delete()
-        .eq('organization_id', organizationId);
+        .eq('organization_id', organizationId)
+        .select('id');
       if (error) throw error;
+      if (!data?.length) throw new Error('Hanya owner atau admin yang bisa memutus koneksi.');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-config', organizationId] });
@@ -160,7 +170,7 @@ export function useWhatsAppConfig() {
         .from('organization_meta_config')
         .update({ whatsapp_business_name: name, updated_at: new Date().toISOString() })
         .eq('organization_id', organizationId)
-        .select()
+        .select(META_CONFIG_COLUMNS)
         .single();
       if (error) throw error;
       return data as WhatsAppConfig;
@@ -177,7 +187,7 @@ export function useWhatsAppConfig() {
         .from('organization_meta_config')
         .update({ display_phone_number: displayPhone, updated_at: new Date().toISOString() })
         .eq('organization_id', organizationId)
-        .select()
+        .select(META_CONFIG_COLUMNS)
         .single();
       if (error) throw error;
       return data as WhatsAppConfig;
@@ -209,7 +219,7 @@ export function useWhatsAppConfig() {
         .from('organization_meta_config')
         .update(updates)
         .eq('organization_id', organizationId)
-        .select()
+        .select(META_CONFIG_COLUMNS)
         .single();
       if (error) throw error;
       return data as WhatsAppConfig;
@@ -260,7 +270,7 @@ export function useWhatsAppConfig() {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: existing } = await supabase
         .from('organization_meta_config')
-        .select('id, verify_token, meta_access_token, meta_business_manager_id')
+        .select('id, verify_token, has_meta_access_token, meta_business_manager_id, whatsapp_business_account_id, phone_number_id')
         .eq('organization_id', organizationId)
         .maybeSingle();
       const existingConfig = existing as WhatsAppConfig | null;
@@ -279,13 +289,12 @@ export function useWhatsAppConfig() {
         const randomPart = Math.random().toString(36).slice(2, 18);
         verifyToken = `wa_${orgPart}_${randomPart}`;
       }
-      const metaToken = payload.meta_access_token?.trim() || existingConfig?.meta_access_token || '';
+      const newMetaToken = payload.meta_access_token?.trim() || '';
       const metaBmId = payload.meta_business_manager_id?.trim() || existingConfig?.meta_business_manager_id || null;
       // organization_meta_config hanya untuk Instagram/Facebook; verify_token disimpan di organization_whatsapp_accounts
       const row = {
         organization_id: organizationId,
         verify_token: existingConfig?.verify_token ?? '',
-        meta_access_token: metaToken || existingConfig?.meta_access_token || '',
         meta_business_manager_id: metaBmId,
         whatsapp_business_account_id: existingConfig?.whatsapp_business_account_id ?? '',
         phone_number_id: existingConfig?.phone_number_id ?? null,
@@ -295,9 +304,14 @@ export function useWhatsAppConfig() {
       const { data, error } = await supabase
         .from('organization_meta_config')
         .upsert(row, { onConflict: 'organization_id', ignoreDuplicates: false })
-        .select()
+        .select(META_CONFIG_COLUMNS)
         .single();
       if (error) throw error;
+      // A typed token replaces the shared one (owner/admin RPC); an empty one keeps what is stored.
+      if (newMetaToken) {
+        await setConnectionSecret('meta_config_token', (data as WhatsAppConfig).id, newMetaToken);
+        (data as WhatsAppConfig).has_meta_access_token = true;
+      }
       const accountIdToUpdate = (firstAccount as { id?: string } | null)?.id;
       if (accountIdToUpdate) {
         const { error: updateErr } = await supabase

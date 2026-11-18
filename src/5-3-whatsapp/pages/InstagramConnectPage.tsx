@@ -116,7 +116,7 @@ export function InstagramConnectPage() {
   const metaAppId = (import.meta.env.VITE_META_APP_ID as string)?.trim() || '';
   const metaOAuthConfigId = getMetaInstagramOAuthConfigId();
   const hasOAuth = !!metaAppId;
-  const hasMetaConfig = !!config?.meta_access_token?.trim();
+  const hasMetaConfig = config?.has_meta_access_token === true;
   const redirectUri = typeof window !== 'undefined' ? `${window.location.origin}/auth/meta/callback` : '';
 
   const clearMetaOAuthPopupFlag = useCallback(() => {
