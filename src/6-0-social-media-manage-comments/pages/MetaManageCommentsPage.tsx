@@ -38,6 +38,7 @@ import {
 } from '@/5-3-whatsapp/constants/omnichannelIntegrationPaths';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
+import { isBlockedImageUrl } from '@/shared/components/ui/avatar';
 
 const META_ADS_SETTINGS_PATH = '/digital-marketing/meta-ads/settings';
 
@@ -114,19 +115,23 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
     platformAccounts.length > 0 &&
     missingCommentScopes.includes('pages_read_user_content');
 
-  // Stored avatar_url is often empty for Instagram; fetch the profile photo the same way the account nav does.
+  // The stored avatar_url is a Meta CDN link (fbcdn / scontent), which AvatarImage drops on purpose,
+  // so the list showed initials. In that case (or when it is empty) load the photo through
+  // meta-content-avatar instead.
+  const storedAvatarUrl = selectedAccount?.avatar_url || null;
+  const storedAvatarUsable = Boolean(storedAvatarUrl && !isBlockedImageUrl(storedAvatarUrl));
   const fetchedAccountAvatarUrl = useMetaContentAvatarObjectUrl({
     organizationId,
     platform,
     accountId,
-    enabled: Boolean(organizationId && accountId && canManage && !gatePending && !selectedAccount?.avatar_url),
+    enabled: Boolean(organizationId && accountId && canManage && !gatePending && !storedAvatarUsable),
   });
 
   const postsQuery = useMetaContentCommentPostsQuery({
     organizationId,
     platform,
     accountId,
-    accountAvatarUrl: selectedAccount?.avatar_url || fetchedAccountAvatarUrl || null,
+    accountAvatarUrl: (storedAvatarUsable ? storedAvatarUrl : fetchedAccountAvatarUrl) || null,
     accountLabel: selectedAccount?.account_label ?? null,
     enabled:
       Boolean(organizationId && accountId && canManage && !gatePending) &&
