@@ -2,6 +2,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { resolvePayrollPayslipUrl } from "../_shared/payroll/payrollEmailConstants.ts";
 import { sendPayrollPaidEmail } from "../_shared/payroll/sendPayrollPaidEmail.ts";
+import { isAuthorizedServiceCaller } from "../_shared/serviceRoleEdgeAuth.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -37,6 +38,12 @@ Deno.serve(async (req) => {
     return json({ success: false, error: "Method not allowed" }, 405);
   }
 
+  // Ops-only. The app sends payroll emails from notify-payroll-paid-batch on the server.
+  // Without this check anyone could send email from our domain with any text and link.
+  if (!isAuthorizedServiceCaller(req)) {
+    return json({ success: false, error: "Unauthorized" }, 401);
+  }
+
   try {
     const body = (await req.json().catch(() => ({}))) as Body;
     const email = body.email?.trim().toLowerCase();
@@ -46,7 +53,8 @@ Deno.serve(async (req) => {
     const takeHomePay = Number(body.takeHomePay ?? 0);
     const bankName = body.bankName?.trim() || "Bank";
     const accountLast4 = body.accountLast4?.trim() || "----";
-    const payslipUrl = body.payslipUrl?.trim() || resolvePayrollPayslipUrl();
+    // Always our own payslip page; a caller-supplied link is never put in the email.
+    const payslipUrl = resolvePayrollPayslipUrl();
     const locale = body.locale?.toLowerCase().startsWith("en") ? "en" : "id";
 
     if (!email || !email.includes("@")) {
