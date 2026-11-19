@@ -229,7 +229,7 @@ describe("runTerritoryGenerate", () => {
   it("does not keep a name that only adds a word to one already kept", async () => {
     const names = ["Diskusi kuliner", "Diskusi kuliner malam", "Pilihan sate"];
     let step = 0;
-    const judge = vi.fn(async (_parent: unknown, code: string) => validFacts(code));
+    const judge = vi.fn(async (_parent: unknown, code: string, _statement: string) => validFacts(code));
     const result = await runTerritoryGenerate({
       loadParent: async () => ({ ok: true, parent: { id: "bt-1", code: "BT01", statement: "Parent" } }),
       incumbents: [],

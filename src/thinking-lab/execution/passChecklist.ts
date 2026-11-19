@@ -29,7 +29,7 @@ export const EXECUTION_PASS_CHECK_IDS = [
   "emotionalTone",
 ] as const satisfies readonly ExecutionPassCheckId[];
 
-const LINE_CHECK_IDS = ["soundsSpoken", "usesSlang", "messageStays", "causeChain", "viewerClimb", "emotionalTone"] as const satisfies readonly ExecutionPassCheckId[];
+export const LINE_CHECK_IDS = ["soundsSpoken", "usesSlang", "messageStays", "causeChain", "viewerClimb", "emotionalTone"] as const satisfies readonly ExecutionPassCheckId[];
 
 export const EXECUTION_LINE_REPAIR_IDS = [
   "hookHolds",

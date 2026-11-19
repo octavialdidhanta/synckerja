@@ -181,9 +181,9 @@ export function AiEmployeeBriefPanel({
   }, [open, briefDirty]);
 
   const markSessionSaved = () => setSessionSaved(true);
-  const withSessionSave = <Args extends unknown[]>(
-    action: (...args: Args) => Promise<unknown>,
-  ) => async (...args: Args) => {
+  const withSessionSave = <Args extends unknown[], Result>(
+    action: (...args: Args) => Promise<Result>,
+  ) => async (...args: Args): Promise<Result> => {
     const result = await action(...args);
     markSessionSaved();
     return result;
@@ -523,8 +523,12 @@ export function AiEmployeeBriefPanel({
         <ReferenceField
           references={page.references}
           canEdit={canEdit}
-          onSave={withSessionSave(saveReference)}
-          onClear={withSessionSave(clearReference)}
+          onSave={withSessionSave(async (position: number, file: File) => {
+            await saveReference(position, file);
+          })}
+          onClear={withSessionSave(async (position: number) => {
+            await clearReference(position);
+          })}
         />
       ),
       editor: null,
