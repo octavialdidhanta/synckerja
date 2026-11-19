@@ -150,6 +150,9 @@ describe("buildAuthContext", () => {
       "content.catalog.list",
       "product_knowledge.list",
       "content.briefs.get",
+      "content.briefs.voice.list",
+      "content.briefs.voice.get",
+      "content.plans.media.versions.list",
       ...aiEmployeeTools,
     ]);
   });
