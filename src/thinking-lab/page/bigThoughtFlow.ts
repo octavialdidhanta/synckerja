@@ -1,3 +1,4 @@
+import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { QueryClient } from "@tanstack/react-query";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -88,7 +89,7 @@ type ShownRowView = {
   label: string;
   audit: ReturnType<typeof import("@/thinking-lab/big-thought/record").bigThoughtVerdict> | null;
   status: string;
-  admission: string;
+  admission: IndividualAdmission;
 };
 
 type LabBigThought = NonNullable<ReturnType<typeof useBigThoughts>["data"]>[number];

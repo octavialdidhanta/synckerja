@@ -33,6 +33,9 @@ import type { CharacterGenerateState } from "@/thinking-lab/section/ExecutionScr
 import type { CharacterStudioTab } from "@/thinking-lab/section/CharacterVisualStudio";
 import type { LeadMagnetReviewStep } from "@/thinking-lab/creative-idea/recommend";
 import type { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import type { AuditProgress, BigThoughtRowView } from "@/thinking-lab/section/BigThoughtSection";
+import type { MasterMapChild } from "@/thinking-lab/section/map/mapTypes";
+import type { CharacterVisualKind } from "@/thinking-lab/execution/script";
 
 type LabTerritory = NonNullable<ReturnType<typeof useLabTerritories>["data"]>[number];
 type LabAngle = NonNullable<ReturnType<typeof useLabAngles>["data"]>[number];
@@ -102,16 +105,16 @@ export type LabMasterSectionProps = {
   setShowManualBigThought: (v: boolean) => void;
   onManualBigThought: (label: string) => Promise<string | null>;
   becauseParent: string;
-  shownRowViews: Array<{ id: string; code: string; label: string; statement: string }>;
+  shownRowViews: BigThoughtRowView[];
   notice: string | null;
-  auditProgress: unknown;
+  auditProgress: AuditProgress | null;
   generateChecklist: PassChecklist | null;
   onGenerateTerritory: (bigThoughtId: string) => void;
-  onEditBigThought: (id: string, statement: string) => void;
+  onEditBigThought: (id: string, statement: string) => Promise<string | null>;
   setPendingDelete: (value: PendingDelete | null) => void;
   onFixBigThought: (code: string) => void;
-  bigThoughtChecklists: Record<string, { checks: unknown[]; note?: string }>;
-  fixingBigThoughtCodes: Set<string>;
+  bigThoughtChecklists: Record<string, PassChecklist>;
+  fixingBigThoughtCodes: string[];
 };
 
 export type LabWorkspaceGridMapChild = {
@@ -155,7 +158,7 @@ export type LabWorkspaceGridSharedSlice = {
   becauseParent: string;
   masterDescription: string;
   masterSubject: string;
-  shownRowViews: Array<{ id: string; code: string; label: string; statement: string }>;
+  shownRowViews: BigThoughtRowView[];
   catalogs: ReturnType<typeof useLabCatalogs>;
   contentPillars: ReturnType<typeof useOrgContentPillars>;
   pillarCardsFor: (idea: LabIdea) => ReturnType<typeof lockedPillarCards>;
@@ -171,7 +174,7 @@ export type LabWorkspaceGridMapSlice = {
   labAngles: ReturnType<typeof useLabAngles>;
   labIdeas: ReturnType<typeof useLabIdeas>;
   labExecutions: ReturnType<typeof useLabExecutions>;
-  lockedChildren: Map<string, LabWorkspaceGridMapChild[]>;
+  lockedChildren: ReadonlyMap<string, MasterMapChild[]>;
   focusedThought: LabWorkspaceGridFocusedThought | null;
   generatingTerritoryIds: ReadonlySet<string>;
   territoryGenerateThoughtId: string | null;
@@ -217,7 +220,7 @@ export type LabWorkspaceGridExecutionSlice = {
   executionChecklists: Record<string, ExecutionPassCheck[]>;
   fixingLineId: string | null;
   characterGenerate: CharacterGenerateState;
-  characterVisualDelete: { handle: string; kind: "portrait" | "body" } | null;
+  characterVisualDelete: { handle: string; kind: CharacterVisualKind } | null;
   characterVisualSave: { handle: string; kind: CharacterStudioTab } | null;
   pillarChoices: Array<{ pillarName: string; reason: string }>;
   pathUp: Array<{ label: string; title: string }> | undefined;
@@ -227,7 +230,7 @@ export type LabWorkspaceGridExecutionSlice = {
   onAcceptPassProposal: () => void;
   onDeclinePassProposal: () => void;
   onStopExecution: () => void;
-  onRepairExecution: () => Promise<void>;
+  onRepairExecution: () => void;
   onFixLine: (lineId: string) => void;
   onRegenerateLine: (lineId: string) => void;
   onRewriteExecution: () => void;
@@ -239,8 +242,8 @@ export type LabWorkspaceGridExecutionSlice = {
   onToggleExecutionPass: (id: string, enabled: boolean) => void;
   onGenerateCharacter: (handle: string) => void;
   onStoreCharacterVisual: (handle: string, kind: CharacterStudioTab, source: File | { storagePath: string }) => void;
-  onDeleteCharacterVisual: (handle: string, kind: "portrait" | "body") => void;
-  onOpenExecutionSettings: () => void;
+  onDeleteCharacterVisual: (handle: string, kind: CharacterVisualKind) => void;
+  onOpenExecutionSettings: (format: CreativeFormat) => void;
 };
 
 export type LabWorkspaceGridInspectorSlice = {
@@ -290,9 +293,9 @@ export type LabWorkspaceGridInspectorSlice = {
   creativeReviews: StoredPillarReview[] | null;
   onUnlock: () => Promise<void>;
   onManualIdea: (statement: string) => Promise<string | null>;
-  onEditTerritory: (id: string, statement: string) => void;
-  onEditAngle: (id: string, statement: string) => void;
-  onEditIdea: (id: string, statement: string) => void;
+  onEditTerritory: (id: string, statement: string) => Promise<string | null>;
+  onEditAngle: (id: string, statement: string) => Promise<string | null>;
+  onEditIdea: (id: string, statement: string) => Promise<string | null>;
   onGenerateAngle: (territoryId: string) => void;
   onGenerateIdea: (angleId: string) => void;
   onReviseIdea: (id: string) => void;

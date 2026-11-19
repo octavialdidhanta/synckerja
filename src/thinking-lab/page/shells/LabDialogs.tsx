@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
+import type { ExecutionSettingsDirect } from "@/thinking-lab/section/PillarPickerSheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,10 +41,10 @@ type LabDialogsProps = {
   setPillarPickerOpen: (open: boolean) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   contentPillars: any[];
-  masterSells: boolean;
+  masterSells: boolean | "unknown" | "unresolved";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   pillarMediums: Record<string, any>;
-  executionDirect: boolean;
+  executionDirect: ExecutionSettingsDirect | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   loadScriptConfirm: (settings: any) => void;
   rememberedDevelopment: (pillarId: string) => string | null;

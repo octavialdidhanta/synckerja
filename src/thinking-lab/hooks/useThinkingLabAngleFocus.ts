@@ -168,7 +168,7 @@ export function useThinkingLabAngleFocus() {
           angleId,
           queryClient,
         });
-        if (!result.ok) {
+        if (result.ok === false) {
           if (result.reason === "not_eligible") {
             toast.error(
               "Belum bisa ditambah: butuh ide yang locked + LOLOS, dan angle cocok katalog karyawan AI.",
