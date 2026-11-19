@@ -647,6 +647,11 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
       toast.error('Failed to approve production');
     }
 
+    if (approvedOk) {
+      // Drop the cached pre-approval row so Social Media Publish Setup reads production_approved = true.
+      await queryClient.invalidateQueries({ queryKey: ['social-media-plan', socialMediaPlanId] });
+      void queryClient.invalidateQueries({ queryKey: ['social-media-plans'] });
+    }
     onClose();
     if (approvedOk) onApproved?.();
   };
