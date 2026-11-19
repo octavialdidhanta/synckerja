@@ -1,6 +1,7 @@
 
 import React, { Component, ReactNode } from 'react';
 import type { ERROR_BOUNDARIES } from '@/6-1-dashboard/utils/optimizedConstants';
+import { reportBoundaryError } from '@/shared/lib/sentry';
 
 interface Props {
   children: ReactNode;
@@ -27,6 +28,7 @@ class OptimizedErrorBoundary extends Component<Props, State> {
     const { errorType = 'API_CALLS' } = this.props;
     
     console.error(`🚨 ${String(errorType)} Error Boundary:`, error, errorInfo);
+    reportBoundaryError(error, errorInfo, `optimized:${String(errorType)}`);
     
     // Don't let third-party errors block the entire app
     if (errorType === 'THIRD_PARTY_SCRIPTS' || errorType === 'REDDIT_PIXEL') {

@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react-swc";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { componentTagger } from "lovable-tagger";
 import { deferAppCssPlugin } from "./vite/deferAppCssPlugin";
 import { omnichannelApiDocsPlugin } from "./vite/omnichannelApiDocsPlugin";
@@ -73,6 +74,11 @@ export default defineConfig(({ mode }) => {
   const metaFacebookOAuthConfigId =
     normalizeViteEnv(process.env.VITE_META_FACEBOOK_OAUTH_CONFIG_ID) ||
     normalizeViteEnv(fileEnv.VITE_META_FACEBOOK_OAUTH_CONFIG_ID);
+  const uploadSourceMaps = Boolean(
+    process.env.SENTRY_AUTH_TOKEN?.trim() &&
+      process.env.SENTRY_ORG?.trim() &&
+      process.env.SENTRY_PROJECT?.trim(),
+  );
   const devHttps =
     normalizeViteEnv(process.env.VITE_DEV_HTTPS) === "1" ||
     normalizeViteEnv(fileEnv.VITE_DEV_HTTPS) === "1";
@@ -184,12 +190,23 @@ export default defineConfig(({ mode }) => {
       },
     }),
     mode === "development" && componentTagger(),
+    // Uploads hidden source maps to Sentry, then deletes them from dist (never served).
+    // Only when SENTRY_AUTH_TOKEN/ORG/PROJECT are set (Vercel env); local builds are untouched.
+    uploadSourceMaps &&
+      sentryVitePlugin({
+        org: process.env.SENTRY_ORG,
+        project: process.env.SENTRY_PROJECT,
+        authToken: process.env.SENTRY_AUTH_TOKEN,
+        release: { name: process.env.VERCEL_GIT_COMMIT_SHA || undefined },
+        sourcemaps: { filesToDeleteAfterUpload: ["./dist/**/*.map"] },
+        telemetry: false,
+      }),
   ].filter(Boolean),
   build: {
     target: "es2020",
     minify: "esbuild",
     cssCodeSplit: true,
-    sourcemap: false,
+    sourcemap: uploadSourceMaps ? "hidden" : false,
     rollupOptions: {
       output: {
         manualChunks(id) {

@@ -2,6 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
+import { reportBoundaryError } from '@/shared/lib/sentry';
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -25,6 +26,7 @@ export class SocialMediaErrorBoundary extends React.Component<ErrorBoundaryProps
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('Social Media Error Boundary caught an error:', error, errorInfo);
+    reportBoundaryError(error, errorInfo, 'social-media');
   }
 
   private handleRetry = () => {
