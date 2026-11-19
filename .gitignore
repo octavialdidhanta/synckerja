@@ -56,3 +56,7 @@ supabase/.mcp-deploy-tmp/
 .vercel
 
 .vercel
+
+# Signing keys never belong in git
+*.jks
+*.keystore
