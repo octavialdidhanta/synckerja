@@ -9,6 +9,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "preview": "vite preview",
     "icons:build": "node scripts/generate-synckerja-icons.mjs",
     "icons:build:pos": "node scripts/generate-synckerja-pos-icons.mjs",
