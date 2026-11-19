@@ -131,11 +131,14 @@ function getCommentAccent(commentId: string): (typeof COMMENT_ACCENT_COLORS)[num
  */
 function ReviewFitVideo({
   src,
+  poster,
   fallbackPortrait,
   videoRef,
   onError,
 }: {
   src: string;
+  /** Drive thumbnail shown until the first frame actually paints, so play never flashes black. */
+  poster?: string | null;
   fallbackPortrait: boolean;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   onError: () => void;
@@ -143,11 +146,15 @@ function ReviewFitVideo({
   const [intrinsicAspect, setIntrinsicAspect] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [hasFrame, setHasFrame] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
 
   useEffect(() => {
     setIntrinsicAspect(null);
     setIsPlaying(false);
     setProgress(0);
+    setHasFrame(false);
+    setIsBuffering(false);
   }, [src]);
 
   useEffect(() => {
@@ -178,8 +185,10 @@ function ReviewFitVideo({
   const togglePlayback = () => {
     const video = videoRef.current;
     if (!video) return;
-    if (video.paused) void video.play().catch(() => {});
-    else video.pause();
+    if (video.paused) {
+      if (video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) setIsBuffering(true);
+      void video.play().catch(() => setIsBuffering(false));
+    } else video.pause();
   };
 
   const seek = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -198,6 +207,7 @@ function ReviewFitVideo({
         ref={videoRef}
         key={src}
         src={src}
+        poster={poster ?? undefined}
         className="review-fit-video-mobile pointer-events-none block h-auto w-full max-w-none bg-neutral-950"
         style={{
           width: '100%',
@@ -214,7 +224,16 @@ function ReviewFitVideo({
           setIsPlaying(true);
           e.currentTarget.blur();
         }}
-        onPause={() => setIsPlaying(false)}
+        onPlaying={() => {
+          setHasFrame(true);
+          setIsBuffering(false);
+        }}
+        onWaiting={() => setIsBuffering(true)}
+        onLoadedData={() => setHasFrame(true)}
+        onPause={() => {
+          setIsPlaying(false);
+          setIsBuffering(false);
+        }}
         onEnded={() => setIsPlaying(false)}
         onLoadedMetadata={(e) => {
           const v = e.currentTarget;
@@ -224,13 +243,30 @@ function ReviewFitVideo({
         }}
         onError={onError}
       />
+      {poster && !hasFrame ? (
+        <img
+          src={poster}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+          decoding="async"
+        />
+      ) : null}
+      {isBuffering ? (
+        <span
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+          aria-hidden
+        >
+          <Loader2 className="h-8 w-8 animate-spin text-white/90" />
+        </span>
+      ) : null}
       <button
         type="button"
         className="absolute inset-0 z-10 cursor-pointer touch-pan-y"
         aria-label={isPlaying ? 'Pause' : 'Play'}
         onClick={togglePlayback}
       />
-      {!isPlaying ? (
+      {!isPlaying && !isBuffering ? (
         <span
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
           aria-hidden
@@ -1626,6 +1662,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                       return (
                         <ReviewFitVideo
                           src={reviewVideoSrc}
+                          poster={drivePreviewPosterUrl}
                           fallbackPortrait={videoFallbackPortrait}
                           videoRef={videoRef}
                           onError={() => {
