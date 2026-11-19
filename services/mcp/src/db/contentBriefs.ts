@@ -11,6 +11,7 @@ import { BRIEF_HOW_TO_READ } from "../tools/content/briefsGet";
 import { listStoryboardShots, listVoClipRows } from "./briefVoice";
 import { narrationSource, voiceClipStale } from "../tools/content/voiceStale";
 import { clipBelongsToShot } from "../../../../src/6-1-dashboard/modal/briefShotMatch";
+import { parseMarkdownTable } from "../../../../src/6-1-dashboard/utils/markdownTableUtils";
 
 type Session = { userId: string; organizationId: string };
 
@@ -219,6 +220,33 @@ export function toContentBriefDetail(row: ContentBriefStored): ContentBriefDetai
   };
 }
 
+/** Body rows of the first markdown table, counted the way the Office editor counts them. */
+export function storyboardBodyRowCount(markdown: string | null | undefined): number {
+  const parsed = parseMarkdownTable(String(markdown ?? "").replace(/\r\n/g, "\n"));
+  return parsed ? Math.max(0, parsed.table.length - 1) : 0;
+}
+
+/**
+ * Briefs made or read only through MCP never opened the Office editor, so they had no permanent row ids.
+ * Create them once (ids only, brief text untouched) so shot_id is always returned.
+ */
+async function ensureStoryboardShots(
+  admin: SupabaseClient,
+  ctx: Session,
+  planId: string,
+  brief: string | null | undefined,
+) {
+  const rowCount = storyboardBodyRowCount(brief);
+  if (rowCount === 0) return [];
+  const { error } = await admin.rpc("mcp_ensure_brief_storyboard_shots", {
+    ...sessionArgs(ctx),
+    p_plan_id: planId,
+    p_row_count: rowCount,
+  });
+  if (error) return [];
+  return listStoryboardShots(admin, planId);
+}
+
 export async function getContentBrief(
   admin: SupabaseClient,
   ctx: Session,
@@ -230,7 +258,10 @@ export async function getContentBrief(
   if (!row) throw new Error("not_found");
   const detail = toContentBriefDetail(row);
   try {
-    const shots = await listStoryboardShots(admin, id).catch(() => []);
+    let shots = await listStoryboardShots(admin, id).catch(() => []);
+    if (detail.storyboard && shots.length === 0) {
+      shots = await ensureStoryboardShots(admin, ctx, id, row.brief).catch(() => []);
+    }
     const clips = detail.storyboard ? await listVoClipRows(admin, ctx, id) : [];
     if (!detail.storyboard) return detail;
     let index = 0;

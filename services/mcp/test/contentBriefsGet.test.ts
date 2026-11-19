@@ -189,3 +189,72 @@ describe("getContentBrief", () => {
     expect(toContentBriefDetail(storedRow("Halo", { version_no: 4 })).version_no).toBe(4);
   });
 });
+
+describe("content.briefs.get shot_id for briefs never opened in Office", () => {
+  const brief = [
+    "| Timing | VO (Voice Over) |",
+    "| --- | --- |",
+    "| 0-2 | Halo |",
+    "| 3-5 | Dua |",
+  ].join("\n");
+
+  function adminWithoutIds(ensureError: { message: string } | null = null) {
+    let stored: Array<{ id: string; row_index: number }> = [];
+    const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+      if (name === "mcp_get_content_brief") return { data: [storedRow(brief)], error: null };
+      if (name === "mcp_list_brief_voice_clips") return { data: [], error: null };
+      if (name === "mcp_ensure_brief_storyboard_shots") {
+        if (ensureError) return { data: null, error: ensureError };
+        const count = Number(args.p_row_count);
+        stored = Array.from({ length: count }, (_, index) => ({ id: `shot-${index}`, row_index: index }));
+        return { data: count, error: null };
+      }
+      throw new Error(name);
+    });
+    const from = () => ({
+      select: () => ({ eq: () => ({ order: async () => ({ data: stored, error: null }) }) }),
+    });
+    return { rpc, admin: { rpc, from } as unknown as SupabaseClient };
+  }
+
+  it("creates the row ids once and returns shot_id on every shot", async () => {
+    const { rpc, admin } = adminWithoutIds();
+    const detail = await getContentBrief(admin, me, planId);
+    expect(rpc).toHaveBeenCalledWith("mcp_ensure_brief_storyboard_shots", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_plan_id: planId,
+      p_row_count: 2,
+    });
+    const shots = detail.storyboard?.sequences.flatMap((sequence) => sequence.shots) ?? [];
+    expect(shots.map((shot) => shot.shot_id)).toEqual(["shot-0", "shot-1"]);
+  });
+
+  it("still returns the brief when the ids cannot be created", async () => {
+    const { admin } = adminWithoutIds({ message: "not_a_member" });
+    const detail = await getContentBrief(admin, me, planId);
+    const shots = detail.storyboard?.sequences.flatMap((sequence) => sequence.shots) ?? [];
+    expect(shots).toHaveLength(2);
+    expect(shots[0].shot_id).toBeUndefined();
+  });
+});
+
+describe("mcp_ensure_brief_storyboard_shots SQL", () => {
+  const ensureSql = readFileSync(
+    new URL("../../../supabase/migrations/20261119060000_mcp_ensure_brief_storyboard_shots.sql", import.meta.url),
+    "utf8",
+  );
+
+  it("is locked to members of the plan's organization and to service_role", () => {
+    expect(ensureSql).toContain("SECURITY DEFINER");
+    expect(ensureSql).toContain("plan.organization_id = p_organization_id");
+    expect(ensureSql).toContain("RAISE EXCEPTION 'not_a_member'");
+    expect(ensureSql).toContain("TO service_role");
+    expect(ensureSql).not.toMatch(/GRANT EXECUTE[^;]*(anon|authenticated)/);
+  });
+
+  it("only fills plans with no ids and never touches brief text", () => {
+    expect(ensureSql).toContain("IF v_count > 0 OR p_row_count = 0 THEN");
+    expect(ensureSql).not.toMatch(/UPDATE public\.social_media_plans/);
+  });
+});
