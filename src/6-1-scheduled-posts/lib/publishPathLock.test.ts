@@ -54,7 +54,7 @@ describe('social publish path lock', () => {
     const carousel = source(
       'supabase/functions/_shared/scheduledPosts/executeLinkedInCarouselScheduledPost.ts',
     );
-    const api = source('supabase/functions/_shared/linkedInContent/linkedinImagePublishApi.ts');
+    const api = source('supabase/functions/_shared/linkedinContent/linkedinImagePublishApi.ts');
     const branch = linkedin.indexOf('shouldExecuteLinkedInCarousel(');
     const drive = linkedin.indexOf('shouldCancelScheduleDueToDriveMismatch(');
     const video = linkedin.indexOf('resolveVideoBytesForUpload(');
