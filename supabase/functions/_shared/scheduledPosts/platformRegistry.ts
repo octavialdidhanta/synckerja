@@ -28,7 +28,7 @@ export function assertPlatformCanSchedule(platform: string): void {
   if (!capability) {
     throw new Error(`schedule_stub:not_implemented:${normalizeSchedulePlatform(platform)}:Unknown platform`);
   }
-  if (!capability.implemented) {
+  if (capability.implemented === false) {
     throw new Error(
       `schedule_stub:${capability.stubCode}:${normalizeSchedulePlatform(platform)}:${capability.deliveryMode}`,
     );

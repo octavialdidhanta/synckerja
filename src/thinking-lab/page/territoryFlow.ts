@@ -92,7 +92,7 @@ export type TerritoryFlowDeps = LabRunFns & {
   masters: ReturnType<typeof useMasterThought>;
   selected: NonNullable<ReturnType<typeof useMasterThought>["data"]>[number] | null;
   parentFp: string | null;
-  focusedThought: LabBigThought | null;
+  focusedThought: Pick<LabBigThought, "id" | "statement"> | null;
   labTerritories: ReturnType<typeof useLabTerritories>;
   thoughts: ReturnType<typeof useBigThoughts>;
   territorySet: ReturnType<typeof useTerritorySet>;

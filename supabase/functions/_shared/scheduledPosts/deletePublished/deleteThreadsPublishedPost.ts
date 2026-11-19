@@ -243,7 +243,7 @@ export async function deleteThreadsPublishedPost(
     if (!deleteCaller) return { ok: false, error: "threads_account_not_found" };
 
     const deleted = await deleteThreadsMedia(mediaId, deleteCaller);
-    if (!deleted.ok) return deleted;
+    if (deleted.ok === false) return { ok: false, error: deleted.error };
     alreadyDeleted = deleted.alreadyDeleted;
   }
 

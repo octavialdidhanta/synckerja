@@ -1,3 +1,4 @@
+import type { ProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
 import { toast } from "sonner";
 import { askThinkingLab } from "@/thinking-lab/shared/ai";
 import { checkWrittenBelief, collectBeliefOptions, beliefsMatch } from "@/thinking-lab/master-thought/semantic";
@@ -18,14 +19,14 @@ export type MasterThoughtFlowDeps = LabRunFns & {
   originalDraft: string;
   priorDraft: string;
   audienceDraft: string;
-  reasonPool: string[] | null;
+  reasonPool: ProductReasonPool | null;
   newPrior: string;
   setNewPrior: (v: string) => void;
   newPlanted: string;
   setNewPlanted: (v: string) => void;
   newAudience: string;
   setNewAudience: (v: string) => void;
-  setReasonPool: (v: string[] | null) => void;
+  setReasonPool: (v: ProductReasonPool | null) => void;
   newCatalog: MasterCatalogLink;
   setNewCatalog: (v: MasterCatalogLink) => void;
   catalogs: { data?: LabCatalog[] };
