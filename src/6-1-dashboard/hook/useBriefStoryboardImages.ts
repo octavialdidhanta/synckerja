@@ -11,12 +11,13 @@ export const BRIEF_STORYBOARD_IMAGE_COLUMN_INDEX = 1;
 export const BRIEF_STORYBOARD_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 export const BRIEF_STORYBOARD_IMAGE_ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;
 const BRIEF_STORYBOARD_IMAGE_COLUMNS =
-  'id, social_media_plan_id, row_index, column_index, sort_order, storage_path, file_name, mime_type, file_size, width, height, prompt_override, shot_text, angle_text, visual_function_text, created_at, updated_at';
+  'id, social_media_plan_id, row_index, shot_id, column_index, sort_order, storage_path, file_name, mime_type, file_size, width, height, prompt_override, shot_text, angle_text, visual_function_text, created_at, updated_at';
 
 export interface BriefStoryboardImageRow {
   id: string;
   social_media_plan_id: string;
   row_index: number;
+  shot_id: string | null;
   column_index: number;
   sort_order: number;
   storage_path: string;
@@ -95,6 +96,17 @@ function normalizeImageExtension(file: File): string {
 
 function getBriefStoryboardImagePublicUrl(storagePath: string): string {
   return supabase.storage.from(BRIEF_STORYBOARD_IMAGES_BUCKET).getPublicUrl(storagePath).data.publicUrl;
+}
+
+function invalidateStoryboardRows(
+  queryClient: QueryClient,
+  planId: string | undefined,
+  imageQueryKey: readonly unknown[],
+) {
+  if (!planId) return;
+  void queryClient.invalidateQueries({ queryKey: imageQueryKey });
+  void queryClient.invalidateQueries({ queryKey: ["brief-voice-clips", planId] });
+  void queryClient.invalidateQueries({ queryKey: ["brief-storyboard-shots", planId] });
 }
 
 export async function fetchBriefStoryboardImages(
@@ -230,6 +242,13 @@ export function useBriefStoryboardImages(socialMediaPlanId: string | undefined) 
         .limit(1);
       if (orderError) throw orderError;
       let nextOrder = rows?.[0] ? (rows[0] as { sort_order: number }).sort_order + 1 : 0;
+      const { data: shotRow } = await supabase
+        .from("brief_storyboard_shots")
+        .select("id")
+        .eq("social_media_plan_id", socialMediaPlanId)
+        .eq("row_index", rowIndex)
+        .maybeSingle();
+      const shotId = (shotRow as { id: string } | null)?.id ?? null;
 
       const insertedRows: BriefStoryboardImageRow[] = [];
       for (const [fileIndex, file] of files.entries()) {
@@ -246,6 +265,7 @@ export function useBriefStoryboardImages(socialMediaPlanId: string | undefined) 
           .insert({
             social_media_plan_id: socialMediaPlanId,
             row_index: rowIndex,
+            shot_id: shotId,
             column_index: BRIEF_STORYBOARD_IMAGE_COLUMN_INDEX,
             sort_order: nextOrder,
             storage_path: path,
@@ -347,86 +367,55 @@ export function useBriefStoryboardImages(socialMediaPlanId: string | undefined) 
   const insertRowMutation = useMutation({
     mutationFn: async (insertAtRowIndex: number) => {
       if (!socialMediaPlanId) throw new Error('Plan required');
-      const { data: rows, error } = await supabase
-        .from('brief_storyboard_images')
-        .select('id, row_index')
-        .eq('social_media_plan_id', socialMediaPlanId)
-        .eq('column_index', BRIEF_STORYBOARD_IMAGE_COLUMN_INDEX)
-        .gte('row_index', insertAtRowIndex)
-        .order('row_index', { ascending: false })
-        .order('sort_order', { ascending: false });
+      const { error } = await supabase.rpc('move_brief_storyboard_row', {
+        p_plan_id: socialMediaPlanId,
+        p_action: 'insert',
+        p_row_index: insertAtRowIndex,
+      });
       if (error) throw error;
-
-      for (const row of rows || []) {
-        const typedRow = row as { id: string; row_index: number };
-        const { error: updateError } = await supabase
-          .from('brief_storyboard_images')
-          .update({ row_index: typedRow.row_index + 1 })
-          .eq('id', typedRow.id);
-        if (updateError) throw updateError;
-      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+      invalidateStoryboardRows(queryClient, socialMediaPlanId, queryKey);
     },
     onError: (error) => {
-      devLog.debug('Storyboard image insert-row error:', error);
-      toast.error('Failed to shift storyboard image rows');
+      devLog.debug('Storyboard row insert error:', error);
+      toast.error('Failed to shift storyboard rows');
     },
   });
 
   const deleteRowMutation = useMutation({
     mutationFn: async (rowIndex: number) => {
       if (!socialMediaPlanId) throw new Error('Plan required');
-      const { data: targetRows, error: targetError } = await supabase
+      const { data: imageRows, error: imageError } = await supabase
         .from('brief_storyboard_images')
-        .select('id, storage_path')
+        .select('storage_path')
         .eq('social_media_plan_id', socialMediaPlanId)
         .eq('column_index', BRIEF_STORYBOARD_IMAGE_COLUMN_INDEX)
         .eq('row_index', rowIndex);
-      if (targetError) throw targetError;
+      if (imageError) throw imageError;
 
-      const targetPaths = (targetRows || []).map((row) => (row as { storage_path: string }).storage_path);
-      if (targetPaths.length > 0) {
-        const { error: storageError } = await supabase.storage
-          .from(BRIEF_STORYBOARD_IMAGES_BUCKET)
-          .remove(targetPaths);
-        if (storageError) throw storageError;
-      }
+      const { data: removed, error } = await supabase.rpc('move_brief_storyboard_row', {
+        p_plan_id: socialMediaPlanId,
+        p_action: 'delete',
+        p_row_index: rowIndex,
+      });
+      if (error) throw error;
 
-      const { error: deleteError } = await supabase
-        .from('brief_storyboard_images')
-        .delete()
-        .eq('social_media_plan_id', socialMediaPlanId)
-        .eq('column_index', BRIEF_STORYBOARD_IMAGE_COLUMN_INDEX)
-        .eq('row_index', rowIndex);
-      if (deleteError) throw deleteError;
-
-      const { data: rowsToShift, error: shiftError } = await supabase
-        .from('brief_storyboard_images')
-        .select('id, row_index')
-        .eq('social_media_plan_id', socialMediaPlanId)
-        .eq('column_index', BRIEF_STORYBOARD_IMAGE_COLUMN_INDEX)
-        .gt('row_index', rowIndex)
-        .order('row_index', { ascending: true })
-        .order('sort_order', { ascending: true });
-      if (shiftError) throw shiftError;
-
-      for (const row of rowsToShift || []) {
-        const typedRow = row as { id: string; row_index: number };
-        const { error: updateError } = await supabase
-          .from('brief_storyboard_images')
-          .update({ row_index: typedRow.row_index - 1 })
-          .eq('id', typedRow.id);
-        if (updateError) throw updateError;
-      }
+      const voicePaths = ((removed ?? []) as Array<{ storage_path: string }>)
+        .map((row) => row.storage_path)
+        .filter((path) => path.trim().length > 0);
+      const imagePaths = (imageRows ?? []).map((row) => (row as { storage_path: string }).storage_path);
+      const paths = [...imagePaths, ...voicePaths];
+      if (paths.length === 0) return;
+      const { error: storageError } = await supabase.storage.from(BRIEF_STORYBOARD_IMAGES_BUCKET).remove(paths);
+      if (storageError) throw storageError;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+      invalidateStoryboardRows(queryClient, socialMediaPlanId, queryKey);
     },
     onError: (error) => {
-      devLog.debug('Storyboard image delete-row error:', error);
-      toast.error('Failed to remove storyboard row images');
+      devLog.debug('Storyboard row delete error:', error);
+      toast.error('Failed to remove storyboard row');
     },
   });
 
@@ -455,6 +444,23 @@ export function useBriefStoryboardImages(socialMediaPlanId: string | undefined) 
     [insertRowMutation],
   );
   const deleteRow = useCallback((rowIndex: number) => deleteRowMutation.mutateAsync(rowIndex), [deleteRowMutation]);
+  const ensureShots = useCallback(async (rowCount: number) => {
+    if (!socialMediaPlanId || rowCount < 0) return false;
+    const { error } = await supabase.rpc("ensure_brief_storyboard_shots", {
+      p_plan_id: socialMediaPlanId,
+      p_row_count: rowCount,
+    });
+    if (!error) return true;
+    const message = error.message ?? "";
+    if (message.includes("brief_field_forbidden")) return false;
+    if (message.includes("brief_shot_mismatch")) {
+      toast.error("Storyboard rows no longer match. Reload the brief.");
+      return false;
+    }
+    devLog.debug("Storyboard shot ensure error:", error);
+    toast.error("Failed to prepare storyboard rows");
+    return false;
+  }, [socialMediaPlanId]);
 
   const uploadingRowIndex = uploadMutation.isPending
     ? (uploadMutation.variables?.rowIndex ?? null)
@@ -469,6 +475,7 @@ export function useBriefStoryboardImages(socialMediaPlanId: string | undefined) 
     removeAllForPlan,
     insertRow,
     deleteRow,
+    ensureShots,
     refetch: query.refetch,
     isLoading: query.isLoading,
     uploadingRowIndex,

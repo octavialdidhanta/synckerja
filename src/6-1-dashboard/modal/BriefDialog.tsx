@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { Textarea } from '@/shared/components/ui/textarea';
-import { MessageCircle, Send, Trash2, FileText, Globe, RotateCcw, CheckCircle, ExternalLink, CircleCheck, Maximize2, ArrowLeft } from 'lucide-react';
+import { MessageCircle, Send, Trash2, FileText, Globe, RotateCcw, CheckCircle, ExternalLink, CircleCheck, Maximize2, ArrowLeft, History } from 'lucide-react';
 import { parseAllMarkdownTables, parseMarkdownTable, stringifyMarkdownTable, replaceTableInMarkdown } from '../utils/markdownTableUtils';
 import { upsertBriefSequencesInMarkdown, type BriefSequence } from './briefSequences';
 import {
@@ -43,6 +43,9 @@ import { BriefConceptEditor } from './BriefConceptEditor';
 import { ContentUsageAudit } from './ContentUsageAudit';
 import { briefConceptHasContent, parseBriefConcept, serializeBriefConcept } from './briefConceptAssets';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { BriefVersionHistory, type RestoredBriefVersion } from './BriefVersionHistory';
+import { briefContentBundle, briefVersionConflictNumber, shouldRecordBriefVersion } from './briefVersionSession';
+import { voiceOverFromConcept } from './briefVersionDiff';
 
 function briefOverlayTarget(target: EventTarget | null) {
   return target instanceof Element && Boolean(
@@ -68,7 +71,7 @@ interface BriefDialogProps {
   tryStartApprovalFromBrief?: (planId: string) => boolean;
   /** Already resolved on the dashboard. Avoids a fresh auth/role/approval round trip on every open. */
   canApprove?: boolean;
-  /** True when the signed-in employee is the PIC of this content row. */
+  /** Used only when the dialog has no plan id. Field locks come from content_brief_edit_access. */
   canEditBriefContent?: boolean;
   /** Latest Canva carousel run for this content plan (optional while loading). */
   canvaRun?: CanvaCarouselRun | null;
@@ -114,11 +117,37 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   const isPersistingRef = useRef(false);
   /** When true, next onOpenChange(false) must not run performSave (Save / Request Revision / Approved already persisted). */
   const skipFlushOnNextCloseRef = useRef(false);
+  const savedBundleRef = useRef<string | null>(null);
+  const versionRecordedThisSessionRef = useRef(false);
+  const baseVersionRef = useRef<number | null>(null);
+  const openedStatusRef = useRef<string | null>(null);
+  const openedApprovedRef = useRef(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [briefConflict, setBriefConflict] = useState<number | 'unknown' | null>(null);
+  const [revisionLocked, setRevisionLocked] = useState(false);
+  const [fieldAccess, setFieldAccess] = useState<{
+    storyboard: boolean;
+    concept: boolean;
+    caption: boolean;
+    link: boolean;
+  } | null>(null);
   const appliedOpenKeyRef = useRef<string | null>(null);
   const openKey = isOpen && socialMediaPlanId ? socialMediaPlanId : null;
   if (openKey && appliedOpenKeyRef.current !== openKey) {
     appliedOpenKeyRef.current = openKey;
     skipNextAutoSaveRef.current = true;
+    savedBundleRef.current = null;
+    versionRecordedThisSessionRef.current = false;
+    baseVersionRef.current = null;
+    openedStatusRef.current = contentPlans?.find((plan) => plan.id === socialMediaPlanId)?.status ?? null;
+    openedApprovedRef.current = (() => {
+      const openedPlan = contentPlans?.find((plan) => plan.id === socialMediaPlanId);
+      return openedPlan?.approved === true || openedPlan?.status === 'Approved';
+    })();
+    setShowHistory(false);
+    setBriefConflict(null);
+    setRevisionLocked(false);
+    setFieldAccess(null);
     const nextBrief = stripBriefIntroductorySentence(brief || '');
     if (briefText !== nextBrief) setBriefText(nextBrief);
     setNewComment('');
@@ -154,6 +183,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
     removeAllForPlan,
     insertRow,
     deleteRow,
+    ensureShots,
     uploadingRowIndex,
     deletingImageId,
     isWorking: isStoryboardImagesBusy,
@@ -176,11 +206,87 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   }, [isOpen, extendedLoading, linkReferenceFetched, linkReferenceProp]);
 
   useEffect(() => {
+    if (!isOpen || !socialMediaPlanId) return;
+    let cancelled = false;
+    const loadLock = async () => {
+      const { data, error } = await supabase.rpc('content_brief_revision_locked', {
+        p_plan_id: socialMediaPlanId,
+      });
+      if (cancelled || error) return;
+      setRevisionLocked(data === true);
+    };
+    void loadLock();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, socialMediaPlanId]);
+
+  useEffect(() => {
+    if (!isOpen || !socialMediaPlanId) return;
+    let cancelled = false;
+    const loadAccess = async () => {
+      const { data, error } = await supabase.rpc('content_brief_edit_access', {
+        p_plan_id: socialMediaPlanId,
+      });
+      if (cancelled || error) return;
+      const row = Array.isArray(data) ? data[0] : data;
+      setFieldAccess({
+        storyboard: row?.storyboard === true,
+        concept: row?.concept === true,
+        caption: row?.caption === true,
+        link: row?.link === true,
+      });
+    };
+    void loadAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, socialMediaPlanId]);
+
+  useEffect(() => {
+    if (!isOpen || !socialMediaPlanId || savedBundleRef.current !== null) return;
+    const propsReady = targetAudienceProp !== undefined && captionProp !== undefined && linkReferenceProp !== undefined;
+    if (!propsReady && extendedLoading) return;
+    savedBundleRef.current = briefContentBundle({
+      brief: stripBriefIntroductorySentence(brief || ''),
+      concept: targetAudienceProp !== undefined ? (targetAudienceProp ?? '') : (targetAudienceFetched ?? ''),
+      caption: captionProp !== undefined ? (captionProp ?? '') : (captionFetched ?? ''),
+      link: linkReferenceProp !== undefined ? (linkReferenceProp ?? '') : (linkReferenceFetched ?? ''),
+    });
+  }, [
+    isOpen,
+    socialMediaPlanId,
+    extendedLoading,
+    brief,
+    targetAudienceProp,
+    captionProp,
+    linkReferenceProp,
+    targetAudienceFetched,
+    captionFetched,
+    linkReferenceFetched,
+  ]);
+
+  useEffect(() => {
     if (isOpen) {
       skipFlushOnNextCloseRef.current = false;
       isClosingRef.current = false;
     }
   }, [isOpen]);
+
+  const readBaseVersion = async (planId: string) => {
+    if (baseVersionRef.current !== null) return baseVersionRef.current;
+    const { data, error } = await supabase
+      .from('content_brief_versions')
+      .select('version_no')
+      .eq('social_media_plan_id', planId)
+      .order('version_no', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    const version = data?.version_no ?? 0;
+    if (baseVersionRef.current === null) baseVersionRef.current = version;
+    return baseVersionRef.current;
+  };
 
   const performSave = async (options: { closeAfter?: boolean; source?: string } = {}) => {
     const { closeAfter = false, source = 'unknown' } = options;
@@ -195,92 +301,112 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
       isPersistingRef.current = false;
       return;
     }
+    if (revisionLocked || !fieldAccess) {
+      isPersistingRef.current = false;
+      return;
+    }
+    if (!fieldAccess.storyboard && !fieldAccess.concept && !fieldAccess.caption && !fieldAccess.link) {
+      isPersistingRef.current = false;
+      return;
+    }
 
     try {
+      const draftBundle = briefContentBundle({
+        brief: briefText,
+        concept: targetAudienceText,
+        caption: captionText,
+        link: linkReferenceText,
+      });
+      const recordVersion = shouldRecordBriefVersion({
+        recordedThisSession: versionRecordedThisSessionRef.current,
+        baseline: savedBundleRef.current,
+        draft: draftBundle,
+      });
+      const baseVersion = await readBaseVersion(socialMediaPlanId);
       const now = new Date().toISOString();
       const trimmedBrief = briefText.trim();
       const briefIsEmpty = trimmedBrief === '';
-      let planRowUpdate: Record<string, unknown> | null = null;
-
-      if (canEditBriefContent) {
-        if (briefIsEmpty) {
-          await removeAllForPlan();
+      const { data: savedVersion, error: saveError } = await supabase.rpc('save_content_brief', {
+        p_plan_id: socialMediaPlanId,
+        p_base_version: baseVersion,
+        p_record: recordVersion,
+        p_brief: trimmedBrief,
+        p_concept: targetAudienceText.trim() || null,
+        p_caption: captionText.trim() || null,
+        p_link: linkReferenceText.trim() || null,
+      });
+      if (saveError) {
+        if (saveError.message?.includes('brief_version_conflict')) {
+          const latest = briefVersionConflictNumber(saveError);
+          setBriefConflict(latest ?? 'unknown');
+          setShowHistory(true);
+          toast.error(t(
+            'briefDialog.history.conflict',
+            'Brief sudah diubah orang lain. Isi yang Anda ketik tetap di layar.',
+          ));
+          return;
         }
+        if (saveError.message?.includes('brief_edit_locked')) {
+          setRevisionLocked(true);
+          toast.error(t(
+            'briefDialog.revision.locked',
+            'Brief ini terkunci karena produksi sudah disetujui atau konten sudah terjadwal/tayang. Tekan Request Revision untuk mengedit.',
+          ));
+          return;
+        }
+        if (saveError.message?.includes('brief_field_forbidden')) {
+          toast.error(t(
+            'briefDialog.edit.forbidden',
+            'Anda tidak punya hak untuk mengubah bagian brief ini.',
+          ));
+          return;
+        }
+        devLog.error('Error saving brief:', saveError);
+        toast.error(t('briefDialog.history.recordFailed', 'Gagal menyimpan riwayat brief'));
+        return;
+      }
+      baseVersionRef.current = typeof savedVersion === 'number' ? savedVersion : null;
+      if (recordVersion) versionRecordedThisSessionRef.current = true;
+      setBriefConflict(null);
 
+      const contentChanged = savedBundleRef.current !== null && draftBundle !== savedBundleRef.current;
+      const keepRevision = openedStatusRef.current === 'Request Revision';
+      const demoteApproval = openedApprovedRef.current && contentChanged && !keepRevision;
+
+      let planRowUpdate: Record<string, unknown> | null = null;
+      if (fieldAccess?.storyboard && briefIsEmpty && contentChanged) {
+        await removeAllForPlan();
+      }
+      if (!keepRevision && demoteApproval) {
+        planRowUpdate = {
+          status: 'Need Review',
+          approved: false,
+          completion_date: null,
+        };
+      } else if (!keepRevision && fieldAccess?.storyboard && !openedApprovedRef.current) {
         planRowUpdate = briefIsEmpty
           ? {
-              brief: trimmedBrief,
               status: '',
               completion_date: null,
               approved: false,
             }
           : {
-              brief: trimmedBrief,
               completion_date: now,
               status: 'Need Review',
             };
+      }
 
+      if (planRowUpdate) {
         const { error: planError } = await supabase
           .from('social_media_plans')
           .update(planRowUpdate)
           .eq('id', socialMediaPlanId);
 
         if (planError) {
-          devLog.error('Error updating brief:', planError);
+          devLog.error('Error updating brief status:', planError);
           toast.error('Failed to save brief');
           return;
         }
-      }
-
-      const { error: audienceError } = await supabase
-        .from('brief_target_audiences')
-        .upsert(
-          {
-            social_media_plan_id: socialMediaPlanId,
-            description: targetAudienceText.trim() || null,
-            updated_at: now
-          },
-          { onConflict: 'social_media_plan_id' }
-        );
-
-      if (audienceError) {
-        devLog.error('Error saving target audience:', audienceError);
-        toast.error('Failed to save target audience');
-        return;
-      }
-
-      const { error: captionError } = await supabase
-        .from('brief_captions')
-        .upsert(
-          {
-            social_media_plan_id: socialMediaPlanId,
-            content: captionText.trim() || null,
-            updated_at: now
-          },
-          { onConflict: 'social_media_plan_id' }
-        );
-
-      if (captionError) {
-        devLog.error('Error saving caption:', captionError);
-        toast.error('Failed to save caption');
-        return;
-      }
-
-      const { error: linkRefError } = await supabase
-        .from('brief_link_references')
-        .upsert(
-          {
-            social_media_plan_id: socialMediaPlanId,
-            content: linkReferenceText.trim() || null,
-            updated_at: now
-          },
-          { onConflict: 'social_media_plan_id' }
-        );
-
-      if (linkRefError) {
-        devLog.error('Error saving link reference:', linkRefError);
-        toast.error('Failed to save link reference');
-        return;
       }
 
       invalidateExtended();
@@ -290,7 +416,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
       if (closeAfter) {
         toast.success('Brief saved successfully');
         skipFlushOnNextCloseRef.current = true;
-        if (canEditBriefContent) onSave(trimmedBrief);
+        if (fieldAccess?.storyboard) onSave(trimmedBrief);
         onClose();
       }
     } catch (error) {
@@ -328,7 +454,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
       clearTimeout(autoSaveTimerRef.current);
       autoSaveTimerRef.current = null;
     }
-    if (canEditBriefContent) onSave(briefText.trim());
+    if (fieldAccess?.storyboard) onSave(briefText.trim());
     onClose();
     if (isPersistingRef.current) {
       return;
@@ -349,6 +475,8 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   // Auto-save when accordion fields change (debounced); skip first run after dialog open
   useEffect(() => {
     if (!isOpen || !socialMediaPlanId) return;
+    if (revisionLocked || !fieldAccess) return;
+    if (!fieldAccess.storyboard && !fieldAccess.concept && !fieldAccess.caption && !fieldAccess.link) return;
     if (isClosingRef.current) return;
     if (skipNextAutoSaveRef.current) {
       skipNextAutoSaveRef.current = false;
@@ -363,7 +491,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
         autoSaveTimerRef.current = null;
       }
     };
-  }, [isOpen, socialMediaPlanId, briefText, targetAudienceText, captionText, linkReferenceText]);
+  }, [isOpen, socialMediaPlanId, revisionLocked, fieldAccess, briefText, targetAudienceText, captionText, linkReferenceText]);
 
   const handleRequestRevision = async () => {
     if (!socialMediaPlanId) return;
@@ -593,7 +721,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
       fieldVersions?: BriefFieldVersions[];
     },
   ) => {
-    if (!canEditBriefContent) return;
+    if (!fieldAccess?.storyboard || revisionLocked) return;
     setBriefText((prev) => {
       let next = applyTableToBrief(prev, newTableData, parseMarkdownTable(prev));
       if (meta?.sequences) {
@@ -613,7 +741,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   };
 
   const handleLabTableSave = (index: number, newTableData: string[][]) => {
-    if (!canEditBriefContent) return;
+    if (!fieldAccess?.storyboard || revisionLocked) return;
     setBriefText((prev) => {
       const tables = parseAllMarkdownTables(prev);
       const target = tables[index];
@@ -628,7 +756,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   };
 
   const handleCreateStoryboardTable = (tableData: string[][]) => {
-    if (!canEditBriefContent) return;
+    if (!fieldAccess?.storyboard || revisionLocked) return;
     setBriefText((prev) => applyTableToBrief(prev, tableData, null));
     setCreateTableOpen(false);
   };
@@ -678,6 +806,68 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
     const match = linkReferenceText.match(/https?:\/\/[^\s]+/i);
     return match ? match[0].replace(/[.,;:!?)]+$/, '') : null;
   })();
+
+  const handleVersionRestored = (version: RestoredBriefVersion) => {
+    const nextBrief = stripBriefIntroductorySentence(version.brief || '');
+    setBriefText(nextBrief);
+    setTargetAudienceText(version.concept ?? '');
+    setCaptionText(version.caption ?? '');
+    setLinkReferenceText(version.link ?? '');
+    savedBundleRef.current = briefContentBundle({
+      brief: nextBrief,
+      concept: version.concept ?? '',
+      caption: version.caption ?? '',
+      link: version.link ?? '',
+    });
+    versionRecordedThisSessionRef.current = false;
+    baseVersionRef.current = null;
+    setBriefConflict(null);
+    skipNextAutoSaveRef.current = true;
+    invalidateExtended();
+    toast.success(t('briefDialog.history.restored', 'Versi brief dikembalikan'));
+  };
+
+  const loadLatestBrief = async () => {
+    if (!socialMediaPlanId) return;
+    const [planResult, audienceResult, captionResult, linkResult, versionResult] = await Promise.all([
+      supabase.from('social_media_plans').select('brief').eq('id', socialMediaPlanId).maybeSingle(),
+      supabase.from('brief_target_audiences').select('description').eq('social_media_plan_id', socialMediaPlanId).maybeSingle(),
+      supabase.from('brief_captions').select('content').eq('social_media_plan_id', socialMediaPlanId).maybeSingle(),
+      supabase.from('brief_link_references').select('content').eq('social_media_plan_id', socialMediaPlanId).maybeSingle(),
+      supabase
+        .from('content_brief_versions')
+        .select('version_no')
+        .eq('social_media_plan_id', socialMediaPlanId)
+        .order('version_no', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    const failed = planResult.error || audienceResult.error || captionResult.error || linkResult.error || versionResult.error;
+    if (failed) {
+      devLog.error('Error loading latest brief:', failed);
+      toast.error(t('briefDialog.history.loadLatestFailed', 'Gagal memuat versi terbaru'));
+      return;
+    }
+    const nextBrief = stripBriefIntroductorySentence(planResult.data?.brief || '');
+    const concept = audienceResult.data?.description ?? '';
+    const caption = captionResult.data?.content ?? '';
+    const link = linkResult.data?.content ?? '';
+    setBriefText(nextBrief);
+    setTargetAudienceText(concept);
+    setCaptionText(caption);
+    setLinkReferenceText(link);
+    savedBundleRef.current = briefContentBundle({
+      brief: nextBrief,
+      concept,
+      caption,
+      link,
+    });
+    versionRecordedThisSessionRef.current = false;
+    baseVersionRef.current = versionResult.data?.version_no ?? 0;
+    setBriefConflict(null);
+    skipNextAutoSaveRef.current = true;
+    toast.success(t('briefDialog.history.loaded', 'Versi terbaru dimuat'));
+  };
 
   return (
     <>
@@ -803,6 +993,18 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                   ) : null}
                 </div>
                 <div className="flex items-center gap-2">
+                  {socialMediaPlanId ? (
+                    <Button
+                      type="button"
+                      variant={showHistory ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setShowHistory((open) => !open)}
+                      className="h-7 px-3 text-xs"
+                    >
+                      <History className="h-3 w-3 mr-1" />
+                      {t('briefDialog.history', 'Riwayat')}
+                    </Button>
+                  ) : null}
                   {hasGoogleDocsLink && (
                     <div className="flex gap-1">
                       <Button
@@ -828,8 +1030,63 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                 </div>
               </div>
 
+              {briefConflict !== null ? (
+                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-xs text-amber-950">
+                    {t(
+                      'briefDialog.history.conflict',
+                      'Brief sudah diubah orang lain. Isi yang Anda ketik tetap di layar.',
+                    )}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 shrink-0 px-3 text-xs"
+                    onClick={() => void loadLatestBrief()}
+                  >
+                    {t('briefDialog.history.loadLatest', 'Muat versi terbaru')}
+                  </Button>
+                </div>
+              ) : null}
+
+              {revisionLocked ? (
+                <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-xs text-amber-950">
+                    {t(
+                      'briefDialog.revision.locked',
+                      'Brief ini terkunci karena produksi sudah disetujui atau konten sudah terjadwal/tayang. Tekan Request Revision untuk mengedit.',
+                    )}
+                  </p>
+                </div>
+              ) : null}
+
+              {fieldAccess && !revisionLocked && !fieldAccess.storyboard && !fieldAccess.concept && !fieldAccess.caption && !fieldAccess.link ? (
+                <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-xs text-amber-950">
+                    {t('briefDialog.edit.none', 'Anda tidak punya hak untuk mengedit brief ini.')}
+                  </p>
+                </div>
+              ) : null}
+
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                {showPreview && hasGoogleDocsLink ? (
+                {showHistory && socialMediaPlanId ? (
+                  <BriefVersionHistory
+                    planId={socialMediaPlanId}
+                    organizationId={organizationId}
+                    preferredVersionNo={typeof briefConflict === 'number' ? briefConflict : null}
+                    current={{
+                      brief: briefText,
+                      concept: targetAudienceText,
+                      voiceOver: voiceOverFromConcept(targetAudienceText),
+                      caption: captionText,
+                      link: linkReferenceText,
+                    }}
+                    canRestore={Boolean(
+                      fieldAccess?.storyboard && fieldAccess?.concept && fieldAccess?.caption && fieldAccess?.link && !revisionLocked
+                    )}
+                    onRestored={handleVersionRestored}
+                  />
+                ) : showPreview && hasGoogleDocsLink ? (
                   <LinkPreviewPanel brief={briefText} />
                 ) : (
                   <div className={`flex-1 min-h-0 flex flex-col overflow-hidden ${workAreaExpanded ? 'px-3 py-2' : 'px-3 py-2'}`}>
@@ -913,6 +1170,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                           ) : null}
                           <div className={`flex-1 flex flex-col overflow-hidden ${conceptExpanded ? 'min-h-0 h-full' : 'min-h-[260px] h-full'}`}>
                             {parseBriefConcept(targetAudienceText) ? (
+                              <fieldset disabled={revisionLocked || !fieldAccess?.concept} className="m-0 min-h-0 flex-1 border-0 p-0">
                               <BriefConceptEditor
                                 planId={socialMediaPlanId}
                                 planTitle={planTitle}
@@ -922,10 +1180,12 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                 document={parseBriefConcept(targetAudienceText) ?? { locations: [], characters: [], properties: [] }}
                                 onChange={(next) => setTargetAudienceText(serializeBriefConcept(next))}
                               />
+                              </fieldset>
                             ) : (
                             <Textarea
                               value={targetAudienceText}
                               onChange={(e) => setTargetAudienceText(e.target.value)}
+                              readOnly={revisionLocked || !fieldAccess?.concept}
                               placeholder={t('briefDialog.placeholderTargetAudience', 'Target audience description (free-form)...')}
                               className="w-full h-full min-h-[240px] resize-none border-gray-200 text-sm"
                             />
@@ -992,7 +1252,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                       key={`lab-table-${index}`}
                                       tableData={part.table}
                                       onSave={(data) => handleLabTableSave(part.index, data)}
-                                      readOnly={!canEditBriefContent}
+                                      readOnly={!fieldAccess?.storyboard || revisionLocked}
                                       className="!my-1"
                                     />
                                   ),
@@ -1014,7 +1274,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                 <EditableBriefTable
                                   tableData={parsedTable.table}
                                   onSave={handleTableSave}
-                                  readOnly={!canEditBriefContent}
+                                  readOnly={!fieldAccess?.storyboard || revisionLocked}
                                   storyboardToolbar
                                   workAreaExpanded={briefExpanded}
                                   onToggleWorkArea={() => setExpandedSection((current) => (current === 'brief' ? null : 'brief'))}
@@ -1035,6 +1295,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                   onDeleteImage={remove}
                                   onInsertRowImages={insertRow}
                                   onDeleteRowImages={deleteRow}
+                                  onEnsureShots={ensureShots}
                                   mediaBusy={isStoryboardImagesBusy}
                                   uploadingRowIndex={uploadingRowIndex}
                                   deletingImageId={deletingImageId}
@@ -1077,7 +1338,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                 ) : null}
                                 <BriefStoryboardEmptyState
                                   onCreateTable={
-                                    canEditBriefContent ? () => setCreateTableOpen(true) : undefined
+                                    fieldAccess?.storyboard && !revisionLocked ? () => setCreateTableOpen(true) : undefined
                                   }
                                 />
                               </>
@@ -1106,6 +1367,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                             <Textarea
                               value={captionText}
                               onChange={(e) => setCaptionText(e.target.value)}
+                              readOnly={revisionLocked || !fieldAccess?.caption}
                               placeholder={t('briefDialog.placeholderCaption', 'Caption and hashtags...')}
                               className="w-full h-full min-h-[240px] resize-none border-gray-200 text-sm"
                             />
@@ -1145,6 +1407,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                               <Textarea
                                 value={linkReferenceText}
                                 onChange={(e) => setLinkReferenceText(e.target.value)}
+                                readOnly={revisionLocked || !fieldAccess?.link}
                                 placeholder={t('briefDialog.placeholderLinkReference', 'Paste link(s) or reference URL(s)...')}
                                 className="w-full h-full min-h-[240px] resize-none border-gray-200 text-sm"
                               />

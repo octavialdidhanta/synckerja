@@ -691,7 +691,7 @@ async function storeClip(
     file_name: fileName,
     spoken_text: input.spokenText ?? null,
     credit_cost: input.creditCost ?? null,
-  }).select("id, kind, row_index, video_id, storage_path, file_name, spoken_text, credit_cost, created_at").single();
+  }).select("id, kind, row_index, shot_id, video_id, storage_path, file_name, spoken_text, credit_cost, created_at").single();
   if (error) return { error: error.message, row: null };
   return { error: null, row: data };
 }

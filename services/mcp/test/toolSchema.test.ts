@@ -176,7 +176,8 @@ describe("phase 0 tool inputs", () => {
     expect(createPlanInput.safeParse({ title: "Launch", post_link: "https://example.com" }).success).toBe(false);
     expect(createPlanInput.safeParse({ title: "Launch", google_drive_link: "https://drive" }).success).toBe(false);
     expect(updatePlanInput.safeParse({ id: planId }).success).toBe(false);
-    expect(Object.keys(updatePlanSchema.shape)).toEqual(expect.arrayContaining(["id", "title", "post_date", "brief"]));
+    expect(Object.keys(updatePlanSchema.shape)).toEqual(expect.arrayContaining(["id", "title", "post_date"]));
+    expect(updatePlanInput.safeParse({ id: planId, brief: "Storyboard" }).success).toBe(false);
     expect(Object.keys(updateObjectiveSchema.shape)).toEqual(expect.arrayContaining(["id", "level", "title", "status"]));
     expect(Object.keys(updateLeadSchema.shape)).toEqual(expect.arrayContaining(["id", "client", "title", "fu_priority"]));
     expect(updatePlanInput.safeParse({ id: planId, title: "Rename" }).success).toBe(true);
@@ -636,6 +637,7 @@ describe("phase 0 tool inputs", () => {
       p_title: "Rename",
       p_post_date: null,
       p_brief: null,
+      p_base_version: null,
     });
     expect(rpc).toHaveBeenNthCalledWith(3, "mcp_create_company_objective", {
       p_user_id: "user-1",

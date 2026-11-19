@@ -80,6 +80,8 @@ export type McpToolName =
   | "content.plans.create"
   | "content.briefs.create"
   | "content.briefs.get"
+  | "content.briefs.update.preview"
+  | "content.briefs.update"
   | "content.briefs.voice.list"
   | "content.briefs.voice.get"
   | "content.briefs.voice.generate"
@@ -189,7 +191,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "content.plans.list",
     description:
-      "List up to 50 content plans for the organization locked in this session. Returns id, title, status, post date, approved, and production status.",
+      "List up to 50 content plans for the organization locked in this session. Returns id, title, status, post date, approved, and production status. Upload and a Google Drive link use approved, not the status text.",
     scopes: ["content:read"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
@@ -197,7 +199,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "content.calendar.list",
     description:
-      "List up to 50 content plans whose post date falls in one month for the organization locked in this session. Optional month is YYYY-MM in Asia/Jakarta; omit it for the current month. Returns id, title, status, post date, approved, and production status.",
+      "List up to 50 content plans whose post date falls in one month for the organization locked in this session. Optional month is YYYY-MM in Asia/Jakarta; omit it for the current month. Returns id, title, status, post date, approved, and production status. Upload and a Google Drive link use approved, not the status text.",
     scopes: ["content:read"],
     moduleKey: "digitalMarketing",
     pagePath: CALENDAR_PAGE_PATH,
@@ -589,7 +591,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "content.briefs.get",
     description:
-      "Read one content plan's full brief for the organization locked in this session. Requires id from content.plans.list or content.calendar.list. Returns title, status, approval, production status, post date, content type, category, subcategory, feature, pillar, PIC name, the storyboard grouped by sequence (timing, visual, vo, scene, element, tagging, has_voice, and any other column), notes outside the table, voice over, characters, locations, properties, caption, and whether a Drive file exists and whether it is published. Image paths, Drive links, and published links are not returned. has_voice means an ElevenLabs VO file exists for that shot; the clip list is content.briefs.voice.list and the MP3 bytes are content.briefs.voice.get. Read only. Call this before content.plans.update so nothing is overwritten blindly, and to compare briefs of ads that perform well or badly before writing a new brief with content.briefs.create. Follow how_to_read.",
+      "Read one content plan's full brief for the organization locked in this session. Requires id from content.plans.list or content.calendar.list. Returns title, status, approval, production status, post date, content type, category, subcategory, feature, pillar, PIC name, version_no, the storyboard grouped by sequence (timing, visual, vo, scene, element, tagging, shot_id, has_voice, voice_stale, and any other column), notes outside the table, voice over, characters, locations, properties, caption, and whether a Drive file exists and whether it is published. version_no is 0 when the brief has no saved history. Image paths, Drive links, and published links are not returned. shot_id is the permanent storyboard row. has_voice means an ElevenLabs VO file exists for that shot. voice_stale means the current vo, or voice_over when that cell is empty, no longer matches the file. A stale file is kept; generate again with content.briefs.voice.generate. The clip list is content.briefs.voice.list and the MP3 bytes are content.briefs.voice.get. Read only. Call this before content.briefs.update.preview and pass its version_no as base_version when changing the storyboard, voice over, or caption, and to compare briefs of ads that perform well or badly before writing a new brief with content.briefs.create. Follow how_to_read.",
     scopes: ["content:read"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
@@ -597,7 +599,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "content.briefs.voice.list",
     description:
-      "List ElevenLabs VO audio clips for one content plan in the organization locked in this session. Requires plan_id from content.plans.list or content.calendar.list. Returns each VO clip's id, row_index, file_name, spoken_text, created_at, and download_url (public HTTPS for a phone tap). To save the file on a computer, call content.briefs.voice.get. Does not include seedance/STS clips. Empty clips means no VO has been generated yet. Read only. Follow how_to_read.",
+      "List ElevenLabs VO audio clips for one content plan in the organization locked in this session. Requires plan_id from content.plans.list or content.calendar.list. Returns each VO clip's id, row_index, shot_id, file_name, spoken_text, stale, created_at, and download_url (public HTTPS for a phone tap). shot_id is the permanent storyboard row. row_index is its current position. stale means the clip no longer matches that row's vo, or voice_over when the vo cell is empty. A stale file is kept and can still be downloaded. To save the file on a computer, call content.briefs.voice.get. Does not include seedance/STS clips. Empty clips means no VO has been generated yet. Read only. Follow how_to_read.",
     scopes: ["content:read"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
@@ -621,7 +623,23 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "content.plans.update",
     description:
-      "Update the title, post date, or short brief of one content plan in the organization locked in this session. The brief stays at most 4000 characters. A brief change is accepted when the signed-in member is that plan's PIC. If the plan has no PIC yet, that member becomes the PIC. A storyboard belongs in content.briefs.create. Does not change approval, production status, completion, or published links.",
+      "Update the title or post date of one content plan in the organization locked in this session. post_date is YYYY-MM-DD in Asia/Jakarta. Storyboard cells, the voice over, and the caption are not changed here. Preview those with content.briefs.update.preview and save them with content.briefs.update only after the user confirms. Does not change approval, production status, or published links.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "content.briefs.update.preview",
+    description:
+      "Preview an edit to an existing content brief in the organization locked in this session. Nothing is saved. Requires id and base_version from content.briefs.get. Send only the fields that change: shots (each with shot_id and any of timing, visual, vo, element, tagging), voice_over, and caption. At least one is required. shot_id comes from content.briefs.get. Rows cannot be added or removed, and an unknown shot_id is rejected. Cells, characters, locations, properties, aspect, the link, the title, and the date that are not sent stay as they are. Returns each change with the old text and the new text, and will_return_to_need_review when an approved brief would return to Need Review. A matching base_version is required. If the brief changed since the read, the call returns brief_version_conflict and no confirm_token. If this member cannot edit a changed column, it returns brief_field_forbidden and no confirm_token. With no active Approval Access row, the PIC, an owner, or an admin may edit. An active row allows the owner, the configured roles, and the employees in Exceptions. If production is approved, or the content is scheduled or published, it returns brief_edit_locked and no confirm_token until the brief status is Request Revision. Identical text returns changes empty and no confirm_token. Otherwise returns confirm_token, valid for 15 minutes. Show the changes and ask. Only call content.briefs.update after the user clearly says yes. If the user changes anything, preview again. Follow how_to_read.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "content.briefs.update",
+    description:
+      "Save the brief edit shown by content.briefs.update.preview. Requires only the confirm_token that preview returned. Call this only after the user has seen the changes and clearly confirmed them. Never call it right after preview without asking. Saves the storyboard cells, voice over, and caption that were previewed. An approved brief returns to Need Review when the text changes, unless its status is Request Revision. Errors: confirmation_expired or confirmation_used mean you must run the preview again and ask again. brief_version_conflict means the brief changed after the preview, so preview again. brief_field_forbidden and brief_edit_locked save nothing. Each edit needs its own preview and its own yes. This does not add or remove storyboard rows, change the link, title, or date, or approve, schedule, or publish.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
@@ -1185,6 +1203,7 @@ const MUTATING_TOOLS = new Set<McpToolName>([
   "finance.expenses.update",
   "content.plans.create",
   "content.briefs.create",
+  "content.briefs.update",
   "content.briefs.voice.generate",
   "content.plans.update",
   "content.plans.media.set_link",

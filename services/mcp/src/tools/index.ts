@@ -100,6 +100,14 @@ export type { InventoryPurchaseOrderInput } from "./inventory/purchaseOrderCreat
 export { createPlanInput, createPlanResult } from "./content/plansCreate";
 export { createBriefInput, createBriefResult } from "./content/briefsCreate";
 export { getBriefInput, getBriefResult } from "./content/briefsGet";
+export {
+  BRIEF_UPDATE_HOW_TO_READ,
+  briefPreviewArgs,
+  briefUpdateFromConfirmation,
+  confirmBriefInput,
+  previewBriefEdit,
+  updateBriefPreviewInput,
+} from "./content/briefsUpdate";
 export { listBriefVoiceInput, listBriefVoiceResult } from "./content/briefsVoiceList";
 export { getBriefVoiceInput, getBriefVoiceResult } from "./content/briefsVoiceGet";
 export { generateBriefVoiceInput, generateBriefVoiceResult } from "./content/briefsVoiceGenerate";

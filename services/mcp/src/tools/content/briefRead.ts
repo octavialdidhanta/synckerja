@@ -13,8 +13,12 @@ export type BriefShot = {
   element: string;
   tagging: string;
   has_image: boolean;
-  /** True when a VO audio clip exists for this shot index (no download URL here). */
+  /** True when a VO audio clip exists for this shot. */
   has_voice?: boolean;
+  /** True when that clip no longer matches this shot's vo, or voice_over when the vo cell is empty. */
+  voice_stale?: boolean;
+  /** Permanent storyboard row id. Absent until the row ids have been created. */
+  shot_id?: string;
   extra?: Record<string, string>;
 };
 

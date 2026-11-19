@@ -90,7 +90,7 @@ BEGIN
   EXECUTE p_sql;
   RAISE EXCEPTION 'expected % but the statement succeeded', p_message;
 EXCEPTION
-  WHEN insufficient_privilege THEN
+  WHEN insufficient_privilege OR raise_exception THEN
     IF SQLERRM IS DISTINCT FROM p_message THEN
       RAISE EXCEPTION 'expected "%" but got "%"', p_message, SQLERRM;
     END IF;
@@ -429,7 +429,7 @@ BEGIN
       'UPDATE public.social_media_plans SET brief = %L WHERE id = %L',
       'Brief curian', v_plan
     ),
-    'Only the PIC can edit brief content'
+    'brief_field_forbidden'
   );
 
   INSERT INTO public.ai_employee_brief_tickets (plan_id, token)
@@ -440,7 +440,7 @@ BEGIN
       'UPDATE public.social_media_plans SET brief = %L WHERE id = %L',
       'Brief tiket palsu', v_plan
     ),
-    'Only the PIC can edit brief content'
+    'brief_field_forbidden'
   );
   PERFORM set_config('ai_employee.brief_write', '', true);
   DELETE FROM public.ai_employee_brief_tickets WHERE plan_id = v_plan;

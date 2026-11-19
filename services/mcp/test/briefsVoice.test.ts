@@ -69,33 +69,42 @@ describe("listBriefVoiceClips", () => {
 
   it("dedupes by row_index keeping the newest first row from RPC", async () => {
     const admin = {
-      rpc: vi.fn(async () => ({
-        data: [
-          {
-            id: "c1",
-            kind: "vo",
-            row_index: 0,
-            file_name: "vo-1.mp3",
-            spoken_text: "Halo",
-            storage_path: "org/plan/voice/c1.mp3",
-            created_at: "2026-11-17T01:00:00Z",
-          },
-          {
-            id: "c0",
-            kind: "vo",
-            row_index: 0,
-            file_name: "vo-1-old.mp3",
-            spoken_text: "Lama",
-            storage_path: "org/plan/voice/c0.mp3",
-            created_at: "2026-11-16T01:00:00Z",
-          },
-        ],
-        error: null,
-      })),
+      rpc: vi.fn(async (name: string) => {
+        if (name === "mcp_get_content_brief") {
+          return {
+            data: [{ brief: "| Timing | VO (Voice Over) |\n| --- | --- |\n| 0-2 | Halo |", concept: null }],
+            error: null,
+          };
+        }
+        return {
+          data: [
+            {
+              id: "c1",
+              kind: "vo",
+              row_index: 0,
+              file_name: "vo-1.mp3",
+              spoken_text: "Halo",
+              storage_path: "org/plan/voice/c1.mp3",
+              created_at: "2026-11-17T01:00:00Z",
+            },
+            {
+              id: "c0",
+              kind: "vo",
+              row_index: 0,
+              file_name: "vo-1-old.mp3",
+              spoken_text: "Lama",
+              storage_path: "org/plan/voice/c0.mp3",
+              created_at: "2026-11-16T01:00:00Z",
+            },
+          ],
+          error: null,
+        };
+      }),
     };
     const result = await listBriefVoiceClips(admin as never, "https://proj.supabase.co", me, planId);
     expect(result.count).toBe(1);
     expect(result.clips[0].id).toBe("c1");
+    expect(result.clips[0].stale).toBe(false);
     expect(result.clips[0].download_url).toContain("/brief-visual-images/org/plan/voice/c1.mp3");
     expect(result.clips[0]).not.toHaveProperty("storage_path");
   });

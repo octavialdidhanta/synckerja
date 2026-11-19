@@ -7,10 +7,11 @@ import { buildBriefMarkdown } from "../src/tools/content/briefMarkdown";
 import { parseStoredBrief } from "../src/tools/content/briefRead";
 import { getBriefInput } from "../src/tools/content/briefsGet";
 
-const sql = readFileSync(
-  new URL("../../../supabase/migrations/20261110090000_mcp_get_content_brief.sql", import.meta.url),
+const migrationSql = readFileSync(
+  new URL("../../../supabase/migrations/20261119014152_content_brief_save_guard.sql", import.meta.url),
   "utf8",
 );
+const sql = migrationSql.slice(migrationSql.indexOf("CREATE OR REPLACE FUNCTION public.mcp_get_content_brief"));
 const me = { userId: "user-1", organizationId: "org-1" };
 const planId = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
 
@@ -62,6 +63,7 @@ describe("mcp_get_content_brief SQL", () => {
     expect(sql).toContain("RAISE EXCEPTION 'not_a_member'");
     expect(sql).toContain("FROM anon, authenticated");
     expect(sql).toContain("TO service_role");
+    expect(sql).toContain("version_no integer");
     expect(sql).not.toMatch(/GRANT EXECUTE[^;]*(anon|authenticated)/);
   });
 
@@ -182,6 +184,8 @@ describe("getContentBrief", () => {
     expect(detail.caption).toBe("Chat WA");
     expect(detail.storyboard?.shot_count).toBe(1);
     expect(detail.how_to_read).toContain("ads.performance.breakdown");
+    expect(detail.version_no).toBe(0);
     expect(detail).not.toHaveProperty("google_drive_link");
+    expect(toContentBriefDetail(storedRow("Halo", { version_no: 4 })).version_no).toBe(4);
   });
 });

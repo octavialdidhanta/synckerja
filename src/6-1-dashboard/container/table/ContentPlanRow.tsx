@@ -885,6 +885,28 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
                 onStatusChange(plan.id, value);
                 return;
               }
+              if (value === 'Approved' && !plan.approved) {
+                const hasApprovalAccess = checkApprovalAccess('approved');
+                if (!hasApprovalAccess) {
+                  toast({
+                    variant: "destructive",
+                    title: "Access Denied",
+                    description: "You don't have permission to approve this content"
+                  });
+                  return;
+                }
+                const missingFields = validateRequiredFields(plan);
+                if (missingFields.length > 0) {
+                  toast({
+                    variant: "destructive",
+                    title: "Cannot approve content",
+                    description: `Please fill in the following required fields: ${missingFields.join(', ')}`
+                  });
+                  return;
+                }
+                onFieldChange(plan.id, 'approved', true);
+                return;
+              }
               onStatusChange(plan.id, value);
             }}
           >

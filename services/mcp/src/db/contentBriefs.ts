@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { BriefEditState, BriefUpdateWrite } from "../tools/content/briefsUpdate";
 import {
   buildBriefConcept,
   buildBriefMarkdown,
@@ -7,7 +8,9 @@ import {
 } from "../tools/content/briefMarkdown";
 import { parseStoredBrief, type BriefStoryboard } from "../tools/content/briefRead";
 import { BRIEF_HOW_TO_READ } from "../tools/content/briefsGet";
-import { listBriefVoiceRowIndexes } from "./briefVoice";
+import { listStoryboardShots, listVoClipRows } from "./briefVoice";
+import { narrationSource, voiceClipStale } from "../tools/content/voiceStale";
+import { clipBelongsToShot } from "../../../../src/6-1-dashboard/modal/briefShotMatch";
 
 type Session = { userId: string; organizationId: string };
 
@@ -132,6 +135,7 @@ type ContentBriefStored = {
   caption: string | null;
   has_drive_file: boolean | null;
   published: boolean | null;
+  version_no?: number | null;
 };
 
 export type ContentBriefDetail = {
@@ -159,6 +163,7 @@ export type ContentBriefDetail = {
   caption: string | null;
   has_drive_file: boolean;
   published: boolean;
+  version_no: number;
   how_to_read: string;
 };
 
@@ -209,6 +214,7 @@ export function toContentBriefDetail(row: ContentBriefStored): ContentBriefDetai
     caption: row.caption?.trim() || null,
     has_drive_file: row.has_drive_file === true,
     published: row.published === true,
+    version_no: typeof row.version_no === "number" ? row.version_no : 0,
     how_to_read: BRIEF_HOW_TO_READ,
   };
 }
@@ -224,12 +230,23 @@ export async function getContentBrief(
   if (!row) throw new Error("not_found");
   const detail = toContentBriefDetail(row);
   try {
-    const voiced = await listBriefVoiceRowIndexes(admin, ctx, id);
-    if (!detail.storyboard || voiced.size === 0) return detail;
+    const shots = await listStoryboardShots(admin, id).catch(() => []);
+    const clips = detail.storyboard ? await listVoClipRows(admin, ctx, id) : [];
+    if (!detail.storyboard) return detail;
     let index = 0;
     for (const sequence of detail.storyboard.sequences) {
       for (const shot of sequence.shots) {
-        shot.has_voice = voiced.has(index);
+        const shotId = shots.find((item) => item.row_index === index)?.id ?? null;
+        if (shotId) shot.shot_id = shotId;
+        const matches = clips
+          .filter((clip) => clipBelongsToShot(clip, index, shotId))
+          .sort((left, right) => String(right.created_at).localeCompare(String(left.created_at)));
+        if (clips.length > 0) {
+          const spoken = matches[0]?.spoken_text?.trim() || null;
+          const hasVoice = matches.length > 0;
+          shot.has_voice = hasVoice;
+          shot.voice_stale = hasVoice && voiceClipStale(spoken, narrationSource(shot.vo, detail.voice_over));
+        }
         index += 1;
       }
     }
@@ -237,4 +254,98 @@ export async function getContentBrief(
     // Voice list is additive; brief text still returns if the clips RPC is unavailable.
   }
   return detail;
+}
+
+function briefUpdateError(message: string): Error {
+  if (message.includes("brief_version_conflict")) return new Error("brief_version_conflict");
+  if (message.includes("brief_version_required")) return new Error("brief_version_required");
+  if (message.includes("brief_field_forbidden")) return new Error("brief_field_forbidden");
+  if (message.includes("brief_edit_locked")) return new Error("brief_edit_locked");
+  if (message.includes("confirmation_used")) return new Error("confirmation_used");
+  if (message.includes("not_found") || message.includes("Plan not found")) return new Error("not_found");
+  if (message.includes("not_a_member") || message.includes("Not allowed")) return new Error("forbidden");
+  if (message.includes("invalid_input")) return new Error("invalid_input");
+  return new Error("request_failed");
+}
+
+function asShots(value: unknown): BriefEditState["shots"] {
+  const rows = typeof value === "string" ? JSON.parse(value) as unknown : value;
+  if (!Array.isArray(rows)) return [];
+  return rows.flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+    const item = row as { id?: unknown; row_index?: unknown };
+    if (typeof item.id !== "string" || typeof item.row_index !== "number") return [];
+    return [{ id: item.id, rowIndex: item.row_index }];
+  });
+}
+
+type BriefEditStateRow = {
+  version_no: number | null;
+  status: string | null;
+  approved: boolean | null;
+  revision_locked: boolean | null;
+  can_storyboard: boolean | null;
+  can_concept: boolean | null;
+  can_caption: boolean | null;
+  can_link: boolean | null;
+  brief: string | null;
+  concept: string | null;
+  caption: string | null;
+  link_reference: string | null;
+  shots: unknown;
+};
+
+export async function readContentBriefForUpdate(
+  admin: SupabaseClient,
+  ctx: Session,
+  planId: string,
+): Promise<BriefEditState> {
+  const { data, error } = await admin.rpc("mcp_read_content_brief_for_update", {
+    ...sessionArgs(ctx),
+    p_plan_id: planId,
+  });
+  if (error) throw briefUpdateError(error.message ?? "");
+  const row = asRows<BriefEditStateRow>(data)[0];
+  if (!row) throw new Error("not_found");
+  return {
+    versionNo: typeof row.version_no === "number" ? row.version_no : 0,
+    status: row.status ?? null,
+    approved: row.approved === true,
+    revisionLocked: row.revision_locked === true,
+    canStoryboard: row.can_storyboard === true,
+    canConcept: row.can_concept === true,
+    canCaption: row.can_caption === true,
+    brief: row.brief ?? "",
+    concept: row.concept ?? "",
+    caption: row.caption ?? "",
+    link: row.link_reference ?? "",
+    shots: asShots(row.shots),
+  };
+}
+
+export async function confirmContentBrief(
+  admin: SupabaseClient,
+  ctx: Session,
+  write: BriefUpdateWrite,
+  confirmId: string,
+): Promise<{ id: string; version_no: number; status: string | null; approved: boolean }> {
+  const { data, error } = await admin.rpc("mcp_confirm_content_brief", {
+    ...sessionArgs(ctx),
+    p_plan_id: write.planId,
+    p_base_version: write.baseVersion,
+    p_confirm_id: confirmId,
+    p_brief: write.brief,
+    p_concept: write.concept,
+    p_caption: write.caption,
+    p_link: write.link,
+  });
+  if (error) throw briefUpdateError(error.message ?? "");
+  const row = asRows<{ id: string; version_no: number | null; status: string | null; approved: boolean | null }>(data)[0];
+  if (!row) throw new Error("not_found");
+  return {
+    id: row.id,
+    version_no: typeof row.version_no === "number" ? row.version_no : 0,
+    status: row.status ?? null,
+    approved: row.approved === true,
+  };
 }

@@ -8,6 +8,7 @@ export type ContentPlanWrite = {
   title?: string | null;
   postDate?: string | null;
   brief?: string | null;
+  baseVersion?: number | null;
 };
 
 export type ObjectiveCreate = {
@@ -84,6 +85,7 @@ export function updateContentPlan(
     p_title: input.title ?? null,
     p_post_date: input.postDate ?? null,
     p_brief: input.brief ?? null,
+    p_base_version: input.baseVersion ?? null,
   });
 }
 

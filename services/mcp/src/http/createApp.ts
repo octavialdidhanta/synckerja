@@ -95,6 +95,7 @@ import { exchangeToken } from "../oauth/token";
 import { verifyAccessToken, type AccessClaims } from "../oauth/tokens";
 import type { SchedulePlanResult } from "../tools/content/plansSchedule";
 import { signConfirmation, verifyConfirmation } from "../tools/inventory/confirmation";
+import { signContentConfirmation, verifyContentConfirmation } from "../tools/content/contentConfirmation";
 
 export type AppDeps = {
   config: McpServiceConfig;
@@ -231,6 +232,15 @@ export type AppDeps = {
   ) => Promise<ContentPlanRow>;
   createContentBrief: (ctx: McpAuthContext, input: ContentBriefWrite) => Promise<ContentBriefRecord>;
   getContentBrief: (ctx: McpAuthContext, id: string) => Promise<ContentBriefDetail>;
+  readContentBriefForUpdate: (
+    ctx: McpAuthContext,
+    planId: string,
+  ) => Promise<import("../tools/content/briefsUpdate").BriefEditState>;
+  confirmContentBrief: (
+    ctx: McpAuthContext,
+    write: import("../tools/content/briefsUpdate").BriefUpdateWrite,
+    confirmId: string,
+  ) => Promise<{ id: string; version_no: number; status: string | null; approved: boolean }>;
   listBriefVoiceClips: (
     ctx: McpAuthContext,
     planId: string,
@@ -678,6 +688,10 @@ export function createApp(deps: AppDeps) {
           signConfirmation(deps.config.jwtSecret, ctx, tool, payload, now()),
         verifyInventoryConfirmation: (ctx, tool, confirmToken) =>
           verifyConfirmation(deps.config.jwtSecret, ctx, tool, confirmToken, now()),
+        signContentConfirmation: (ctx, tool, payload) =>
+          signContentConfirmation(deps.config.jwtSecret, ctx, tool, payload, now()),
+        verifyContentConfirmation: (ctx, tool, confirmToken) =>
+          verifyContentConfirmation(deps.config.jwtSecret, ctx, tool, confirmToken, now()),
       });
     } catch (error) {
       if (error instanceof AuthzError) {

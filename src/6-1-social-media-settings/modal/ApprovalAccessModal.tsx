@@ -289,7 +289,11 @@ export const ApprovalAccessModal = ({
                          value === 'prod_approved' ? 'Prod Approved' : 
                          value === 'done' ? 'Done' : 
                          value === 'revision' ? 'Revision' :
-                         value === 'production_revision' ? 'Prod Revision' : ''
+                         value === 'production_revision' ? 'Prod Revision' :
+                         value === 'brief_storyboard' ? 'Storyboard' :
+                         value === 'brief_concept' ? 'Konsep' :
+                         value === 'brief_caption' ? 'Caption' :
+                         value === 'brief_link' ? 'Link' : ''
             }));
           }}>
               <SelectTrigger>
@@ -315,6 +319,10 @@ export const ApprovalAccessModal = ({
                     Prod Revision
                   </div>
                 </SelectItem>
+                <SelectItem value="brief_storyboard">Storyboard</SelectItem>
+                <SelectItem value="brief_concept">Konsep</SelectItem>
+                <SelectItem value="brief_caption">Caption</SelectItem>
+                <SelectItem value="brief_link">Link</SelectItem>
               </SelectContent>
             </Select>
           </div>

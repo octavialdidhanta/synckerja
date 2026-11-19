@@ -23,6 +23,9 @@ import {
   type BriefVoiceClipPublic,
   type BriefVoiceListResult,
 } from "../tools/content/briefsVoiceList";
+import { parseStoredBrief } from "../tools/content/briefRead";
+import { narrationSource, voiceClipStale } from "../tools/content/voiceStale";
+import { clipBelongsToShot } from "../../../../src/6-1-dashboard/modal/briefShotMatch";
 
 type Session = { userId: string; organizationId: string };
 type DoorConfig = Pick<McpServiceConfig, "supabaseUrl" | "supabaseServiceRoleKey" | "scheduledPostsInternalSecret">;
@@ -33,6 +36,7 @@ type ClipRow = {
   id: string;
   kind: string;
   row_index: number;
+  shot_id?: string | null;
   file_name: string;
   spoken_text: string | null;
   storage_path: string;
@@ -68,6 +72,7 @@ function toPublicClip(supabaseUrl: string, row: ClipRow): BriefVoiceClipPublic {
     row_index: row.row_index,
     file_name: row.file_name,
     spoken_text: row.spoken_text?.trim() || null,
+    shot_id: row.shot_id ?? null,
     download_url: briefVoicePublicUrl(supabaseUrl, row.storage_path),
     created_at: row.created_at,
   };
@@ -85,38 +90,75 @@ function dedupeByRow(clips: BriefVoiceClipPublic[]): BriefVoiceClipPublic[] {
   return out;
 }
 
+async function fetchClipRows(admin: SupabaseClient, ctx: Session, planId: string): Promise<ClipRow[]> {
+  const { data, error } = await admin.rpc("mcp_list_brief_voice_clips", {
+    ...sessionArgs(ctx),
+    p_plan_id: planId,
+  });
+  if (error) throw briefVoiceError(error.message ?? "");
+  return asRows<ClipRow>(data);
+}
+
+export async function listVoClipRows(admin: SupabaseClient, ctx: Session, planId: string): Promise<ClipRow[]> {
+  return fetchClipRows(admin, ctx, planId);
+}
+
+export type StoryboardShotRow = { id: string; row_index: number };
+
+export async function listStoryboardShots(admin: SupabaseClient, planId: string): Promise<StoryboardShotRow[]> {
+  if (typeof admin.from !== "function") return [];
+  const { data, error } = await admin
+    .from("brief_storyboard_shots")
+    .select("id, row_index")
+    .eq("social_media_plan_id", planId)
+    .order("row_index", { ascending: true });
+  if (error) throw briefVoiceError(error.message ?? "");
+  return asRows<StoryboardShotRow>(data);
+}
+
+type NarrationLines = { lines: string[]; voiceOver: string | null };
+
+async function narrationLinesForPlan(admin: SupabaseClient, ctx: Session, planId: string): Promise<NarrationLines> {
+  const { data, error } = await admin.rpc("mcp_get_content_brief", { ...sessionArgs(ctx), p_id: planId });
+  if (error) throw briefVoiceError(error.message ?? "");
+  const row = asRows<{ brief?: string | null; concept?: { voice_over?: string | null } | null }>(data)[0];
+  if (!row) throw new Error("not_found");
+  const voiceOver = row.concept?.voice_over?.trim() || null;
+  const { storyboard } = parseStoredBrief(row.brief);
+  const lines: string[] = [];
+  for (const sequence of storyboard?.sequences ?? []) {
+    for (const shot of sequence.shots) lines.push(narrationSource(shot.vo, voiceOver));
+  }
+  return { lines, voiceOver };
+}
+
+function sourceForRow(sources: NarrationLines, rowIndex: number): string {
+  if (rowIndex >= 0 && rowIndex < sources.lines.length) return sources.lines[rowIndex];
+  return narrationSource("", sources.voiceOver);
+}
+
 export async function listBriefVoiceClips(
   admin: SupabaseClient,
   supabaseUrl: string,
   ctx: Session,
   planId: string,
 ): Promise<BriefVoiceListResult> {
-  const { data, error } = await admin.rpc("mcp_list_brief_voice_clips", {
-    ...sessionArgs(ctx),
-    p_plan_id: planId,
-  });
-  if (error) throw briefVoiceError(error.message ?? "");
-  const rows = asRows<ClipRow>(data);
-  const clips = dedupeByRow(rows.map((row) => toPublicClip(supabaseUrl, row)));
+  const clips = dedupeByRow((await fetchClipRows(admin, ctx, planId)).map((row) => toPublicClip(supabaseUrl, row)));
+  if (clips.length > 0) {
+    const sources = await narrationLinesForPlan(admin, ctx, planId);
+    const shots = await listStoryboardShots(admin, planId);
+    for (const clip of clips) {
+      const shot = clip.shot_id ? shots.find((item) => item.id === clip.shot_id) : null;
+      const index = shot ? shot.row_index : clip.row_index;
+      clip.stale = voiceClipStale(clip.spoken_text, sourceForRow(sources, index));
+    }
+  }
   return {
     plan_id: planId,
     count: clips.length,
     clips,
     how_to_read: BRIEF_VOICE_LIST_HOW_TO_READ,
   };
-}
-
-export async function listBriefVoiceRowIndexes(
-  admin: SupabaseClient,
-  ctx: Session,
-  planId: string,
-): Promise<Set<number>> {
-  const { data, error } = await admin.rpc("mcp_list_brief_voice_clips", {
-    ...sessionArgs(ctx),
-    p_plan_id: planId,
-  });
-  if (error) throw briefVoiceError(error.message ?? "");
-  return new Set(asRows<ClipRow>(data).map((row) => row.row_index));
 }
 
 function mapGenerateError(status: number, message: string): Error {
@@ -136,6 +178,7 @@ type EdgeClipRow = {
   id?: string;
   kind?: string;
   row_index?: number;
+  shot_id?: string | null;
   file_name?: string;
   spoken_text?: string | null;
   storage_path?: string;
@@ -187,6 +230,7 @@ export async function generateBriefVoiceClip(
     row_index: Number(clipRow.row_index ?? input.rowIndex),
     file_name: String(clipRow.file_name ?? `vo-${input.rowIndex + 1}.mp3`),
     spoken_text: clipRow.spoken_text?.trim() || text,
+    shot_id: clipRow.shot_id ?? null,
     download_url: briefVoicePublicUrl(config.supabaseUrl, storagePath),
     created_at: String(clipRow.created_at ?? new Date().toISOString()),
   };

@@ -145,6 +145,12 @@ import {
   createBriefResult,
   getBriefInput,
   getBriefResult,
+  BRIEF_UPDATE_HOW_TO_READ,
+  briefPreviewArgs,
+  briefUpdateFromConfirmation,
+  confirmBriefInput,
+  previewBriefEdit,
+  updateBriefPreviewInput,
   listBriefVoiceInput,
   listBriefVoiceResult,
   getBriefVoiceInput,
@@ -473,12 +479,31 @@ export type McpReadDeps = {
     tool: import("../tools/inventory/confirmation").ConfirmableTool,
     token: string,
   ) => Promise<import("../tools/inventory/confirmation").VerifiedConfirmation>;
+  signContentConfirmation: (
+    ctx: McpAuthContext,
+    tool: import("../tools/content/contentConfirmation").ContentConfirmableTool,
+    payload: Record<string, unknown>,
+  ) => Promise<import("../tools/content/contentConfirmation").SignedContentConfirmation>;
+  verifyContentConfirmation: (
+    ctx: McpAuthContext,
+    tool: import("../tools/content/contentConfirmation").ContentConfirmableTool,
+    token: string,
+  ) => Promise<import("../tools/content/contentConfirmation").VerifiedContentConfirmation>;
   createContentPlan: (
     ctx: McpAuthContext,
     input: { title: string; postDate: string | null; brief: string | null },
   ) => Promise<ContentPlanRow>;
   createContentBrief: (ctx: McpAuthContext, input: ContentBriefWrite) => Promise<ContentBriefRecord>;
   getContentBrief: (ctx: McpAuthContext, id: string) => Promise<ContentBriefDetail>;
+  readContentBriefForUpdate: (
+    ctx: McpAuthContext,
+    planId: string,
+  ) => Promise<import("../tools/content/briefsUpdate").BriefEditState>;
+  confirmContentBrief: (
+    ctx: McpAuthContext,
+    write: import("../tools/content/briefsUpdate").BriefUpdateWrite,
+    confirmId: string,
+  ) => Promise<{ id: string; version_no: number; status: string | null; approved: boolean }>;
   listBriefVoiceClips: (
     ctx: McpAuthContext,
     planId: string,
@@ -527,7 +552,7 @@ export type McpReadDeps = {
   saveThinkingPlanDirect: (ctx: McpAuthContext, input: ThinkingPlanDirectInput) => Promise<ThinkingPlanResult>;
   updateContentPlan: (
     ctx: McpAuthContext,
-    input: { id: string; title: string | null; postDate: string | null; brief: string | null },
+    input: { id: string; title: string | null; postDate: string | null; brief: string | null; baseVersion: number | null },
   ) => Promise<ContentPlanRow>;
   setContentPlanDriveLink: (
     ctx: McpAuthContext,
@@ -850,6 +875,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "content.plans.create": createPlanInput,
   "content.briefs.create": createBriefInput,
   "content.briefs.get": getBriefInput,
+  "content.briefs.update.preview": updateBriefPreviewInput,
+  "content.briefs.update": confirmBriefInput,
   "content.briefs.voice.list": listBriefVoiceInput,
   "content.briefs.voice.get": getBriefVoiceInput,
   "content.briefs.voice.generate": generateBriefVoiceInput,
@@ -1315,6 +1342,37 @@ async function runTool(
     }
     case "content.briefs.get":
       return getBriefResult(ctx, requiredString(args.id), deps.getContentBrief);
+    case "content.briefs.update.preview": {
+      const parsed = updateBriefPreviewInput.safeParse(args);
+      if (!parsed.success) throw new Error("invalid_input");
+      const input = briefPreviewArgs(parsed.data);
+      const state = await deps.readContentBriefForUpdate(ctx, input.planId);
+      const preview = previewBriefEdit(state, input);
+      const signed = preview.write
+        ? await deps.signContentConfirmation(ctx, "content.briefs.update", { ...preview.write })
+        : null;
+      return {
+        changes: preview.changes,
+        will_return_to_need_review: preview.willReturnToNeedReview,
+        ...(signed ?? {}),
+        how_to_read: BRIEF_UPDATE_HOW_TO_READ,
+        next_step: signed
+          ? "Nothing is saved yet. Show the changes to the user and ask them to confirm. Call content.briefs.update with this confirm_token only after they clearly say yes."
+          : "The text is already the same, so no confirm_token was issued. Tell the user nothing needs to change.",
+      };
+    }
+    case "content.briefs.update": {
+      const parsed = confirmBriefInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      const verified = await deps.verifyContentConfirmation(
+        ctx,
+        "content.briefs.update",
+        parsed.data.confirm_token,
+      );
+      const write = briefUpdateFromConfirmation(verified.payload);
+      const saved = await deps.confirmContentBrief(ctx, write, verified.confirmId);
+      return { saved: true, ...saved };
+    }
     case "content.briefs.voice.list":
       return listBriefVoiceResult(ctx, args, deps.listBriefVoiceClips);
     case "content.briefs.voice.get":
@@ -1335,7 +1393,6 @@ async function runTool(
           id: requiredString(args.id),
           title: optionalString(args.title),
           postDate: optionalString(args.post_date),
-          brief: optionalString(args.brief),
         },
         deps.updateContentPlan,
       );

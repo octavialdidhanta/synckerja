@@ -188,6 +188,7 @@ interface EditableBriefTableProps {
   onDeleteImage?: (imageId: string) => Promise<unknown>;
   onInsertRowImages?: (insertAtRowIndex: number) => Promise<unknown>;
   onDeleteRowImages?: (rowIndex: number) => Promise<unknown>;
+  onEnsureShots?: (rowCount: number) => Promise<boolean>;
   mediaBusy?: boolean;
   uploadingRowIndex?: number | null;
   deletingImageId?: string | null;
@@ -296,6 +297,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   onDeleteImage,
   onInsertRowImages,
   onDeleteRowImages,
+  onEnsureShots,
   mediaBusy = false,
   uploadingRowIndex = null,
   deletingImageId = null,
@@ -403,6 +405,11 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     setFieldVersions(parseBriefFieldVersions(sequencesSource ?? ''));
   }, [storyboardToolbar, sequencesSource, bodyRowCount, isEditing, defaultSequenceName]);
 
+  useEffect(() => {
+    if (readOnly || !planId || !onEnsureShots || displayData.length === 0) return;
+    void onEnsureShots(bodyRowCount);
+  }, [readOnly, planId, onEnsureShots, bodyRowCount, displayData.length]);
+
   const colCount = Math.max(...displayData.map((r) => r.length), 1);
   const padRow = (row: string[]) => {
     const r = [...row];
@@ -505,6 +512,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     const tableColCount = Math.max(...tableData.map((r) => r.length), 1);
     const headerRow = (tableData[0] ?? displayData[0] ?? []).slice(0, tableColCount);
     const body = isEditing ? editData : displayData.slice(1);
+    if (onEnsureShots && !(await onEnsureShots(body.length))) return;
     await onDeleteRowImages?.(rowIdx);
     const newBody = body.filter((_, i) => i !== rowIdx).map((row) => {
       const a = [...row];
@@ -534,6 +542,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       emptyRow[imageColumnIndex] = '';
     }
     const insertAt = rowIdx + 1;
+    if (onEnsureShots && !(await onEnsureShots(body.length))) return;
     await onInsertRowImages?.(insertAt);
     const newBody = [...body.slice(0, insertAt), emptyRow, ...body.slice(insertAt)].map((row) => {
       const a = [...row];

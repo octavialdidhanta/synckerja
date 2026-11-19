@@ -18,6 +18,7 @@ import { BRIEF_STORYBOARD_IMAGES_BUCKET } from "@/6-1-dashboard/hook/useBriefSto
 import { useBriefVideo } from "@/6-1-dashboard/modal/briefVideoContext";
 import { VOICE_LANGUAGES, VOICE_STS_MODEL_LABEL, voiceModelLabel, voiceModelUsesLanguage } from "@/6-1-dashboard/lib/voiceModels";
 import { clipForNarration } from "@/6-1-dashboard/modal/briefVoVersions";
+import { clipBelongsToShot } from "@/6-1-dashboard/modal/briefShotMatch";
 
 type VoiceSettings = {
   api_key_configured: boolean;
@@ -35,6 +36,7 @@ type VoiceClip = {
   id: string;
   kind: "vo" | "seedance";
   row_index: number;
+  shot_id: string | null;
   video_id: string | null;
   storage_path: string;
   file_name: string;
@@ -105,7 +107,7 @@ export function BriefVoiceProvider({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("brief_voice_clips")
-        .select("id, kind, row_index, video_id, storage_path, file_name, spoken_text, created_at")
+        .select("id, kind, row_index, shot_id, video_id, storage_path, file_name, spoken_text, created_at")
         .eq("social_media_plan_id", planId as string)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -113,21 +115,39 @@ export function BriefVoiceProvider({
     },
   });
   const clips = clipsQuery.data ?? EMPTY_CLIPS;
+  const shotsQuery = useQuery({
+    queryKey: ["brief-storyboard-shots", planId],
+    enabled: Boolean(planId),
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("brief_storyboard_shots")
+        .select("id, row_index")
+        .eq("social_media_plan_id", planId as string)
+        .order("row_index", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; row_index: number }>;
+    },
+  });
+  const shots = shotsQuery.data ?? [];
   const value = useMemo<BriefVoiceContextValue>(() => ({
     planId,
     canGenerate,
     settings: settingsQuery.data ?? null,
-    voClip: (rowIndex, narration) =>
-      clipForNarration(
-        clips.filter((clip) => clip.kind === "vo" && clip.row_index === rowIndex),
+    voClip: (rowIndex, narration) => {
+      const shotId = shots.find((shot) => shot.row_index === rowIndex)?.id ?? null;
+      return clipForNarration(
+        clips.filter((clip) => clipBelongsToShot(clip, rowIndex, shotId)),
         narration,
-      ),
+      );
+    },
     seedanceClip: (videoId) => clips.find((clip) => clip.kind === "seedance" && clip.video_id === videoId) ?? null,
     refresh: async () => {
       await queryClient.invalidateQueries({ queryKey: ["brief-voice-clips", planId] });
+      await queryClient.invalidateQueries({ queryKey: ["brief-storyboard-shots", planId] });
       await queryClient.invalidateQueries({ queryKey: ["content-ai-usage", planId] });
     },
-  }), [canGenerate, settingsQuery.data, clips, queryClient, planId]);
+  }), [canGenerate, settingsQuery.data, clips, shots, queryClient, planId]);
 
   return <BriefVoiceContext.Provider value={value}>{children}</BriefVoiceContext.Provider>;
 }

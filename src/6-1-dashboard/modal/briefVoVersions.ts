@@ -2,6 +2,9 @@ import { isBriefVoHeader } from "./briefStoryboardConstants";
 import { stripBriefFieldVersionsComment } from "./briefFieldVersions";
 import { stripBriefSceneMetaComment } from "./briefSceneMeta";
 import { stripBriefSequencesComment } from "./briefSequences";
+import { narrationKey } from "./narrationKey";
+
+export { narrationKey };
 
 export interface BriefVoVersions {
   row: number;
@@ -124,10 +127,6 @@ export function savedVoSlides(history: BriefVoVersions[], row: number, cell: str
   if (stored.length >= 2) return stored;
   const current = cell.trim();
   return current ? [current] : [];
-}
-
-function narrationKey(value: string) {
-  return value.replace(/\[[^\]\n]{0,80}\]/g, " ").replace(/\s+/g, " ").trim();
 }
 
 /** The newest clip spoken from this line. Audio tags do not hide the player. */
