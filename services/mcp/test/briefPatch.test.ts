@@ -75,3 +75,14 @@ describe("applyBriefPatch", () => {
     })).toThrow("invalid_input");
   });
 });
+
+describe("Scene Visual edits", () => {
+  it("writes visual to the Scene Visual column, keeps the image, and labels the change scene", () => {
+    const next = applyBriefPatch(stored, { shots: [{ shotId, visual: "piring sate" }] });
+    expect(next.changes).toEqual([
+      { field: "storyboard", shot_id: shotId, column: "scene", before: "meja", after: "piring sate" },
+    ]);
+    expect(next.brief).toContain("| piring sate |");
+    expect(next.brief).toContain("![a](storage/x.png)");
+  });
+});
