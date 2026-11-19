@@ -43,6 +43,7 @@ const ContentCalendarContent: React.FC = () => {
   const [activeMainTab, setActiveMainTab] = useState('content-calendar');
   const [selectedService, setSelectedService] = useState<string>('all');
   const [previewPlanId, setPreviewPlanId] = useState<string | null>(null);
+  const [publishSetupPlanId, setPublishSetupPlanId] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const openedPlanRef = useRef<string | null>(null);
 
@@ -610,6 +611,7 @@ const ContentCalendarContent: React.FC = () => {
               production_status: 'Approved',
             });
           }}
+          onApproved={() => setPublishSetupPlanId(previewPlan.id)}
           onCarouselChange={() => {
             queryClient.invalidateQueries({ queryKey: ['social-media-carousel'] });
             queryClient.invalidateQueries({ queryKey: ['social-media-plans'] });
@@ -618,9 +620,6 @@ const ContentCalendarContent: React.FC = () => {
           onCarouselAllRemoved={handleCarouselAllRemoved}
         />
       )}
-    </>
-  );
-
       {publishSetupPlanId ? (
         <SocialMediaLinksDialog
           isOpen
@@ -633,6 +632,8 @@ const ContentCalendarContent: React.FC = () => {
           }
         />
       ) : null}
+    </>
+  );
 };
 
 // Main export with providers (matching SocialMediaDashboardPage pattern)
