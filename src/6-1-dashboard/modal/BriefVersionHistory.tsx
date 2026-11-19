@@ -135,7 +135,7 @@ export function BriefVersionHistory({
         }
       }
       if (cancelled) return;
-      const next = rows.map((row) => ({
+      const next = rows.map((row): BriefVersionRow => ({
         id: row.id,
         versionNo: row.version_no,
         brief: row.brief ?? "",

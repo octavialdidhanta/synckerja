@@ -639,8 +639,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
           );
         }
         setApprovalKnown(true);
-      })
-      .catch(() => {
+      }, () => {
         if (!cancelled) setApprovalKnown(true);
       });
     return () => {

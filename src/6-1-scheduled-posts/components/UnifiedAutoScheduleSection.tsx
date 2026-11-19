@@ -5,6 +5,7 @@ import { Textarea } from '@/shared/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { ServiceRequiredPlatform } from '@/6-1-dashboard/hook/useServiceRequiredPlatforms';
 import { GoogleDriveFilePreview } from '@/6-1-dashboard/modal/GoogleDriveInAppFilePreview';
 import { useOrgDefaultPostTime } from '../hooks/useOrgDefaultPostTime';
@@ -85,7 +86,7 @@ function isCarouselPhotoPlatform(platform: string): boolean {
 
 function getReconnectHint(
   platform: string,
-  t: (key: string, defaultValue?: string) => string,
+  t: TFunction,
   accountKind?: 'organization' | 'person' | null,
 ): string {
   switch (platform) {
