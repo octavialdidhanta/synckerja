@@ -18,7 +18,8 @@ export type BriefPatch = {
 export type BriefChange = {
   field: "storyboard" | "concept" | "caption";
   shot_id?: string;
-  column?: BriefCellField | "voice_over";
+  /** "scene" when the visual patch went to the Scene Visual column. */
+  column?: BriefCellField | "scene" | "voice_over";
   before: string;
   after: string;
 };
@@ -135,7 +136,8 @@ function patchStoryboard(brief: string, shots: StoredBriefText["shots"], patches
       if (before === after) continue;
       line = replaceCell(line, column, after);
       edited = true;
-      changes.push({ field: "storyboard", shot_id: patch.shotId, column: field, before, after });
+      const label = field === "visual" && headerKind(headers[column] ?? "") === "scene" ? "scene" : field;
+      changes.push({ field: "storyboard", shot_id: patch.shotId, column: label, before, after });
     }
     lines[lineIndex] = line;
   }

@@ -6,12 +6,17 @@ const shotPatch = z.object({
   shot_id: z.string().uuid(),
   timing: cell.optional(),
   visual: cell.optional(),
+  /** Same cell as visual: the Scene Visual column (content.briefs.get calls it scene). */
+  scene: cell.optional(),
   vo: cell.optional(),
   element: cell.optional(),
   tagging: cell.optional(),
 }).strict().refine((value) => (
+  value.visual === undefined || value.scene === undefined || value.visual === value.scene
+)).refine((value) => (
   value.timing !== undefined
   || value.visual !== undefined
+  || value.scene !== undefined
   || value.vo !== undefined
   || value.element !== undefined
   || value.tagging !== undefined
@@ -85,7 +90,7 @@ export function briefPreviewArgs(data: z.infer<typeof updateBriefPreviewInput>) 
     shots: data.shots?.map((shot) => ({
       shotId: shot.shot_id,
       timing: shot.timing,
-      visual: shot.visual,
+      visual: shot.scene ?? shot.visual,
       vo: shot.vo,
       element: shot.element,
       tagging: shot.tagging,
