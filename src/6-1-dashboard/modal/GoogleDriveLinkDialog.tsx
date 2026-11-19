@@ -74,6 +74,8 @@ interface GoogleDriveLinkDialogProps {
   socialMediaPlanId: string;
   planTitle?: string;
   onApprove?: () => void;
+  /** Runs after the approval is saved and the dialog closes (e.g. open the publish-links setup). */
+  onApproved?: () => void;
   onRevision?: () => void;
   status?: 'draft' | 'approved' | 'revision' | 'completed';
   // New props for content information
@@ -126,6 +128,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
   socialMediaPlanId,
   planTitle,
   onApprove,
+  onApproved,
   onRevision,
   status = 'draft',
   contentTitle,
@@ -615,7 +618,8 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
     if (onApprove) {
       onApprove();
     }
-    
+
+    let approvedOk = false;
     try {
       const approvedDate = new Date().toISOString();
       const { error } = await supabase
@@ -631,6 +635,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
         devLog.error('Error updating production status for approval:', error);
         toast.error('Failed to update production status');
       } else {
+        approvedOk = true;
         toast.success('Production approved successfully');
         devLog.debug('Production status set to Approved, production_approved turned ON, and approved date recorded at:', approvedDate);
         if (organizationId && !productionApproved) {
@@ -643,6 +648,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
     }
 
     onClose();
+    if (approvedOk) onApproved?.();
   };
 
   const isFolderLink = (url: string) => {

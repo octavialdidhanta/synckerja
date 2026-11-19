@@ -45,6 +45,7 @@ import { resolveSharePublishMediaPhase } from "@/6-1-scheduled-posts/lib/resolve
 import { buildScheduleCaption } from "../lib/shareToPublishSteps";
 import type { ShareableSocialMediaPlan } from "../lib/buildSharePlanQuery";
 import type { SharePublishVideo } from "../lib/sharePublishVideo";
+import { useSubscriptionSelfServiceEnabled } from "@/shared/auth/hooks/useSubscriptionSelfServiceEnabled";
 
 export default function ShareToPublishWizardPage() {
   useStatusBarStyle("light");
