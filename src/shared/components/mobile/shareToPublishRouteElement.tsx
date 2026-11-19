@@ -1,5 +1,6 @@
 import { Component, lazy, Suspense, type ErrorInfo, type ReactNode } from "react";
 import ShareToPublishWizardPageSkeleton from "@/mobile/2-share/share-to-publish/pages/ShareToPublishWizardPageSkeleton";
+import { reportBoundaryError } from "@/shared/lib/sentry";
 
 const ShareToPublishWizardPage = lazy(
   () => import("@/mobile/2-share/share-to-publish/pages/ShareToPublishWizardPage"),
@@ -31,6 +32,7 @@ class ShareToPublishErrorBoundary extends Component<BoundaryProps, BoundaryState
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("ShareToPublishErrorBoundary", error, info);
+    reportBoundaryError(error, info, "share-to-publish");
   }
 
   render() {

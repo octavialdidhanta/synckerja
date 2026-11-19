@@ -5,6 +5,9 @@ import { initI18n } from "@/shared/i18n/index.ts";
 import { RouteSkeletonBootShell } from "@/shared/components/route-loading/createDeferredSkeleton";
 import { shouldMountOrderStoreApp, publicOrderHostname } from "@/synckerja-order/shared/lib/orderUrls";
 import "./index.css";
+import { initSentry } from "@/shared/lib/sentry";
+
+initSentry();
 
 const ASSET_RELOAD_KEY = "sj-asset-reload";
 
