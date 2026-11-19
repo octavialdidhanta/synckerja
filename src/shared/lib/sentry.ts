@@ -9,7 +9,7 @@ import * as Sentry from "@sentry/react";
  * VITE_SENTRY_DSN, or set it to "off" to disable.
  */
 const DEFAULT_DSN =
-  "https://42a633c043f0aabb4c2ff555d5623852@o4512459626250240.ingest.us.sentry.io/4512459639619584";
+  "https://0ddbeeb9f13e0f84af17e38aebd3e070@o4512459626250240.ingest.us.sentry.io/4512459751030784";
 
 const SENSITIVE_PARAM =
   /([?&#](?:review_token|token|access_token|refresh_token|id_token|media_token|code|state|apikey|api_key|key|signature|sig)=)[^&#]*/gi;
