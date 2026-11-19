@@ -9,7 +9,8 @@ import type { CheckLevel } from "@/thinking-lab/shared/checkSettings";
 import type { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type { LabRunFns } from "@/thinking-lab/page/labRunContext";
 
-export type MasterThoughtFlowDeps = LabRunFns & {
+/** Master actions only use the runners; the page does not pass labRunRef/queryClient/reportStepError. */
+export type MasterThoughtFlowDeps = Pick<LabRunFns, "run" | "runManual"> & {
   t: ReturnType<typeof useAppTranslation>["t"];
   masters: ReturnType<typeof useMasterThought>;
   skipFor: (level: CheckLevel) => string[];
