@@ -241,7 +241,7 @@ describe("content.briefs.get shot_id for briefs never opened in Office", () => {
 
 describe("mcp_ensure_brief_storyboard_shots SQL", () => {
   const ensureSql = readFileSync(
-    new URL("../../../supabase/migrations/20261119060000_mcp_ensure_brief_storyboard_shots.sql", import.meta.url),
+    new URL("../../../supabase/migrations/20261119053820_mcp_ensure_brief_storyboard_shots.sql", import.meta.url),
     "utf8",
   );
 
