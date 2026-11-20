@@ -60,7 +60,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.get-midtrans-config]
-verify_jwt = false
+verify_jwt = true
 
 # Public read of Maps JS API key (same pattern as get-midtrans-config); set GOOGLE_MAPS_API_KEY in project secrets.
 [functions.google-maps-key]
@@ -91,10 +91,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.get-midtrans-snap-token]
-verify_jwt = false
+verify_jwt = true
 
 [functions.cancel-pending-payment]
-verify_jwt = false
+verify_jwt = true
 
 # Browser invokes with user access_token (often ES256). Gateway JWT verify → 401, execution_id null.
 # Auth is enforced inside each handler (service role + auth.getUser(jwt)).
@@ -470,4 +470,118 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.admin-delete-organization]
+verify_jwt = false
+
+# --- Synced with production (2026-11-20): these run with verify_jwt = false in prod.
+# Without an entry, `supabase functions deploy` defaults to true and would reject their callers.
+
+[functions.attendance-reminder-fill-queue]
+verify_jwt = false
+
+[functions.attendance-reminder-send]
+verify_jwt = false
+
+[functions.automation-flow-api]
+verify_jwt = false
+
+[functions.complete-magic-link-setup]
+verify_jwt = false
+
+[functions.create-user]
+verify_jwt = false
+
+[functions.daily-task-assignment-send-push]
+verify_jwt = false
+
+[functions.daily-task-comment-send-push]
+verify_jwt = false
+
+[functions.daily-task-completion-send-push]
+verify_jwt = false
+
+[functions.dispatch-pos-receipt-feedback]
+verify_jwt = false
+
+[functions.email-inbound]
+verify_jwt = false
+
+[functions.flow-delay-worker]
+verify_jwt = false
+
+[functions.flow-runtime]
+verify_jwt = false
+
+[functions.flow-runtime-send]
+verify_jwt = false
+
+[functions.generate-magic-link]
+verify_jwt = false
+
+[functions.get-whatsapp-profile-photo]
+verify_jwt = false
+
+[functions.linkedin-content-publish]
+verify_jwt = false
+
+[functions.livechat-assignment-send-push]
+verify_jwt = false
+
+[functions.livechat-save-fcm-token]
+verify_jwt = false
+
+[functions.livechat-save-push-subscription]
+verify_jwt = false
+
+[functions.livechat-send-push]
+verify_jwt = false
+
+[functions.mark-employees-removal]
+verify_jwt = false
+
+[functions.mcp-linkedin-metrics]
+verify_jwt = false
+
+[functions.meta-content-avatar]
+verify_jwt = false
+
+[functions.meta-content-publish]
+verify_jwt = false
+
+[functions.migrate-candidate-to-employee]
+verify_jwt = false
+
+[functions.process-employee-removals]
+verify_jwt = false
+
+[functions.resolve-facebook-media]
+verify_jwt = false
+
+[functions.send-email-reply]
+verify_jwt = false
+
+[functions.send-facebook-message]
+verify_jwt = false
+
+[functions.social-media-plan-auto-schedule]
+verify_jwt = false
+
+[functions.social-media-production-send-push]
+verify_jwt = false
+
+[functions.sync-whatsapp-business-name]
+verify_jwt = false
+
+[functions.threads-content-avatar]
+verify_jwt = false
+
+[functions.tiktok-content-comments]
+verify_jwt = false
+
+[functions.unmark-employees-removal]
+verify_jwt = false
+
+[functions.validate-magic-link]
+verify_jwt = false
+
+[functions.youtube-content-publish]
 verify_jwt = false
