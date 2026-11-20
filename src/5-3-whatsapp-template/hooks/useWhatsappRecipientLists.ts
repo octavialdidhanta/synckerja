@@ -24,6 +24,10 @@ import {
   type RecipientImportFailure,
   type RecipientImportValidRow,
 } from "@/5-3-whatsapp-template/utils/parseRecipientImportFile";
+import {
+  parseImportErrorSummary,
+  type RecipientImportRejectedRows,
+} from "@/5-3-whatsapp-template/utils/recipientImportRejectedRows";
 
 const LISTS_KEY = "whatsapp_recipient_lists";
 const PICKER_KEY = "whatsapp_recipient_picker_candidates";
@@ -462,10 +466,14 @@ export type WhatsappRecipientListDetailMeta = {
   creation_source: string;
   upload_status: string;
   created_at: string;
+  /** Non-empty data rows in the uploaded file (file uploads only). */
+  row_count_expected: number | null;
 };
 
 export type WhatsappRecipientListDetailPayload = {
   list: WhatsappRecipientListDetailMeta;
+  /** Rows of the uploaded file that were not imported, with the reason. */
+  rejected: RecipientImportRejectedRows;
   members: RecipientListMemberViewRow[];
   /** Same order as `members` — import columns for campaign slot mapping. */
   rawMembers: MemberRowLite[];
@@ -482,7 +490,9 @@ export function useWhatsappRecipientListDetail(organizationId: string | null | u
 
       const { data: list, error: listErr } = await supabase
         .from("whatsapp_recipient_lists")
-        .select("id, name, channel, creation_source, upload_status, created_at, organization_id")
+        .select(
+          "id, name, channel, creation_source, upload_status, created_at, organization_id, row_count_expected, error_summary",
+        )
         .eq("id", lid)
         .eq("organization_id", orgId)
         .maybeSingle();
@@ -547,7 +557,10 @@ export function useWhatsappRecipientListDetail(organizationId: string | null | u
           creation_source: String(list.creation_source ?? "crm_select"),
           upload_status: String(list.upload_status ?? "completed"),
           created_at: String(list.created_at ?? ""),
+          row_count_expected:
+            typeof list.row_count_expected === "number" ? list.row_count_expected : null,
         },
+        rejected: parseImportErrorSummary(list.error_summary),
         members: rows,
         rawMembers: members,
         memberTotal: members.length,

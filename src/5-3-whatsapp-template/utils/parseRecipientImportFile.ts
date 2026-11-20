@@ -21,10 +21,17 @@ export type RecipientImportFailureCode =
   | "FIELD_TOO_LONG";
 
 export type RecipientImportFailure = {
+  /** 1-based row number as shown in Excel / the CSV file (header is row 1). */
   row: number;
   code: RecipientImportFailureCode;
   field?: string;
+  /** Raw phone and name from the rejected row, so the user can find and fix it. */
+  phone?: string;
+  name?: string;
 };
+
+/** Cap on stored raw values so one bad cell cannot bloat the error summary. */
+const FAILURE_VALUE_MAX_LEN = 120;
 
 export type RecipientImportValidRow = {
   phoneKey: string;
@@ -51,10 +58,17 @@ function pushFailureUnique(
   failures: RecipientImportFailure[],
   row: number,
   code: RecipientImportFailureCode,
-  field?: string,
+  field: string | undefined,
+  values: { phone: string; name: string },
 ): void {
   if (failures.some((f) => f.row === row)) return;
-  failures.push({ row, code, field });
+  const failure: RecipientImportFailure = { row, code };
+  if (field) failure.field = field;
+  const phone = values.phone.slice(0, FAILURE_VALUE_MAX_LEN);
+  const name = values.name.slice(0, FAILURE_VALUE_MAX_LEN);
+  if (phone) failure.phone = phone;
+  if (name) failure.name = name;
+  failures.push(failure);
 }
 
 const MAX_FIELD_LEN = 500;
@@ -116,16 +130,33 @@ export async function parseRecipientImportFile(file: File): Promise<ParseRecipie
   const sheet = sheetName ? workbook.Sheets[sheetName] : null;
   if (!sheet) return { ok: false, code: "EMPTY_FILE" };
 
-  let rows: unknown[][];
+  // Keep blank rows so each row's index maps to its real row number in the file
+  // (reported back to the user for rejected rows); empty rows are skipped below.
+  // A sheet whose used range is far larger than the row limit (e.g. formatting down to row
+  // 1,048,576) would allocate one array per blank row; fall back to skipping blanks there.
+  let allRows: unknown[][];
+  let firstSheetRow = 0;
   try {
-    rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", blankrows: false }) as unknown[][];
+    const range = sheet["!ref"] ? XLSX.utils.decode_range(sheet["!ref"]) : null;
+    if (range) firstSheetRow = range.s.r;
+    const keepBlankRows = !range || range.e.r - range.s.r < RECIPIENT_IMPORT_MAX_DATA_ROWS * 2;
+    allRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      defval: "",
+      blankrows: keepBlankRows,
+    }) as unknown[][];
   } catch {
     return { ok: false, code: "PARSE" };
   }
 
-  if (!rows?.length) return { ok: false, code: "EMPTY_FILE" };
+  const rows: { cells: unknown[]; rowNumber: number }[] = [];
+  (allRows ?? []).forEach((cells, index) => {
+    if (!rowIsEmpty(cells ?? [])) rows.push({ cells: cells ?? [], rowNumber: firstSheetRow + index + 1 });
+  });
 
-  const headerRow = rows[0] ?? [];
+  if (!rows.length) return { ok: false, code: "EMPTY_FILE" };
+
+  const headerRow = rows[0].cells;
   const colMap = buildHeaderIndexMap(headerRow);
   if (!colMap) {
     return { ok: false, code: "MISSING_HEADERS" };
@@ -136,7 +167,7 @@ export async function parseRecipientImportFile(file: File): Promise<ParseRecipie
   const idxCustomer = colMap.get("customer_name")!;
   const idxCompany = colMap.get("company")!;
 
-  const dataRows = rows.slice(1).filter((r) => !rowIsEmpty(r as unknown[]));
+  const dataRows = rows.slice(1);
   if (dataRows.length > RECIPIENT_IMPORT_MAX_DATA_ROWS) {
     return { ok: false, code: "TOO_MANY_ROWS" };
   }
@@ -146,13 +177,14 @@ export async function parseRecipientImportFile(file: File): Promise<ParseRecipie
   const seenPhone = new Set<string>();
 
   for (let i = 0; i < dataRows.length; i++) {
-    const row = dataRows[i] as unknown[];
-    const sheetRowNumber = i + 2;
+    const row = dataRows[i].cells;
+    const sheetRowNumber = dataRows[i].rowNumber;
 
     const phoneRaw = cell(row, idxPhone);
     const fullName = cell(row, idxFull);
     const customerName = cell(row, idxCustomer);
     const company = cell(row, idxCompany);
+    const rawValues = { phone: phoneRaw, name: fullName || customerName };
 
     const fields = [
       { key: "phone_number", val: phoneRaw },
@@ -163,11 +195,11 @@ export async function parseRecipientImportFile(file: File): Promise<ParseRecipie
 
     for (const f of fields) {
       if (!f.val) {
-        pushFailureUnique(failures, sheetRowNumber, "MISSING_FIELD", f.key);
+        pushFailureUnique(failures, sheetRowNumber, "MISSING_FIELD", f.key, rawValues);
         break;
       }
       if (f.val.length > MAX_FIELD_LEN) {
-        pushFailureUnique(failures, sheetRowNumber, "FIELD_TOO_LONG", f.key);
+        pushFailureUnique(failures, sheetRowNumber, "FIELD_TOO_LONG", f.key, rawValues);
         break;
       }
     }
@@ -176,12 +208,12 @@ export async function parseRecipientImportFile(file: File): Promise<ParseRecipie
 
     const phoneKey = normalizeWaPhoneKey(phoneRaw);
     if (!phoneKey) {
-      pushFailureUnique(failures, sheetRowNumber, "INVALID_PHONE");
+      pushFailureUnique(failures, sheetRowNumber, "INVALID_PHONE", undefined, rawValues);
       continue;
     }
 
     if (seenPhone.has(phoneKey)) {
-      pushFailureUnique(failures, sheetRowNumber, "DUPLICATE_PHONE");
+      pushFailureUnique(failures, sheetRowNumber, "DUPLICATE_PHONE", undefined, rawValues);
       continue;
     }
     seenPhone.add(phoneKey);
