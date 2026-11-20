@@ -1,0 +1,127 @@
+name: Edge Functions compare (deployed vs repo)
+
+# Manual only. Downloads the source of every DEPLOYED Edge Function (read-only) and compares it
+# with supabase/functions/ in the repo. Nothing is deployed, deleted or changed in Supabase.
+#
+# Report (job summary + artifact) lists file names and line counts only, never code.
+#
+# import_remote_only=true: also copy the code of functions that exist only in Supabase into a
+# review branch (never overwriting repo files), after a secret scan. Nothing reaches main
+# without a PR.
+#
+# Needs repo secret SUPABASE_FUNCTIONS_READ_TOKEN: a Supabase access token scoped to this project
+# with Edge Functions: Read (plus Project Settings: Read, Projects: Read).
+
+on:
+  workflow_dispatch:
+    inputs:
+      import_remote_only:
+        description: "Copy code of functions that exist only in Supabase into a review branch"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: edge-functions-compare
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_FUNCTIONS_READ_TOKEN }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Check secrets are present
+        run: |
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_ID; do
+            if [ -z "${!name}" ]; then echo "::error::Secret for $name is empty or missing (SUPABASE_FUNCTIONS_READ_TOKEN / SUPABASE_PROJECT_ID)"; exit 1; fi
+          done
+
+      - name: List deployed functions
+        run: |
+          set -o pipefail
+          supabase functions list --project-ref "$SUPABASE_PROJECT_ID" -o json > deployed.json
+          node -e 'const a=JSON.parse(require("fs").readFileSync("deployed.json","utf8"));const l=(Array.isArray(a)?a:a.functions||[]).map(f=>f.slug).sort();require("fs").writeFileSync("slugs.txt",l.join("\n")+"\n");console.log("deployed:",l.length)'
+
+      - name: Download each function into its own folder (read-only)
+        run: |
+          mkdir -p remote failed
+          while read -r slug; do
+            [ -z "$slug" ] && continue
+            dir="remote/$slug"
+            mkdir -p "$dir/supabase"
+            printf 'project_id = "%s"\n' "$SUPABASE_PROJECT_ID" > "$dir/supabase/config.toml"
+            if ! supabase functions download "$slug" --project-ref "$SUPABASE_PROJECT_ID" --use-api --workdir "$dir" > "failed/$slug.log" 2>&1; then
+              echo "::warning::download failed: $slug"
+            else
+              rm -f "failed/$slug.log"
+            fi
+            rm -f "$dir/supabase/config.toml"
+          done < slugs.txt
+          echo "Failed downloads: $(ls failed | wc -l)"
+
+      - name: Compare with repo
+        run: |
+          node scripts/edge-functions-compare.mjs remote edge-functions-report.md \
+            ${{ inputs.import_remote_only && 'import' || '' }}
+          cat edge-functions-report.md >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$(ls failed)" ]; then
+            { echo ""; echo "## Download failures"; for f in failed/*.log; do echo "- $(basename "$f" .log)"; done; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload report (file names and counts only)
+        uses: actions/upload-artifact@v4
+        with:
+          name: edge-functions-report
+          path: |
+            edge-functions-report.md
+            edge-functions-report.json
+
+      - name: Scan imported code for secrets
+        if: inputs.import_remote_only
+        run: |
+          [ -d import ] || { echo "Nothing imported."; exit 0; }
+          found=0
+          check() {
+            local label="$1" pattern="$2" hits
+            hits="$(grep -rnE "$pattern" import | cut -d: -f1,2 | head -20 | paste -sd' ' -)"
+            if [ -n "$hits" ]; then echo "::error::Possible $label at: $hits"; found=1; fi
+          }
+          check "JWT"                     'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'
+          check "Bearer token literal"    'Bearer [A-Za-z0-9._-]{20,}'
+          check "Stripe/OpenAI-style key" '(^|[^A-Za-z0-9_-])((sk|rk|pk)_(live|test)_[A-Za-z0-9]{10,}|sk-(proj-)?[A-Za-z0-9_]{20,})'
+          check "Google API key"          'AIza[0-9A-Za-z_-]{35}'
+          check "GitHub token"            'gh[pousr]_[A-Za-z0-9]{30,}'
+          check "Xendit key"              'xnd_(production|development)_[A-Za-z0-9]{10,}'
+          check "Supabase key"            'sb_(secret|publishable)_[A-Za-z0-9_-]{10,}'
+          if [ "$found" -ne 0 ]; then echo "::error::Stopped: imported code contains secret-like values. Nothing was pushed."; exit 1; fi
+          echo "No secret-like values found."
+
+      - name: Push imported code to a review branch
+        if: inputs.import_remote_only
+        run: |
+          [ -d import/supabase ] || { echo "Nothing to push."; exit 0; }
+          branch="chore/edge-functions-import-$(date -u +%Y%m%d%H%M%S)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          cp -rn import/supabase/. supabase/
+          git add supabase/functions
+          git commit -m "chore(functions): import code of functions that were only deployed in Supabase"
+          git push origin "$branch"
+          {
+            echo ""
+            echo "### Imported code pushed"
+            echo "- Branch: \`$branch\`"
+            echo "- Open a PR: https://github.com/${GITHUB_REPOSITORY}/compare/main...${branch}?expand=1"
+          } >> "$GITHUB_STEP_SUMMARY"
