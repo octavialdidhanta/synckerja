@@ -9,6 +9,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "./cors.ts";
+import { isServiceOrOrgMember } from "../_shared/edgeCallerAuth.ts";
 import {
   buildReceiptEmailHtml,
   buildReceiptEmailSubject,
@@ -131,6 +132,14 @@ Deno.serve(async (req: Request) => {
     if (!inv) {
       return new Response(JSON.stringify({ success: false, error: "invitation_not_found" }), {
         status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Only a signed-in member of the receipt's organization (POS / web checkout) or a service caller.
+    if (!(await isServiceOrOrgMember(admin, req, String(inv.organization_id)))) {
+      return new Response(JSON.stringify({ success: false, error: "forbidden" }), {
+        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

@@ -1,6 +1,7 @@
 /// <reference path="../deno-globals.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getRequestUser } from "../_shared/edgeCallerAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,6 +49,14 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+
+    // Signup/resend send the new user's session: then the code may only go to that user's address.
+    // Without a session the OTP issuer still limits volume (already_verified / rate_limited).
+    const user = await getRequestUser(admin, req);
+    if (user?.email && user.email !== email) {
+      return json({ success: false, error: "email_mismatch" }, 403);
+    }
+
     const { data, error } = await admin.rpc("issue_new_verification_token", {
       p_email: email,
     });
@@ -59,8 +68,13 @@ Deno.serve(async (req: Request) => {
     const issued = data as Issued | null;
     const token = issued?.token?.trim();
     if (!issued?.ok || !token) {
-      const code = issued?.error === "user_not_found" ? "user_not_found" : "token_issue_failed";
-      return json({ success: false, error: code }, code === "user_not_found" ? 404 : 502);
+      const known: Record<string, number> = {
+        user_not_found: 404,
+        already_verified: 409,
+        rate_limited: 429,
+      };
+      const code = issued?.error && issued.error in known ? issued.error : "token_issue_failed";
+      return json({ success: false, error: code }, known[code] ?? 502);
     }
 
     const res = await fetch("https://api.resend.com/emails", {
