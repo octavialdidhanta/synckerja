@@ -1,0 +1,101 @@
+name: Migration baseline (dump schema)
+
+# Manual only. Dumps the CURRENT production schema into one baseline migration file and
+# pushes it to a new branch so it can be reviewed in a PR. It never writes to the database:
+# `supabase db dump` only reads.
+#
+# Repo is public, so the dump is scanned for anything that looks like a secret before it is
+# committed. If the scan finds something, the job stops and nothing is pushed.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: migration-baseline
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Check secrets are present
+        run: |
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_ID; do
+            if [ -z "${!name}" ]; then echo "::error::Secret $name is empty or missing"; exit 1; fi
+          done
+
+      - name: Link project (read-only connection check)
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Dump production schema
+        id: dump
+        run: |
+          version="$(date -u +%Y%m%d%H%M%S)"
+          file="supabase/baseline/${version}_remote_baseline.sql"
+          mkdir -p supabase/baseline
+          supabase db dump --linked -f "$file"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+          echo "Lines: $(wc -l < "$file")  Size: $(du -h "$file" | cut -f1)"
+
+      - name: Scan dump for secrets (prints line numbers only, never values)
+        env:
+          FILE: ${{ steps.dump.outputs.file }}
+        run: |
+          found=0
+          check() {
+            local label="$1" pattern="$2"
+            local lines
+            lines="$(grep -nE "$pattern" "$FILE" | cut -d: -f1 | head -20 | paste -sd, -)"
+            if [ -n "$lines" ]; then
+              echo "::error::Possible $label at line(s): $lines"
+              found=1
+            fi
+          }
+          check "JWT"                    'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'
+          check "Bearer token literal"   'Bearer [A-Za-z0-9._-]{20,}'
+          # Word boundary so names like "task-step-files" do not match "sk-".
+          check "Stripe/OpenAI-style key" '(^|[^A-Za-z0-9_-])((sk|rk|pk)_(live|test)_[A-Za-z0-9]{10,}|sk-(proj-)?[A-Za-z0-9_]{20,})'
+          check "Google API key"         'AIza[0-9A-Za-z_-]{35}'
+          check "GitHub token"           'gh[pousr]_[A-Za-z0-9]{30,}'
+          check "Xendit key"             'xnd_(production|development)_[A-Za-z0-9]{10,}'
+          check "Supabase key"           'sb_(secret|publishable)_[A-Za-z0-9_-]{10,}'
+          if [ "$found" -ne 0 ]; then
+            echo "::error::Stopped: the dump contains values that look like secrets. Nothing was pushed."
+            exit 1
+          fi
+          echo "No secret-like values found."
+
+      - name: Push dump to a review branch
+        env:
+          FILE: ${{ steps.dump.outputs.file }}
+          VERSION: ${{ steps.dump.outputs.version }}
+        run: |
+          branch="chore/migration-baseline-${VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add "$FILE"
+          git commit -m "chore(db): production schema baseline ${VERSION} (dump only)"
+          git push origin "$branch"
+          {
+            echo "### Baseline dump ready"
+            echo ""
+            echo "- Branch: \`$branch\`"
+            echo "- File: \`$FILE\`"
+            echo "- Open a PR: https://github.com/${GITHUB_REPOSITORY}/compare/main...${branch}?expand=1"
+          } >> "$GITHUB_STEP_SUMMARY"
