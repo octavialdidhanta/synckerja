@@ -176,7 +176,9 @@ export function VerifyEmailScreen({
         const msg =
           errKey === "invalid_or_expired"
             ? t("auth.verifyEmail.otpErrorExpired")
-            : t("auth.verifyEmail.otpErrorInvalid");
+            : errKey === "too_many_attempts"
+              ? t("auth.verifyEmail.otpErrorTooMany")
+              : t("auth.verifyEmail.otpErrorInvalid");
         setEmailError(msg);
         toast({
           title: t("auth.verifyEmail.otpErrorTitle"),

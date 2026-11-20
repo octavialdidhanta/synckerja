@@ -72,6 +72,7 @@
       "otpErrorTitle": "Verification failed",
       "otpErrorInvalid": "That code doesn’t match. Check the code and try again.",
       "otpErrorExpired": "This code is no longer valid. Tap Resend email for a new code.",
+      "otpErrorTooMany": "Too many wrong codes. Wait a while, then tap Resend email for a new code.",
       "resend": "Resend email",
       "resendCooldown": "Resend ({{seconds}}s)",
       "sending": "Sending…",
