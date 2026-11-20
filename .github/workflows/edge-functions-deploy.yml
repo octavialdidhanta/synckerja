@@ -140,9 +140,11 @@ jobs:
                 blocked="$blocked $name"; continue
               fi
             fi
-            if supabase functions deploy "$name" --project-ref "$SUPABASE_PROJECT_ID" --use-api; then
+            # --yes: without a terminal the CLI refuses to deploy unless confirmation is explicit.
+            if supabase functions deploy "$name" --project-ref "$SUPABASE_PROJECT_ID" --use-api --yes; then
               deployed_ok="$deployed_ok $name"
             else
+              echo "::error title=$name deploy failed::supabase functions deploy returned an error (see log above)"
               failed="$failed $name"
             fi
           done < targets.txt
