@@ -585,3 +585,24 @@ verify_jwt = false
 
 [functions.youtube-content-publish]
 verify_jwt = false
+
+# --- Imported from production (2026-11-20): these functions only existed in Supabase and run with
+# verify_jwt = false there (public website forms / trackers). Without an entry the CLI and the
+# edge-functions-deploy workflow would default to true and lock out their anonymous callers.
+[functions.analytics-ingest]
+verify_jwt = false
+
+[functions.contact-lead]
+verify_jwt = false
+
+[functions.contact-submit]
+verify_jwt = false
+
+[functions.link-redirect]
+verify_jwt = false
+
+[functions.send-threads-message]
+verify_jwt = false
+
+[functions.wa-click-track]
+verify_jwt = false

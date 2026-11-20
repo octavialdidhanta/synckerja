@@ -1,0 +1,167 @@
+name: Edge Functions deploy
+
+# Deploys Supabase Edge Functions from the repo.
+#
+#   push to main  -> deploys ONLY functions whose own folder (supabase/functions/<name>/) changed.
+#                    A change in supabase/functions/_shared/ does NOT redeploy its users
+#                    automatically (one shared file can feed dozens of functions); they are listed in
+#                    the job summary so you can deploy them on purpose with "Run workflow".
+#   Run workflow  -> deploys the functions you name (comma-separated).
+#
+# Before each deploy (scripts/edge-function-predeploy-check.mjs):
+#   - verify_jwt must stay what production has (supabase/config.toml, missing = true)
+#   - production must not contain code that never existed in the repo (someone edited the deployed
+#     function directly). Override only with force=true after reviewing.
+#
+# Needs repo secret SUPABASE_FUNCTIONS_DEPLOY_TOKEN: Supabase access token scoped to this project
+# with Edge Functions: Read-write (+ Project Settings: Read, Projects: Read).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+  workflow_dispatch:
+    inputs:
+      functions:
+        description: "Function names to deploy, comma-separated (e.g. google-maps-key,livechat-send-push)"
+        type: string
+        required: true
+      force:
+        description: "Deploy even if production has code that is not in the repo (review first!)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edge-functions-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_FUNCTIONS_DEPLOY_TOKEN }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install Supabase CLI (npm; avoids GitHub API rate limits)
+        run: |
+          # The npm package refuses global installs; install into a temp prefix and put its bin on PATH.
+          npm install --no-save --prefix "$RUNNER_TEMP/supabase-cli" supabase@latest
+          echo "$RUNNER_TEMP/supabase-cli/node_modules/.bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/supabase-cli/node_modules/.bin/supabase" --version
+
+      - name: Check secrets are present
+        run: |
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_ID; do
+            if [ -z "${!name}" ]; then echo "::error::Secret for $name is empty or missing (SUPABASE_FUNCTIONS_DEPLOY_TOKEN / SUPABASE_PROJECT_ID)"; exit 1; fi
+          done
+
+      - name: Decide which functions to deploy
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_FUNCTIONS: ${{ inputs.functions }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -o pipefail
+          : > targets.txt
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            base="HEAD"
+            for name in $(echo "$INPUT_FUNCTIONS" | tr ',' ' '); do
+              if ! echo "$name" | grep -qE '^[a-z0-9-]+$'; then echo "::error::Invalid function name: $name"; exit 1; fi
+              if [ ! -f "supabase/functions/$name/index.ts" ]; then echo "::error::No supabase/functions/$name/index.ts in the repo"; exit 1; fi
+              echo "$name" >> targets.txt
+            done
+          else
+            base="$BEFORE"
+            if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then base="HEAD~1"; fi
+            git diff --name-only "$base" HEAD -- supabase/functions \
+              | sed -n 's#^supabase/functions/\([a-z0-9][a-z0-9-]*\)/.*#\1#p' | sort -u \
+              | while read -r name; do
+                  [ -f "supabase/functions/$name/index.ts" ] && echo "$name"
+                done > targets.txt || true
+            # Shared files changed: list the functions that import them (not deployed automatically).
+            git diff --name-only "$base" HEAD -- supabase/functions/_shared > shared_changed.txt || true
+            if [ -s shared_changed.txt ]; then
+              : > shared_users.txt
+              while read -r f; do
+                rel="${f#supabase/functions/}"
+                grep -rlF "_shared/${rel#_shared/}" supabase/functions --include=*.ts \
+                  | sed -n 's#^supabase/functions/\([a-z0-9][a-z0-9-]*\)/.*#\1#p' >> shared_users.txt || true
+              done < shared_changed.txt
+              sort -u shared_users.txt -o shared_users.txt
+            fi
+          fi
+          sort -u targets.txt -o targets.txt
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "Functions to deploy:"; cat targets.txt || true
+
+      - name: List deployed functions
+        if: hashFiles('targets.txt') != ''
+        run: |
+          set -o pipefail
+          supabase functions list --project-ref "$SUPABASE_PROJECT_ID" -o json > deployed.json
+
+      - name: Safety checks and deploy
+        env:
+          BASE: ${{ steps.plan.outputs.base }}
+          FORCE: ${{ inputs.force && 'true' || 'false' }}
+        run: |
+          deployed_ok=""; blocked=""; failed=""
+          if [ ! -s targets.txt ]; then echo "No function folders changed."; fi
+          while read -r name; do
+            [ -z "$name" ] && continue
+            dl="-"
+            if node -e 'const a=JSON.parse(require("fs").readFileSync("deployed.json","utf8"));process.exit((Array.isArray(a)?a:a.functions||[]).some(f=>f.slug===process.argv[1])?0:1)' "$name"; then
+              dl="$RUNNER_TEMP/deployed/$name"
+              mkdir -p "$dl/supabase"
+              printf 'project_id = "%s"\n' "$SUPABASE_PROJECT_ID" > "$dl/supabase/config.toml"
+              if ! supabase functions download "$name" --project-ref "$SUPABASE_PROJECT_ID" --use-api --workdir "$dl" > /dev/null 2>&1; then
+                echo "::warning::Could not download deployed $name; drift check skipped"
+                dl="-"
+              fi
+            fi
+            if ! node scripts/edge-function-predeploy-check.mjs "$name" deployed.json "$dl" "$BASE"; then
+              if [ "$FORCE" = "true" ] && [ "$dl" != "-" ]; then
+                # force only overrides drift; re-run without the download to still enforce verify_jwt.
+                if ! node scripts/edge-function-predeploy-check.mjs "$name" deployed.json - "$BASE"; then
+                  blocked="$blocked $name"; continue
+                fi
+                echo "::warning::$name: production drift overridden with force=true"
+              else
+                blocked="$blocked $name"; continue
+              fi
+            fi
+            if supabase functions deploy "$name" --project-ref "$SUPABASE_PROJECT_ID" --use-api; then
+              deployed_ok="$deployed_ok $name"
+            else
+              failed="$failed $name"
+            fi
+          done < targets.txt
+
+          {
+            echo "### Edge Functions deploy"
+            echo ""
+            echo "- Deployed: ${deployed_ok:- none}"
+            echo "- Blocked by safety checks: ${blocked:- none}"
+            echo "- Failed: ${failed:- none}"
+            if [ -s shared_users.txt ]; then
+              echo ""
+              echo "Shared files changed. These functions use them and were NOT redeployed automatically:"
+              echo ""
+              echo '```'
+              tr '\n' ',' < shared_users.txt | sed 's/,$//'
+              echo ""
+              echo '```'
+              echo "Deploy them on purpose with Run workflow if they need the new shared code."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ -z "$blocked$failed" ] || exit 1
