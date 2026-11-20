@@ -1,5 +1,11 @@
 import { pathBaseFromNavPath } from "@/shared/layouts/sidebar/navConfig";
 
+/** Prefetch is best effort: a failed or stale chunk must not become an unhandled rejection.
+ * The real navigation loads the route again and handles errors there. */
+function swallowPrefetchError(promise: Promise<unknown>): void {
+  promise.catch(() => undefined);
+}
+
 type PrefetchFn = () => Promise<unknown>;
 
 /** Longest prefix first — matches App.tsx lazy route entry points. */
@@ -410,7 +416,7 @@ function prefetchExpenseModuleTabs(): void {
     () => import("@/4-2-payment-process/pages/PaymentProcessPage"),
     () => import("@/4-2-reminder-bills/pages/ReminderBillsPage"),
   ];
-  for (const fn of fns) void fn();
+  for (const fn of fns) swallowPrefetchError(fn());
 }
 
 function prefetchRecruitmentModuleTabs(): void {
@@ -420,15 +426,15 @@ function prefetchRecruitmentModuleTabs(): void {
     () => import("@/2-2-recruitment-dashboard").then((m) => ({ default: m.ApplicationsPageWrapper })),
     () => import("@/2-2-recruitment-dashboard").then((m) => ({ default: m.IntervieweesPage })),
   ];
-  for (const fn of fns) void fn();
+  for (const fn of fns) swallowPrefetchError(fn());
 }
 
 function prefetchAttendanceModuleTabs(): void {
-  void import("@/2-3-attendance/AttendancePage").then((m) => {
+  swallowPrefetchError(import("@/2-3-attendance/AttendancePage").then((m) => {
     void m.AttendancePage;
-  });
-  void import("@/2-3-employee-attendance");
-  void import("@/2-3-settings");
+  }));
+  swallowPrefetchError(import("@/2-3-employee-attendance"));
+  swallowPrefetchError(import("@/2-3-settings"));
 }
 
 function prefetchCompanyModuleTabs(): void {
@@ -438,7 +444,7 @@ function prefetchCompanyModuleTabs(): void {
     () => import("@/2-8-files/pages/CompanyFilesPage"),
     () => import("@/2-8-organization/pages/CompanyOrganizationPage"),
   ];
-  for (const fn of fns) void fn();
+  for (const fn of fns) swallowPrefetchError(fn());
 }
 
 function prefetchSocialMediaPerformanceModuleTabs(): void {
@@ -476,7 +482,7 @@ function prefetchSocialMediaPerformanceModuleTabs(): void {
         import("@/mobile/6-0-social-media-performance/pages/MobileManageCommentsInboxPage"),
       ),
   ];
-  for (const fn of fns) void fn();
+  for (const fn of fns) swallowPrefetchError(fn());
 }
 
 function prefetchSocialMediaModuleTabs(): void {
@@ -492,20 +498,20 @@ function prefetchSocialMediaModuleTabs(): void {
       import("@/thinking-lab/page/ThinkingLabPage").then((module) => ({ default: module.ThinkingLabPage })),
     () => import("@/6-1-social-media-settings/SettingsPage"),
   ];
-  for (const fn of fns) void fn();
+  for (const fn of fns) swallowPrefetchError(fn());
 }
 
 function prefetchEmployeesModuleTabs(): void {
-  void import("@/2-1-employees/EmployeePage");
-  void import("@/2-1-reprimand").then((m) => ({ default: m.ReprimandManagementPage }));
+  swallowPrefetchError(import("@/2-1-employees/EmployeePage"));
+  swallowPrefetchError(import("@/2-1-reprimand").then((m) => ({ default: m.ReprimandManagementPage })));
 }
 
 function prefetchKolManagementModuleTabs(): void {
-  void import("@/6-2-1-dashboard/kol-management/pages/KolManagementDashboardPage");
-  void import("@/6-2-1-dashboard/kol-management/components/KOLManagementPage");
-  void import("@/6-2-1-dashboard/kol-management/components/KOLCampaignsPage");
-  void import("@/6-2-2-content-post");
-  void import("@/6-2-3-payment-terms");
+  swallowPrefetchError(import("@/6-2-1-dashboard/kol-management/pages/KolManagementDashboardPage"));
+  swallowPrefetchError(import("@/6-2-1-dashboard/kol-management/components/KOLManagementPage"));
+  swallowPrefetchError(import("@/6-2-1-dashboard/kol-management/components/KOLCampaignsPage"));
+  swallowPrefetchError(import("@/6-2-2-content-post"));
+  swallowPrefetchError(import("@/6-2-3-payment-terms"));
 }
 
 function prefetchOmnichannelModuleTabs(): void {
@@ -553,7 +559,7 @@ function prefetchOmnichannelModuleTabs(): void {
         default: m.WhatsAppTemplateFollowupsPage,
       })),
   ];
-  for (const fn of fns) void fn();
+  for (const fn of fns) swallowPrefetchError(fn());
 }
 
 function prefetchToolsModuleTabs(): void {
@@ -578,23 +584,23 @@ function prefetchToolsModuleTabs(): void {
     () => import("@/8-3-calculator/pages/CalculatorServicesPage"),
     () => import("@/8-3-calculator/pages/CalculatorSalesPage"),
   ];
-  for (const fn of fns) void fn();
+  for (const fn of fns) swallowPrefetchError(fn());
 }
 
 function prefetchSalesOperationsModuleTabs(): void {
-  void import("@/5-2-activities/pages/SalesOperationsPage").then((m) => ({
+  swallowPrefetchError(import("@/5-2-activities/pages/SalesOperationsPage").then((m) => ({
     default: m.SalesOperationsPage,
-  }));
-  void import("@/5-2-jadwal-kunjungan/pages/VisitSchedulingRoute");
-  void import("@/5-2-client_visits");
-  void import("@/8-2-1-default-prices/pages/DefaultPricesPage");
-  void import("@/8-2-3-ingredient/pages/IngredientPage");
-  void import("@/8-2-2-outlets/pages/OutletsListPage");
-  void import("@/8-2-2-outlets/pages/CheckoutSettingsPage");
-  void import("@/8-2-2-outlets/pages/EmailNotificationsPage");
-  void import("@/8-2-2-outlets/pages/ReceiptSettingsPage");
-  void import("@/8-2-2-outlets/pages/InventorySettingsPage");
-  void import("@/6-0-stock-management/pages/StockManagementDashboardPage");
+  })));
+  swallowPrefetchError(import("@/5-2-jadwal-kunjungan/pages/VisitSchedulingRoute"));
+  swallowPrefetchError(import("@/5-2-client_visits"));
+  swallowPrefetchError(import("@/8-2-1-default-prices/pages/DefaultPricesPage"));
+  swallowPrefetchError(import("@/8-2-3-ingredient/pages/IngredientPage"));
+  swallowPrefetchError(import("@/8-2-2-outlets/pages/OutletsListPage"));
+  swallowPrefetchError(import("@/8-2-2-outlets/pages/CheckoutSettingsPage"));
+  swallowPrefetchError(import("@/8-2-2-outlets/pages/EmailNotificationsPage"));
+  swallowPrefetchError(import("@/8-2-2-outlets/pages/ReceiptSettingsPage"));
+  swallowPrefetchError(import("@/8-2-2-outlets/pages/InventorySettingsPage"));
+  swallowPrefetchError(import("@/6-0-stock-management/pages/StockManagementDashboardPage"));
 }
 
 function prefetchModuleSiblingTabs(base: string): void {
@@ -650,6 +656,6 @@ export function prefetchAppRoute(pathWithQuery: string): void {
   if (!fn) return;
   if (!prefetchedPrefixes.has(base)) {
     prefetchedPrefixes.add(base);
-    void fn();
+    swallowPrefetchError(fn());
   }
 }

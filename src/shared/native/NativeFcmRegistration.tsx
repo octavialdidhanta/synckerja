@@ -8,9 +8,11 @@ export function NativeFcmRegistration() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     let cancelled = false;
-    void import("./NativeFcmRegistrationInner").then((mod) => {
-      if (!cancelled) setInner(() => mod.default);
-    });
+    void import("./NativeFcmRegistrationInner")
+      .then((mod) => {
+        if (!cancelled && mod) setInner(() => mod.default);
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };

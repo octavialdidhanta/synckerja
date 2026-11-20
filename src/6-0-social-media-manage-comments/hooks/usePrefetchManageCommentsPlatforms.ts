@@ -11,12 +11,12 @@ export function usePrefetchManageCommentsPlatforms() {
   const { organizationId } = useOmnichannelSurveySettingsAdmin();
 
   useEffect(() => {
-    void import('@/6-0-social-media-manage-comments/pages/FacebookManageCommentsPage');
-    void import('@/6-0-social-media-manage-comments/pages/InstagramManageCommentsPage');
-    void import('@/6-0-social-media-manage-comments/pages/TikTokManageCommentsPage');
-    void import('@/6-0-social-media-manage-comments/pages/YouTubeManageCommentsPage');
-    void import('@/6-0-social-media-manage-comments/pages/LinkedInManageCommentsPage');
-    void import('@/6-0-social-media-manage-comments/pages/ThreadsManageCommentsPage');
+    void import('@/6-0-social-media-manage-comments/pages/FacebookManageCommentsPage').catch(() => undefined);
+    void import('@/6-0-social-media-manage-comments/pages/InstagramManageCommentsPage').catch(() => undefined);
+    void import('@/6-0-social-media-manage-comments/pages/TikTokManageCommentsPage').catch(() => undefined);
+    void import('@/6-0-social-media-manage-comments/pages/YouTubeManageCommentsPage').catch(() => undefined);
+    void import('@/6-0-social-media-manage-comments/pages/LinkedInManageCommentsPage').catch(() => undefined);
+    void import('@/6-0-social-media-manage-comments/pages/ThreadsManageCommentsPage').catch(() => undefined);
   }, []);
 
   useEffect(() => {
