@@ -12,6 +12,7 @@ Functions created by `postgres` in schema `public` are **not** callable by `anon
 - Function for a **public** page (no login): add `GRANT EXECUTE ON FUNCTION public.<fn>(<args>) TO anon;`
   in the same migration, and make the function validate its token/code itself.
 - Function only called by an edge function: `REVOKE EXECUTE ... FROM authenticated;` and keep `service_role`.
+- `REVOKE ALL ... FROM PUBLIC` does **not** remove the default `authenticated` grant: revoke it by name when only `anon` should call it.
 - `SECURITY DEFINER` functions must check the caller themselves (`auth.uid()`, org membership, or a token).
   RLS does not protect them.
 
@@ -73,3 +74,4 @@ No cross-org UPDATE or DELETE was possible on any of the 488 tables checked.
 - 2026-11-20 — weekly check added: machine-readable baseline + tenant isolation test.
 - 2026-11-20 `20261120110000` — public job preview RPC; recruitment links/jobs and review questions readable by own org only.
 - 2026-11-20 `20261120120000` — per-applicant candidate token (`x-candidate-token` header), application submit via RPC, candidate uploads insert-only, candidate CVs readable by the hiring org only.
+- 2026-11-20 `20261120130000` — `recruitment_public_upload_allowed` no longer executable by `authenticated` (default-privilege grant).
