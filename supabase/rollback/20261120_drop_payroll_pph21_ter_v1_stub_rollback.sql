@@ -1,4 +1,4 @@
--- Rollback for 20261120061500_drop_payroll_pph21_ter_v1_stub.sql: recreate the stub
+-- Rollback for 20261120061435_drop_payroll_pph21_ter_v1_stub.sql: recreate the stub
 -- exactly as it was in production on 2026-11-20 (definition, grants, comment).
 BEGIN;
 
