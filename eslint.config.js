@@ -18,6 +18,8 @@ export default tseslint.config(
       "supabase/functions/link-redirect/**",
       "supabase/functions/send-threads-message/**",
       "supabase/functions/synckerja-invoice-trigger/**",
+      // Deployed bundle (built from a functions-src folder that is not in the repo).
+      "supabase/functions/traffic-refresh-rollups/**",
       "supabase/functions/wa-click-track/**",
       "supabase/functions/wedding-package-lead/**",
       "supabase/functions/_shared/attribution.ts",
