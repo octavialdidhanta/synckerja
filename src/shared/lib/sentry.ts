@@ -24,6 +24,15 @@ function scrubUnknownUrl(value: unknown): unknown {
 }
 
 let initialized = false;
+let assetReloadPending = false;
+
+/**
+ * Called by main.tsx right before it clears caches and reloads after a stale-chunk error
+ * (new deploy). Events until the page unloads are side effects of that recovery.
+ */
+export function markAssetReloadPending(): void {
+  assetReloadPending = true;
+}
 
 export function initSentry(): void {
   if (initialized || !import.meta.env.PROD) return;
@@ -48,9 +57,6 @@ export function initSentry(): void {
       // Benign browser noise.
       "ResizeObserver loop limit exceeded",
       "ResizeObserver loop completed with undelivered notifications",
-      // Stale chunk after a deploy: main.tsx already reloads once (setupAssetLoadRecovery).
-      "Failed to fetch dynamically imported module",
-      "Importing a module script failed",
     ],
     beforeBreadcrumb(breadcrumb) {
       if (breadcrumb.category === "console") return null;
@@ -62,6 +68,7 @@ export function initSentry(): void {
       return breadcrumb;
     },
     beforeSend(event) {
+      if (assetReloadPending) return null;
       // Keep only the opaque user id (UUID) set by setSentryIdentity; drop email/IP/username.
       const userId = event.user?.id;
       event.user = userId ? { id: String(userId) } : undefined;

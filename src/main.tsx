@@ -5,7 +5,7 @@ import { initI18n } from "@/shared/i18n/index.ts";
 import { RouteSkeletonBootShell } from "@/shared/components/route-loading/createDeferredSkeleton";
 import { shouldMountOrderStoreApp, publicOrderHostname } from "@/synckerja-order/shared/lib/orderUrls";
 import "./index.css";
-import { initSentry } from "@/shared/lib/sentry";
+import { initSentry, markAssetReloadPending } from "@/shared/lib/sentry";
 
 initSentry();
 
@@ -34,9 +34,13 @@ const OrderStoreApp = lazy(() =>
 
 /** Setelah deploy, chunk hash lama bisa 404/HTML — satu kali clear SW/cache lalu reload. */
 function setupAssetLoadRecovery() {
+  const canReload = () => sessionStorage.getItem(ASSET_RELOAD_KEY) !== "1";
   const reloadOnce = async () => {
-    if (sessionStorage.getItem(ASSET_RELOAD_KEY) === "1") return;
+    if (!canReload()) return;
     sessionStorage.setItem(ASSET_RELOAD_KEY, "1");
+    // The prevented preload makes the lazy import resolve to undefined, so React throws
+    // "reading 'default'" until the reload below lands: don't report that to Sentry.
+    markAssetReloadPending();
     try {
       if ("serviceWorker" in navigator) {
         const regs = await navigator.serviceWorker.getRegistrations();
@@ -53,6 +57,9 @@ function setupAssetLoadRecovery() {
   };
 
   window.addEventListener("vite:preloadError", (event) => {
+    // Already reloaded once in this boot and still failing: let the real chunk-load
+    // error surface (error boundary + Sentry) instead of an undefined module.
+    if (!canReload()) return;
     event.preventDefault();
     void reloadOnce();
   });
