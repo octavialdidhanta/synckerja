@@ -144,6 +144,13 @@ export default function JobApplication() {
         setJobData(recruitmentData.job_openings);
       }
 
+      // Required skills come with the RPC result (anon cannot read recruitment_skills directly).
+      const rpcSkills = (data as { required_skills?: unknown }).required_skills;
+      if (Array.isArray(rpcSkills)) {
+        setRequiredSkills(rpcSkills as Array<{ title: string; skill_level: string; is_required: boolean }>);
+        return;
+      }
+
       // Fetch required skills for this job
       const { data: skillsData, error: skillsError } = await supabase
         .from('recruitment_skills')

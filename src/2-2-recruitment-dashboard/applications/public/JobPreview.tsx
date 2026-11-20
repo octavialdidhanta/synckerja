@@ -118,8 +118,11 @@ const JobPreview = () => {
       console.log('✅ Job data loaded successfully');
       setJobData(data);
 
-      // Load required skills if job opening exists
-      if (data.job_openings?.id) {
+      // Required skills come with the RPC result (anon cannot read recruitment_skills directly).
+      const rpcSkills = (data as unknown as { required_skills?: unknown }).required_skills;
+      if (Array.isArray(rpcSkills)) {
+        setRequiredSkills(rpcSkills as typeof requiredSkills);
+      } else if (data.job_openings?.id) {
         try {
           const { data: skillsData, error: skillsError } = await supabase
             .from('recruitment_skills')

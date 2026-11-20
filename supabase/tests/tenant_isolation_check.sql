@@ -8,7 +8,7 @@
 --
 -- Output: the final error message starts with TENANT_ISOLATION and lists every
 -- identity/table/operation that reached foreign-org rows. "none" means isolation held.
--- Known findings (by table + operation) are listed in docs/security-advisor-baseline.md.
+-- Known findings (by table + operation), if any, are listed in docs/security-advisor-baseline.md.
 --
 -- Run with the Supabase MCP execute_sql tool (or psql as postgres). Takes ~1 minute.
 
