@@ -7,6 +7,7 @@ import {
   isActiveOrganizationMember,
   mcpScheduleUserId,
 } from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -22,7 +23,7 @@ function json(body: object, status: number): Response {
   });
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry("social-media-plan-auto-schedule", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
   }
@@ -87,4 +88,4 @@ Deno.serve(async (req: Request) => {
     failed: result.failed,
     blocked: result.blocked,
   }, 200);
-});
+}));

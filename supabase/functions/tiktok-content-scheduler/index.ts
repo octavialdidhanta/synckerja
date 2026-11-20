@@ -7,9 +7,10 @@ import {
   scheduledPostsCorsHeaders,
   scheduledPostsJson,
 } from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 /** @deprecated Use social-media-scheduler. Kept for backward compatibility during cron migration. */
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry("tiktok-content-scheduler", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: scheduledPostsCorsHeaders });
   }
@@ -35,4 +36,4 @@ Deno.serve(async (req: Request) => {
     console.error("tiktok-content-scheduler (shim):", message);
     return scheduledPostsJson({ error: message }, 500);
   }
-});
+}));

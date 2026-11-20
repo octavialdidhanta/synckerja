@@ -1,5 +1,6 @@
 /// <reference path="../deno-globals.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 /**
  * Public Midtrans HTTP notification URL. Verifies SHA512 signature, then forwards
@@ -30,7 +31,7 @@ async function verifyMidtransSignature(
   return expected === receivedSignature;
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withSentry("midtrans-webhook", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -121,4 +122,4 @@ Deno.serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
-});
+}));

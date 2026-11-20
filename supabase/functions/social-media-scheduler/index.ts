@@ -11,8 +11,9 @@ import {
   scheduledPostsCorsHeaders,
   scheduledPostsJson,
 } from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry("social-media-scheduler", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: scheduledPostsCorsHeaders });
   }
@@ -50,4 +51,4 @@ Deno.serve(async (req: Request) => {
   const result = await jobPromise;
   if (!result) return scheduledPostsJson({ error: "scheduler_failed" }, 500);
   return scheduledPostsJson(result, 200);
-});
+}));

@@ -1,6 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -44,7 +45,7 @@ async function verifyThreadsWebhookToken(
   return false;
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry("threads-webhook", async (req: Request) => {
   const url = new URL(req.url);
   console.log("[threads-webhook] ENTRY", req.method, url.pathname);
 
@@ -103,7 +104,7 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));
 
 
 

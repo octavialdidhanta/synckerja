@@ -27,6 +27,7 @@ import {
   isCarouselContentType,
   isPlanEligibleForLinkedInAutoSchedule,
 } from "../_shared/scheduledPosts/scheduledPostEligibility.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 async function loadPlanForPublish(admin: ReturnType<typeof createClient>, planId: string) {
   const { data, error } = await admin
@@ -64,7 +65,7 @@ function mapScheduleInsertError(msg: string): { body: Record<string, unknown>; s
   return { body: { error: "Failed to create schedule" }, status: 500 };
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry("linkedin-content-publish", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: linkedinContentCorsHeaders });
   }
@@ -224,4 +225,4 @@ Deno.serve(async (req: Request) => {
   }
 
   return linkedinContentJson({ error: "Unknown action" }, 400);
-});
+}));

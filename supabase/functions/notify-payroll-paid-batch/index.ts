@@ -2,6 +2,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { notifyPayrollRunPaidBatch } from "../_shared/payroll/notifyPayrollCalcPaid.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -20,7 +21,7 @@ type Body = {
   runId?: string;
 };
 
-Deno.serve(async (req) => {
+Deno.serve(withSentry("notify-payroll-paid-batch", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
   }
@@ -86,4 +87,4 @@ Deno.serve(async (req) => {
       500,
     );
   }
-});
+}));

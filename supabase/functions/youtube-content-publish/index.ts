@@ -30,6 +30,7 @@ import {
   DEFAULT_YOUTUBE_SCHEDULE_PRIVACY,
   normalizeYouTubeSchedulePrivacy,
 } from "../_shared/scheduledPosts/normalizeYouTubeSchedulePrivacy.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 async function loadPlanForPublish(
   admin: ReturnType<typeof createClient>,
@@ -67,7 +68,7 @@ function mapScheduleInsertError(msg: string): { body: Record<string, unknown>; s
   return { body: { error: "Failed to create schedule" }, status: 500 };
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry("youtube-content-publish", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: youtubeContentCorsHeaders });
   }
@@ -290,4 +291,4 @@ Deno.serve(async (req: Request) => {
   }
 
   return youtubeContentJson({ error: "Unknown action" }, 400);
-});
+}));
