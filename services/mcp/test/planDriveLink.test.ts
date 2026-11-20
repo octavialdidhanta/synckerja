@@ -5,7 +5,7 @@ import { MCP_TOOLS } from "../src/mcp/registry";
 import { isContentPlanDriveUrl, setPlanDriveLinkInput } from "../src/tools/content/planDriveLink";
 
 const sql = readFileSync(
-  new URL("../../../supabase/migrations/20261117093000_mcp_set_content_plan_drive_link.sql", import.meta.url),
+  new URL("../../../supabase/migrations_archive/20261117093000_mcp_set_content_plan_drive_link.sql", import.meta.url),
   "utf8",
 );
 
@@ -35,7 +35,7 @@ describe("content.plans.media.set_link registry", () => {
 });
 
 const approvalSql = readFileSync(
-  new URL("../../../supabase/migrations/20261117160000_mcp_drive_link_requires_approval.sql", import.meta.url),
+  new URL("../../../supabase/migrations_archive/20261117160000_mcp_drive_link_requires_approval.sql", import.meta.url),
   "utf8",
 );
 

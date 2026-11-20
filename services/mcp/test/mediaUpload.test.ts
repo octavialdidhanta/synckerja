@@ -207,7 +207,7 @@ describe("listMediaVersions", () => {
 });
 
 describe("org drive migration", () => {
-  const sql = readFileSync(new URL("../../../supabase/migrations/20261118090000_org_google_drive_media_versions.sql", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../../../supabase/migrations_archive/20261118090000_org_google_drive_media_versions.sql", import.meta.url), "utf8");
   it("keeps tokens and tickets away from browsers", () => {
     expect(sql).toContain("organization_google_drive_connection_tokens_deny");
     expect(sql).toContain("content_plan_media_upload_tickets_deny");

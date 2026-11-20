@@ -6,7 +6,7 @@ import { generateBriefVoiceInput } from "../src/tools/content/briefsVoiceGenerat
 import { listBriefVoiceInput } from "../src/tools/content/briefsVoiceList";
 
 const sql = readFileSync(
-  new URL("../../../supabase/migrations/20261117080000_mcp_list_brief_voice_clips.sql", import.meta.url),
+  new URL("../../../supabase/migrations_archive/20261117080000_mcp_list_brief_voice_clips.sql", import.meta.url),
   "utf8",
 );
 

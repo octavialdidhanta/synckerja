@@ -1703,7 +1703,7 @@ describe("thinking lab connector", () => {
   });
 
   it("keeps the lab gate in SQL and the judge on the session organization", () => {
-    const sql = readFileSync(new URL("../../../supabase/migrations/20261101090000_mcp_thinking_execution.sql", import.meta.url), "utf8");
+    const sql = readFileSync(new URL("../../../supabase/migrations_archive/20261101090000_mcp_thinking_execution.sql", import.meta.url), "utf8");
     expect(sql).toContain("validation->>'decision' = 'LOLOS'");
     expect(sql).toContain("idea.status = 'locked'");
     expect(sql).not.toContain("prepareLeadMagnet");

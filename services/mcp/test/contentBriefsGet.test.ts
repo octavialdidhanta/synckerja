@@ -8,7 +8,7 @@ import { parseStoredBrief } from "../src/tools/content/briefRead";
 import { getBriefInput } from "../src/tools/content/briefsGet";
 
 const migrationSql = readFileSync(
-  new URL("../../../supabase/migrations/20261119014152_content_brief_save_guard.sql", import.meta.url),
+  new URL("../../../supabase/migrations_archive/20261119014152_content_brief_save_guard.sql", import.meta.url),
   "utf8",
 );
 const sql = migrationSql.slice(migrationSql.indexOf("CREATE OR REPLACE FUNCTION public.mcp_get_content_brief"));
@@ -241,7 +241,7 @@ describe("content.briefs.get shot_id for briefs never opened in Office", () => {
 
 describe("mcp_ensure_brief_storyboard_shots SQL", () => {
   const ensureSql = readFileSync(
-    new URL("../../../supabase/migrations/20261119053820_mcp_ensure_brief_storyboard_shots.sql", import.meta.url),
+    new URL("../../../supabase/migrations_archive/20261119053820_mcp_ensure_brief_storyboard_shots.sql", import.meta.url),
     "utf8",
   );
 

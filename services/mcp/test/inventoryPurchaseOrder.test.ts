@@ -6,7 +6,7 @@ import { MCP_TOOLS } from "../src/mcp/registry";
 import { purchaseOrderInput } from "../src/tools/inventory/purchaseOrderCreate";
 
 const sql = readFileSync(
-  new URL("../../../supabase/migrations/20261108170000_mcp_create_inventory_purchase_order.sql", import.meta.url),
+  new URL("../../../supabase/migrations_archive/20261108170000_mcp_create_inventory_purchase_order.sql", import.meta.url),
   "utf8",
 );
 
