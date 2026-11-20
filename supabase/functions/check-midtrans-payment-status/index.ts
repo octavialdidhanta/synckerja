@@ -2,6 +2,8 @@
 /// <reference path="../deno-globals.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getRequestUser, isActiveOrgMember } from "../_shared/edgeCallerAuth.ts";
+import { isAuthorizedServiceCaller } from "../_shared/serviceRoleEdgeAuth.ts";
 
 /** Inlined (hosted bundle sometimes omits sibling `midtransEnv.ts`). Same logic as other Midtrans edge functions. */
 function envBool(name: string): boolean | undefined {
@@ -62,12 +64,28 @@ Deno.serve(async (req) => {
 
     const { data: payment, error: paymentError } = await supabase
       .from("payments")
-      .select("id, order_id")
+      .select("id, order_id, user_id, organization_id")
       .eq("order_id", order_id)
       .single();
 
     if (paymentError || !payment) {
       throw new Error(`Payment not found for order_id: ${order_id}`);
+    }
+
+    // Only the user who started the payment, a member of its organization, or a service caller.
+    if (!isAuthorizedServiceCaller(req)) {
+      const user = await getRequestUser(supabase, req);
+      const allowed = Boolean(user) && (
+        payment.user_id === user!.id ||
+        (payment.organization_id != null &&
+          (await isActiveOrgMember(supabase, user!.id, String(payment.organization_id))))
+      );
+      if (!allowed) {
+        return new Response(JSON.stringify({ success: false, error: "forbidden" }), {
+          status: user ? 403 : 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const serverKey = (Deno.env.get("MIDTRANS_SERVER_KEY") ?? "").trim();

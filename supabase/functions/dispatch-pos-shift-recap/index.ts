@@ -7,6 +7,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "./cors.ts";
+import { isServiceOrOrgMember } from "../_shared/edgeCallerAuth.ts";
 import {
   buildShiftRecapEmailHtml,
   buildShiftRecapEmailSubject,
@@ -112,6 +113,11 @@ Deno.serve(async (req: Request) => {
     if (dispatchErr) throw dispatchErr;
     if (!dispatch) {
       return json({ success: false, error: "dispatch_not_found" }, 404);
+    }
+
+    // Only a signed-in member of the shift's organization (POS app) or a service caller.
+    if (!(await isServiceOrOrgMember(admin, req, String(dispatch.organization_id)))) {
+      return json({ success: false, error: "forbidden" }, 403);
     }
 
     if (dispatch.status === "sent") {
