@@ -62,7 +62,9 @@ export function initSentry(): void {
       return breadcrumb;
     },
     beforeSend(event) {
-      delete event.user;
+      // Keep only the opaque user id (UUID) set by setSentryIdentity; drop email/IP/username.
+      const userId = event.user?.id;
+      event.user = userId ? { id: String(userId) } : undefined;
       if (event.request) {
         if (event.request.url) event.request.url = scrubUrl(event.request.url);
         delete event.request.cookies;
@@ -78,6 +80,21 @@ export function initSentry(): void {
       Sentry.setTag("app_platform", Capacitor.getPlatform());
     })
     .catch(() => undefined);
+}
+
+/**
+ * Attach anonymous identity to future events: user id, active organization id and role.
+ * UUIDs only; resolve them to a tenant in Synckerja's own database, never in Sentry.
+ */
+export function setSentryIdentity(identity: {
+  userId: string | null;
+  orgId: string | null;
+  role: string | null;
+}): void {
+  if (!initialized) return;
+  Sentry.setUser(identity.userId ? { id: identity.userId } : null);
+  Sentry.setTag("org_id", identity.orgId ?? undefined);
+  Sentry.setTag("org_role", identity.role ?? undefined);
 }
 
 /** Report an error caught by a React error boundary (React 18 does not rethrow these). */
