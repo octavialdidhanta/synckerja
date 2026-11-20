@@ -17,7 +17,7 @@ import {
 } from "../src/tools/inventory/purchaseOrderReceive";
 
 const sql = readFileSync(
-  new URL("../../../supabase/migrations/20261109150000_mcp_receive_purchase_order.sql", import.meta.url),
+  new URL("../../../supabase/migrations_archive/20261109150000_mcp_receive_purchase_order.sql", import.meta.url),
   "utf8",
 );
 

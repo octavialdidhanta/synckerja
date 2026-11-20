@@ -19,7 +19,7 @@ const product = {
 };
 
 const sql = readFileSync(
-  new URL("../../../supabase/migrations/20261108160000_mcp_list_inventory_summary.sql", import.meta.url),
+  new URL("../../../supabase/migrations_archive/20261108160000_mcp_list_inventory_summary.sql", import.meta.url),
   "utf8",
 );
 

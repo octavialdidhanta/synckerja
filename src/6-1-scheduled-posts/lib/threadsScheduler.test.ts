@@ -13,7 +13,7 @@ function source(relativePath: string): string {
 
 describe('Threads claim order', () => {
   it('ranks Threads after YouTube and keeps the first five platforms', () => {
-    const migration = source('supabase/migrations/20261118073927_threads_platform_rank.sql');
+    const migration = source('supabase/migrations_archive/20261118073927_threads_platform_rank.sql');
     const array = migration.match(/ARRAY\[([\s\S]*?)\]/)?.[1] ?? '';
     const names = [...array.matchAll(/'([^']+)'/g)].map((match) => match[1]);
     expect(names).toEqual(['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Threads']);

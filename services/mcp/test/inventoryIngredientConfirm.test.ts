@@ -18,7 +18,7 @@ import { purchaseOrderInputFromConfirmation } from "../src/tools/inventory/purch
 
 const sql = readFileSync(
   new URL(
-    "../../../supabase/migrations/20261108180000_mcp_inventory_ingredient_create_and_confirmations.sql",
+    "../../../supabase/migrations_archive/20261108180000_mcp_inventory_ingredient_create_and_confirmations.sql",
     import.meta.url,
   ),
   "utf8",
@@ -204,7 +204,7 @@ describe("inventory.suppliers.list", () => {
     });
     expect(rows).toEqual([{ id: "s-1", name: "Pak Budi", phone: "0812", city: null }]);
     const supplierSql = readFileSync(
-      new URL("../../../supabase/migrations/20261108190000_mcp_list_catalog_suppliers.sql", import.meta.url),
+      new URL("../../../supabase/migrations_archive/20261108190000_mcp_list_catalog_suppliers.sql", import.meta.url),
       "utf8",
     );
     expect(supplierSql).not.toContain("bank_account_number");

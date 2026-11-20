@@ -74,7 +74,7 @@ export function OKRSidebar({
     queryFn: async () => {
       if (!organizationId) return [];
 
-      // Schema (see supabase/migrations/20260430210000_1-home_dashboard_reference_schema.sql):
+      // Schema (see supabase/migrations_archive/20260430210000_1-home_dashboard_reference_schema.sql):
       // weekly_checkins has individual_objective_id → individual_objectives, not key_result_id → key_results.
       // Reference OKR embed used key_results!weekly_checkins_key_result_id_fkey which PostgREST rejects here (PGRST200).
       const query = supabase

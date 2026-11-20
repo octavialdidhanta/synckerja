@@ -13,7 +13,7 @@ import {
 } from "../src/tools/inventory/adjustmentCreate";
 
 const migration = (name: string) =>
-  readFileSync(new URL(`../../../supabase/migrations/${name}`, import.meta.url), "utf8");
+  readFileSync(new URL(`../../../supabase/migrations_archive/${name}`, import.meta.url), "utf8");
 const mcpSql = migration("20261109160000_mcp_stock_adjustment.sql");
 const lockSql = migration("20261109170000_lock_stock_adjustment_rpc.sql");
 

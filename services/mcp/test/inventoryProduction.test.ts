@@ -12,7 +12,7 @@ import {
 } from "../src/tools/inventory/productionCreate";
 
 const migration = (name: string) =>
-  readFileSync(new URL(`../../../supabase/migrations/${name}`, import.meta.url), "utf8");
+  readFileSync(new URL(`../../../supabase/migrations_archive/${name}`, import.meta.url), "utf8");
 const mcpSql = migration("20261109101000_mcp_ingredient_production.sql");
 const hardenSql = migration("20261109100000_harden_ingredient_produce.sql");
 

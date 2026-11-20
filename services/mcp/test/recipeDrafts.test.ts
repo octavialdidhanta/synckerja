@@ -7,7 +7,7 @@ import { MCP_TOOLS } from "../src/mcp/registry";
 import { recipeDraftCreate, recipeDraftCreateInput, recipeDraftListInput } from "../src/tools/inventory/recipeDrafts";
 
 const sql = readFileSync(
-  new URL("../../../supabase/migrations/20261109080000_catalog_recipe_drafts.sql", import.meta.url),
+  new URL("../../../supabase/migrations_archive/20261109080000_catalog_recipe_drafts.sql", import.meta.url),
   "utf8",
 );
 const me = { userId: "user-1", organizationId: "org-1" };
