@@ -1,0 +1,47 @@
+-- Rollback for 20261120060000_set_function_search_path.sql: remove the pinned search_path.
+BEGIN;
+
+ALTER FUNCTION public._build_plan_features_from_modules(p_base_price_per_member numeric, p_modules jsonb, p_max_members integer) RESET search_path;
+ALTER FUNCTION public._parse_member_limit_from_features(p_features jsonb) RESET search_path;
+ALTER FUNCTION public._resolve_plan_max_members(p_max_members integer, p_jumlah_hari_trial integer, p_base_price_per_member numeric) RESET search_path;
+ALTER FUNCTION public._synckerja_order_hhmm_minutes(p_value text) RESET search_path;
+ALTER FUNCTION public._synckerja_order_hour_rule(p_hours jsonb, p_dow integer) RESET search_path;
+ALTER FUNCTION public._synckerja_order_line_modifiers_text(p_line jsonb) RESET search_path;
+ALTER FUNCTION public._validate_billing_term_discounts(p_discounts jsonb) RESET search_path;
+ALTER FUNCTION public._validate_plan_max_members(p_max_members integer) RESET search_path;
+ALTER FUNCTION public.admin_validate_price_amount(p_amount numeric) RESET search_path;
+ALTER FUNCTION public.catalog_ingredient_recipe_validate_line() RESET search_path;
+ALTER FUNCTION public.catalog_ingredient_recipe_validate_output() RESET search_path;
+ALTER FUNCTION public.catalog_product_recipe_validate_header() RESET search_path;
+ALTER FUNCTION public.catalog_product_recipe_validate_line() RESET search_path;
+ALTER FUNCTION public.did_cross_inventory_alert_threshold(p_prev numeric, p_next numeric, p_alert_enabled boolean, p_alert_at numeric) RESET search_path;
+ALTER FUNCTION public.enforce_employee_shift_no_overlap() RESET search_path;
+ALTER FUNCTION public.enforce_gateway_payout_validation() RESET search_path;
+ALTER FUNCTION public.generate_pos_outlet_public_code() RESET search_path;
+ALTER FUNCTION public.income_allocation_is_complete(p_income_type_id uuid, p_category_id uuid, p_bank_account_id uuid) RESET search_path;
+ALTER FUNCTION public.income_status_after_deposit(p_income_type_id uuid, p_category_id uuid, p_bank_account_id uuid) RESET search_path;
+ALTER FUNCTION public.inventory_alert_wib_today() RESET search_path;
+ALTER FUNCTION public.is_app_working_day(p_working_days integer[], p_date date) RESET search_path;
+ALTER FUNCTION public.lead_magnet_campaigns_set_updated_at() RESET search_path;
+ALTER FUNCTION public.lead_magnet_enrollments_set_updated_at() RESET search_path;
+ALTER FUNCTION public.mcp_inbox_bounds(p_start date, p_end date) RESET search_path;
+ALTER FUNCTION public.mcp_inbox_check_channel(p_channel text) RESET search_path;
+ALTER FUNCTION public.omnichannel_automation_flows_set_updated_at() RESET search_path;
+ALTER FUNCTION public.omnichannel_flow_enrollments_set_updated_at() RESET search_path;
+ALTER FUNCTION public.payroll_calculate_overtime_pay(p_org_id uuid, p_employee_id uuid, p_period_start date, p_period_end date, p_basic_salary numeric) RESET search_path;
+ALTER FUNCTION public.payroll_calculate_pph21_annualized(p_monthly_gross numeric, p_ptkp_status text, p_custom_ptkp numeric, p_non_taxable_annual numeric) RESET search_path;
+ALTER FUNCTION public.payroll_calculate_pph21_ter(p_monthly_gross numeric, p_ptkp_status text, p_effective_year integer) RESET search_path;
+ALTER FUNCTION public.payroll_calculate_pph21_ter_v2(p_monthly_gross numeric, p_employee_tax_status text, p_ptkp_status text, p_effective_year integer) RESET search_path;
+ALTER FUNCTION public.payroll_calculate_tax_by_method(p_gross numeric, p_ptkp_status text, p_tax_method text, p_custom_ptkp numeric, p_non_taxable_annual numeric, p_target_take_home numeric) RESET search_path;
+ALTER FUNCTION public.payroll_calculate_thr_amount(p_org_id uuid, p_employee_id uuid, p_basic_salary numeric, p_period_end date) RESET search_path;
+ALTER FUNCTION public.payroll_count_shift_assigned_working_days(p_org_id uuid, p_employee_id uuid, p_start date, p_end date, p_count_holiday_as_working boolean) RESET search_path;
+ALTER FUNCTION public.payroll_count_working_days(p_org_id uuid, p_start date, p_end date, p_working_days integer[], p_count_holiday_as_working boolean) RESET search_path;
+ALTER FUNCTION public.payroll_employee_prorate_ratio(p_org_id uuid, p_period_start date, p_period_end date, p_employee_id uuid, p_count_holiday_as_working boolean) RESET search_path;
+ALTER FUNCTION public.pos_invoice_display_status(p_invoice_cancelled_at timestamp with time zone, p_invoice_due_date date, p_payment_status text, p_total_amount numeric, p_total_paid_amount numeric) RESET search_path;
+ALTER FUNCTION public.pos_outlets_assign_public_code() RESET search_path;
+ALTER FUNCTION public.trg_task_step_comments_updated_at() RESET search_path;
+ALTER FUNCTION public.update_organization_caption_hashtags_updated_at() RESET search_path;
+ALTER FUNCTION public.update_organization_caption_mention_handles_updated_at() RESET search_path;
+ALTER FUNCTION public.update_organization_facebook_pages_updated_at() RESET search_path;
+
+COMMIT;
