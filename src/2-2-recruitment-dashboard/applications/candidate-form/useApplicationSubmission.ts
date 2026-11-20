@@ -2,8 +2,7 @@
 import { useState } from 'react';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { uploadCV } from './services/fileUploadService';
-import { submitApplicationData, getJobOrganization } from './services/applicationDataService';
-import { incrementCounters } from './services/counterService';
+import { submitApplicationData } from './services/applicationDataService';
 import { ApplicationFormData, SubmissionParams } from './types';
 
 export const useApplicationSubmission = () => {
@@ -119,21 +118,6 @@ export const useApplicationSubmission = () => {
     setSubmitting(true);
 
     try {
-      let organizationId: string;
-      if (organizationIdParam) {
-        organizationId = organizationIdParam;
-        console.log('✅ Using organization_id from link:', organizationId);
-      } else {
-        console.log('🔍 Getting organization for job:', jobId);
-        toast({
-          title: "Getting Job Information",
-          description: "Retrieving job details...",
-        });
-        const jobOrgData = await getJobOrganization(jobId);
-        organizationId = jobOrgData.organization_id;
-        console.log('✅ Using organization_id:', organizationId);
-      }
-
       // Upload CV if provided
       let cvFilePath = '';
       if (cvFile) {
@@ -142,7 +126,7 @@ export const useApplicationSubmission = () => {
           title: "Uploading CV",
           description: "Uploading your CV file...",
         });
-        cvFilePath = await uploadCV(cvFile, formData.applicantName);
+        cvFilePath = await uploadCV(cvFile, recruitmentToken);
         console.log('✅ CV uploaded to:', cvFilePath);
       }
 
@@ -173,25 +157,18 @@ export const useApplicationSubmission = () => {
         nik: formData.nik
       };
 
-      const profileLink = await submitApplicationData(
+      // Server-side submit: creates application + profile, issues the per-applicant token and
+      // updates counters (anon cannot write these tables directly).
+      const result = await submitApplicationData(
         submissionFormData,
         cvFilePath,
         skillsForSubmission,
         jobId,
         recruitmentLinkId,
         recruitmentToken,
-        organizationId
+        organizationIdParam
       );
-
-      // Increment counters
-      console.log('📈 Incrementing counters...');
-      try {
-        await incrementCounters(jobId, recruitmentLinkId);
-        console.log('✅ Counters updated successfully');
-      } catch (counterError) {
-        console.warn('⚠️ Warning: Could not update counters:', counterError);
-        // Don't fail the whole submission for counter errors
-      }
+      const profileLink = result.profileLink;
 
       console.log('✅ Application submitted successfully!');
       
@@ -210,8 +187,14 @@ export const useApplicationSubmission = () => {
       
       if (error instanceof Error) {
         // Handle specific error cases with improved messaging
-        if (error.message.includes('Missing recruitment token')) {
+        if (error.message.includes('already_applied')) {
+          errorMessage = "You have already submitted an application for this position with this email.";
+        } else if (error.message.includes('invalid_link') || error.message.includes('Missing recruitment token')) {
           errorMessage = "Invalid recruitment link. Please access this job through a valid job posting link.";
+        } else if (error.message.includes('invalid_cv') || error.message.includes('Failed to upload CV')) {
+          errorMessage = "Your CV could not be uploaded. Please use a PDF, DOC, or DOCX file and try again.";
+        } else if (error.message.includes('invalid_applicant')) {
+          errorMessage = "Please check your name, email, and birth date.";
         } else if (error.message.includes('duplicate key')) {
           errorMessage = "You have already submitted an application for this position.";
         } else if (error.message.includes('foreign key')) {

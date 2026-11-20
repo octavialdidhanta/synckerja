@@ -1,6 +1,9 @@
 
 import { supabase } from '@/shared/lib/supabaseClient';
 
+/** RPC not yet in generated DB types. */
+type UntypedRpc = (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+
 interface FormData {
   applicantName: string;
   applicantEmail: string;
@@ -13,139 +16,65 @@ interface FormData {
   nik: string;
 }
 
+export interface SubmitApplicationResult {
+  applicationId: string;
+  candidateProfileId: string;
+  /** Per-applicant token (cand_...). Used for /candidate/profile?token= and the candidate tests. */
+  candidateToken: string;
+  profileLink: string;
+}
+
+/**
+ * Public application submit. Runs server-side (RPC `submit_job_application`): validates the
+ * recruitment link, creates the job application + candidate profile, issues a per-applicant token
+ * and updates the click/submission counters. Anon cannot insert these rows directly.
+ */
 export const submitApplicationData = async (
   formData: FormData,
   cvFilePath: string,
   skills: Array<{ title: string; skill_level: string; is_required?: boolean }>,
-  jobId: string,
-  recruitmentLinkId?: string,
+  _jobId: string,
+  _recruitmentLinkId?: string,
   recruitmentToken?: string,
-  organizationId?: string
-): Promise<string> => {
-  try {
-    console.log('📝 Submitting application with form data:', formData);
-    console.log('🔗 Using recruitment token:', recruitmentToken);
-    
-    // Validate recruitment token - it should not be null or undefined for anonymous submissions
-    if (!recruitmentToken) {
-      console.error('❌ Missing recruitment token for anonymous submission');
-      throw new Error('Missing recruitment token. Please access this job through a valid recruitment link.');
-    }
+  _organizationId?: string
+): Promise<SubmitApplicationResult> => {
+  if (!recruitmentToken) {
+    throw new Error('Missing recruitment token. Please access this job through a valid recruitment link.');
+  }
 
-    // Create job application first with recruitment token
-    const applicationData = {
-      job_opening_id: jobId,
+  const { data, error } = await (supabase.rpc as unknown as UntypedRpc)('submit_job_application', {
+    p_link_token: recruitmentToken,
+    p_applicant: {
       applicant_name: formData.applicantName,
       applicant_email: formData.applicantEmail,
       applicant_phone: formData.applicantPhone || null,
       birth_date: formData.birth_date || null,
       gender: formData.gender || null,
       nik: formData.nik || null,
-      cv_file_path: cvFilePath || null,
       cover_letter: formData.coverLetter || null,
       experience_years: formData.experienceYears || null,
       expected_salary: formData.expectedSalary || null,
-      skills: JSON.stringify(skills),
-      status: 'pending',
-      recruitment_link_id: recruitmentLinkId || null,
-      recruitment_token: recruitmentToken || null,
-      organization_id: organizationId || null
-    };
+    },
+    p_skills: skills,
+    p_cv_path: cvFilePath || null,
+  });
 
-    console.log('📋 Application data to submit:', applicationData);
-
-    const { data: application, error: applicationError } = await supabase
-      .from('job_applications')
-      .insert(applicationData)
-      .select()
-      .single();
-
-    if (applicationError) {
-      console.error('❌ Error creating job application:', applicationError);
-      throw new Error(`Failed to submit job application: ${applicationError.message}`);
-    }
-
-    console.log('✅ Job application created successfully:', application);
-
-    // Now create or update candidate profile with the SAME token from job_applications.
-    // profile_completed: false so this candidate does NOT appear in /recruitment/interviewees;
-    // only candidates who submit at /candidate/profile?token=... (after interview schedule) get profile_completed: true.
-    const candidateData = {
-      organization_id: organizationId || null,
-      full_name: formData.applicantName,
-      email: formData.applicantEmail,
-      mobile_phone: formData.applicantPhone,
-      birth_date: formData.birth_date || null,
-      gender: formData.gender || null,
-      nik: formData.nik || null,
-      cover_letter: formData.coverLetter || null,
-      experience_years: formData.experienceYears || null,
-      expected_salary: formData.expectedSalary || null,
-      employment_status: 'pending',
-      status: 'submitted',
-      profile_completed: false,
-      recruitment_token: recruitmentToken || null // Use the SAME token as job_applications
-    };
-
-    console.log('👤 Creating candidate profile with data:', candidateData);
-
-    // Use INSERT with ON CONFLICT to handle duplicates better
-    const { data: candidateProfile, error: profileError } = await supabase
-      .from('candidate_profiles')
-      .insert(candidateData)
-      .select()
-      .single();
-
-    if (profileError) {
-      // If there's a conflict, try to update existing record
-      if (profileError.code === '23505') { // unique_violation
-        console.log('🔄 Profile exists, updating existing candidate profile');
-        const { data: existingProfile, error: updateError } = await supabase
-          .from('candidate_profiles')
-          .update({
-            ...candidateData,
-            profile_completed: false,
-            updated_at: new Date().toISOString()
-          })
-          .eq('email', formData.applicantEmail)
-          .eq('recruitment_token', recruitmentToken || null)
-          .select()
-          .single();
-
-        if (updateError) {
-          console.error('❌ Error updating candidate profile:', updateError);
-          throw new Error(`Failed to update candidate profile: ${updateError.message}`);
-        }
-
-        console.log('✅ Candidate profile updated:', existingProfile);
-        var finalProfile = existingProfile;
-      } else {
-        console.error('❌ Error creating candidate profile:', profileError);
-        throw new Error(`Failed to create candidate profile: ${profileError.message}`);
-      }
-    } else {
-      console.log('✅ Candidate profile created:', candidateProfile);
-      var finalProfile = candidateProfile;
-    }
-
-    // Update job application with candidate_profile_id
-    const { error: updateApplicationError } = await supabase
-      .from('job_applications')
-      .update({ candidate_profile_id: finalProfile.id })
-      .eq('id', application.id);
-
-    if (updateApplicationError) {
-      console.error('❌ Error updating application with profile ID:', updateApplicationError);
-    }
-
-    // Return profile link using the recruitment token from job_applications
-    const profileLink = `/apply/profile/${finalProfile.id}?token=${recruitmentToken}`;
-    return profileLink;
-
-  } catch (error) {
-    console.error('💥 Error in submitApplicationData:', error);
-    throw error;
+  if (error) {
+    console.error('❌ Error submitting application:', error);
+    throw new Error(error.message || 'Failed to submit job application');
   }
+
+  const result = (data ?? {}) as { application_id?: string; candidate_profile_id?: string; token?: string };
+  if (!result.token || !result.candidate_profile_id || !result.application_id) {
+    throw new Error('Failed to submit job application');
+  }
+
+  return {
+    applicationId: result.application_id,
+    candidateProfileId: result.candidate_profile_id,
+    candidateToken: result.token,
+    profileLink: `/candidate/profile?token=${encodeURIComponent(result.token)}`,
+  };
 };
 
 export const getJobOrganization = async (jobId: string) => {

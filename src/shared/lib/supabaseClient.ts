@@ -41,7 +41,7 @@ if (!url || !anonKey) {
  * acquire timeout for positive values (see `processLockWithMinAcquireTimeout`).
  */
 /** Increment when Supabase client options change so HMR/open tabs pick up the new config (singleton survives reload). */
-const SUPABASE_SINGLETON_REVISION = 3;
+const SUPABASE_SINGLETON_REVISION = 4;
 
 declare global {
   interface Window {
@@ -53,8 +53,35 @@ declare global {
 const NODE_SINGLETON_KEY = "__synckerja_supabase_singleton__" as const;
 const NODE_REVISION_KEY = "__synckerja_supabase_revision__" as const;
 
+/**
+ * Public candidate pages (/candidate/profile?token=...) authenticate with a per-applicant token
+ * sent as the `x-candidate-token` header; RLS only exposes the row(s) holding that token.
+ * Set it with `setCandidateAccessToken(token)` on those pages and clear it on unmount.
+ */
+let candidateAccessToken: string | null = null;
+const CANDIDATE_TOKEN_PATTERN = /^cand_[0-9a-f]{48}$/;
+
+export function setCandidateAccessToken(token: string | null | undefined): void {
+  const t = (token ?? "").trim();
+  candidateAccessToken = CANDIDATE_TOKEN_PATTERN.test(t) ? t : null;
+}
+
+export function isCandidateAccessToken(token: string | null | undefined): boolean {
+  return CANDIDATE_TOKEN_PATTERN.test((token ?? "").trim());
+}
+
+const candidateAwareFetch: typeof fetch = (input, init) => {
+  if (!candidateAccessToken) return fetch(input, init);
+  const target = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  if (!target.includes("/rest/v1/")) return fetch(input, init);
+  const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+  headers.set("x-candidate-token", candidateAccessToken);
+  return fetch(input, { ...init, headers });
+};
+
 function createSupabaseClient(): SupabaseClient {
   return createClient(url, anonKey, {
+    global: { fetch: candidateAwareFetch },
     auth: {
       persistSession: true,
       autoRefreshToken: true,
