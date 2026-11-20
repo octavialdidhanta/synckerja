@@ -17,7 +17,7 @@ Functions created by `postgres` in schema `public` are **not** callable by `anon
 
 ## Accepted warnings
 
-### 0028 — anon can execute SECURITY DEFINER function (~57)
+### 0028 — anon can execute SECURITY DEFINER function (~60)
 
 Kept on purpose. These serve pages used without login, or they are used inside RLS/storage policies.
 
@@ -26,12 +26,12 @@ Kept on purpose. These serve pages used without login, or they are used inside R
 | Online order (Synckerja Order) | `get_public_synckerja_order_*`, `submit_synckerja_order_*`, `complete_synckerja_order_qris`, `get_public_order_product_*` |
 | Review links | `get_public_review_*`, `insert_public_review_comment`, `delete_public_review_comment` |
 | Customer survey / receipt feedback | `get_public_customer_survey_form`, `submit_customer_survey`, `get_public_pos_receipt_feedback`, `submit_public_pos_receipt_feedback` |
-| Recruitment tests | `get_job_by_recruitment_token`, `cognitive_*`, `disc_*`, `sjt_*`, `increment_recruitment_link_*`, `increment_job_*` |
+| Recruitment tests | `get_job_by_recruitment_token`, `submit_job_application`, `candidate_submit_profile`, `cognitive_*`, `disc_*`, `sjt_*`, `increment_recruitment_link_*`, `increment_job_*` |
 | Analytics & short links | `analytics_session_touch`, `increment_marketing_short_link_click`, `record_marketing_short_link_visitor` |
 | Signup / verification | `email_exists`, `ensure_registration_profile`, `confirm_email_verification_otp` (rate limited), `registration_has_verified_email`, `registration_verify_email_page_allowed` |
-| Used in RLS / storage policies | `auth_profile_id`, `is_cms_admin`, `user_is_org_owner_or_admin`, `is_omnichannel_survey_settings_admin`, `candidate_profile_accessible`, `task_step_comment_can_access`, `task_step_comment_can_write`, `task_files_storage_can_write`, `lead_magnet_assets_storage_can_write`, `synckerja_order_receipt_logo_is_public`, `lead_status_is_resolved_or_expired_visibility` |
+| Used in RLS / storage policies | `auth_profile_id`, `recruitment_public_upload_allowed`, `is_cms_admin`, `user_is_org_owner_or_admin`, `is_omnichannel_survey_settings_admin`, `candidate_profile_accessible`, `task_step_comment_can_access`, `task_step_comment_can_write`, `task_files_storage_can_write`, `lead_magnet_assets_storage_can_write`, `synckerja_order_receipt_logo_is_public`, `lead_status_is_resolved_or_expired_visibility` |
 
-### 0029 — authenticated can execute SECURITY DEFINER function (~364)
+### 0029 — authenticated can execute SECURITY DEFINER function (~366)
 
 Normal app RPCs called after login. Each one is expected to check `auth.uid()` / org membership.
 
@@ -72,3 +72,4 @@ No cross-org UPDATE or DELETE was possible on any of the 488 tables checked.
 - 2026-11-20 `20261120100000` — EXECUTE revoked from API roles on trigger functions, and from `anon` on login-only / server-only functions.
 - 2026-11-20 — weekly check added: machine-readable baseline + tenant isolation test.
 - 2026-11-20 `20261120110000` — public job preview RPC; recruitment links/jobs and review questions readable by own org only.
+- 2026-11-20 `20261120120000` — per-applicant candidate token (`x-candidate-token` header), application submit via RPC, candidate uploads insert-only, candidate CVs readable by the hiring org only.

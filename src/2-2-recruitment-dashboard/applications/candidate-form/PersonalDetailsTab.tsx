@@ -174,12 +174,13 @@ export const PersonalDetailsTab = ({
     setUploading(true);
     try {
       // Upload to recruitment bucket
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${candidate.id}/avatar.${fileExt}`;
-      
+      const fileExt = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      // Unique name + no upsert: candidates on the public link may only create new files.
+      const fileName = `${candidate.id}/avatar_${Date.now()}.${fileExt}`;
+
       const { error: uploadError } = await supabase.storage
         .from('recruitment-files')
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, file, { upsert: false });
 
       if (uploadError) throw uploadError;
 

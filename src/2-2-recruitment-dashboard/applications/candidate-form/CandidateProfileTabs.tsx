@@ -24,7 +24,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/shared/components/ui/alert-dialog';
-import { supabase } from '@/shared/lib/supabaseClient';
+import { supabase, isCandidateAccessToken } from '@/shared/lib/supabaseClient';
+
+/** RPC not yet in generated DB types. */
+type UntypedRpc = (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 
@@ -316,28 +319,35 @@ export const CandidateProfileTabs = ({
     if (!candidate?.id) return;
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from('candidate_profiles').update({
-        profile_completed: true,
-        submitted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }).eq('id', candidate.id);
-
-      if (error) throw error;
-
       const tokenFromUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('token')?.trim() : '';
       const recruitmentToken = candidate.recruitment_token?.trim() || tokenFromUrl;
-      if (recruitmentToken) {
-        const { error: appError } = await supabase
-          .from('job_applications')
-          .update({ status: 'confirmed' })
-          .eq('recruitment_token', recruitmentToken);
-        if (appError) {
-          console.error('Error updating job_applications status to confirmed:', appError);
-          toast({
-            title: "Peringatan",
-            description: "Profil tersimpan, tetapi status lamaran tidak terupdate. Silakan hubungi HR.",
-            variant: "destructive"
-          });
+
+      if (isCandidateAccessToken(recruitmentToken)) {
+        // Candidate (public link): server marks the profile complete and confirms the application.
+        const { error } = await (supabase.rpc as unknown as UntypedRpc)('candidate_submit_profile', { p_token: recruitmentToken });
+        if (error) throw error;
+      } else {
+        // Staff completing a profile on the candidate's behalf.
+        const { error } = await supabase.from('candidate_profiles').update({
+          profile_completed: true,
+          submitted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }).eq('id', candidate.id);
+        if (error) throw error;
+
+        if (recruitmentToken) {
+          const { error: appError } = await supabase
+            .from('job_applications')
+            .update({ status: 'confirmed' })
+            .eq('recruitment_token', recruitmentToken);
+          if (appError) {
+            console.error('Error updating job_applications status to confirmed:', appError);
+            toast({
+              title: "Peringatan",
+              description: "Profil tersimpan, tetapi status lamaran tidak terupdate. Silakan hubungi HR.",
+              variant: "destructive"
+            });
+          }
         }
       }
 

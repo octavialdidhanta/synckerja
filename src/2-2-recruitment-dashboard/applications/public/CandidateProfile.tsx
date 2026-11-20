@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { supabase } from '@/shared/lib/supabaseClient';
+import { supabase, setCandidateAccessToken } from '@/shared/lib/supabaseClient';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
@@ -74,6 +74,9 @@ const CandidateProfile = () => {
   const dataSource = candidateId || searchParams.get('id') || pathId || paramToken || searchParams.get('token');
   const isUsingId = !!(candidateId || searchParams.get('id') || pathId);
 
+  // Stop sending the candidate token once the candidate page is left.
+  useEffect(() => () => setCandidateAccessToken(null), []);
+
   useEffect(() => {
     // Single console log for debugging
     console.log('🔍 CandidateProfile mounted:', {
@@ -113,7 +116,9 @@ const CandidateProfile = () => {
         profileData = result.data;
         profileError = result.error;
       } else {
-        // Fetch by token (public route)
+        // Fetch by token (public route). The per-applicant token is also sent as the
+        // x-candidate-token header so RLS exposes only this candidate's own rows.
+        setCandidateAccessToken(identifier);
         const result = await supabase.from('candidate_profiles').select('*').eq('recruitment_token', identifier).maybeSingle();
         profileData = result.data;
         profileError = result.error;
@@ -123,52 +128,14 @@ const CandidateProfile = () => {
         throw profileError;
       }
 
-      // If not found in candidate_profiles and using token, try job_applications
       if (!profileData && type === 'token') {
-        console.log('🔍 Profile not found, checking job_applications...');
-        const {
-          data: applicationData,
-          error: applicationError
-        } = await supabase.from('job_applications').select('*').eq('recruitment_token', identifier).maybeSingle();
-        if (applicationError) {
-          console.error('❌ Error fetching job application:', applicationError);
-          throw applicationError;
-        }
-        if (applicationData) {
-          console.log('✅ Found job application, creating candidate profile...');
-
-          // Create candidate profile from job application data
-          const appData = applicationData as any;
-          const candidateData = {
-            organization_id: appData.organization_id ?? null,
-            full_name: appData.applicant_name,
-            email: appData.applicant_email,
-            mobile_phone: appData.applicant_phone,
-            birth_date: appData.birth_date,
-            gender: appData.gender,
-            nik: appData.nik,
-            recruitment_token: identifier,
-            profile_completed: false,
-            status: 'draft'
-          };
-          const {
-            data: newProfile,
-            error: createError
-          } = await supabase.from('candidate_profiles').insert(candidateData).select().single();
-          if (createError) {
-            console.error('❌ Error creating candidate profile:', createError);
-            throw createError;
-          }
-          console.log('✅ Candidate profile created:', newProfile);
-          setCandidate(newProfile as unknown as CandidateProfile);
-        } else {
-          console.warn('⚠️ No data found for token');
-          toast({
-            title: "Profile Tidak Ditemukan",
-            description: "Token tidak valid atau profile tidak ditemukan. Silakan hubungi HR untuk mendapatkan link yang benar.",
-            variant: "destructive"
-          });
-        }
+        // Profiles are created when the application is submitted; an unknown token is invalid.
+        console.warn('⚠️ No data found for token');
+        toast({
+          title: "Profile Tidak Ditemukan",
+          description: "Token tidak valid atau profile tidak ditemukan. Silakan hubungi HR untuk mendapatkan link yang benar.",
+          variant: "destructive"
+        });
       } else if (!profileData) {
         // No profile found
         const errorMessage = type === 'id' ? "Kandidat tidak ditemukan atau Anda tidak memiliki akses." : "Token tidak valid atau profile tidak ditemukan. Silakan hubungi HR untuk mendapatkan link yang benar.";
