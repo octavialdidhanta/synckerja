@@ -147,4 +147,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <!-- Portrait lock implies a required screen.portrait feature; mark optional so Play does not filter devices. -->
+    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
 </manifest>
