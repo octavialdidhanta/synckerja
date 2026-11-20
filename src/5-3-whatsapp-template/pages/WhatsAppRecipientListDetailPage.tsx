@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Download } from "lucide-react";
 import { HeaderAndTab } from "@/5-3-dashboard/components/layout/HeaderAndTab";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import {
@@ -26,6 +26,8 @@ import {
   useWhatsappRecipientListDetail,
 } from "@/5-3-whatsapp-template/hooks/useWhatsappRecipientLists";
 import type { RecipientSource, RecipientUploadStatus } from "@/5-3-whatsapp-template/components/recipient-lists/mockRecipientListsData";
+import type { RecipientImportFailure } from "@/5-3-whatsapp-template/utils/parseRecipientImportFile";
+import { buildRejectedRowsCsv } from "@/5-3-whatsapp-template/utils/recipientImportRejectedRows";
 import "@/2-1-employees/section/EmployeeTable.css";
 
 function uploadStatusBadgeClass(status: string): string {
@@ -67,6 +69,7 @@ export function WhatsAppRecipientListDetailPage() {
   const list = detail?.list;
   const members = detail?.members ?? [];
   const memberTotal = detail?.memberTotal ?? 0;
+  const rejected = detail?.rejected ?? { total: 0, items: [] };
 
   const uploadStatus = (list?.upload_status ?? "completed") as RecipientUploadStatus;
   const sourceKey: RecipientSource = list?.creation_source === "file_upload" ? "file_upload" : "contacts";
@@ -108,12 +111,47 @@ export function WhatsAppRecipientListDetailPage() {
     }
   }, [list?.created_at]);
 
+  const isFileUpload = sourceKey === "file_upload";
+
   const stats = useMemo(() => {
+    if (isFileUpload && uploadStatus !== "failed") {
+      // File uploads: rows in the file = imported + rejected (rejected rows never reach the list).
+      const rowsInFile = list?.row_count_expected ?? memberTotal + rejected.total;
+      return { total: rowsInFile, uploaded: memberTotal, failed: rejected.total };
+    }
     const total = memberTotal;
     const failed = uploadStatus === "failed" ? total : 0;
     const uploaded = uploadStatus === "failed" ? 0 : total;
     return { total, uploaded, failed };
-  }, [memberTotal, uploadStatus]);
+  }, [isFileUpload, list?.row_count_expected, memberTotal, rejected.total, uploadStatus]);
+
+  const rejectedReason = useCallback(
+    (failure: RecipientImportFailure) =>
+      t(`whatsappTemplates.recipientListDetail.reason.${failure.code}`, { field: failure.field ?? "" }),
+    [t],
+  );
+
+  const downloadRejectedCsv = useCallback(() => {
+    const csv = buildRejectedRowsCsv(
+      rejected.items,
+      {
+        row: t("whatsappTemplates.recipientListDetail.col.row"),
+        phone: t("whatsappTemplates.recipientListDetail.col.phone"),
+        name: t("whatsappTemplates.recipientListDetail.col.fullName"),
+        reason: t("whatsappTemplates.recipientListDetail.col.reason"),
+      },
+      rejectedReason,
+    );
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    const safeListName = (list?.name ?? "list").replace(/[^\p{L}\p{N}_-]+/gu, "-").slice(0, 60);
+    a.href = url;
+    a.download = `${t("whatsappTemplates.recipientListDetail.rejected.fileName")}-${safeListName}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }, [list?.name, rejected.items, rejectedReason, t]);
 
   const memberRowStatus = uploadStatus === "failed" ? "failed" : "uploaded";
 
@@ -317,7 +355,11 @@ export function WhatsAppRecipientListDetailPage() {
                           <div className="grid w-full min-w-0 [grid-template-columns:repeat(auto-fit,minmax(10rem,1fr))] gap-3">
                             <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-center">
                               <p className="text-2xl font-semibold tabular-nums text-foreground">{stats.total.toLocaleString()}</p>
-                              <p className="text-xs text-muted-foreground">{t("whatsappTemplates.recipientListDetail.stats.total")}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {isFileUpload
+                                  ? t("whatsappTemplates.recipientListDetail.stats.rowsInFile")
+                                  : t("whatsappTemplates.recipientListDetail.stats.total")}
+                              </p>
                             </div>
                             <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-center">
                               <p className="text-2xl font-semibold tabular-nums text-foreground">{stats.uploaded.toLocaleString()}</p>
@@ -325,9 +367,86 @@ export function WhatsAppRecipientListDetailPage() {
                             </div>
                             <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-center">
                               <p className="text-2xl font-semibold tabular-nums text-foreground">{stats.failed.toLocaleString()}</p>
-                              <p className="text-xs text-muted-foreground">{t("whatsappTemplates.recipientListDetail.stats.failed")}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {isFileUpload && uploadStatus !== "failed"
+                                  ? t("whatsappTemplates.recipientListDetail.stats.rejected")
+                                  : t("whatsappTemplates.recipientListDetail.stats.failed")}
+                              </p>
                             </div>
                           </div>
+
+                          {isFileUpload && rejected.total > 0 ? (
+                            <div className="min-w-0 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="flex min-w-0 items-start gap-2">
+                                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-foreground">
+                                      {t("whatsappTemplates.recipientListDetail.rejected.title", {
+                                        count: rejected.total.toLocaleString(),
+                                      })}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {t("whatsappTemplates.recipientListDetail.rejected.body")}
+                                    </p>
+                                  </div>
+                                </div>
+                                {rejected.items.length > 0 ? (
+                                  <Button type="button" variant="outline" size="sm" onClick={downloadRejectedCsv}>
+                                    <Download className="mr-1.5 h-4 w-4" aria-hidden />
+                                    {t("whatsappTemplates.recipientListDetail.rejected.download")}
+                                  </Button>
+                                ) : null}
+                              </div>
+
+                              {rejected.items.length === 0 ? (
+                                <p className="mt-2 text-xs text-muted-foreground">
+                                  {t("whatsappTemplates.recipientListDetail.rejected.noDetails")}
+                                </p>
+                              ) : (
+                                <>
+                                  <div className="mt-3 max-h-64 overflow-auto rounded-md border border-amber-200 bg-background">
+                                    <table className="w-full text-sm">
+                                      <thead className="sticky top-0 bg-gray-50">
+                                        <tr>
+                                          <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-medium text-gray-700">
+                                            {t("whatsappTemplates.recipientListDetail.col.row")}
+                                          </th>
+                                          <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-medium text-gray-700">
+                                            {t("whatsappTemplates.recipientListDetail.col.phone")}
+                                          </th>
+                                          <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-medium text-gray-700">
+                                            {t("whatsappTemplates.recipientListDetail.col.fullName")}
+                                          </th>
+                                          <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-medium text-gray-700">
+                                            {t("whatsappTemplates.recipientListDetail.col.reason")}
+                                          </th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {rejected.items.map((item) => (
+                                          <tr key={item.row} className="border-t border-border">
+                                            <td className="px-3 py-2 tabular-nums text-gray-900">{item.row}</td>
+                                            <td className="px-3 py-2 font-mono text-gray-900">{item.phone ?? "—"}</td>
+                                            <td className="px-3 py-2 text-gray-900">{item.name ?? "—"}</td>
+                                            <td className="px-3 py-2 text-amber-800">{rejectedReason(item)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                  {rejected.total > rejected.items.length ? (
+                                    <p className="mt-2 text-xs text-muted-foreground">
+                                      {t("whatsappTemplates.recipientListDetail.rejected.cappedNote", {
+                                        shown: rejected.items.length.toLocaleString(),
+                                        total: rejected.total.toLocaleString(),
+                                      })}
+                                    </p>
+                                  ) : null}
+                                </>
+                              )}
+                            </div>
+                          ) : null}
 
                           <div className="flex min-h-[min(28rem,50vh)] min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-muted/20">
                             <div className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto p-2">
