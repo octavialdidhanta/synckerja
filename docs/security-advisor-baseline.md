@@ -45,8 +45,34 @@ them into queries, which slows analytics/POS reports. They reference no unqualif
 Internal tables (OAuth states, secrets, logs, queues). No policy means no API access at all;
 only the service role (edge functions) can use them. This is the intended, safest state.
 
+## Weekly check
+
+A scheduled task runs every week and only reports what is **new** compared with this file:
+
+1. `get_advisors` (security + performance) → `python3 scripts/security/advisor_keys.py diff docs/security-advisor-baseline.json SEC.json PERF.json`.
+   `docs/security-advisor-baseline.json` is the machine-readable list of every accepted finding.
+   Performance INFO lints `unindexed_foreign_keys` / `unused_index` are compared by count only.
+2. `supabase/tests/tenant_isolation_check.sql` via `execute_sql` (read-only, rolls back).
+   Findings are grouped by `table + operation`; only groups not listed below are reported.
+
+After an intentional change, regenerate the baseline with
+`advisor_keys.py snapshot SEC.json PERF.json > docs/security-advisor-baseline.json` and commit it.
+
+### Known tenant-isolation findings (2026-11-20, open)
+
+Any signed-in user (even with no organization) can read these rows of other organizations:
+
+| Table + op | Why | Plan |
+|---|---|---|
+| `recruitment_links SELECT` | policy allows every active, unexpired link (`status='active'`) | restrict to members; serve the public job page through a SECURITY DEFINER RPC by token |
+| `job_openings SELECT` | policy allows any job that has an active recruitment link | follows automatically once `recruitment_links` is member-only |
+| `question_review SELECT` | `question_review_select_auth` is `COALESCE(is_active, true)` with no org filter | add org filter (keep global/default rows readable) |
+
+No cross-org UPDATE or DELETE was possible on any of the 488 tables checked.
+
 ## History
 
 - 2026-11-20 `20261120080000` — tenant-scoped writes for WA templates / web_id / API settings (cross-org leak fixed).
 - 2026-11-20 `20261120090000` — email verification OTP rate limit; legacy token RPCs closed.
 - 2026-11-20 `20261120100000` — EXECUTE revoked from API roles on trigger functions, and from `anon` on login-only / server-only functions.
+- 2026-11-20 — weekly check added: machine-readable baseline + tenant isolation test.
