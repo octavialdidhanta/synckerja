@@ -32,3 +32,25 @@ jobs:
           # Dummy values: supabaseClient throws at import without them; tests never hit the network.
           VITE_SUPABASE_URL: http://localhost:54321
           VITE_SUPABASE_ANON_KEY: ci-dummy-anon-key
+
+  lint-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Lint (no new errors vs .eslint-baseline.json)
+        run: npm run lint:ci
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+      - name: Build (app)
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+          # Dummy values so the production build does not depend on real secrets.
+          VITE_SUPABASE_URL: http://localhost:54321
+          VITE_SUPABASE_ANON_KEY: ci-dummy-anon-key
