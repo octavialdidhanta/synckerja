@@ -1,4 +1,4 @@
--- Rollback for 20261120060000_set_function_search_path.sql: remove the pinned search_path.
+-- Rollback for 20261120060503_set_function_search_path.sql: remove the pinned search_path.
 BEGIN;
 
 ALTER FUNCTION public._build_plan_features_from_modules(p_base_price_per_member numeric, p_modules jsonb, p_max_members integer) RESET search_path;
