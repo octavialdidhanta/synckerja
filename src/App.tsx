@@ -166,6 +166,7 @@ import { MfaRequiredGuard } from "@/shared/auth/mfa/MfaRequiredGuard";
 import { LanguageProvider } from "@/shared/i18n/LanguageProvider";
 import { CentralizedUserDataProvider } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { CentralizedUserDataPathSync } from "@/shared/auth/contexts/CentralizedUserDataPathSync";
+import { SentryIdentitySync } from "@/shared/auth/contexts/SentryIdentitySync";
 import { CurrentOrgProvider } from "@/shared/auth/contexts/CurrentOrgContext";
 import { PermissionConfigurationProvider } from "@/shared/auth/page-access/usePermissionConfiguration";
 import { HrManagementRoleGuard } from "@/shared/components/HrManagementRoleGuard";
@@ -3737,6 +3738,7 @@ const App = () => (
               <LanguageProvider>
                 <ShareIntentRouteSync />
                 <CentralizedUserDataPathSync />
+                <SentryIdentitySync />
                 {/* Eager: cold-start shade taps must not wait for idle/lazy NativeAppServices. */}
                 <NativeNotificationTapBridge />
                 <DeferredNativeAppServices />
