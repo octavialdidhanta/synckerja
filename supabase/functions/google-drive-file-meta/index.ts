@@ -2,6 +2,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
+  fetchPublicDriveFileMeta,
+  getGoogleDriveBrowserApiKey,
   getValidGoogleDriveAccessToken,
   mapGoogleDriveApiFailure,
 } from "../_shared/googleDriveAccess.ts";
@@ -63,6 +65,30 @@ Deno.serve(async (req: Request) => {
     const fileIdRaw = body.file_id != null ? String(body.file_id).trim() : "";
     if (!fileIdRaw || !/^[a-zA-Z0-9-_]+$/.test(fileIdRaw)) {
       return json({ error: "Invalid or missing file_id" }, 400);
+    }
+
+    const apiKey = getGoogleDriveBrowserApiKey();
+    if (apiKey) {
+      const publicMeta = await fetchPublicDriveFileMeta(fileIdRaw, apiKey);
+      if (publicMeta.ok) {
+        const meta = publicMeta.json;
+        const thumbnailLink = typeof meta.thumbnailLink === "string" ? meta.thumbnailLink : null;
+        const iconLink = typeof meta.iconLink === "string" ? meta.iconLink : null;
+        const name = typeof meta.name === "string" ? meta.name : null;
+        const mimeType = typeof meta.mimeType === "string" ? meta.mimeType : null;
+        return json(
+          {
+            id: fileIdRaw,
+            name,
+            mimeType,
+            thumbnailLink,
+            iconLink,
+            fallbackThumbnailUrl: `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileIdRaw)}&sz=w2000`,
+            accessMode: "public_link",
+          },
+          200,
+        );
+      }
     }
 
     const { accessToken, error: tokenErr } = await getValidGoogleDriveAccessToken(
