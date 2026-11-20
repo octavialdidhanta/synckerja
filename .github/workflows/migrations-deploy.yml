@@ -78,10 +78,13 @@ jobs:
         if: github.event.pull_request.head.repo.full_name != github.repository
         run: echo "PR from a fork has no access to secrets; the dry-run runs after merge review."
 
-      - uses: supabase/setup-cli@v1
+      - name: Install Supabase CLI (npm; avoids GitHub API rate limits)
         if: github.event.pull_request.head.repo.full_name == github.repository
-        with:
-          version: latest
+        run: |
+          # The npm package refuses global installs; install into a temp prefix and put its bin on PATH.
+          npm install --no-save --prefix "$RUNNER_TEMP/supabase-cli" supabase@latest
+          echo "$RUNNER_TEMP/supabase-cli/node_modules/.bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/supabase-cli/node_modules/.bin/supabase" --version
 
       - name: Dry-run against production (no changes)
         if: github.event.pull_request.head.repo.full_name == github.repository
@@ -113,9 +116,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
+      - name: Install Supabase CLI (npm; avoids GitHub API rate limits)
+        run: |
+          # The npm package refuses global installs; install into a temp prefix and put its bin on PATH.
+          npm install --no-save --prefix "$RUNNER_TEMP/supabase-cli" supabase@latest
+          echo "$RUNNER_TEMP/supabase-cli/node_modules/.bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/supabase-cli/node_modules/.bin/supabase" --version
 
       - name: Link project
         # The CLI reads SUPABASE_DB_PASSWORD from the environment (--password is ignored now).
@@ -148,9 +154,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
+      - name: Install Supabase CLI (npm; avoids GitHub API rate limits)
+        run: |
+          # The npm package refuses global installs; install into a temp prefix and put its bin on PATH.
+          npm install --no-save --prefix "$RUNNER_TEMP/supabase-cli" supabase@latest
+          echo "$RUNNER_TEMP/supabase-cli/node_modules/.bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/supabase-cli/node_modules/.bin/supabase" --version
 
       - name: Generate types from production schema
         run: |

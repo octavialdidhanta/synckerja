@@ -28,9 +28,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
+      - name: Install Supabase CLI (npm; avoids GitHub API rate limits)
+        run: |
+          # The npm package refuses global installs; install into a temp prefix and put its bin on PATH.
+          npm install --no-save --prefix "$RUNNER_TEMP/supabase-cli" supabase@latest
+          echo "$RUNNER_TEMP/supabase-cli/node_modules/.bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/supabase-cli/node_modules/.bin/supabase" --version
 
       - name: Check secrets are present
         run: |
