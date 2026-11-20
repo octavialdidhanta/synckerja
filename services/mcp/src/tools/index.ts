@@ -142,6 +142,7 @@ export { takeInitiativeInput, takeInitiativeResult } from "./tasks/take";
 export { taskStepsInput, taskStepsResult } from "./tasks/stepsList";
 export { createStepInput, createStepResult } from "./tasks/stepsCreate";
 export { updateStepResult, updateStepSchema } from "./tasks/stepsUpdate";
+export { completeStepResult, completeStepSchema } from "./tasks/stepsComplete";
 export { deleteStepInput, deleteStepResult } from "./tasks/stepsDelete";
 export { createSubstepInput, createSubstepResult } from "./tasks/substepsCreate";
 export { listSubstepsInput, listSubstepsResult } from "./tasks/substepsList";

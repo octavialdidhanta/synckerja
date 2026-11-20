@@ -360,6 +360,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     updateTaskStep: async () => {
       throw new Error("unused");
     },
+    setTaskStepCompleted: async () => {
+      throw new Error("unused");
+    },
     deleteTaskStep: async () => {
       throw new Error("unused");
     },

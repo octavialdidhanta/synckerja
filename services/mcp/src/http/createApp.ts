@@ -72,6 +72,7 @@ import type {
   TaskListRow,
   TaskObjectiveLink,
   TaskRecord,
+  TaskStepCompletionRecord,
   TaskStepRecord,
   TaskStepRow,
   TaskSubstepRecord,
@@ -425,6 +426,10 @@ export type AppDeps = {
     ctx: McpAuthContext,
     input: { id: string; title: string; description: string | null },
   ) => Promise<TaskStepRecord>;
+  setTaskStepCompleted: (
+    ctx: McpAuthContext,
+    input: { id: string; completed: boolean },
+  ) => Promise<TaskStepCompletionRecord>;
   deleteTaskStep: (ctx: McpAuthContext, id: string) => Promise<{ id: string }>;
   listTaskSubsteps: (ctx: McpAuthContext, stepId: string) => Promise<TaskSubstepRow[]>;
   createTaskSubstep: (ctx: McpAuthContext, input: { stepId: string; title: string }) => Promise<TaskSubstepRecord>;

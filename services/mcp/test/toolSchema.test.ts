@@ -66,6 +66,7 @@ import { createSubstepInput } from "../src/tools/tasks/substepsCreate";
 import { addStepImageInput } from "../src/tools/tasks/stepImage";
 import { attachTaskStepImage } from "../src/db/stepImages";
 import { updateStepSchema } from "../src/tools/tasks/stepsUpdate";
+import { completeStepSchema } from "../src/tools/tasks/stepsComplete";
 import { deleteStepInput } from "../src/tools/tasks/stepsDelete";
 import { habitsListInput } from "../src/tools/habits/list";
 import { habitCheckInput } from "../src/tools/habits/check";
@@ -85,6 +86,7 @@ import {
   listTaskSubsteps,
   updateTask,
   updateTaskStep,
+  setTaskStepCompleted,
 } from "../src/db/dailyTasks";
 import { cyclesInput } from "../src/tools/okr/cyclesList";
 import { objectivesInput } from "../src/tools/okr/objectivesList";
@@ -478,6 +480,19 @@ describe("phase 0 tool inputs", () => {
     expect(updateStepJson.required).not.toContain("description");
     expect(updateStepJson.properties.description?.anyOf?.map((item) => item.type)).toEqual(["string", "null"]);
     expect(JSON.stringify(updateStepJson)).not.toContain("pattern");
+    expect(completeStepSchema.safeParse({ id: taskId }).success).toBe(true);
+    expect(completeStepSchema.safeParse({ id: taskId, completed: true }).success).toBe(true);
+    expect(completeStepSchema.safeParse({ id: taskId, completed: false }).success).toBe(true);
+    expect(completeStepSchema.safeParse({}).success).toBe(false);
+    expect(completeStepSchema.safeParse({ id: "not-a-uuid" }).success).toBe(false);
+    expect(completeStepSchema.safeParse({ id: taskId, completed: "yes" }).success).toBe(false);
+    expect(completeStepSchema.safeParse({ id: taskId, title: "Draft" }).success).toBe(false);
+    const completeStepJson = zodToJsonSchema(z.object(publishedToolShape(completeStepSchema))) as {
+      required?: string[];
+      properties: Record<string, { type?: string }>;
+    };
+    expect(completeStepJson.required).toEqual(["id"]);
+    expect(completeStepJson.properties.completed?.type).toBe("boolean");
     expect(deleteStepInput.safeParse({ id: taskId, comment: "gone" }).success).toBe(false);
     expect(habitsListInput.safeParse({}).success).toBe(true);
     expect(habitsListInput.safeParse({ date: "2026-11-01", phone: "0812" }).success).toBe(false);
@@ -976,6 +991,53 @@ describe("phase 0 tool inputs", () => {
     expect(sent).not.toContain("is_completed");
     expect(sent).not.toContain("assignee");
     expect(sent).not.toContain("order");
+  });
+
+  it("completes or reopens a step through the session-scoped RPC only", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    const completedAt = "2026-11-20T08:00:00.000Z";
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({
+        data: [{ id, title: "Draft", step_order: 2, is_completed: true, completed_at: completedAt }],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [{ id, title: "Draft", step_order: 2, is_completed: false, completed_at: null }],
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: null, error: { message: "substeps_incomplete" } });
+    const admin = { rpc } as unknown as SupabaseClient;
+    const ctx = { userId: "user-1", organizationId: "org-1" };
+    await expect(setTaskStepCompleted(admin, ctx, { id, completed: true })).resolves.toEqual({
+      id,
+      title: "Draft",
+      order: 2,
+      is_completed: true,
+      completed_at: completedAt,
+    });
+    await expect(setTaskStepCompleted(admin, ctx, { id, completed: false })).resolves.toEqual({
+      id,
+      title: "Draft",
+      order: 2,
+      is_completed: false,
+      completed_at: null,
+    });
+    await expect(setTaskStepCompleted(admin, ctx, { id, completed: true })).rejects.toThrow("substeps_incomplete");
+    expect(rpc).toHaveBeenNthCalledWith(1, "mcp_set_task_step_completed", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_id: id,
+      p_completed: true,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(2, "mcp_set_task_step_completed", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_id: id,
+      p_completed: false,
+    });
+    const sent = JSON.stringify(rpc.mock.calls);
+    expect(sent).not.toContain("title");
+    expect(sent).not.toContain("assignee");
   });
 
   it("schedules with the session user and hides the internal secret", async () => {

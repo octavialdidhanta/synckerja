@@ -81,6 +81,7 @@ import type {
   TaskSummary,
   UpdateTaskInput,
   TaskObjectiveLink,
+  TaskStepCompletionRecord,
   TaskStepRecord,
   TaskStepRow,
   TaskSubstepRecord,
@@ -280,6 +281,8 @@ import {
   createStepResult,
   updateStepResult,
   updateStepSchema,
+  completeStepResult,
+  completeStepSchema,
   deleteStepInput,
   deleteStepResult,
   createSubstepInput,
@@ -679,6 +682,10 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     input: { id: string; title: string; description: string | null },
   ) => Promise<TaskStepRecord>;
+  setTaskStepCompleted: (
+    ctx: McpAuthContext,
+    input: { id: string; completed: boolean },
+  ) => Promise<TaskStepCompletionRecord>;
   deleteTaskStep: (ctx: McpAuthContext, id: string) => Promise<{ id: string }>;
   listTaskSubsteps: (ctx: McpAuthContext, stepId: string) => Promise<TaskSubstepRow[]>;
   createTaskSubstep: (ctx: McpAuthContext, input: { stepId: string; title: string }) => Promise<TaskSubstepRecord>;
@@ -908,6 +915,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "tasks.steps.list": taskStepsInput,
   "tasks.steps.create": createStepInput,
   "tasks.steps.update": updateStepSchema,
+  "tasks.steps.complete": completeStepSchema,
   "tasks.steps.delete": deleteStepInput,
   "tasks.substeps.list": listSubstepsInput,
   "tasks.substeps.create": createSubstepInput,
@@ -1575,6 +1583,12 @@ async function runTool(
           description: typeof args.description === "string" ? args.description : null,
         },
         deps.updateTaskStep,
+      );
+    case "tasks.steps.complete":
+      return completeStepResult(
+        ctx,
+        { id: requiredString(args.id), completed: args.completed !== false },
+        deps.setTaskStepCompleted,
       );
     case "tasks.steps.delete":
       return deleteStepResult(ctx, requiredString(args.id), deps.deleteTaskStep);
