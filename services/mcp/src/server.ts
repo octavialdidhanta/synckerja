@@ -98,6 +98,7 @@ import {
   deleteTaskStep,
   listTaskSteps,
   updateTaskStep,
+  setTaskStepCompleted,
 } from "./db/dailyTasks";
 import { checkHabit, listHabits } from "./db/habits";
 import { attachTaskStepImage } from "./db/stepImages";
@@ -237,6 +238,7 @@ const app = createApp({
   listTaskSteps: (ctx, taskId) => listTaskSteps(admin, ctx, taskId),
   createTaskStep: (ctx, input) => createTaskStep(admin, ctx, input),
   updateTaskStep: (ctx, input) => updateTaskStep(admin, ctx, input),
+  setTaskStepCompleted: (ctx, input) => setTaskStepCompleted(admin, ctx, input),
   deleteTaskStep: (ctx, id) => deleteTaskStep(admin, ctx, id),
   listTaskSubsteps: (ctx, stepId) => listTaskSubsteps(admin, ctx, stepId),
   createTaskSubstep: (ctx, input) => createTaskSubstep(admin, ctx, input),

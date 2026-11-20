@@ -295,6 +295,20 @@ export function updateTaskStep(
   }).then(asStep);
 }
 
+export type TaskStepCompletionRecord = TaskStepRecord & { completed_at: string | null };
+
+export function setTaskStepCompleted(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: { id: string; completed: boolean },
+): Promise<TaskStepCompletionRecord> {
+  return callRpcOne<StepRpcRow & { completed_at: string | null }>(admin, "mcp_set_task_step_completed", {
+    ...sessionArgs(ctx),
+    p_id: input.id,
+    p_completed: input.completed,
+  }).then((row) => ({ ...asStep(row), completed_at: row.completed_at ?? null }));
+}
+
 export function deleteTaskStep(admin: SupabaseClient, ctx: Session, id: string): Promise<{ id: string }> {
   return callRpcOne(admin, "mcp_delete_task_step", { ...sessionArgs(ctx), p_id: id });
 }

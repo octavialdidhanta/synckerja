@@ -113,6 +113,7 @@ export type McpToolName =
   | "tasks.steps.list"
   | "tasks.steps.create"
   | "tasks.steps.update"
+  | "tasks.steps.complete"
   | "tasks.steps.delete"
   | "tasks.substeps.list"
   | "tasks.substeps.create"
@@ -1077,6 +1078,14 @@ const TOOL_DEFINITIONS: McpTool[] = [
     pagePath: DAILY_TASK_PAGE_PATH,
   },
   {
+    name: "tasks.steps.complete",
+    description:
+      "Mark one step of a daily task in the organization locked in this session as completed, or send completed=false to reopen it. Requires the step id from tasks.steps.list. Refuses with substeps_incomplete while the step still has unfinished sub-steps, and with substeps_managed when reopening a step that has sub-steps. Refuses with content_plan_locked when the step is linked to a content plan that is not approved yet (concept step) or has neither a Google Drive link nor production approval (content step). Does not change title, description, assignee, order, or due date.",
+    scopes: ["tasks:write"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
     name: "tasks.steps.delete",
     description:
       "Delete one step of a daily task in the organization locked in this session. Refuses when the step or one of its substeps is assigned, or when the step is linked to a content plan. Unassigned substeps of that step are removed with it.",
@@ -1225,6 +1234,7 @@ const MUTATING_TOOLS = new Set<McpToolName>([
   "tasks.initiative.take",
   "tasks.steps.create",
   "tasks.steps.update",
+  "tasks.steps.complete",
   "tasks.steps.delete",
   "tasks.substeps.create",
   "tasks.steps.image.add",
