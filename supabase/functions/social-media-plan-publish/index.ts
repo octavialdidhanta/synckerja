@@ -16,6 +16,7 @@ import {
   preparePlanBulkPostNow,
   runPlanBulkPostNowJob,
 } from "../_shared/scheduledPosts/runPlanBulkPostNow.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 function planPublishJson(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -48,7 +49,7 @@ async function loadPlanForPublish(
   };
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry("social-media-plan-publish", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: youtubeContentCorsHeaders });
   }
@@ -183,4 +184,4 @@ Deno.serve(async (req: Request) => {
     schedules: prepared.schedules,
     partial_insert_errors: prepared.results,
   }, 200);
-});
+}));

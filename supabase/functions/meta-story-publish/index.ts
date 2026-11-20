@@ -22,6 +22,7 @@ import {
   isPlanEligibleForInstagramStorySchedule,
   isStoryContentType,
 } from "../_shared/scheduledPosts/storyPublishEligibility.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 type PublishPlatform = "Instagram" | "Facebook";
 
@@ -108,7 +109,7 @@ async function handlePostNowResponse(
   }, 200);
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry("meta-story-publish", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: metaContentCorsHeaders });
   }
@@ -259,4 +260,4 @@ Deno.serve(async (req: Request) => {
   }
 
   return metaContentJson({ error: "Unknown action" }, 400);
-});
+}));

@@ -11,6 +11,7 @@ import {
   resolveEmployeeForOmnichannelSend,
 } from "./omnichannelAssigneeGate.ts";
 import { META_GRAPH_BASE as SHARED_META_GRAPH_BASE } from "../_shared/metaGraphVersion.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -100,7 +101,7 @@ function parseWabaExpirationUnixSeconds(meta: Record<string, unknown>): number |
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry("send-whatsapp-message", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
   }
@@ -593,4 +594,4 @@ Deno.serve(async (req: Request) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

@@ -3,6 +3,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { resolvePayrollPayslipUrl } from "../_shared/payroll/payrollEmailConstants.ts";
 import { sendPayrollPaidEmail } from "../_shared/payroll/sendPayrollPaidEmail.ts";
 import { isAuthorizedServiceCaller } from "../_shared/serviceRoleEdgeAuth.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -29,7 +30,7 @@ type Body = {
   locale?: string;
 };
 
-Deno.serve(async (req) => {
+Deno.serve(withSentry("send-payroll-paid-email", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
   }
@@ -85,4 +86,4 @@ Deno.serve(async (req) => {
       500,
     );
   }
-});
+}));

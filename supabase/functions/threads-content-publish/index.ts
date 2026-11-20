@@ -26,6 +26,7 @@ import {
   isCarouselContentType,
   isPlanEligibleForThreadsAutoSchedule,
 } from "../_shared/scheduledPosts/scheduledPostEligibility.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 async function loadPlanForPublish(admin: ReturnType<typeof createClient>, planId: string) {
   const { data, error } = await admin
@@ -78,7 +79,7 @@ async function handlePostNowResponse(
   }, 200);
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry("threads-content-publish", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: threadsContentCorsHeaders });
   }
@@ -227,4 +228,4 @@ Deno.serve(async (req: Request) => {
   }
 
   return threadsContentJson({ error: "Unknown action" }, 400);
-});
+}));

@@ -26,6 +26,7 @@ import {
   isPlanEligibleForFacebookAutoSchedule,
   isPlanEligibleForInstagramAutoSchedule,
 } from "../_shared/scheduledPosts/scheduledPostEligibility.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 type PublishPlatform = "Instagram" | "Facebook";
 
@@ -99,7 +100,7 @@ async function handlePostNowResponse(
   }, 200);
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry("meta-content-publish", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: metaContentCorsHeaders });
   }
@@ -286,4 +287,4 @@ Deno.serve(async (req: Request) => {
   }
 
   return metaContentJson({ error: "Unknown action" }, 400);
-});
+}));

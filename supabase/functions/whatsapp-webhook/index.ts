@@ -33,6 +33,7 @@ import {
   WA_TICKET_PREFIX,
 } from "../_shared/ctwaLeadSync.ts";
 import { META_GRAPH_BASE as SHARED_META_GRAPH_BASE } from "../_shared/metaGraphVersion.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 /** Declare Deno global for IDE when edge-runtime.d.ts is not resolved */
 declare const Deno: {
@@ -1211,7 +1212,7 @@ async function handleCoexistenceChange(
   }
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry("whatsapp-webhook", async (req: Request) => {
   const url = new URL(req.url);
   const ts = new Date().toISOString();
   console.log("[whatsapp-webhook] ENTRY", ts, req.method, url.pathname, req.method === "GET" ? "query=" + url.searchParams.toString().slice(0, 80) : "body=...");
@@ -1881,4 +1882,4 @@ Deno.serve(async (req: Request) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

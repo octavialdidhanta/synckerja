@@ -33,6 +33,7 @@ import {
   refreshLeadClientIfPlaceholder,
 } from "../_shared/omnichannelLeadClientName.ts";
 import { reconcileLeadMagnetChannelLead } from "../_shared/leadMagnet/reconcileInstagramLeadMagnetLead.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -1146,7 +1147,7 @@ async function notifyLivechatInboundPush(
   }
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry("instagram-webhook", async (req: Request) => {
   const url = new URL(req.url);
   console.log("[instagram-webhook] ENTRY", req.method, url.pathname);
 
@@ -2065,4 +2066,4 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

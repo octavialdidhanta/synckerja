@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { addMonths } from "https://esm.sh/date-fns@2";
 import { midtransCoreApiBaseUrl } from "./midtransEnv.ts";
 import { finalPaymentStatus, verifyMidtransTransaction } from "./midtransVerify.ts";
+import { withSentry } from "../_shared/sentryEdge.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,7 +28,7 @@ const addBillingInterval = (baseDate: Date, billingCycle: string, billingTermMon
   return addMonths(baseDate, months);
 };
 
-Deno.serve(async (req) => {
+Deno.serve(withSentry("process-midtrans-payment", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -513,4 +514,4 @@ Deno.serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
-});
+}));
