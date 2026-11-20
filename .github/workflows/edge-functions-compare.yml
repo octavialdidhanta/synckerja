@@ -19,6 +19,10 @@ on:
         description: "Copy code of functions that exist only in Supabase into a review branch"
         type: boolean
         default: false
+      pull_deployed:
+        description: "Comma-separated function names: replace their own folder in the repo with the DEPLOYED version (review branch)"
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -87,8 +91,23 @@ jobs:
             edge-functions-report.md
             edge-functions-report.json
 
+      - name: Copy deployed versions of requested functions
+        if: inputs.pull_deployed != ''
+        env:
+          PULL: ${{ inputs.pull_deployed }}
+        run: |
+          # Only the function's own folder is replaced; _shared files are never touched here.
+          for slug in $(echo "$PULL" | tr ',' ' '); do
+            if ! echo "$slug" | grep -qE '^[a-z0-9-]+$'; then echo "::error::Invalid function name: $slug"; exit 1; fi
+            src="$(find "remote/$slug" -path "*/$slug/index.ts" 2>/dev/null | head -1)"
+            if [ -z "$src" ]; then echo "::error::No downloaded code for $slug"; exit 1; fi
+            mkdir -p "import/pull/supabase/functions/$slug"
+            cp -r "$(dirname "$src")/." "import/pull/supabase/functions/$slug/"
+            echo "Pulled deployed version of $slug ($(find "import/pull/supabase/functions/$slug" -type f | wc -l) files)"
+          done
+
       - name: Scan imported code for secrets
-        if: inputs.import_remote_only
+        if: inputs.import_remote_only || inputs.pull_deployed != ''
         run: |
           [ -d import ] || { echo "Nothing imported."; exit 0; }
           found=0
@@ -108,16 +127,20 @@ jobs:
           echo "No secret-like values found."
 
       - name: Push imported code to a review branch
-        if: inputs.import_remote_only
+        if: inputs.import_remote_only || inputs.pull_deployed != ''
         run: |
-          [ -d import/supabase ] || { echo "Nothing to push."; exit 0; }
+          [ -d import/supabase ] || [ -d import/pull ] || { echo "Nothing to push."; exit 0; }
           branch="chore/edge-functions-import-$(date -u +%Y%m%d%H%M%S)"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
-          cp -rn import/supabase/. supabase/
+          # Remote-only functions: add files, never overwrite repo files.
+          [ -d import/supabase ] && cp -rn import/supabase/. supabase/
+          # Requested functions: replace their own folder with the deployed version.
+          [ -d import/pull/supabase ] && cp -r import/pull/supabase/. supabase/
           git add supabase/functions
-          git commit -m "chore(functions): import code of functions that were only deployed in Supabase"
+          if git diff --cached --quiet; then echo "No changes to push."; exit 0; fi
+          git commit -m "chore(functions): import deployed code that is missing from the repo"
           git push origin "$branch"
           {
             echo ""
