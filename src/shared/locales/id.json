@@ -72,6 +72,7 @@
       "otpErrorTitle": "Verifikasi gagal",
       "otpErrorInvalid": "Kode tidak cocok. Periksa kode lalu coba lagi.",
       "otpErrorExpired": "Kode ini sudah tidak berlaku. Ketuk Kirim ulang email untuk kode baru.",
+      "otpErrorTooMany": "Terlalu banyak kode salah. Tunggu sebentar, lalu ketuk Kirim ulang email untuk kode baru.",
       "resend": "Kirim ulang email",
       "resendCooldown": "Kirim ulang ({{seconds}}d)",
       "sending": "Mengirim…",
