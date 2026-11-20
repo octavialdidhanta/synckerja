@@ -15,14 +15,14 @@ type Handler = (req: Request) => Response | Promise<Response>;
 // deno-lint-ignore no-explicit-any
 type SentryModule = any;
 
-const SENTRY_SDK = "npm:@sentry/deno@11.13.0";
-
 let sentryPromise: Promise<SentryModule | null> | null = null;
 
 function loadSentry(): Promise<SentryModule | null> {
   const dsn = Deno.env.get("SENTRY_DSN")?.trim();
   if (!dsn) return Promise.resolve(null);
-  sentryPromise ??= import(SENTRY_SDK)
+  // Literal specifier on purpose: the deploy bundler only ships npm packages it can see
+  // statically. A variable here made the package missing at runtime (ERR_MODULE_NOT_FOUND).
+  sentryPromise ??= import("npm:@sentry/deno@11.13.0")
     .then((Sentry: SentryModule) => {
       Sentry.init({
         dsn,
