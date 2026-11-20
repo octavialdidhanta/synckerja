@@ -86,8 +86,11 @@ jobs:
       - name: Dry-run against production (no changes)
         if: github.event.pull_request.head.repo.full_name == github.repository
         run: |
-          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
-          supabase db push --linked --dry-run 2>&1 | tee dry-run.txt
+          # Steps run with `bash -e` but not pipefail, so a failing dry-run would hide behind `tee`.
+          set -o pipefail
+          # The CLI reads SUPABASE_DB_PASSWORD from the environment (--password is ignored now).
+          supabase link --project-ref "$SUPABASE_PROJECT_ID"
+          supabase db push --remote --dry-run 2>&1 | tee dry-run.txt
           {
             echo "### Migrations that will run on merge"
             echo '```'
@@ -115,16 +118,19 @@ jobs:
           version: latest
 
       - name: Link project
-        run: supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+        # The CLI reads SUPABASE_DB_PASSWORD from the environment (--password is ignored now).
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Show pending migrations
-        run: supabase db push --linked --dry-run
+        run: supabase db push --remote --dry-run
 
       - name: Apply pending migrations
-        # Answer the confirmation prompt once. (`yes | ...` would fail the step with SIGPIPE under pipefail.)
-        run: printf 'y\n' | supabase db push --linked
+        # Without a terminal the CLI refuses piped answers and requires an explicit --yes.
+        run: supabase db push --remote --yes
 
       - name: Show migration history
+        # Informational only; never fail the deploy because of it.
+        continue-on-error: true
         run: supabase migration list --linked
 
   types:
