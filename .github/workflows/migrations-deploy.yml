@@ -1,0 +1,128 @@
+name: Database migrations
+
+# Applies new files in supabase/migrations/ to the production database.
+#
+#   pull_request -> "plan" job: checks the rules below and runs `supabase db push --dry-run`
+#                   so the PR shows exactly which migrations would be applied. Writes nothing.
+#   push to main -> "deploy" job: runs `supabase db push`, which applies only migrations that
+#                   are not yet recorded in supabase_migrations.schema_migrations.
+#
+# Rules (enforced in the plan job):
+#   - Only ADD files under supabase/migrations/. Editing, renaming or deleting a file that may
+#     already be applied is refused: change the schema with a new migration instead.
+#   - New file names must look like <14-digit version>_<name>.sql and be newer than every
+#     version already in the folder.
+#
+# Do not change the production schema in the SQL Editor any more: write a migration and open a
+# PR, otherwise the repo and the database drift apart again.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - ".github/workflows/migrations-deploy.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - ".github/workflows/migrations-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Only new migration files, newer than existing ones
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed="$(git diff --name-status --diff-filter=MDRT "$BASE"...HEAD -- supabase/migrations/)"
+          if [ -n "$changed" ]; then
+            echo "::error::Existing migration files were edited, renamed or deleted. Add a new migration instead:"
+            echo "$changed"
+            exit 1
+          fi
+          added="$(git diff --name-only --diff-filter=A "$BASE"...HEAD -- supabase/migrations/)"
+          if [ -z "$added" ]; then echo "No new migrations in this PR."; exit 0; fi
+          latest_existing="$(git ls-tree --name-only "$BASE" supabase/migrations/ | sed -n 's#.*/\([0-9]\{14\}\)_.*\.sql$#\1#p' | sort | tail -1)"
+          fail=0
+          for f in $added; do
+            name="$(basename "$f")"
+            if ! echo "$name" | grep -qE '^[0-9]{14}_[a-z0-9_]+\.sql$'; then
+              echo "::error file=$f::Name must be <YYYYMMDDHHMMSS>_<lower_snake_name>.sql"; fail=1; continue
+            fi
+            v="${name%%_*}"
+            if [ -n "$latest_existing" ] && { [ "$v" \< "$latest_existing" ] || [ "$v" = "$latest_existing" ]; }; then
+              echo "::error file=$f::Version $v must be newer than the latest existing migration $latest_existing"; fail=1
+            fi
+          done
+          dupes="$(for f in $added; do basename "$f" | cut -d_ -f1; done | sort | uniq -d)"
+          if [ -n "$dupes" ]; then echo "::error::Two new files share a version: $dupes"; fail=1; fi
+          exit $fail
+
+      - name: Skip production dry-run for forks
+        if: github.event.pull_request.head.repo.full_name != github.repository
+        run: echo "PR from a fork has no access to secrets; the dry-run runs after merge review."
+
+      - uses: supabase/setup-cli@v1
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        with:
+          version: latest
+
+      - name: Dry-run against production (no changes)
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+          supabase db push --linked --dry-run 2>&1 | tee dry-run.txt
+          {
+            echo "### Migrations that will run on merge"
+            echo '```'
+            cat dry-run.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # One deploy at a time; never cancel a deploy that is already applying SQL.
+    concurrency:
+      group: production-migrations
+      cancel-in-progress: false
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Show pending migrations
+        run: supabase db push --linked --dry-run
+
+      - name: Apply pending migrations
+        # Answer the confirmation prompt once. (`yes | ...` would fail the step with SIGPIPE under pipefail.)
+        run: printf 'y\n' | supabase db push --linked
+
+      - name: Show migration history
+        run: supabase migration list --linked
