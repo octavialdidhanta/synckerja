@@ -21,6 +21,37 @@ export type TaskListRow = {
   plan_month: string | null;
 };
 
+export type TaskDetailSubstep = {
+  id: string;
+  title: string;
+  order: number;
+  is_completed: boolean;
+  assignee_name: string | null;
+};
+
+export type TaskDetailStep = {
+  id: string;
+  title: string;
+  description: string | null;
+  order: number;
+  is_completed: boolean;
+  assignee_name: string | null;
+  substeps: TaskDetailSubstep[];
+};
+
+export type TaskDetail = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string | null;
+  due_date: string | null;
+  plan_month: string | null;
+  assignee_name: string | null;
+  creator_name: string | null;
+  steps: TaskDetailStep[];
+};
+
 export type InitiativeRow = {
   id: string;
   level: string;
@@ -205,6 +236,13 @@ export function linkTaskObjective(
     p_task_id: input.taskId,
     p_individual_objective_id: input.individualObjectiveId,
   });
+}
+
+export function getTask(admin: SupabaseClient, ctx: Session, taskId: string): Promise<TaskDetail> {
+  return callRpcOne<TaskDetail>(admin, "mcp_get_task", { ...sessionArgs(ctx), p_task_id: taskId }).then((row) => ({
+    ...row,
+    steps: Array.isArray(row.steps) ? row.steps : [],
+  }));
 }
 
 export function deleteTask(admin: SupabaseClient, ctx: Session, id: string): Promise<{ id: string }> {

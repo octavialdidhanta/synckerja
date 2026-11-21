@@ -139,6 +139,7 @@ export { deleteTaskInput, deleteTaskResult } from "./tasks/delete";
 export { assignTaskInput, assignTaskResult } from "./tasks/assign";
 export { linkTaskObjectiveInput, linkTaskObjectiveResult } from "./tasks/objectiveLink";
 export { takeInitiativeInput, takeInitiativeResult } from "./tasks/take";
+export { getTaskInput, getTaskResult } from "./tasks/get";
 export { taskStepsInput, taskStepsResult } from "./tasks/stepsList";
 export { createStepInput, createStepResult } from "./tasks/stepsCreate";
 export { updateStepResult, updateStepSchema } from "./tasks/stepsUpdate";

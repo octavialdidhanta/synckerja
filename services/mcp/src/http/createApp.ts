@@ -69,6 +69,7 @@ import type {
   InitiativeRow,
   TakeInitiativeInput,
   TakeInitiativeResult,
+  TaskDetail,
   TaskListRow,
   TaskObjectiveLink,
   TaskRecord,
@@ -417,6 +418,7 @@ export type AppDeps = {
     input: { taskId: string; individualObjectiveId: string },
   ) => Promise<TaskObjectiveLink>;
   takeTaskInitiative: (ctx: McpAuthContext, input: TakeInitiativeInput) => Promise<TakeInitiativeResult>;
+  getTask: (ctx: McpAuthContext, taskId: string) => Promise<TaskDetail>;
   listTaskSteps: (ctx: McpAuthContext, taskId: string) => Promise<TaskStepRow[]>;
   createTaskStep: (
     ctx: McpAuthContext,

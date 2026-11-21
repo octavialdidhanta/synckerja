@@ -353,6 +353,7 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     takeTaskInitiative: async () => {
       throw new Error("unused");
     },
+    getTask: async () => { throw new Error("not_found"); },
     listTaskSteps: async () => [],
     createTaskStep: async () => {
       throw new Error("unused");
