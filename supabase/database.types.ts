@@ -40144,6 +40144,25 @@ export type Database = {
           version_no: number
         }[]
       }
+      mcp_get_task: {
+        Args: {
+          p_organization_id: string
+          p_task_id: string
+          p_user_id: string
+        }
+        Returns: {
+          assignee_name: string
+          creator_name: string
+          description: string
+          due_date: string
+          id: string
+          plan_month: string
+          priority: string
+          status: string
+          steps: Json
+          title: string
+        }[]
+      }
       mcp_get_thinking_chain: {
         Args: {
           p_idea_id: string
@@ -42543,6 +42562,10 @@ export type Database = {
       recipient_picker_filter_options: {
         Args: { p_organization_id: string }
         Returns: Json
+      }
+      recompute_daily_task_status: {
+        Args: { p_task_id: string }
+        Returns: undefined
       }
       reconcile_xendit_disbursement_completed: {
         Args: { p_disbursement_id: string }
