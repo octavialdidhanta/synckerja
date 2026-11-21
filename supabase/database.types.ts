@@ -42544,6 +42544,10 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: Json
       }
+      recompute_daily_task_status: {
+        Args: { p_task_id: string }
+        Returns: undefined
+      }
       reconcile_xendit_disbursement_completed: {
         Args: { p_disbursement_id: string }
         Returns: Json
