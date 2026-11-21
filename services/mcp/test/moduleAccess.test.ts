@@ -590,6 +590,7 @@ describe("daily task visibility", () => {
     expect(names.filter((name) => name.startsWith("tasks."))).toEqual([
       "tasks.summary",
       "tasks.list",
+      "tasks.get",
       "tasks.initiative.list",
       "tasks.workload",
       "tasks.completed.list",

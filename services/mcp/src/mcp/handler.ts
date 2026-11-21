@@ -76,6 +76,7 @@ import type {
   InitiativeRow,
   TakeInitiativeInput,
   TakeInitiativeResult,
+  TaskDetail,
   TaskListRow,
   TaskRecord,
   TaskSummary,
@@ -275,6 +276,8 @@ import {
   linkTaskObjectiveResult,
   takeInitiativeInput,
   takeInitiativeResult,
+  getTaskInput,
+  getTaskResult,
   taskStepsInput,
   taskStepsResult,
   createStepInput,
@@ -673,6 +676,7 @@ export type McpReadDeps = {
     input: { taskId: string; individualObjectiveId: string },
   ) => Promise<TaskObjectiveLink>;
   takeTaskInitiative: (ctx: McpAuthContext, input: TakeInitiativeInput) => Promise<TakeInitiativeResult>;
+  getTask: (ctx: McpAuthContext, taskId: string) => Promise<TaskDetail>;
   listTaskSteps: (ctx: McpAuthContext, taskId: string) => Promise<TaskStepRow[]>;
   createTaskStep: (
     ctx: McpAuthContext,
@@ -903,6 +907,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "crm.leads.setStatus": setLeadStatusInput,
   "tasks.summary": taskSummaryInput,
   "tasks.list": taskListInput,
+  "tasks.get": getTaskInput,
   "tasks.initiative.list": taskInitiativeInput,
   "tasks.workload": taskWorkloadInput,
   "tasks.completed.list": completedStepsInput,
@@ -1498,6 +1503,8 @@ async function runTool(
       return taskSummaryResult(ctx, optionalString(args.month), deps.listTaskSummary);
     case "tasks.list":
       return taskListResult(ctx, optionalString(args.status), optionalString(args.month), deps.listTasks);
+    case "tasks.get":
+      return getTaskResult(ctx, requiredString(args.task_id), deps.getTask);
     case "tasks.initiative.list":
       return taskInitiativeResult(ctx, deps.listTaskInitiative);
     case "tasks.workload":
