@@ -359,6 +359,11 @@ describe("phase 3 tool visibility", () => {
     expect(names).not.toContain("content.briefs.update.preview");
     expect(names).not.toContain("content.briefs.update");
     expect(names).not.toContain("content.plans.update");
+    expect(names).not.toContain("footage.scenes.upsert_batch.preview");
+    expect(names).not.toContain("footage.scenes.upsert_batch");
+    expect(names).not.toContain("footage.usage.log");
+    expect(names).not.toContain("footage.move");
+    expect(names).not.toContain("footage.ban.add");
     expect(names).not.toContain("okr.objectives.create");
     expect(names).not.toContain("okr.objectives.update");
     expect(names).not.toContain("okr.objectives.department.create");
@@ -402,6 +407,15 @@ describe("phase 3 tool visibility", () => {
     expect(names).toContain("content.briefs.get");
     expect(names).toContain("content.catalog.list");
     expect(names).toContain("content.plans.update");
+    expect(names).toContain("footage.search");
+    expect(names).toContain("footage.scenes.upsert_batch.preview");
+    expect(names).toContain("footage.scenes.upsert_batch");
+    expect(names).toContain("footage.usage.log.preview");
+    expect(names).toContain("footage.usage.log");
+    expect(names).toContain("footage.move.preview");
+    expect(names).toContain("footage.move");
+    expect(names).toContain("footage.ban.add.preview");
+    expect(names).toContain("footage.ban.add");
     expect(names).not.toContain("content.plans.schedule");
     expect(names).not.toContain("okr.objectives.create");
     expect(names).not.toContain("okr.objectives.department.create");

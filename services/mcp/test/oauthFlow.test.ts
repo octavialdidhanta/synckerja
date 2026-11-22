@@ -357,6 +357,14 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     searchFootage: async () => ({ total: 0, scenes: [] }),
     getFootage: async () => { throw new Error("not_found"); },
     listFootageBans: async () => ({ total: 0, bans: [] }),
+    previewFootageSceneBatch: async () => { throw new Error("unused"); },
+    applyFootageSceneBatch: async () => { throw new Error("unused"); },
+    previewFootageUsage: async () => { throw new Error("unused"); },
+    applyFootageUsage: async () => { throw new Error("unused"); },
+    previewFootageMove: async () => { throw new Error("unused"); },
+    applyFootageMove: async () => { throw new Error("unused"); },
+    previewFootageBan: async () => { throw new Error("unused"); },
+    applyFootageBan: async () => { throw new Error("unused"); },
     listTaskSteps: async () => [],
     createTaskStep: async () => {
       throw new Error("unused");

@@ -110,3 +110,208 @@ export async function listFootageBans(admin: SupabaseClient, ctx: Session): Prom
     bans: Array.isArray(row.bans) ? row.bans : [],
   };
 }
+
+export type FootageScenePatch = {
+  scene_index: number;
+  scene_kind?: string;
+  summary?: string;
+  note?: string;
+  hijab?: boolean;
+  watermark?: boolean;
+  meja_biru?: boolean;
+  lengkuas?: boolean;
+};
+
+export type FootageSceneBatchInput = {
+  file_key: string;
+  scenes: FootageScenePatch[];
+};
+
+export type FootageSceneChange = {
+  scene_index: number;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+};
+
+export type FootageSceneBatchPreview = {
+  file_key: string;
+  changes: FootageSceneChange[];
+  preview_id: string;
+  expires_at: string;
+};
+
+export type FootageSceneBatchSaved = {
+  saved: boolean;
+  file_key: string;
+  scene_count: number;
+};
+
+export type FootageUsageInput = {
+  file_key: string;
+  external_ref: string;
+  in_seconds: number;
+  out_seconds: number;
+  title?: string;
+};
+
+export type FootageUsagePreview = {
+  file_key: string;
+  external_ref: string;
+  in_seconds: number;
+  out_seconds: number;
+  title: string | null;
+  already_logged: boolean;
+  can_save: boolean;
+  preview_id?: string;
+  expires_at?: string;
+};
+
+export type FootageUsageSaved = {
+  saved: boolean;
+  already_logged: boolean;
+  file_key: string;
+  external_ref: string;
+  in_seconds?: number;
+  out_seconds?: number;
+};
+
+export type FootageMoveInput = {
+  file_key: string;
+  new_file_key: string;
+  location?: string;
+  product?: string;
+};
+
+export type FootageAddress = {
+  file_key: string;
+  location_label: string | null;
+  product_label: string | null;
+  storage_status: string;
+};
+
+export type FootageMovePreview = {
+  file_key: string;
+  new_file_key: string;
+  before: FootageAddress;
+  after: FootageAddress;
+  preview_id: string;
+  expires_at: string;
+};
+
+export type FootageMoveSaved = {
+  saved: boolean;
+  file_key: string;
+  previous_file_key: string;
+  storage_status: string;
+};
+
+export type FootageBanInput = {
+  file_key: string;
+  scene_index: number;
+  reason: string;
+};
+
+export type FootageBanPreview = {
+  file_key: string;
+  scene_index: number;
+  before_reason: string | null;
+  after_reason: string;
+  preview_id: string;
+  expires_at: string;
+};
+
+export type FootageBanSaved = {
+  saved: boolean;
+  file_key: string;
+  scene_index: number;
+  reason: string;
+};
+
+export async function previewFootageSceneBatch(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: FootageSceneBatchInput,
+): Promise<FootageSceneBatchPreview> {
+  const row = await callJson<FootageSceneBatchPreview>(admin, "mcp_preview_footage_scene_batch", {
+    ...sessionArgs(ctx),
+    p_input: input,
+  });
+  return { ...row, changes: Array.isArray(row.changes) ? row.changes : [] };
+}
+
+export async function applyFootageSceneBatch(
+  admin: SupabaseClient,
+  ctx: Session,
+  previewId: string,
+): Promise<FootageSceneBatchSaved> {
+  return callJson<FootageSceneBatchSaved>(admin, "mcp_apply_footage_scene_batch", {
+    ...sessionArgs(ctx),
+    p_preview_id: previewId,
+  });
+}
+
+export async function previewFootageUsage(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: FootageUsageInput,
+): Promise<FootageUsagePreview> {
+  return callJson<FootageUsagePreview>(admin, "mcp_preview_footage_usage", {
+    ...sessionArgs(ctx),
+    p_input: input,
+  });
+}
+
+export async function applyFootageUsage(
+  admin: SupabaseClient,
+  ctx: Session,
+  previewId: string,
+): Promise<FootageUsageSaved> {
+  return callJson<FootageUsageSaved>(admin, "mcp_apply_footage_usage", {
+    ...sessionArgs(ctx),
+    p_preview_id: previewId,
+  });
+}
+
+export async function previewFootageMove(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: FootageMoveInput,
+): Promise<FootageMovePreview> {
+  return callJson<FootageMovePreview>(admin, "mcp_preview_footage_move", {
+    ...sessionArgs(ctx),
+    p_input: input,
+  });
+}
+
+export async function applyFootageMove(
+  admin: SupabaseClient,
+  ctx: Session,
+  previewId: string,
+): Promise<FootageMoveSaved> {
+  return callJson<FootageMoveSaved>(admin, "mcp_apply_footage_move", {
+    ...sessionArgs(ctx),
+    p_preview_id: previewId,
+  });
+}
+
+export async function previewFootageBan(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: FootageBanInput,
+): Promise<FootageBanPreview> {
+  return callJson<FootageBanPreview>(admin, "mcp_preview_footage_ban", {
+    ...sessionArgs(ctx),
+    p_input: input,
+  });
+}
+
+export async function applyFootageBan(
+  admin: SupabaseClient,
+  ctx: Session,
+  previewId: string,
+): Promise<FootageBanSaved> {
+  return callJson<FootageBanSaved>(admin, "mcp_apply_footage_ban", {
+    ...sessionArgs(ctx),
+    p_preview_id: previewId,
+  });
+}
