@@ -28,6 +28,7 @@ async function loadPlanCompletionInputs(
     actual_post_date: string | null;
     on_time_status: string | null;
     contentTypeName: string | null;
+    status_content: string | null;
   };
   required: RequiredPlatformRow[];
   links: SocialMediaLinkRow[];
@@ -95,10 +96,14 @@ export async function syncPlanCompletionStateForPlan(
   const activeRequired = filterRequiredPlatformsForContentType(required, plan.contentTypeName);
   const hasRequiredPlatforms = activeRequired.length > 0;
 
-  const done = computePlanDoneState(required, links, plan.contentTypeName, schedules);
   const statusContent = String(plan.status_content ?? "").trim();
-  const forAds = statusContent === "For Ads" || statusContent === "Recomended For Ads" || statusContent === "Recommended For Ads";
+  // Same rule as src/6-1-dashboard/lib/statusContent.ts (normalizeStatusContent / onTimeStatusForForAds).
+  const forAds =
+    statusContent === "For Ads" ||
+    statusContent === "Recomended For Ads" ||
+    statusContent === "Recommended For Ads";
   const done = forAds || computePlanDoneState(required, links, plan.contentTypeName, schedules);
+  const items = computeRequiredPlatformProgressItems(
     required,
     links,
     plan.contentTypeName,
@@ -113,15 +118,18 @@ export async function syncPlanCompletionStateForPlan(
   );
 
   const currentOnTime = String(plan.on_time_status ?? "").trim();
-  const needsUpdate =
-  const waitingToPost = currentOnTime === "In Progress" || currentOnTime === "Scheduled" || metadata.on_time_status === "In Progress" || metadata.on_time_status === "Scheduled";
-  const nextOnTime = forAds && waitingToPost ? "" : metadata.on_time_status;
+  let nextOnTime = metadata.on_time_status;
+  if (forAds) {
+    const base = String(metadata.on_time_status || currentOnTime).trim();
+    nextOnTime = base === "In Progress" || base === "Scheduled" ? "" : base;
+  }
+
   const needsUpdate =
     plan.done !== done
     || plan.actual_post_date !== metadata.actual_post_date
     || currentOnTime !== nextOnTime;
+
   if (!needsUpdate) {
-    return { done, ...metadata };
     return { done, actual_post_date: metadata.actual_post_date, on_time_status: nextOnTime };
   }
 
@@ -141,6 +149,7 @@ export async function syncPlanCompletionStateForPlan(
   }
 
   return { done, actual_post_date: metadata.actual_post_date, on_time_status: nextOnTime };
+}
 
 /** @deprecated Use syncPlanCompletionStateForPlan */
 export async function syncPlanDoneStateForPlan(
