@@ -75,6 +75,8 @@ export interface TagValueRecord {
 export interface UsageRecord {
   asset_id: string;
   scene_id: string | null;
+  in_seconds?: number | string | null;
+  out_seconds?: number | string | null;
   external_ref: string | null;
   social_media_plan_id: string | null;
 }
@@ -152,19 +154,33 @@ export function buildFootageRows(src: FootageSource): FootageData {
   }
 
   const clipRefs = new Map<string, string[]>();
-  const sceneRefs = new Map<string, string[]>();
+  const usagesByAsset = new Map<string, UsageRecord[]>();
   for (const u of src.usages) {
     const ref = usageRef(u);
     if (!ref) continue;
     const c = clipRefs.get(u.asset_id) ?? [];
     if (!c.includes(ref)) c.push(ref);
     clipRefs.set(u.asset_id, c);
-    if (u.scene_id) {
-      const s = sceneRefs.get(u.scene_id) ?? [];
-      if (!s.includes(ref)) s.push(ref);
-      sceneRefs.set(u.scene_id, s);
-    }
+    const l = usagesByAsset.get(u.asset_id) ?? [];
+    l.push(u);
+    usagesByAsset.set(u.asset_id, l);
   }
+
+  /** Usage refs for one scene: linked by scene_id, or a clip usage whose in/out overlaps the scene. */
+  const sceneRefsFor = (assetId: string, sceneId: string, a: number, b: number): string[] => {
+    const out: string[] = [];
+    for (const u of usagesByAsset.get(assetId) ?? []) {
+      const ref = usageRef(u)!;
+      let hit = u.scene_id === sceneId;
+      if (!hit && !u.scene_id) {
+        const uin = num(u.in_seconds);
+        const uout = num(u.out_seconds);
+        if (uin !== null && uout !== null) hit = Math.min(b, uout) - Math.max(a, uin) > 0.05;
+      }
+      if (hit && !out.includes(ref)) out.push(ref);
+    }
+    return out;
+  };
 
   const bans = new Map(src.bans.map((b) => [b.scene_id, b.reason]));
 
@@ -219,7 +235,7 @@ export function buildFootageRows(src: FootageSource): FootageData {
         lengkuas,
         meja: tags.meja_biru === true,
         pakai: (clipRefs.get(asset.id) ?? []).join(";"),
-        sp: sceneRefs.get(s.id) ?? [],
+        sp: sceneRefsFor(asset.id, s.id, a, b),
         ban: bans.get(s.id) ?? null,
         cat: s.note ?? "",
         baru: asset.storage_status === "inbox",
