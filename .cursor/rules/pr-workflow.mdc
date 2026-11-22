@@ -1,0 +1,13 @@
+---
+description: Alur kerja PR yang cepat tapi aman
+alwaysApply: true
+---
+
+# Alur kerja PR
+
+- Sebelum push, jalankan typecheck dan tes yang relevan di terminal. Push hanya kalau lolos.
+- Kumpulkan perubahan satu fitur dalam satu PR. Jangan bikin PR terpisah untuk tiap perbaikan kecil.
+- Setelah buka PR, langsung pasang auto-merge: `gh pr merge <nomor> --squash --auto`. PR merge sendiri kalau CI hijau.
+- Kecuali PR berisi migration database (`supabase/migrations/`): jangan pasang auto-merge. Laporkan dulu hasil job "plan" ke user dan tunggu persetujuan.
+- Jangan pernah commit langsung ke main.
+- Jangan ikut commit `.cursor/mcp.json`, file `.env`, atau folder data lokal.
