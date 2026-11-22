@@ -13,6 +13,7 @@ export type FootageScene = {
   product_label: string | null;
   media_type: string;
   thumb_storage_path: string | null;
+  thumb_required: boolean;
   hijab: boolean;
   watermark_ui: boolean;
   lengkuas: boolean;

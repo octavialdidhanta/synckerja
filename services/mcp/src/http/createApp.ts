@@ -627,7 +627,7 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "catalog-media-v1",
+      rev: "catalog-thumb-v1",
       tools: [
         "content.plans.media.upload.start",
         "content.plans.media.versions.list",
