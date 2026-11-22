@@ -2,6 +2,8 @@
 import { useMemo } from 'react';
 import { ContentPlan } from '../types/social-media';
 import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { planMatchesContentDatePreset, type ContentTableDatePreset } from '../lib/contentDateFilter';
+import { normalizeStatusContent, STATUS_CONTENT_FOR_ADS } from '../lib/statusContent';
 
 /** Normalize status/production_status for comparison (trim, null/undefined -> empty). */
 function norm(s: string | null | undefined): string {
@@ -70,11 +72,13 @@ export const useOptimizedFiltering = (
   searchTerm: string,
   statusFilter: string,
   selectedMonth?: Date,
-  serviceFilter?: string
+  serviceFilter?: string,
+  datePreset: ContentTableDatePreset = 'month',
 ) => {
   return useMemo(() => {
     const lowerSearchTerm = searchTerm.trim().toLowerCase();
     const effectiveStatusFilter = (statusFilter || '').trim() || 'all';
+    const now = new Date();
 
     // Prepare month filter range if selectedMonth is provided
     let monthStart: Date | null = null;
@@ -85,9 +89,10 @@ export const useOptimizedFiltering = (
     }
 
     const result = contentPlans.filter(plan => {
-      // Month filter - filter by post_date
       let matchesMonth = true;
-      if (monthStart && monthEnd && plan.post_date) {
+      if (datePreset === 'today' || datePreset === 'yesterday' || datePreset === 'this_week') {
+        matchesMonth = planMatchesContentDatePreset(plan.post_date, datePreset, now);
+      } else if (monthStart && monthEnd && plan.post_date) {
         try {
           const planDate = new Date(plan.post_date);
           matchesMonth = isWithinInterval(planDate, { start: monthStart, end: monthEnd });
@@ -129,6 +134,9 @@ export const useOptimizedFiltering = (
           case 'Prod Need Review':
             matchesStatus = isProdNeedReview(plan);
             break;
+          case STATUS_CONTENT_FOR_ADS:
+            matchesStatus = normalizeStatusContent(plan.status_content) === STATUS_CONTENT_FOR_ADS;
+            break;
           default:
             matchesStatus =
               statusEq(plan.status, effectiveStatusFilter) ||
@@ -139,5 +147,5 @@ export const useOptimizedFiltering = (
       return matchesMonth && matchesSearch && matchesStatus && matchesService;
     });
     return result;
-  }, [contentPlans, searchTerm, statusFilter, selectedMonth, serviceFilter]);
+  }, [contentPlans, searchTerm, statusFilter, selectedMonth, serviceFilter, datePreset]);
 };

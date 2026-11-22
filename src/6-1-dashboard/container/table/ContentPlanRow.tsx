@@ -36,6 +36,7 @@ import { devLog, logger } from '@/shared/lib/logger';
 import { cn } from '@/shared/lib/utils';
 import { CanvaCarouselNote, type CanvaCarouselRun } from '@/canva/CanvaCarouselNote';
 import { hasProductionDeliverable, productionStatusSelectValue } from '../../utils/productionAsset';
+import { normalizeStatusContent, onTimeStatusForForAds, STATUS_CONTENT_FOR_ADS } from '../../lib/statusContent';
 import {
   ON_TIME_IN_PROGRESS,
   ON_TIME_SCHEDULED,
@@ -311,6 +312,10 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
   const displayOnTimeStatus = () => {
     if (!plan.post_date) {
       return '';
+    }
+
+    if (normalizeStatusContent(plan.status_content) === STATUS_CONTENT_FOR_ADS) {
+      return onTimeStatusForForAds(plan.status_content, plan.on_time_status);
     }
 
     const stored = plan.on_time_status?.trim() ?? '';
@@ -1212,14 +1217,14 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
         minWidth: '160px',
         maxWidth: '160px'
       }} className="px-2 py-1 border-b border-gray-200">
-          <Select value={plan.status_content || 'none'} onValueChange={value => onStatusContentChange(plan.id, value)}>
+          <Select value={normalizeStatusContent(plan.status_content)} onValueChange={value => onStatusContentChange(plan.id, value)}>
             <SelectTrigger className={selectTriggerRow}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">No Status</SelectItem>
               <SelectItem value="Cancel">Cancel</SelectItem>
-              <SelectItem value="Recomended For Ads">Recomended For Ads</SelectItem>
+              <SelectItem value="For Ads">For Ads</SelectItem>
             </SelectContent>
           </Select>
         </td>

@@ -885,7 +885,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
         className={cn(toolbarBtnClass, 'gap-1')}
       >
         <Pencil className="h-3.5 w-3.5" />
-        {t('briefDialog.edit', 'Edit')}
+        {t('briefDialog.editButton', 'Edit')}
       </Button>
     );
 
@@ -1043,7 +1043,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                               }}
                             >
                               <Pencil className="h-4 w-4" />
-                              {t('briefDialog.edit', 'Edit')}
+                              {t('briefDialog.editButton', 'Edit')}
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem

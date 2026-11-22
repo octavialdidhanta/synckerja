@@ -11,6 +11,8 @@ import { ContentPlan } from '../types/social-media';
 import { toast } from 'sonner';
 import { devLog } from '@/shared/lib/logger';
 import { removeAllBriefStoryboardImagesForPlan } from './useBriefStoryboardImages';
+import { normalizeStatusContent, STATUS_CONTENT_FOR_ADS } from '../lib/statusContent';
+import { syncPlanCompletionStateClient } from '@/6-1-scheduled-posts/lib/syncPlanCompletionStateClient';
 
 /** Allowed columns for social_media_plans table (no link_url - that column does not exist). */
 const SOCIAL_MEDIA_PLANS_UPDATE_KEYS = new Set([
@@ -136,6 +138,22 @@ export const useOptimizedSocialMediaMutations = () => {
             queryKey: ['social-media-plans', organizationId],
             refetchType: 'none'
           });
+
+          const leftForAds =
+            normalizeStatusContent(oldPlan?.status_content) === STATUS_CONTENT_FOR_ADS &&
+            updates.status_content !== undefined &&
+            normalizeStatusContent(String(updates.status_content)) !== STATUS_CONTENT_FOR_ADS;
+          if (leftForAds) {
+            void syncPlanCompletionStateClient(variables.id).then((result) => {
+              if (!result) return;
+              queryClient.setQueryData(['social-media-plans', organizationId], (current: unknown) => {
+                if (!Array.isArray(current)) return current;
+                return current.map((plan: { id: string }) =>
+                  plan.id === variables.id ? { ...plan, ...result } : plan,
+                );
+              });
+            });
+          }
 
           const distributionChanged =
             updates.service_id !== undefined ||

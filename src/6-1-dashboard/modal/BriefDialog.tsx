@@ -1002,7 +1002,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                       className="h-7 px-3 text-xs"
                     >
                       <History className="h-3 w-3 mr-1" />
-                      {t('briefDialog.history', 'Riwayat')}
+                      {t('briefDialog.historyButton', 'History')}
                     </Button>
                   ) : null}
                   {hasGoogleDocsLink && (

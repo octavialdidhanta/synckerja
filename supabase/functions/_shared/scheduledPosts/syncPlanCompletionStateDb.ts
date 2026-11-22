@@ -28,6 +28,7 @@ async function loadPlanCompletionInputs(
     actual_post_date: string | null;
     on_time_status: string | null;
     contentTypeName: string | null;
+    status_content: string | null;
   };
   required: RequiredPlatformRow[];
   links: SocialMediaLinkRow[];
@@ -35,7 +36,7 @@ async function loadPlanCompletionInputs(
 } | null> {
   const { data: plan, error: planErr } = await admin
     .from("social_media_plans")
-    .select("id, service_id, done, post_date, actual_post_date, on_time_status, content_type:content_types(name)")
+    .select("id, service_id, done, post_date, actual_post_date, on_time_status, status_content, content_type:content_types(name)")
     .eq("id", planId)
     .maybeSingle();
 
@@ -76,6 +77,7 @@ async function loadPlanCompletionInputs(
       actual_post_date: (plan as { actual_post_date?: string | null }).actual_post_date ?? null,
       on_time_status: (plan as { on_time_status?: string | null }).on_time_status ?? null,
       contentTypeName,
+      status_content: (plan as { status_content?: string | null }).status_content ?? null,
     },
     required,
     links: (links ?? []) as SocialMediaLinkRow[],
@@ -94,7 +96,13 @@ export async function syncPlanCompletionStateForPlan(
   const activeRequired = filterRequiredPlatformsForContentType(required, plan.contentTypeName);
   const hasRequiredPlatforms = activeRequired.length > 0;
 
-  const done = computePlanDoneState(required, links, plan.contentTypeName, schedules);
+  const statusContent = String(plan.status_content ?? "").trim();
+  // Same rule as src/6-1-dashboard/lib/statusContent.ts (normalizeStatusContent / onTimeStatusForForAds).
+  const forAds =
+    statusContent === "For Ads" ||
+    statusContent === "Recomended For Ads" ||
+    statusContent === "Recommended For Ads";
+  const done = forAds || computePlanDoneState(required, links, plan.contentTypeName, schedules);
   const items = computeRequiredPlatformProgressItems(
     required,
     links,
@@ -110,13 +118,19 @@ export async function syncPlanCompletionStateForPlan(
   );
 
   const currentOnTime = String(plan.on_time_status ?? "").trim();
+  let nextOnTime = metadata.on_time_status;
+  if (forAds) {
+    const base = String(metadata.on_time_status || currentOnTime).trim();
+    nextOnTime = base === "In Progress" || base === "Scheduled" ? "" : base;
+  }
+
   const needsUpdate =
     plan.done !== done
     || plan.actual_post_date !== metadata.actual_post_date
-    || currentOnTime !== metadata.on_time_status;
+    || currentOnTime !== nextOnTime;
 
   if (!needsUpdate) {
-    return { done, ...metadata };
+    return { done, actual_post_date: metadata.actual_post_date, on_time_status: nextOnTime };
   }
 
   const { error: updateErr } = await admin
@@ -124,7 +138,7 @@ export async function syncPlanCompletionStateForPlan(
     .update({
       done,
       actual_post_date: metadata.actual_post_date,
-      on_time_status: metadata.on_time_status,
+      on_time_status: nextOnTime,
       updated_at: new Date().toISOString(),
     })
     .eq("id", planId);
@@ -134,7 +148,7 @@ export async function syncPlanCompletionStateForPlan(
     return null;
   }
 
-  return { done, ...metadata };
+  return { done, actual_post_date: metadata.actual_post_date, on_time_status: nextOnTime };
 }
 
 /** @deprecated Use syncPlanCompletionStateForPlan */

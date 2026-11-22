@@ -1,10 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/shared/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import { supabase } from '@/shared/lib/supabaseClient';
+import { normalizeStatusContent, onTimeStatusForForAds, STATUS_CONTENT_FOR_ADS } from '@/6-1-dashboard/lib/statusContent';
 import type { TFunction } from 'i18next';
 import type { ServiceRequiredPlatform } from '@/6-1-dashboard/hook/useServiceRequiredPlatforms';
 import { GoogleDriveFilePreview } from '@/6-1-dashboard/modal/GoogleDriveInAppFilePreview';
@@ -134,6 +138,25 @@ export function UnifiedAutoScheduleSection({
   nativeAppLayout = false,
 }: Props) {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [forAdsPending, setForAdsPending] = useState(false);
+  const statusContentKey = ['social-media-plan-status-content', planId] as const;
+  const { data: statusContent } = useQuery({
+    queryKey: statusContentKey,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('social_media_plans')
+        .select('status_content')
+        .eq('id', planId)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.status_content ?? '';
+    },
+    enabled: Boolean(planId && organizationId),
+    staleTime: 30_000,
+  });
+  const forAdsActive = normalizeStatusContent(statusContent) === STATUS_CONTENT_FOR_ADS;
   const { data: defaultTime } = useOrgDefaultPostTime();
   const {
     accounts: connectedAccounts,
@@ -171,6 +194,55 @@ export function UnifiedAutoScheduleSection({
   const [privacyByRowId, setPrivacyByRowId] = useState<Record<string, string>>({});
   const [bulkAction, setBulkAction] = useState<'schedule' | 'post_now' | null>(null);
   const isBulkRunning = bulkAction !== null;
+
+  const markForAds = useCallback(async () => {
+    if (forAdsPending || isBulkRunning || forAdsActive) return;
+    const previousStatus = queryClient.getQueryData(statusContentKey);
+    const listed = queryClient.getQueryData(['social-media-plans', organizationId]);
+    const currentPlan = Array.isArray(listed)
+      ? listed.find((plan: { id?: string; on_time_status?: string | null }) => plan.id === planId)
+      : null;
+    const nextOnTime = onTimeStatusForForAds(
+      STATUS_CONTENT_FOR_ADS,
+      currentPlan?.on_time_status,
+    );
+    setForAdsPending(true);
+    queryClient.setQueryData(statusContentKey, STATUS_CONTENT_FOR_ADS);
+    try {
+      const { error } = await supabase
+        .from('social_media_plans')
+        .update({
+          status_content: STATUS_CONTENT_FOR_ADS,
+          done: true,
+          on_time_status: nextOnTime,
+        })
+        .eq('id', planId)
+        .eq('organization_id', organizationId);
+      if (error) throw error;
+      queryClient.setQueryData(['social-media-plans', organizationId], (old: unknown) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((plan: { id: string }) =>
+          plan.id === planId
+            ? { ...plan, status_content: STATUS_CONTENT_FOR_ADS, done: true, on_time_status: nextOnTime }
+            : plan,
+        );
+      });
+      toast.success(
+        t('digitalMarketing.scheduledPosts.forAdsSuccess', {
+          defaultValue: 'Marked as For Ads. This content was not scheduled.',
+        }),
+      );
+    } catch {
+      queryClient.setQueryData(statusContentKey, previousStatus);
+      toast.error(
+        t('digitalMarketing.scheduledPosts.forAdsFailed', {
+          defaultValue: 'Could not mark this content for ads.',
+        }),
+      );
+    } finally {
+      setForAdsPending(false);
+    }
+  }, [forAdsActive, forAdsPending, isBulkRunning, organizationId, planId, queryClient, statusContentKey, t]);
 
   useEffect(() => {
     if (!targets.length) return;
@@ -696,6 +768,7 @@ export function UnifiedAutoScheduleSection({
               <Button
                 type="button"
                 size="sm"
+                variant={forAdsActive ? 'outline' : 'default'}
                 className="h-8"
                 disabled={bulkDisabled}
                 onClick={() => {
@@ -728,6 +801,30 @@ export function UnifiedAutoScheduleSection({
                   defaultValue: `Post now to all (${bulkEligible.length})`,
                 })}
               </Button>
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={forAdsActive ? 'default' : 'outline'}
+                      className="h-8"
+                      disabled={forAdsPending || isBulkRunning}
+                      onClick={() => {
+                        void markForAds();
+                      }}
+                    >
+                      {forAdsPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                      {t('digitalMarketing.scheduledPosts.forAds', { defaultValue: 'For Ads' })}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="z-[200] max-w-xs text-xs">
+                    {t('digitalMarketing.scheduledPosts.forAdsHint', {
+                      defaultValue: 'Approved for ads, without a social media schedule.',
+                    })}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             <p className="text-[11px] text-muted-foreground">
               {t(

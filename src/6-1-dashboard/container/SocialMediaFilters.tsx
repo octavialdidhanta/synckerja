@@ -6,7 +6,8 @@ import { Search, Filter, Plus, Trash2, CalendarIcon } from 'lucide-react';
 import { Dialog, DialogContent } from '@/shared/components/ui/dialog';
 import { MonthPicker } from '@/shared/calendar';
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import type { ContentTableDatePreset } from '../lib/contentDateFilter';
 import { ReviewCommentNotificationBell } from './ReviewCommentNotificationBell';
 import { SocialMediaProductionNotificationBell } from './SocialMediaProductionNotificationBell';
 
@@ -28,6 +29,9 @@ interface SocialMediaFiltersProps {
   onDeleteSelected: () => void;
   selectedMonth: Date;
   setSelectedMonth: (month: Date) => void;
+  /** Day and week presets. Month options keep using selectedMonth. Default is the current month. */
+  datePreset: ContentTableDatePreset;
+  setDatePreset: (preset: ContentTableDatePreset) => void;
   /** When user clicks a comment notification, open this plan in the preview modal (dashboard only) */
   onNotificationPreviewRequest?: (planId: string) => void;
 }
@@ -45,12 +49,16 @@ export const SocialMediaFilters = React.memo<SocialMediaFiltersProps>(({
   onDeleteSelected,
   selectedMonth,
   setSelectedMonth,
+  datePreset,
+  setDatePreset,
   onNotificationPreviewRequest
 }) => {
+  const { t, dateFnsLocale } = useAppTranslation();
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   
-  // Determine current filter type based on selectedMonth
+  // Month label follows the shared month. Today, yesterday, and this week stay explicit.
   const currentFilterType = useMemo(() => {
+    if (datePreset !== 'month') return datePreset;
     const now = new Date();
     const currentMonth = startOfMonth(now);
     const nextMonth = startOfMonth(addMonths(now, 1));
@@ -66,11 +74,18 @@ export const SocialMediaFilters = React.memo<SocialMediaFiltersProps>(({
     } else {
       return 'custom';
     }
-  }, [selectedMonth]);
+  }, [datePreset, selectedMonth]);
   
   const handleMonthFilterChange = (value: string) => {
     const now = new Date();
-    
+
+    if (value === 'today' || value === 'yesterday' || value === 'this_week') {
+      setDatePreset(value);
+      setIsMonthPickerOpen(false);
+      return;
+    }
+
+    setDatePreset('month');
     if (value === 'custom') {
       // Delay opening popover to ensure Select closes first
       setTimeout(() => {
@@ -93,21 +108,25 @@ export const SocialMediaFilters = React.memo<SocialMediaFiltersProps>(({
   };
   
   const handleCustomMonthSelect = (date: Date) => {
+    setDatePreset('month');
     setSelectedMonth(startOfMonth(date));
     setIsMonthPickerOpen(false);
   };
   
   const getMonthFilterDisplayText = () => {
     if (currentFilterType === 'custom') {
-      return format(selectedMonth, 'MMMM yyyy', { locale: idLocale });
+      return format(selectedMonth, 'MMMM yyyy', { locale: dateFnsLocale });
     }
     
     const labels: Record<string, string> = {
-      'this_month': 'This Month',
-      'next_month': 'Next Month',
-      'last_month': 'Last Month'
+      today: t('digitalMarketing.socialMedia.dateFilter.today', 'Today'),
+      yesterday: t('digitalMarketing.socialMedia.dateFilter.yesterday', 'Yesterday'),
+      this_week: t('digitalMarketing.socialMedia.dateFilter.thisWeek', 'This Week'),
+      this_month: t('digitalMarketing.socialMedia.dateFilter.thisMonth', 'This Month'),
+      next_month: t('digitalMarketing.socialMedia.dateFilter.nextMonth', 'Next Month'),
+      last_month: t('digitalMarketing.socialMedia.dateFilter.lastMonth', 'Last Month'),
     };
-    return labels[currentFilterType] || 'This Month';
+    return labels[currentFilterType] || t('digitalMarketing.socialMedia.dateFilter.thisMonth', 'This Month');
   };
   
   // Prevent any form submission or page reload
@@ -153,6 +172,7 @@ export const SocialMediaFilters = React.memo<SocialMediaFiltersProps>(({
             <SelectItem value="Content Revision">Content Revision</SelectItem>
             <SelectItem value="Prod Revision">Prod Revision</SelectItem>
             <SelectItem value="Prod Need Review">Prod Need Review</SelectItem>
+            <SelectItem value="For Ads">For Ads</SelectItem>
           </SelectContent>
         </Select>
         
@@ -184,19 +204,22 @@ export const SocialMediaFilters = React.memo<SocialMediaFiltersProps>(({
               </SelectValue>
             </div>
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="this_month">This Month</SelectItem>
-            <SelectItem value="next_month">Next Month</SelectItem>
-            <SelectItem value="last_month">Last Month</SelectItem>
-            <SelectItem value="custom">Custom Month</SelectItem>
-          </SelectContent>
+                <SelectContent>
+                  <SelectItem value="today">{t('digitalMarketing.socialMedia.dateFilter.today', 'Today')}</SelectItem>
+                  <SelectItem value="yesterday">{t('digitalMarketing.socialMedia.dateFilter.yesterday', 'Yesterday')}</SelectItem>
+                  <SelectItem value="this_week">{t('digitalMarketing.socialMedia.dateFilter.thisWeek', 'This Week')}</SelectItem>
+                  <SelectItem value="this_month">{t('digitalMarketing.socialMedia.dateFilter.thisMonth', 'This Month')}</SelectItem>
+                  <SelectItem value="next_month">{t('digitalMarketing.socialMedia.dateFilter.nextMonth', 'Next Month')}</SelectItem>
+                  <SelectItem value="last_month">{t('digitalMarketing.socialMedia.dateFilter.lastMonth', 'Last Month')}</SelectItem>
+                  <SelectItem value="custom">{t('digitalMarketing.socialMedia.dateFilter.customMonth', 'Custom Month')}</SelectItem>
+                </SelectContent>
         </Select>
         <Dialog open={isMonthPickerOpen} onOpenChange={setIsMonthPickerOpen}>
           <DialogContent className="w-auto max-w-[min(100vw-2rem,360px)] gap-0 overflow-hidden border border-primary/15 p-0 sm:rounded-lg [&>button]:right-1.5 [&>button]:top-1.5 [&>button]:h-8 [&>button]:w-8 sm:[&>button]:right-1.5 sm:[&>button]:top-1.5">
             <div className="border-b border-primary/10 bg-brand-blue-soft px-4 pb-3 pt-3">
               <div className="flex items-center gap-2 pr-8 text-sm font-medium text-brand-blue-on-soft">
                 <CalendarIcon className="h-4 w-4 text-primary" />
-                Select Month
+                {t('digitalMarketing.socialMedia.dateFilter.selectMonth', 'Select Month')}
               </div>
             </div>
             <div className="p-4 pt-3">
