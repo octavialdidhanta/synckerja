@@ -103,6 +103,7 @@ import type {
   FootageUsagePreview,
   FootageUsageSaved,
 } from "../db/footage";
+import type { CatalogAddress, CatalogLocation, CatalogLocationList, CatalogProduct, CatalogProductList } from "../db/catalog";
 import type { HabitCheckInput, HabitCheckResult, HabitDayRow } from "../db/habits";
 import type { TaskStepImageRecord } from "../db/stepImages";
 import { isAccessRevoked } from "../authz/toolGate";
@@ -447,6 +448,10 @@ export type AppDeps = {
   searchFootage: (ctx: McpAuthContext, input: FootageSearchFilters) => Promise<FootageSearchResult>;
   getFootage: (ctx: McpAuthContext, fileKey: string) => Promise<FootageClip>;
   listFootageBans: (ctx: McpAuthContext) => Promise<FootageBansResult>;
+  listCatalogProducts: (ctx: McpAuthContext) => Promise<CatalogProductList>;
+  getCatalogProduct: (ctx: McpAuthContext, address: CatalogAddress) => Promise<CatalogProduct>;
+  listCatalogLocations: (ctx: McpAuthContext) => Promise<CatalogLocationList>;
+  getCatalogLocation: (ctx: McpAuthContext, address: CatalogAddress) => Promise<CatalogLocation>;
   previewFootageSceneBatch: (
     ctx: McpAuthContext,
     input: FootageSceneBatchInput,
@@ -607,7 +612,7 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "footage-search-v1",
+      rev: "catalog-menu-v1",
       tools: [
         "content.plans.media.upload.start",
         "content.plans.media.versions.list",
@@ -625,6 +630,10 @@ export function createApp(deps: AppDeps) {
         "footage.ban.add",
         "footage.clips.upsert.preview",
         "footage.clips.upsert",
+        "catalog.products.list",
+        "catalog.product.get",
+        "catalog.locations.list",
+        "catalog.location.get",
       ],
     }),
   );
