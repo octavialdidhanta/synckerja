@@ -45,6 +45,8 @@ import { useSocialMediaData, useSocialMediaMutations } from "../hook/useOptimize
 import { useContentPlannerEmployees } from "../hook/useContentPlannerEmployees";
 import { useCreativeProductionEmployees } from "../hook/useCreativeProductionEmployees";
 import { useOptimizedFiltering } from "../hook/useOptimizedFiltering";
+import type { ContentTableDatePreset } from "../lib/contentDateFilter";
+import { normalizeStatusContent, onTimeStatusForForAds, STATUS_CONTENT_FOR_ADS } from "../lib/statusContent";
 import { setBriefModalOpenPlanId } from "../hook/briefModalOpenRef";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { useDigitalMarketingEmployees } from "../hook/useDigitalMarketingEmployees";
@@ -214,7 +216,7 @@ const SocialMediaContent = () => {
   const [activeMainTab, setActiveMainTab] = useState("dashboard");
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const VALID_STATUS_VALUES = ['all', 'Ready To Post', 'Content Need Review', 'Content Revision', 'Prod Revision', 'Prod Need Review'];
+  const VALID_STATUS_VALUES = ['all', 'Ready To Post', 'Content Need Review', 'Content Revision', 'Prod Revision', 'Prod Need Review', 'For Ads'];
   const [statusFilter, setStatusFilterState] = useState(() => {
     const fromUrl = searchParams.get('status');
     return fromUrl && VALID_STATUS_VALUES.includes(fromUrl) ? fromUrl : 'all';
@@ -235,6 +237,7 @@ const SocialMediaContent = () => {
   // Date states for performance tabs and Content Pillar Tracker filter
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
+  const [contentDatePreset, setContentDatePreset] = useState<ContentTableDatePreset>('month');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isMonthSelectorOpen, setIsMonthSelectorOpen] = useState(false);
   // Deferred month for filtering/table/sidebar so dropdown updates immediately without blocking
@@ -391,7 +394,8 @@ const SocialMediaContent = () => {
     searchTerm, 
     statusFilter,
     deferredMonth,
-    serviceFilter
+    serviceFilter,
+    contentDatePreset,
   );
   const canvaPlanIds = useMemo(() => {
     const ids = (Array.isArray(filteredContentPlans) ? filteredContentPlans : []).map((plan) => plan.id);
@@ -961,6 +965,13 @@ const SocialMediaContent = () => {
           updateContentPlan(id, updates);
         }, 30);
         pendingCategoryUpdatesRef.current.set(id, pending);
+      } else if (field === 'status_content' && normalizeStatusContent(value == null ? '' : String(value)) === STATUS_CONTENT_FOR_ADS) {
+        const plan = contentPlans.find((item) => item.id === id);
+        updateContentPlan(id, {
+          status_content: STATUS_CONTENT_FOR_ADS,
+          done: true,
+          on_time_status: onTimeStatusForForAds(STATUS_CONTENT_FOR_ADS, plan?.on_time_status),
+        });
       } else {
         // Regular field update
         updateContentPlan(id, { [field]: value });
@@ -1297,6 +1308,8 @@ const SocialMediaContent = () => {
                                       onDeleteSelected={handleDeleteSelected}
                                       selectedMonth={selectedMonth}
                                       setSelectedMonth={setSelectedMonth}
+                                      datePreset={contentDatePreset}
+                                      setDatePreset={setContentDatePreset}
                                       onNotificationPreviewRequest={(planId) => setNotificationPreviewPlanId(planId)}
                                     />
                                   </SocialMediaErrorBoundary>

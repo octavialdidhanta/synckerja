@@ -30,9 +30,10 @@ import { syncPlanCompletionStateClient } from '@/6-1-scheduled-posts/lib/syncPla
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { Capacitor } from '@capacitor/core';
 import { useBriefExtended } from '../hook/useBriefExtended';
-import { Check } from 'lucide-react';
+import { CalendarIcon, Check } from 'lucide-react';
 import { format } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale';
+import { enUS, id as idLocale } from 'date-fns/locale';
+import { Calendar } from '@/shared/components/ui/calendar';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { DeletePublishedConfirmDialog } from '@/6-1-scheduled-posts/components/DeletePublishedConfirmDialog';
@@ -211,10 +212,11 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
   planTitle
 }) => {
   const { organizationId } = useCurrentOrg();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const { data: currentEmployee } = useCurrentEmployee();
   const [formLinks, setFormLinks] = useState<SocialMediaLinkForm[]>([]);
+  const [savingPostDate, setSavingPostDate] = useState(false);
   const [deleteLinkTarget, setDeleteLinkTarget] = useState<{
     linkId: string;
     platform: string;
@@ -394,6 +396,43 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
     setFormLinks([]);
     setDeleteLinkTarget(null);
   }, [socialMediaPlanId]);
+
+  const savePostDate = async (date: Date) => {
+    if (!organizationId || !socialMediaPlanId || savingPostDate) return;
+    const ymd = format(date, 'yyyy-MM-dd');
+    const planKey = ['social-media-plan', socialMediaPlanId] as const;
+    const listKey = ['social-media-plans', organizationId] as const;
+    const previousPlan = queryClient.getQueryData(planKey);
+    const previousList = queryClient.getQueryData(listKey);
+    queryClient.setQueryData(planKey, (old: unknown) =>
+      old && typeof old === 'object' ? { ...(old as object), post_date: ymd } : old,
+    );
+    queryClient.setQueryData(listKey, (old: unknown) => {
+      if (!Array.isArray(old)) return old;
+      return old.map((plan: { id: string }) =>
+        plan.id === socialMediaPlanId ? { ...plan, post_date: ymd } : plan,
+      );
+    });
+    setSavingPostDate(true);
+    try {
+      const { error } = await supabase
+        .from('social_media_plans')
+        .update({ post_date: ymd })
+        .eq('id', socialMediaPlanId)
+        .eq('organization_id', organizationId);
+      if (error) throw error;
+    } catch {
+      queryClient.setQueryData(planKey, previousPlan);
+      queryClient.setQueryData(listKey, previousList);
+      toast.error(
+        t('digitalMarketing.scheduledPosts.pickPostDateFailed', {
+          defaultValue: 'Could not save the post date.',
+        }),
+      );
+    } finally {
+      setSavingPostDate(false);
+    }
+  };
 
   const formattedPostDate = useMemo(() => {
     const raw = planData?.post_date;
@@ -766,7 +805,56 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
         </DialogHeader>
 
         <div className={`scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden pb-4 pt-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${nativeApp ? 'px-2' : 'px-6'}`}>
-          <div className="shrink-0 min-w-0 space-y-4">
+          <div className={`shrink-0 min-w-0 ${!isLoadingPlanData && planData && !planData.post_date ? 'grid items-start gap-4 lg:grid-cols-[auto_minmax(0,1fr)]' : ''}`}>
+            {!isLoadingPlanData && planData && !planData.post_date ? (
+              <section className="w-fit max-w-full rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50">
+                    <CalendarIcon className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div className="w-[220px]">
+                    <p className="text-sm font-semibold leading-5 text-slate-900">
+                      {t('digitalMarketing.scheduledPosts.pickPostDateTitle', {
+                        defaultValue: 'Choose a post date',
+                      })}
+                    </p>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                      {t('digitalMarketing.scheduledPosts.pickPostDateHint', {
+                        defaultValue: 'Pick the day this content should go live. It is saved to the Post Date column.',
+                      })}
+                    </p>
+                  </div>
+                </div>
+                <Calendar
+                  mode="single"
+                  locale={i18n.language?.startsWith('id') ? idLocale : enUS}
+                  disabled={savingPostDate}
+                  onSelect={(date) => {
+                    if (date) void savePostDate(date);
+                  }}
+                  className="!m-0 w-[280px] p-0"
+                  classNames={{
+                    months: 'flex w-[280px]',
+                    month: 'w-[280px] space-y-2',
+                    caption: 'relative flex h-9 w-[280px] items-center justify-center',
+                    caption_label: 'text-sm font-semibold text-slate-900',
+                    nav: '!absolute inset-x-0 top-0 flex h-9 items-center justify-between px-0.5',
+                    nav_button: 'h-8 w-8 border-slate-200 bg-white p-0 opacity-100 shadow-none hover:bg-slate-50',
+                    nav_button_previous: '!static',
+                    nav_button_next: '!static',
+                    table: '!w-[280px] !max-w-[280px] border-collapse',
+                    head_cell: 'h-8 w-10 text-center text-[11px] font-medium uppercase tracking-wide text-slate-400',
+                    row: 'mt-1 flex w-[280px]',
+                    cell: 'h-10 w-10 p-0 text-center',
+                    day: 'h-9 w-9 rounded-full p-0 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700',
+                    day_today: 'font-semibold text-blue-700 ring-1 ring-inset ring-blue-300',
+                    day_selected: 'bg-blue-600 text-white hover:bg-blue-600 hover:text-white',
+                    day_outside: 'text-slate-300',
+                  }}
+                />
+              </section>
+            ) : null}
+            <div className="min-w-0 space-y-4">
             {organizationId && (
               <AutoScheduleSection
                 organizationId={organizationId}
@@ -861,10 +949,9 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
               </Button>
             </div>
             )}
-          </div>
 
           {!nativeApp && (
-          <div className="min-h-0 flex-1 py-2">
+          <div className="min-h-0 py-2">
             {isLoading || isLoadingPlanData || isLoadingRequiredPlatforms ? (
               <div className="py-8 text-center text-gray-500">
                 <div className="mx-auto mb-2 h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600" />
@@ -1036,6 +1123,8 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
             )}
           </div>
           )}
+            </div>
+          </div>
           <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
         </div>
 

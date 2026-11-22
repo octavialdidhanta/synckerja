@@ -1,4 +1,5 @@
 import { supabase } from '@/shared/lib/supabaseClient';
+import { normalizeStatusContent, onTimeStatusForForAds, STATUS_CONTENT_FOR_ADS } from '@/6-1-dashboard/lib/statusContent';
 import {
   computePlanDoneState,
   computeRequiredPlatformProgressItems,
@@ -63,7 +64,10 @@ export async function syncPlanCompletionStateClient(
   const activeRequired = filterRequiredPlatformsForContentType(required, contentTypeName);
   const hasRequiredPlatforms = activeRequired.length > 0;
 
-  const done = computePlanDoneState(required, linkRows, contentTypeName, schedules);
+  const forAds =
+    normalizeStatusContent((plan as { status_content?: string | null }).status_content) ===
+    STATUS_CONTENT_FOR_ADS;
+  const done = forAds || computePlanDoneState(required, linkRows, contentTypeName, schedules);
   const items = computeRequiredPlatformProgressItems(
     required,
     linkRows,
@@ -80,14 +84,17 @@ export async function syncPlanCompletionStateClient(
   const currentDone = Boolean((plan as { done?: boolean }).done);
   const currentActual = (plan as { actual_post_date?: string | null }).actual_post_date ?? null;
   const currentOnTime = String((plan as { on_time_status?: string | null }).on_time_status ?? '').trim();
+  const nextOnTime = forAds
+    ? onTimeStatusForForAds(STATUS_CONTENT_FOR_ADS, metadata.on_time_status || currentOnTime)
+    : metadata.on_time_status;
 
   const needsUpdate =
     currentDone !== done
     || currentActual !== metadata.actual_post_date
-    || currentOnTime !== metadata.on_time_status;
+    || currentOnTime !== nextOnTime;
 
   if (!needsUpdate) {
-    return { done, ...metadata };
+    return { done, actual_post_date: metadata.actual_post_date, on_time_status: nextOnTime };
   }
 
   const { error: updateErr } = await supabase
@@ -95,7 +102,7 @@ export async function syncPlanCompletionStateClient(
     .update({
       done,
       actual_post_date: metadata.actual_post_date,
-      on_time_status: metadata.on_time_status,
+      on_time_status: nextOnTime,
       updated_at: new Date().toISOString(),
     })
     .eq('id', planId);
@@ -105,7 +112,7 @@ export async function syncPlanCompletionStateClient(
     return null;
   }
 
-  return { done, ...metadata };
+  return { done, actual_post_date: metadata.actual_post_date, on_time_status: nextOnTime };
 }
 
 /** @deprecated Use syncPlanCompletionStateClient */
@@ -129,7 +136,12 @@ export function planNeedsStaleMetadataSync(plan: {
   done?: boolean | null;
   actual_post_date?: string | null;
   on_time_status?: string | null;
+  status_content?: string | null;
 }): boolean {
+  if (normalizeStatusContent(plan.status_content) === STATUS_CONTENT_FOR_ADS) {
+    const onTime = String(plan.on_time_status ?? '').trim();
+    return plan.done !== true || onTime === 'In Progress' || onTime === 'Scheduled';
+  }
   const onTime = String(plan.on_time_status ?? '').trim();
   const hasActual = Boolean(plan.actual_post_date);
   const isDone = Boolean(plan.done);
