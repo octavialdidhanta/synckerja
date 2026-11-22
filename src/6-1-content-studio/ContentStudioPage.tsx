@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { HeaderAndTab } from "@/6-1-content-calendar/container/HeaderAndTab";
 import { FootageTab } from "./footage/FootageTab";
 import { LibraryTab } from "./library/LibraryTab";
+import { ShotListTab } from "./shots/ShotListTab";
 import { CONTENT_STUDIO_BASE, STUDIO_TABS, studioTabFromPath } from "./studioTabs";
 import "./contentStudio.css";
 
@@ -41,6 +42,8 @@ export default function ContentStudioPage() {
         <div className="ck mt-3">
           {tab === "footage" ? (
             <FootageTab headLeft={headLeft} />
+          ) : tab === "shot-list" ? (
+            <ShotListTab headLeft={headLeft} />
           ) : (
             <LibraryTab key={tab} kind={tab === "produk" ? "menu" : "lokasi"} headLeft={headLeft} />
           )}

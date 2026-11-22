@@ -33,12 +33,12 @@ export function useLibraryData() {
       const [menus, fields, menuPhotos, locs, locPhotos, sections] = await Promise.all([
         readAll<MenuRow>(supabase, "catalog_menus", "id,external_id,name,aliases,created_at", org),
         readAll<MenuFieldRow>(supabase, "catalog_menu_fields", "id,menu_id,field_key,body,position", org),
-        readAll<MenuPhotoRow>(supabase, "catalog_menu_photos", "id,menu_id,file_path,label,storage_path,position", org, live),
+        readAll<MenuPhotoRow>(supabase, "catalog_menu_photos", "id,menu_id,file_path,label,storage_path,ref,position", org, live),
         readAll<LocationRow>(supabase, "catalog_locations", "id,external_id,name,created_at", org),
         readAll<LocationPhotoRow>(
           supabase,
           "catalog_location_photos",
-          "id,location_id,file_path,label,storage_path,description,areas,position",
+          "id,location_id,file_path,label,storage_path,ref,description,areas,position",
           org,
           live,
         ),

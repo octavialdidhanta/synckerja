@@ -5569,6 +5569,21 @@ const App = () => (
                           }
                         />
                         <Route
+                          path="/digital-marketing/social-media/content-studio/shot-list"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/social-media"
+                              preserveAppChromeOnDeny
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <SocialMediaProductKnowledgeSuspense>
+                                <ContentStudioPage />
+                              </SocialMediaProductKnowledgeSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
                           path="/digital-marketing/social-media/thinking-lab"
                           element={
                             <PageAccessGuard
