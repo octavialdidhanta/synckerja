@@ -5,6 +5,8 @@
  * Video files and photos stay on disk. Run this only after migration
  * 20261122180000 is applied. A later run upserts the same rows. It does not
  * delete rows, and it refuses any organization other than Sate Sultan PIK.
+ * storage_path, sample_storage_path, and sheet_storage_path already stored on a
+ * reference document are copied back onto the matching beat, motion graphic, or sheet.
  *
  *   node scripts/catalog-bank/import-catalog-library.mjs --dir "D:\Sate Sultan\Sate Sultan PIK\bank-footage" --dry-run
  */
@@ -140,12 +142,49 @@ async function upsertFields(supabase, table, organizationId, rows) {
   );
 }
 
+function copyStoredPath(target, source, key) {
+  if (source && typeof source[key] === "string" && source[key] !== "") target[key] = source[key];
+}
+
+function withReferenceMedia(fresh, existing) {
+  const document = structuredClone(fresh);
+  const oldBeats = Array.isArray(existing?.beats) ? existing.beats : [];
+  const beatByThumb = new Map(oldBeats.filter((beat) => beat && beat.thumb).map((beat) => [beat.thumb, beat]));
+  for (const beat of Array.isArray(document.beats) ? document.beats : []) {
+    copyStoredPath(beat, beatByThumb.get(beat.thumb), "storage_path");
+  }
+  const oldMotions = Array.isArray(existing?.mg) ? existing.mg : [];
+  const motionByThumb = new Map(oldMotions.filter((item) => item && item.thumb).map((item) => [item.thumb, item]));
+  for (const item of Array.isArray(document.mg) ? document.mg : []) {
+    const previous = motionByThumb.get(item.thumb);
+    copyStoredPath(item, previous, "storage_path");
+    if (previous && item.sample && previous.sample === item.sample) copyStoredPath(item, previous, "sample_storage_path");
+  }
+  if (existing && document.sheet && existing.sheet === document.sheet) {
+    copyStoredPath(document, existing, "sheet_storage_path");
+  }
+  return document;
+}
+
 async function upsertDocuments(supabase, table, organizationId, rows) {
+  let documents = rows;
+  if (table === "catalog_references") {
+    const { data, error } = await supabase
+      .from(table)
+      .select("external_id, document")
+      .eq("organization_id", organizationId);
+    if (error) fail(error.message);
+    const existing = new Map((data ?? []).map((row) => [row.external_id, row.document]));
+    documents = rows.map((row) => ({
+      ...row,
+      document: withReferenceMedia(row.document, existing.get(row.external_id)),
+    }));
+  }
   await must(
     supabase
       .from(table)
       .upsert(
-        rows.map((row) => ({
+        documents.map((row) => ({
           organization_id: organizationId,
           external_id: row.external_id,
           document: row.document,
