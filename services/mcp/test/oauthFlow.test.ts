@@ -365,6 +365,8 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     applyFootageMove: async () => { throw new Error("unused"); },
     previewFootageBan: async () => { throw new Error("unused"); },
     applyFootageBan: async () => { throw new Error("unused"); },
+    previewFootageClip: async () => { throw new Error("unused"); },
+    applyFootageClip: async () => { throw new Error("unused"); },
     listTaskSteps: async () => [],
     createTaskStep: async () => {
       throw new Error("unused");

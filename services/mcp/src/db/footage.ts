@@ -315,3 +315,57 @@ export async function applyFootageBan(
     p_preview_id: previewId,
   });
 }
+
+export type FootageClipUpsertInput = {
+  file_key: string;
+  location?: string;
+  product?: string;
+  summary?: string;
+  note?: string;
+  origin?: "hp" | "ai" | "foto";
+};
+
+export type FootageClipLabels = {
+  location_label?: string | null;
+  product_label?: string | null;
+  summary?: string | null;
+  note?: string | null;
+  origin?: string | null;
+};
+
+export type FootageClipUpsertPreview = {
+  file_key: string;
+  before: FootageClipLabels;
+  after: FootageClipLabels;
+  preview_id: string;
+  expires_at: string;
+};
+
+export type FootageClipUpsertSaved = {
+  saved: boolean;
+  file_key: string;
+  before: FootageClipLabels;
+  after: FootageClipLabels;
+};
+
+export async function previewFootageClip(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: FootageClipUpsertInput,
+): Promise<FootageClipUpsertPreview> {
+  return callJson<FootageClipUpsertPreview>(admin, "mcp_preview_footage_clip", {
+    ...sessionArgs(ctx),
+    p_input: input,
+  });
+}
+
+export async function applyFootageClip(
+  admin: SupabaseClient,
+  ctx: Session,
+  previewId: string,
+): Promise<FootageClipUpsertSaved> {
+  return callJson<FootageClipUpsertSaved>(admin, "mcp_apply_footage_clip", {
+    ...sessionArgs(ctx),
+    p_preview_id: previewId,
+  });
+}

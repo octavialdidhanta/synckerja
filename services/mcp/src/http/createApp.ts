@@ -88,6 +88,9 @@ import type {
   FootageBanSaved,
   FootageBansResult,
   FootageClip,
+  FootageClipUpsertInput,
+  FootageClipUpsertPreview,
+  FootageClipUpsertSaved,
   FootageMoveInput,
   FootageMovePreview,
   FootageMoveSaved,
@@ -455,6 +458,8 @@ export type AppDeps = {
   applyFootageMove: (ctx: McpAuthContext, previewId: string) => Promise<FootageMoveSaved>;
   previewFootageBan: (ctx: McpAuthContext, input: FootageBanInput) => Promise<FootageBanPreview>;
   applyFootageBan: (ctx: McpAuthContext, previewId: string) => Promise<FootageBanSaved>;
+  previewFootageClip: (ctx: McpAuthContext, input: FootageClipUpsertInput) => Promise<FootageClipUpsertPreview>;
+  applyFootageClip: (ctx: McpAuthContext, previewId: string) => Promise<FootageClipUpsertSaved>;
   listTaskSteps: (ctx: McpAuthContext, taskId: string) => Promise<TaskStepRow[]>;
   createTaskStep: (
     ctx: McpAuthContext,
@@ -602,7 +607,7 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "footage-write-v1",
+      rev: "footage-clips-v1",
       tools: [
         "content.plans.media.upload.start",
         "content.plans.media.versions.list",
@@ -618,6 +623,8 @@ export function createApp(deps: AppDeps) {
         "footage.move",
         "footage.ban.add.preview",
         "footage.ban.add",
+        "footage.clips.upsert.preview",
+        "footage.clips.upsert",
       ],
     }),
   );

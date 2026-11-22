@@ -148,6 +148,7 @@ export { upsertSceneBatchPreviewInput, previewSceneBatchResult, applySceneBatchR
 export { usageLogPreviewInput, previewUsageLogResult, applyUsageLogResult } from "./footage/usageLog";
 export { moveFootagePreviewInput, previewMoveFootageResult, applyMoveFootageResult } from "./footage/move";
 export { banAddPreviewInput, previewBanAddResult, applyBanAddResult } from "./footage/banAdd";
+export { clipUpsertPreviewInput, previewClipUpsertResult, applyClipUpsertResult } from "./footage/clipUpsert";
 export { taskStepsInput, taskStepsResult } from "./tasks/stepsList";
 export { createStepInput, createStepResult } from "./tasks/stepsCreate";
 export { updateStepResult, updateStepSchema } from "./tasks/stepsUpdate";

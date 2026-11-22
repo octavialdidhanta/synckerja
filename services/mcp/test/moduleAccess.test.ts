@@ -364,6 +364,8 @@ describe("phase 3 tool visibility", () => {
     expect(names).not.toContain("footage.usage.log");
     expect(names).not.toContain("footage.move");
     expect(names).not.toContain("footage.ban.add");
+    expect(names).not.toContain("footage.clips.upsert.preview");
+    expect(names).not.toContain("footage.clips.upsert");
     expect(names).not.toContain("okr.objectives.create");
     expect(names).not.toContain("okr.objectives.update");
     expect(names).not.toContain("okr.objectives.department.create");
@@ -416,6 +418,8 @@ describe("phase 3 tool visibility", () => {
     expect(names).toContain("footage.move");
     expect(names).toContain("footage.ban.add.preview");
     expect(names).toContain("footage.ban.add");
+    expect(names).toContain("footage.clips.upsert.preview");
+    expect(names).toContain("footage.clips.upsert");
     expect(names).not.toContain("content.plans.schedule");
     expect(names).not.toContain("okr.objectives.create");
     expect(names).not.toContain("okr.objectives.department.create");
