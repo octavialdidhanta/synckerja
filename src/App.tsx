@@ -262,6 +262,7 @@ const KolManagementDashboardPage = lazy(
 const SocialMediaDashboardPage = lazy(() => import("@/6-1-dashboard/pages/SocialMediaDashboardPage"));
 const SocialMediaContentCalendarPage = lazy(() => import("@/6-1-content-calendar/ContentCalendarPage"));
 const SocialMediaProductKnowledgePage = lazy(() => import("@/6-1-product-knowledge/ProductKnowledgePage"));
+const ContentStudioPage = lazy(() => import("@/6-1-content-studio/ContentStudioPage"));
 const SocialMediaScriptGeneratorPage = lazy(() => import("@/6-1-script-generator/ScriptGeneratorPage"));
 const SocialMediaDmSettingsPage = lazy(() => import("@/6-1-social-media-settings/SettingsPage"));
 const LeadMagnetListPage = lazy(() =>
@@ -5515,6 +5516,25 @@ const App = () => (
                               <SocialMediaScriptGeneratorSuspense>
                                 <SocialMediaScriptGeneratorPage />
                               </SocialMediaScriptGeneratorSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/social-media/content-studio"
+                          element={<Navigate to="/digital-marketing/social-media/content-studio/footage" replace />}
+                        />
+                        <Route
+                          path="/digital-marketing/social-media/content-studio/footage"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/digital-marketing/social-media"
+                              preserveAppChromeOnDeny
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <SocialMediaProductKnowledgeSuspense>
+                                <ContentStudioPage />
+                              </SocialMediaProductKnowledgeSuspense>
                             </PageAccessGuard>
                           }
                         />
