@@ -894,11 +894,9 @@ async function reload(deps: HandlerDeps, claims: AccessClaims): Promise<McpAuthC
 
 /** SDK `registerTool` wraps this shape with `z.object`. Passing the Zod object itself drops `plan_month`. */
 export function publishedToolShape(schema: ZodTypeAny): ZodRawShape {
-  if (schema instanceof z.ZodObject) return schema.shape;
-  if (schema instanceof z.ZodEffects) {
-    const inner = schema.innerType();
-    if (inner instanceof z.ZodObject) return inner.shape;
-  }
+  let current = schema;
+  while (current instanceof z.ZodEffects) current = current.innerType();
+  if (current instanceof z.ZodObject) return current.shape;
   throw new Error("invalid_tool_schema");
 }
 

@@ -7,6 +7,7 @@ import {
   previewFootageSceneBatch,
   previewFootageUsage,
 } from "../src/db/footage";
+import { publishedToolShape } from "../src/mcp/handler";
 import { MCP_TOOLS } from "../src/mcp/registry";
 import { banAddPreviewInput } from "../src/tools/footage/banAdd";
 import { applyClipUpsertResult, clipUpsertPreviewInput, previewClipUpsertResult } from "../src/tools/footage/clipUpsert";
@@ -71,6 +72,9 @@ describe("footage write tools", () => {
     expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, note: "  ", note_mode: "append" }).success).toBe(false);
     expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, note_mode: "append" }).success).toBe(false);
     expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey }).success).toBe(false);
+    const published = publishedToolShape(clipUpsertPreviewInput);
+    expect(published.file_key).toBeDefined();
+    expect(published.note_mode).toBeDefined();
     expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, origin: "hp-cam" }).success).toBe(false);
     expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, origin: "" }).success).toBe(false);
     expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, summary: "Food court", organization_id: "org-2" }).success).toBe(false);
