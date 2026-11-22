@@ -354,6 +354,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
       throw new Error("unused");
     },
     getTask: async () => { throw new Error("not_found"); },
+    searchFootage: async () => ({ total: 0, scenes: [] }),
+    getFootage: async () => { throw new Error("not_found"); },
+    listFootageBans: async () => ({ total: 0, bans: [] }),
     listTaskSteps: async () => [],
     createTaskStep: async () => {
       throw new Error("unused");
@@ -548,6 +551,9 @@ describe("oauth and mcp http flow", () => {
       "content.plans.list",
       "content.calendar.list",
       "content.catalog.list",
+      "footage.search",
+      "footage.get",
+      "footage.bans.list",
       "product_knowledge.list",
       "content.briefs.get",
       "content.briefs.voice.list",

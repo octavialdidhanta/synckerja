@@ -89,6 +89,7 @@ import type {
   TaskSubstepRow,
   WorkloadRow,
 } from "../db/dailyTasks";
+import type { FootageBansResult, FootageClip, FootageSearchFilters, FootageSearchResult } from "../db/footage";
 import type { HabitCheckInput, HabitCheckResult, HabitDayRow } from "../db/habits";
 import type { TaskStepImageRecord } from "../db/stepImages";
 import type { SchedulePlanResult } from "../tools/content/plansSchedule";
@@ -278,6 +279,12 @@ import {
   takeInitiativeResult,
   getTaskInput,
   getTaskResult,
+  searchFootageInput,
+  searchFootageResult,
+  getFootageInput,
+  getFootageResult,
+  listFootageBansInput,
+  listFootageBansResult,
   taskStepsInput,
   taskStepsResult,
   createStepInput,
@@ -677,6 +684,9 @@ export type McpReadDeps = {
   ) => Promise<TaskObjectiveLink>;
   takeTaskInitiative: (ctx: McpAuthContext, input: TakeInitiativeInput) => Promise<TakeInitiativeResult>;
   getTask: (ctx: McpAuthContext, taskId: string) => Promise<TaskDetail>;
+  searchFootage: (ctx: McpAuthContext, input: FootageSearchFilters) => Promise<FootageSearchResult>;
+  getFootage: (ctx: McpAuthContext, fileKey: string) => Promise<FootageClip>;
+  listFootageBans: (ctx: McpAuthContext) => Promise<FootageBansResult>;
   listTaskSteps: (ctx: McpAuthContext, taskId: string) => Promise<TaskStepRow[]>;
   createTaskStep: (
     ctx: McpAuthContext,
@@ -839,6 +849,9 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "content.plans.list": contentPlansInput,
   "content.calendar.list": calendarInput,
   "content.catalog.list": catalogInput,
+  "footage.search": searchFootageInput,
+  "footage.get": getFootageInput,
+  "footage.bans.list": listFootageBansInput,
   "okr.cycles.list": cyclesInput,
   "okr.objectives.list": objectivesInput,
   "okr.departments.list": departmentsInput,
@@ -1398,6 +1411,12 @@ async function runTool(
       return startMediaUploadResult(ctx, args, deps.startMediaUpload);
     case "content.plans.media.versions.list":
       return listMediaVersionsResult(ctx, args, deps.listMediaVersions);
+    case "footage.search":
+      return searchFootageResult(ctx, args, deps.searchFootage);
+    case "footage.get":
+      return getFootageResult(ctx, args, deps.getFootage);
+    case "footage.bans.list":
+      return listFootageBansResult(ctx, args, deps.listFootageBans);
     case "content.plans.update":
       if (!updatePlanInput.safeParse(args).success) throw new Error("invalid_input");
       return updatePlanResult(
