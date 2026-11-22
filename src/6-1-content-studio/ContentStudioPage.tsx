@@ -1,18 +1,16 @@
 import { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { HeaderAndTab } from "@/6-1-content-calendar/container/HeaderAndTab";
 import { FootageTab } from "./footage/FootageTab";
+import { LibraryTab } from "./library/LibraryTab";
+import { CONTENT_STUDIO_BASE, STUDIO_TABS, studioTabFromPath } from "./studioTabs";
 import "./contentStudio.css";
-
-const STUDIO_TABS = [
-  { id: "footage", label: "Footage", ready: true },
-  { id: "menu", label: "Produk", ready: false },
-  { id: "lokasi", label: "Lokasi", ready: false },
-  { id: "shot", label: "Shot List", ready: false },
-  { id: "ref", label: "Referensi", ready: false },
-] as const;
 
 export default function ContentStudioPage() {
   const [mainTab, setMainTab] = useState("content-studio");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const tab = studioTabFromPath(location.pathname);
 
   const headLeft = (
     <>
@@ -22,9 +20,10 @@ export default function ContentStudioPage() {
           <button
             key={t.id}
             type="button"
-            className={t.id === "footage" ? "on" : ""}
+            className={(t.id === tab ? "on" : "") + (t.ready ? " link" : "")}
             disabled={!t.ready}
             title={t.ready ? t.label : "Segera"}
+            onClick={() => t.ready && t.id !== tab && navigate(`${CONTENT_STUDIO_BASE}/${t.id}`)}
           >
             {t.label}
           </button>
@@ -40,7 +39,11 @@ export default function ContentStudioPage() {
           <HeaderAndTab activeMainTab={mainTab} handleTabChange={setMainTab} />
         </div>
         <div className="ck mt-3">
-          <FootageTab headLeft={headLeft} />
+          {tab === "footage" ? (
+            <FootageTab headLeft={headLeft} />
+          ) : (
+            <LibraryTab key={tab} kind={tab === "produk" ? "menu" : "lokasi"} headLeft={headLeft} />
+          )}
         </div>
       </div>
     </div>
