@@ -1,5 +1,14 @@
 name: CI
 
+# typecheck-and-test and lint-and-build are required checks on main.
+# The jobs themselves always run and finish green. Only the heavy steps are
+# skipped, so a pull request is not stuck waiting for a check that never starts.
+#
+# Heavy Office steps run when the app, its tests, or this workflow change.
+# Heavy MCP steps run when services/mcp or this workflow change.
+# A pull request that only touches scripts/, docs/, or .cursor/ skips both.
+# supabase/migrations is covered by the Database migrations workflow, not here.
+
 on:
   pull_request:
     branches: [main]
@@ -10,44 +19,174 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   typecheck-and-test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            app:
+              - 'src/**'
+              - 'android-mobile/**'
+              - 'IOS-mobile/**'
+              - 'POS-kasir-mobile/**'
+              - 'synckerja-order/**'
+              - 'public/**'
+              - 'index.html'
+              - 'vite.config.*'
+              - 'vitest.config.*'
+              - 'vitest.setup.*'
+              - 'vite-env.d.ts'
+              - 'tsconfig.json'
+              - 'tsconfig.app.json'
+              - 'tsconfig.node.json'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tailwind.config.*'
+              - 'postcss.config.*'
+              - 'components.json'
+              - 'supabase/types.ts'
+              - 'supabase/database.types.ts'
+              - '.github/workflows/ci.yml'
+            mcp:
+              - 'services/mcp/**'
+              - '.github/workflows/ci.yml'
+
+      - name: Heavy steps not needed
+        if: steps.changes.outputs.app != 'true' && steps.changes.outputs.mcp != 'true'
+        run: echo "No Office app or services/mcp changes. Typecheck and tests skipped."
+
       - uses: actions/setup-node@v5
+        if: steps.changes.outputs.app == 'true'
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+          cache-dependency-path: package-lock.json
+
+      - uses: actions/cache@v4
+        if: steps.changes.outputs.app == 'true'
+        id: app-modules
+        with:
+          path: node_modules
+          key: app-node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install app dependencies
+        if: steps.changes.outputs.app == 'true' && steps.app-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
       - name: Typecheck (app)
+        if: steps.changes.outputs.app == 'true'
         run: npm run typecheck
         env:
           # tsc on the whole app needs more than Node's ~2 GB default heap.
           NODE_OPTIONS: --max-old-space-size=6144
+
       - name: Unit tests
+        if: steps.changes.outputs.app == 'true'
         run: npm test
         env:
           # Dummy values: supabaseClient throws at import without them; tests never hit the network.
           VITE_SUPABASE_URL: http://localhost:54321
           VITE_SUPABASE_ANON_KEY: ci-dummy-anon-key
 
+      - uses: actions/setup-node@v5
+        if: steps.changes.outputs.mcp == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: services/mcp/package-lock.json
+
+      - uses: actions/cache@v4
+        if: steps.changes.outputs.mcp == 'true'
+        id: mcp-modules
+        with:
+          path: services/mcp/node_modules
+          key: mcp-node-modules-${{ runner.os }}-${{ hashFiles('services/mcp/package-lock.json') }}
+
+      - name: Install MCP dependencies
+        if: steps.changes.outputs.mcp == 'true' && steps.mcp-modules.outputs.cache-hit != 'true'
+        working-directory: services/mcp
+        run: npm ci
+
+      - name: MCP tests
+        if: steps.changes.outputs.mcp == 'true'
+        working-directory: services/mcp
+        run: npm test
+
   lint-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            office:
+              - 'src/**'
+              - 'android-mobile/**'
+              - 'IOS-mobile/**'
+              - 'POS-kasir-mobile/**'
+              - 'synckerja-order/**'
+              - 'public/**'
+              - 'index.html'
+              - 'vite.config.*'
+              - 'vitest.config.*'
+              - 'vitest.setup.*'
+              - 'vite-env.d.ts'
+              - 'tsconfig.json'
+              - 'tsconfig.app.json'
+              - 'tsconfig.node.json'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tailwind.config.*'
+              - 'postcss.config.*'
+              - 'components.json'
+              - 'eslint.config.*'
+              - '.eslint-baseline.json'
+              - 'supabase/types.ts'
+              - 'supabase/database.types.ts'
+              - 'supabase/functions/**'
+              - '.github/workflows/ci.yml'
+
+      - name: Heavy steps not needed
+        if: steps.changes.outputs.office != 'true'
+        run: echo "No Office app changes. Lint and build skipped."
+
       - uses: actions/setup-node@v5
+        if: steps.changes.outputs.office == 'true'
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+          cache-dependency-path: package-lock.json
+
+      - uses: actions/cache@v4
+        if: steps.changes.outputs.office == 'true'
+        id: app-modules
+        with:
+          path: node_modules
+          key: app-node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install app dependencies
+        if: steps.changes.outputs.office == 'true' && steps.app-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
       - name: Lint (no new errors vs .eslint-baseline.json)
+        if: steps.changes.outputs.office == 'true'
         run: npm run lint:ci
         env:
           NODE_OPTIONS: --max-old-space-size=6144
+
       - name: Build (app)
+        if: steps.changes.outputs.office == 'true'
         run: npm run build
         env:
           NODE_OPTIONS: --max-old-space-size=6144
