@@ -40,7 +40,7 @@ describe("footage read tools", () => {
   it("searches with the session organization and leaves unused filters null", async () => {
     const { admin, calls } = fakeAdmin({
       total: 812,
-      scenes: [{ file_key: fileKey, scene_index: 1, thumb_storage_path: null }],
+      scenes: [{ file_key: fileKey, scene_index: 1, thumb_storage_path: null, thumb_required: true }],
     });
     const result = await searchFootage(admin, ctx, { location: "PIK1", unused: true });
     expect(calls).toEqual([
@@ -65,6 +65,7 @@ describe("footage read tools", () => {
     expect(result.total).toBe(812);
     expect(result.scenes).toHaveLength(1);
     expect(result.scenes[0].thumb_storage_path).toBeNull();
+    expect(result.scenes[0].thumb_required).toBe(true);
   });
 
   it("maps jenis to scene_kind and passes the keyword and include_banned", async () => {

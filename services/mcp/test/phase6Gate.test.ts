@@ -128,7 +128,7 @@ describe("mcp http gate", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       ok: true,
-      rev: "catalog-media-v1",
+      rev: "catalog-thumb-v1",
       tools: [
         "content.plans.media.upload.start",
         "content.plans.media.versions.list",
