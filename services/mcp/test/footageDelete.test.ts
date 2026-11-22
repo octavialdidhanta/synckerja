@@ -123,3 +123,18 @@ describe("catalog media delete", () => {
     expect(script).toContain("\\.mp4");
   });
 });
+
+describe("catalog media schemas published to MCP", () => {
+  it("are flat objects the MCP SDK can list, still checked per kind", async () => {
+    const { publishedToolShape } = await import("../src/mcp/handler");
+    const { restoreCatalogMediaPreviewInput } = await import("../src/tools/catalog/mediaDelete");
+    expect(Object.keys(publishedToolShape(deleteCatalogMediaPreviewInput))).toContain("kind");
+    expect(Object.keys(publishedToolShape(restoreCatalogMediaPreviewInput))).toContain("storage_path");
+    expect(restoreCatalogMediaPreviewInput.safeParse({
+      kind: "menu_photo",
+      id: "ad9f704d-0d1b-4a78-be44-ea272c7b6dc0",
+      storage_path: "x",
+    }).success).toBe(false);
+    expect(restoreCatalogMediaPreviewInput.safeParse({ kind: "reference_image", external_id: "r1" }).success).toBe(false);
+  });
+});

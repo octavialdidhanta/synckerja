@@ -1166,6 +1166,10 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "product_knowledge.list": productKnowledgeListInput,
 };
 
+export function publishedInputFor(name: McpToolName): ZodTypeAny {
+  return toolInputs[name];
+}
+
 async function runTool(
   name: McpToolName,
   ctx: McpAuthContext,
