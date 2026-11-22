@@ -377,6 +377,14 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     applyFootageBan: async () => { throw new Error("unused"); },
     previewFootageClip: async () => { throw new Error("unused"); },
     applyFootageClip: async () => { throw new Error("unused"); },
+    previewFootageDelete: async () => { throw new Error("unused"); },
+    applyFootageDelete: async () => { throw new Error("unused"); },
+    previewFootageRestore: async () => { throw new Error("unused"); },
+    applyFootageRestore: async () => { throw new Error("unused"); },
+    previewCatalogMediaDelete: async () => { throw new Error("unused"); },
+    applyCatalogMediaDelete: async () => { throw new Error("unused"); },
+    previewCatalogMediaRestore: async () => { throw new Error("unused"); },
+    applyCatalogMediaRestore: async () => { throw new Error("unused"); },
     listTaskSteps: async () => [],
     createTaskStep: async () => {
       throw new Error("unused");

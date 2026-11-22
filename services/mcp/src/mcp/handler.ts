@@ -109,7 +109,21 @@ import type {
   FootageUsageInput,
   FootageUsagePreview,
   FootageUsageSaved,
+  FootageDeleteInput,
+  FootageDeletePreview,
+  FootageDeleteSaved,
+  FootageRestoreInput,
+  FootageRestorePreview,
+  FootageRestoreSaved,
 } from "../db/footage";
+import type {
+  CatalogMediaDeleteInput,
+  CatalogMediaDeletePreview,
+  CatalogMediaDeleteSaved,
+  CatalogMediaRestoreInput,
+  CatalogMediaRestorePreview,
+  CatalogMediaRestoreSaved,
+} from "../db/catalog";
 import type { HabitCheckInput, HabitCheckResult, HabitDayRow } from "../db/habits";
 import type { TaskStepImageRecord } from "../db/stepImages";
 import type { SchedulePlanResult } from "../tools/content/plansSchedule";
@@ -341,6 +355,18 @@ import {
   clipUpsertPreviewInput,
   previewClipUpsertResult,
   applyClipUpsertResult,
+  deleteFootagePreviewInput,
+  previewDeleteFootageResult,
+  applyDeleteFootageResult,
+  restoreFootagePreviewInput,
+  previewRestoreFootageResult,
+  applyRestoreFootageResult,
+  deleteCatalogMediaPreviewInput,
+  previewDeleteCatalogMediaResult,
+  applyDeleteCatalogMediaResult,
+  restoreCatalogMediaPreviewInput,
+  previewRestoreCatalogMediaResult,
+  applyRestoreCatalogMediaResult,
   taskStepsInput,
   taskStepsResult,
   createStepInput,
@@ -772,6 +798,14 @@ export type McpReadDeps = {
   applyFootageBan: (ctx: McpAuthContext, previewId: string) => Promise<FootageBanSaved>;
   previewFootageClip: (ctx: McpAuthContext, input: FootageClipUpsertInput) => Promise<FootageClipUpsertPreview>;
   applyFootageClip: (ctx: McpAuthContext, previewId: string) => Promise<FootageClipUpsertSaved>;
+  previewFootageDelete: (ctx: McpAuthContext, input: FootageDeleteInput) => Promise<FootageDeletePreview>;
+  applyFootageDelete: (ctx: McpAuthContext, previewId: string) => Promise<FootageDeleteSaved>;
+  previewFootageRestore: (ctx: McpAuthContext, input: FootageRestoreInput) => Promise<FootageRestorePreview>;
+  applyFootageRestore: (ctx: McpAuthContext, previewId: string) => Promise<FootageRestoreSaved>;
+  previewCatalogMediaDelete: (ctx: McpAuthContext, input: CatalogMediaDeleteInput) => Promise<CatalogMediaDeletePreview>;
+  applyCatalogMediaDelete: (ctx: McpAuthContext, previewId: string) => Promise<CatalogMediaDeleteSaved>;
+  previewCatalogMediaRestore: (ctx: McpAuthContext, input: CatalogMediaRestoreInput) => Promise<CatalogMediaRestorePreview>;
+  applyCatalogMediaRestore: (ctx: McpAuthContext, previewId: string) => Promise<CatalogMediaRestoreSaved>;
   signFootageConfirmation: (
     ctx: McpAuthContext,
     tool: import("../tools/footage/confirmation").FootageConfirmableTool,
@@ -966,6 +1000,14 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "footage.ban.add": confirmFootageInput,
   "footage.clips.upsert.preview": clipUpsertPreviewInput,
   "footage.clips.upsert": confirmFootageInput,
+  "footage.delete.preview": deleteFootagePreviewInput,
+  "footage.delete": confirmFootageInput,
+  "footage.restore.preview": restoreFootagePreviewInput,
+  "footage.restore": confirmFootageInput,
+  "catalog.media.delete.preview": deleteCatalogMediaPreviewInput,
+  "catalog.media.delete": confirmFootageInput,
+  "catalog.media.restore.preview": restoreCatalogMediaPreviewInput,
+  "catalog.media.restore": confirmFootageInput,
   "okr.cycles.list": cyclesInput,
   "okr.objectives.list": objectivesInput,
   "okr.departments.list": departmentsInput,
@@ -1571,6 +1613,22 @@ async function runTool(
       return previewClipUpsertResult(ctx, args, deps.previewFootageClip, deps.signFootageConfirmation);
     case "footage.clips.upsert":
       return applyClipUpsertResult(ctx, args, deps.verifyFootageConfirmation, deps.applyFootageClip);
+    case "footage.delete.preview":
+      return previewDeleteFootageResult(ctx, args, deps.previewFootageDelete, deps.signFootageConfirmation);
+    case "footage.delete":
+      return applyDeleteFootageResult(ctx, args, deps.verifyFootageConfirmation, deps.applyFootageDelete);
+    case "footage.restore.preview":
+      return previewRestoreFootageResult(ctx, args, deps.previewFootageRestore, deps.signFootageConfirmation);
+    case "footage.restore":
+      return applyRestoreFootageResult(ctx, args, deps.verifyFootageConfirmation, deps.applyFootageRestore);
+    case "catalog.media.delete.preview":
+      return previewDeleteCatalogMediaResult(ctx, args, deps.previewCatalogMediaDelete, deps.signFootageConfirmation);
+    case "catalog.media.delete":
+      return applyDeleteCatalogMediaResult(ctx, args, deps.verifyFootageConfirmation, deps.applyCatalogMediaDelete);
+    case "catalog.media.restore.preview":
+      return previewRestoreCatalogMediaResult(ctx, args, deps.previewCatalogMediaRestore, deps.signFootageConfirmation);
+    case "catalog.media.restore":
+      return applyRestoreCatalogMediaResult(ctx, args, deps.verifyFootageConfirmation, deps.applyCatalogMediaRestore);
     case "content.plans.update":
       if (!updatePlanInput.safeParse(args).success) throw new Error("invalid_input");
       return updatePlanResult(

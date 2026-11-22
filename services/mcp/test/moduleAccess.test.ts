@@ -376,6 +376,11 @@ describe("phase 3 tool visibility", () => {
     expect(names).not.toContain("footage.ban.add");
     expect(names).not.toContain("footage.clips.upsert.preview");
     expect(names).not.toContain("footage.clips.upsert");
+    expect(names).not.toContain("footage.delete.preview");
+    expect(names).not.toContain("footage.delete");
+    expect(names).not.toContain("footage.restore");
+    expect(names).not.toContain("catalog.media.delete");
+    expect(names).not.toContain("catalog.media.restore");
     expect(names).not.toContain("okr.objectives.create");
     expect(names).not.toContain("okr.objectives.update");
     expect(names).not.toContain("okr.objectives.department.create");
@@ -430,6 +435,14 @@ describe("phase 3 tool visibility", () => {
     expect(names).toContain("footage.ban.add");
     expect(names).toContain("footage.clips.upsert.preview");
     expect(names).toContain("footage.clips.upsert");
+    expect(names).toContain("footage.delete.preview");
+    expect(names).toContain("footage.delete");
+    expect(names).toContain("footage.restore.preview");
+    expect(names).toContain("footage.restore");
+    expect(names).toContain("catalog.media.delete.preview");
+    expect(names).toContain("catalog.media.delete");
+    expect(names).toContain("catalog.media.restore.preview");
+    expect(names).toContain("catalog.media.restore");
     expect(names).toContain("catalog.products.list");
     expect(names).toContain("catalog.product.get");
     expect(names).toContain("catalog.locations.list");

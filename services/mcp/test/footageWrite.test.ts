@@ -259,6 +259,14 @@ describe("footage write tools", () => {
       "footage.ban.add",
       "footage.clips.upsert.preview",
       "footage.clips.upsert",
+      "footage.delete.preview",
+      "footage.delete",
+      "footage.restore.preview",
+      "footage.restore",
+      "catalog.media.delete.preview",
+      "catalog.media.delete",
+      "catalog.media.restore.preview",
+      "catalog.media.restore",
     ] as const;
     for (const name of writes) {
       const tool = MCP_TOOLS.find((item) => item.name === name);

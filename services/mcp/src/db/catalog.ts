@@ -204,3 +204,103 @@ export async function getCatalogShotJob(
     p_id: id,
   });
 }
+
+export type CatalogMediaDeleteInput =
+  | { kind: "menu_photo" | "location_photo"; id: string; acknowledge_used?: boolean }
+  | { kind: "reference_image"; external_id: string; storage_path: string; acknowledge_used?: boolean };
+
+export type CatalogMediaRestoreInput =
+  | { kind: "menu_photo" | "location_photo"; id: string }
+  | { kind: "reference_image"; external_id: string; storage_path: string };
+
+export type CatalogMediaDeletePreview = {
+  kind: CatalogMediaDeleteInput["kind"];
+  id?: string | null;
+  external_id?: string | null;
+  file_path?: string | null;
+  storage_path?: string | null;
+  label?: string | null;
+  used?: boolean;
+  usage_count?: number;
+  usages?: unknown[];
+  can_save?: boolean;
+  preview_id?: string;
+  expires_at?: string;
+};
+
+export type CatalogMediaDeleteSaved = {
+  saved: boolean;
+  kind: string;
+  id?: string | null;
+  external_id?: string | null;
+  storage_path?: string | null;
+  deleted_at: string;
+  purge_after: string;
+  storage_kept: boolean;
+};
+
+export type CatalogMediaRestorePreview = {
+  kind: CatalogMediaRestoreInput["kind"];
+  id?: string | null;
+  external_id?: string | null;
+  storage_path?: string | null;
+  deleted_at: string;
+  purge_after?: string | null;
+  can_save?: boolean;
+  reason?: string;
+  preview_id?: string;
+  expires_at?: string;
+};
+
+export type CatalogMediaRestoreSaved = {
+  saved: boolean;
+  kind: string;
+  id?: string | null;
+  external_id?: string | null;
+  storage_path?: string | null;
+  deleted_at: string | null;
+};
+
+export async function previewCatalogMediaDelete(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: CatalogMediaDeleteInput,
+): Promise<CatalogMediaDeletePreview> {
+  return callJson<CatalogMediaDeletePreview>(admin, "mcp_preview_catalog_media_delete", {
+    ...sessionArgs(ctx),
+    p_input: input,
+  });
+}
+
+export async function applyCatalogMediaDelete(
+  admin: SupabaseClient,
+  ctx: Session,
+  previewId: string,
+): Promise<CatalogMediaDeleteSaved> {
+  return callJson<CatalogMediaDeleteSaved>(admin, "mcp_apply_catalog_media_delete", {
+    ...sessionArgs(ctx),
+    p_preview_id: previewId,
+  });
+}
+
+export async function previewCatalogMediaRestore(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: CatalogMediaRestoreInput,
+): Promise<CatalogMediaRestorePreview> {
+  return callJson<CatalogMediaRestorePreview>(admin, "mcp_preview_catalog_media_restore", {
+    ...sessionArgs(ctx),
+    p_input: input,
+  });
+}
+
+export async function applyCatalogMediaRestore(
+  admin: SupabaseClient,
+  ctx: Session,
+  previewId: string,
+): Promise<CatalogMediaRestoreSaved> {
+  return callJson<CatalogMediaRestoreSaved>(admin, "mcp_apply_catalog_media_restore", {
+    ...sessionArgs(ctx),
+    p_preview_id: previewId,
+  });
+}

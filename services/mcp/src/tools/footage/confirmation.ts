@@ -23,7 +23,11 @@ export type FootageConfirmableTool =
   | "footage.usage.log"
   | "footage.move"
   | "footage.ban.add"
-  | "footage.clips.upsert";
+  | "footage.clips.upsert"
+  | "footage.delete"
+  | "footage.restore"
+  | "catalog.media.delete"
+  | "catalog.media.restore";
 
 export type FootageConfirmationIdentity = { userId: string; organizationId: string };
 

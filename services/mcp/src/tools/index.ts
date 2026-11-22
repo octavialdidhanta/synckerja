@@ -175,6 +175,22 @@ export { usageLogPreviewInput, previewUsageLogResult, applyUsageLogResult } from
 export { moveFootagePreviewInput, previewMoveFootageResult, applyMoveFootageResult } from "./footage/move";
 export { banAddPreviewInput, previewBanAddResult, applyBanAddResult } from "./footage/banAdd";
 export { clipUpsertPreviewInput, previewClipUpsertResult, applyClipUpsertResult } from "./footage/clipUpsert";
+export {
+  deleteFootagePreviewInput,
+  restoreFootagePreviewInput,
+  previewDeleteFootageResult,
+  applyDeleteFootageResult,
+  previewRestoreFootageResult,
+  applyRestoreFootageResult,
+} from "./footage/deleteClip";
+export {
+  deleteCatalogMediaPreviewInput,
+  restoreCatalogMediaPreviewInput,
+  previewDeleteCatalogMediaResult,
+  applyDeleteCatalogMediaResult,
+  previewRestoreCatalogMediaResult,
+  applyRestoreCatalogMediaResult,
+} from "./catalog/mediaDelete";
 export { taskStepsInput, taskStepsResult } from "./tasks/stepsList";
 export { createStepInput, createStepResult } from "./tasks/stepsCreate";
 export { updateStepResult, updateStepSchema } from "./tasks/stepsUpdate";

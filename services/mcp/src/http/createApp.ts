@@ -102,7 +102,21 @@ import type {
   FootageUsageInput,
   FootageUsagePreview,
   FootageUsageSaved,
+  FootageDeleteInput,
+  FootageDeletePreview,
+  FootageDeleteSaved,
+  FootageRestoreInput,
+  FootageRestorePreview,
+  FootageRestoreSaved,
 } from "../db/footage";
+import type {
+  CatalogMediaDeleteInput,
+  CatalogMediaDeletePreview,
+  CatalogMediaDeleteSaved,
+  CatalogMediaRestoreInput,
+  CatalogMediaRestorePreview,
+  CatalogMediaRestoreSaved,
+} from "../db/catalog";
 import type {
   CatalogAddress,
   CatalogLocation,
@@ -480,6 +494,14 @@ export type AppDeps = {
   applyFootageBan: (ctx: McpAuthContext, previewId: string) => Promise<FootageBanSaved>;
   previewFootageClip: (ctx: McpAuthContext, input: FootageClipUpsertInput) => Promise<FootageClipUpsertPreview>;
   applyFootageClip: (ctx: McpAuthContext, previewId: string) => Promise<FootageClipUpsertSaved>;
+  previewFootageDelete: (ctx: McpAuthContext, input: FootageDeleteInput) => Promise<FootageDeletePreview>;
+  applyFootageDelete: (ctx: McpAuthContext, previewId: string) => Promise<FootageDeleteSaved>;
+  previewFootageRestore: (ctx: McpAuthContext, input: FootageRestoreInput) => Promise<FootageRestorePreview>;
+  applyFootageRestore: (ctx: McpAuthContext, previewId: string) => Promise<FootageRestoreSaved>;
+  previewCatalogMediaDelete: (ctx: McpAuthContext, input: CatalogMediaDeleteInput) => Promise<CatalogMediaDeletePreview>;
+  applyCatalogMediaDelete: (ctx: McpAuthContext, previewId: string) => Promise<CatalogMediaDeleteSaved>;
+  previewCatalogMediaRestore: (ctx: McpAuthContext, input: CatalogMediaRestoreInput) => Promise<CatalogMediaRestorePreview>;
+  applyCatalogMediaRestore: (ctx: McpAuthContext, previewId: string) => Promise<CatalogMediaRestoreSaved>;
   listTaskSteps: (ctx: McpAuthContext, taskId: string) => Promise<TaskStepRow[]>;
   createTaskStep: (
     ctx: McpAuthContext,
@@ -627,7 +649,7 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "catalog-thumb-v1",
+      rev: "catalog-delete-v1",
       tools: [
         "content.plans.media.upload.start",
         "content.plans.media.versions.list",
@@ -645,6 +667,14 @@ export function createApp(deps: AppDeps) {
         "footage.ban.add",
         "footage.clips.upsert.preview",
         "footage.clips.upsert",
+        "footage.delete.preview",
+        "footage.delete",
+        "footage.restore.preview",
+        "footage.restore",
+        "catalog.media.delete.preview",
+        "catalog.media.delete",
+        "catalog.media.restore.preview",
+        "catalog.media.restore",
         "catalog.products.list",
         "catalog.product.get",
         "catalog.locations.list",

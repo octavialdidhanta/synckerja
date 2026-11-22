@@ -376,3 +376,98 @@ export async function applyFootageClip(
     p_preview_id: previewId,
   });
 }
+
+export type FootageStorageFile = { kind: string; path: string };
+
+export type FootageDeleteInput = {
+  file_key: string;
+  acknowledge_used?: boolean;
+};
+
+export type FootageDeletePreview = {
+  file_key: string;
+  media_type?: string | null;
+  summary?: string | null;
+  scene_count: number;
+  storage_files: FootageStorageFile[];
+  used?: boolean;
+  usage_count?: number;
+  usages?: unknown[];
+  can_save?: boolean;
+  storage_kept?: boolean;
+  preview_id?: string;
+  expires_at?: string;
+};
+
+export type FootageDeleteSaved = {
+  saved: boolean;
+  file_key: string;
+  deleted_at: string;
+  purge_after: string;
+  storage_kept: boolean;
+  storage_files: FootageStorageFile[];
+};
+
+export type FootageRestoreInput = { file_key: string };
+
+export type FootageRestorePreview = {
+  file_key: string;
+  deleted_at: string;
+  purge_after?: string | null;
+  scene_count: number;
+  can_save?: boolean;
+  reason?: string;
+  preview_id?: string;
+  expires_at?: string;
+};
+
+export type FootageRestoreSaved = {
+  saved: boolean;
+  file_key: string;
+  deleted_at: string | null;
+};
+
+export async function previewFootageDelete(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: FootageDeleteInput,
+): Promise<FootageDeletePreview> {
+  const row = await callJson<FootageDeletePreview>(admin, "mcp_preview_footage_delete", {
+    ...sessionArgs(ctx),
+    p_input: input,
+  });
+  return { ...row, storage_files: Array.isArray(row.storage_files) ? row.storage_files : [] };
+}
+
+export async function applyFootageDelete(
+  admin: SupabaseClient,
+  ctx: Session,
+  previewId: string,
+): Promise<FootageDeleteSaved> {
+  return callJson<FootageDeleteSaved>(admin, "mcp_apply_footage_delete", {
+    ...sessionArgs(ctx),
+    p_preview_id: previewId,
+  });
+}
+
+export async function previewFootageRestore(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: FootageRestoreInput,
+): Promise<FootageRestorePreview> {
+  return callJson<FootageRestorePreview>(admin, "mcp_preview_footage_restore", {
+    ...sessionArgs(ctx),
+    p_input: input,
+  });
+}
+
+export async function applyFootageRestore(
+  admin: SupabaseClient,
+  ctx: Session,
+  previewId: string,
+): Promise<FootageRestoreSaved> {
+  return callJson<FootageRestoreSaved>(admin, "mcp_apply_footage_restore", {
+    ...sessionArgs(ctx),
+    p_preview_id: previewId,
+  });
+}
