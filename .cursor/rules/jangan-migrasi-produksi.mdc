@@ -1,0 +1,37 @@
+---
+description: Jangan ubah schema atau data produksi langsung. Schema lewat file migrasi dan CI. Data lewat tool MCP aplikasi (preview lalu konfirmasi) atau migrasi.
+alwaysApply: true
+---
+
+# Jangan ubah produksi langsung
+
+Perubahan schema dan data produksi tidak dijalankan sendiri. Menulis langsung berbahaya: data hidup bisa berubah, dan riwayat migrasi jadi tidak sama dengan git.
+
+## Dilarang
+
+- `supabase db push`, `supabase migration up`, SQL editor, atau `psql` ke project produksi.
+- MCP `apply_migration`.
+- `execute_sql` ke produksi selain SELECT. INSERT, UPDATE, DELETE, dan TRUNCATE dilarang, begitu juga DDL (CREATE, ALTER, DROP, GRANT, RLS, fungsi).
+- Supabase Management API (`api.supabase.com`), atau `curl` / Node yang memakai `SUPABASE_ACCESS_TOKEN` atau service role key ke produksi.
+- Mencari atau memakai token lain kalau token yang ada ditolak.
+
+## Yang boleh
+
+- Schema: file baru di `supabase/migrations/`, versi lebih baru dari file di `main`. Buka PR. Bukti SQL adalah job **plan** (dry-run). `DRY RUN: migrations will not be pushed` berarti tidak ada yang ditulis. Setelah merge, job **deploy** di `main` yang menerapkan. Jangan merge sendiri kecuali user meminta.
+- File yang versinya sudah applied tidak boleh diedit, di-rename, atau dihapus. Perbaikan schema pakai file migrasi baru. Edit file lama hanya jika job plan menyatakan versi itu belum applied (`Repairing unapplied migration`).
+- Data aplikasi lewat tool MCP yang sudah ada: preview, tunjukkan ke user, simpan hanya setelah user bilang ya. Satu ya untuk satu tulis.
+- SELECT lewat `execute_sql` boleh. Transaksi yang di-rollback di database lokal boleh. Itu bukan produksi.
+
+## Contoh
+
+```text
+Salah: supabase db push --remote --yes
+Salah: execute_sql INSERT/UPDATE/DELETE ke produksi
+Salah: curl api.supabase.com dengan access token
+Benar: file migrasi baru, PR, tunggu plan hijau
+Benar: tool MCP preview, lalu simpan setelah user bilang ya
+```
+
+Jangan impor data atau menjalankan script yang menulis tabel baru sebelum job deploy di `main` untuk migrasi itu berhasil.
+
+Kalau tugas butuh akses tulis ke produksi, berhenti dan tanya user. Jangan cari jalan lain.
