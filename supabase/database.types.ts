@@ -12371,6 +12371,354 @@ export type Database = {
         }
         Relationships: []
       }
+      footage_assets: {
+        Row: {
+          created_at: string
+          duration_seconds: number | null
+          file_key: string
+          id: string
+          location_label: string | null
+          media_type: string
+          note: string | null
+          organization_id: string
+          origin: string
+          preview_storage_path: string | null
+          product_label: string | null
+          storage_status: string
+          summary: string | null
+          thumb_storage_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds?: number | null
+          file_key: string
+          id?: string
+          location_label?: string | null
+          media_type: string
+          note?: string | null
+          organization_id: string
+          origin: string
+          preview_storage_path?: string | null
+          product_label?: string | null
+          storage_status?: string
+          summary?: string | null
+          thumb_storage_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number | null
+          file_key?: string
+          id?: string
+          location_label?: string | null
+          media_type?: string
+          note?: string | null
+          organization_id?: string
+          origin?: string
+          preview_storage_path?: string | null
+          product_label?: string | null
+          storage_status?: string
+          summary?: string | null
+          thumb_storage_path?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "footage_assets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      footage_bans: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          reason: string
+          scene_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          reason: string
+          scene_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          reason?: string
+          scene_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "footage_bans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "footage_bans_scene_org_fkey"
+            columns: ["scene_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_scenes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      footage_scenes: {
+        Row: {
+          asset_id: string
+          created_at: string
+          end_seconds: number | null
+          id: string
+          note: string | null
+          organization_id: string
+          scene_index: number
+          scene_kind: string
+          start_seconds: number
+          summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          end_seconds?: number | null
+          id?: string
+          note?: string | null
+          organization_id: string
+          scene_index: number
+          scene_kind: string
+          start_seconds: number
+          summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          end_seconds?: number | null
+          id?: string
+          note?: string | null
+          organization_id?: string
+          scene_index?: number
+          scene_kind?: string
+          start_seconds?: number
+          summary?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "footage_scenes_asset_org_fkey"
+            columns: ["asset_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_assets"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "footage_scenes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      footage_tag_defs: {
+        Row: {
+          applies_to: string
+          created_at: string
+          id: string
+          key: string
+          label: string
+          organization_id: string
+          position: number
+          updated_at: string
+          value_type: string
+        }
+        Insert: {
+          applies_to: string
+          created_at?: string
+          id?: string
+          key: string
+          label: string
+          organization_id: string
+          position?: number
+          updated_at?: string
+          value_type: string
+        }
+        Update: {
+          applies_to?: string
+          created_at?: string
+          id?: string
+          key?: string
+          label?: string
+          organization_id?: string
+          position?: number
+          updated_at?: string
+          value_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "footage_tag_defs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      footage_tag_values: {
+        Row: {
+          asset_id: string | null
+          created_at: string
+          id: string
+          organization_id: string
+          scene_id: string | null
+          tag_def_id: string
+          updated_at: string
+          value_bool: boolean | null
+          value_text: string | null
+        }
+        Insert: {
+          asset_id?: string | null
+          created_at?: string
+          id?: string
+          organization_id: string
+          scene_id?: string | null
+          tag_def_id: string
+          updated_at?: string
+          value_bool?: boolean | null
+          value_text?: string | null
+        }
+        Update: {
+          asset_id?: string | null
+          created_at?: string
+          id?: string
+          organization_id?: string
+          scene_id?: string | null
+          tag_def_id?: string
+          updated_at?: string
+          value_bool?: boolean | null
+          value_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "footage_tag_values_asset_org_fkey"
+            columns: ["asset_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_assets"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "footage_tag_values_def_org_fkey"
+            columns: ["tag_def_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_tag_defs"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "footage_tag_values_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "footage_tag_values_scene_org_fkey"
+            columns: ["scene_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_scenes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      footage_usages: {
+        Row: {
+          asset_id: string
+          created_at: string
+          external_ref: string | null
+          id: string
+          in_seconds: number | null
+          organization_id: string
+          out_seconds: number | null
+          scene_id: string | null
+          social_media_plan_id: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          in_seconds?: number | null
+          organization_id: string
+          out_seconds?: number | null
+          scene_id?: string | null
+          social_media_plan_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          in_seconds?: number | null
+          organization_id?: string
+          out_seconds?: number | null
+          scene_id?: string | null
+          social_media_plan_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "footage_usages_asset_org_fkey"
+            columns: ["asset_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_assets"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "footage_usages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "footage_usages_scene_asset_fkey"
+            columns: ["scene_id", "asset_id"]
+            isOneToOne: false
+            referencedRelation: "footage_scenes"
+            referencedColumns: ["id", "asset_id"]
+          },
+          {
+            foreignKeyName: "footage_usages_scene_org_fkey"
+            columns: ["scene_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_scenes"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "footage_usages_social_media_plan_id_fkey"
+            columns: ["social_media_plan_id"]
+            isOneToOne: false
+            referencedRelation: "social_media_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_definitions: {
         Row: {
           created_at: string
@@ -17458,6 +17806,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      mcp_footage_previews: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          organization_id: string
+          payload: Json
+          tool: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          organization_id: string
+          payload: Json
+          tool: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          organization_id?: string
+          payload?: Json
+          tool?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_footage_previews_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mcp_oauth_clients: {
         Row: {
@@ -39706,6 +40092,46 @@ export type Database = {
         }
         Returns: Json
       }
+      mcp_apply_footage_ban: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_apply_footage_clip: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_apply_footage_move: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_apply_footage_scene_batch: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_apply_footage_usage: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       mcp_assign_task: {
         Args: {
           p_due_date: string
@@ -40119,6 +40545,50 @@ export type Database = {
         }
         Returns: number
       }
+      mcp_footage_clean_key: { Args: { p_value: string }; Returns: string }
+      mcp_footage_clip_note: {
+        Args: { p_current: string; p_incoming: string; p_mode: string }
+        Returns: string
+      }
+      mcp_footage_normalize_ban: { Args: { p_input: Json }; Returns: Json }
+      mcp_footage_normalize_clip: { Args: { p_input: Json }; Returns: Json }
+      mcp_footage_normalize_move: { Args: { p_input: Json }; Returns: Json }
+      mcp_footage_normalize_scene_batch: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
+      mcp_footage_normalize_usage: { Args: { p_input: Json }; Returns: Json }
+      mcp_footage_require_member: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      mcp_footage_scene_json: { Args: { p_scene_id: string }; Returns: Json }
+      mcp_footage_scene_tag: {
+        Args: { p_key: string; p_organization_id: string; p_scene_id: string }
+        Returns: boolean
+      }
+      mcp_footage_set_scene_tag: {
+        Args: {
+          p_key: string
+          p_organization_id: string
+          p_scene_id: string
+          p_value: boolean
+        }
+        Returns: undefined
+      }
+      mcp_footage_take_preview: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_tool: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_footage_usage_overlaps: {
+        Args: { p_end: number; p_in: number; p_out: number; p_start: number }
+        Returns: boolean
+      }
       mcp_get_content_brief: {
         Args: { p_id: string; p_organization_id: string; p_user_id: string }
         Returns: {
@@ -40142,6 +40612,33 @@ export type Database = {
           title: string
           updated_at: string
           version_no: number
+        }[]
+      }
+      mcp_get_footage: {
+        Args: {
+          p_file_key: string
+          p_organization_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_get_task: {
+        Args: {
+          p_organization_id: string
+          p_task_id: string
+          p_user_id: string
+        }
+        Returns: {
+          assignee_name: string
+          creator_name: string
+          description: string
+          due_date: string
+          id: string
+          plan_month: string
+          priority: string
+          status: string
+          steps: Json
+          title: string
         }[]
       }
       mcp_get_thinking_chain: {
@@ -40500,6 +40997,10 @@ export type Database = {
           status: string
         }[]
       }
+      mcp_list_footage_bans: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
       mcp_list_habits: {
         Args: { p_date: string; p_organization_id: string; p_user_id: string }
         Returns: {
@@ -40826,6 +41327,26 @@ export type Database = {
         Args: { p_organization_id: string; p_purchase_order_id: string }
         Returns: Json
       }
+      mcp_preview_footage_ban: {
+        Args: { p_input: Json; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_preview_footage_clip: {
+        Args: { p_input: Json; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_preview_footage_move: {
+        Args: { p_input: Json; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_preview_footage_scene_batch: {
+        Args: { p_input: Json; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_preview_footage_usage: {
+        Args: { p_input: Json; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
       mcp_preview_ingredient_production: {
         Args: {
           p_organization_id: string
@@ -40924,6 +41445,23 @@ export type Database = {
         Returns: {
           id: string
         }[]
+      }
+      mcp_search_footage: {
+        Args: {
+          p_hijab?: boolean
+          p_include_banned?: boolean
+          p_limit?: number
+          p_location?: string
+          p_media_type?: string
+          p_organization_id: string
+          p_product?: string
+          p_query?: string
+          p_scene_kind?: string
+          p_unused?: boolean
+          p_user_id: string
+          p_watermark?: boolean
+        }
+        Returns: Json
       }
       mcp_set_content_plan_drive_link: {
         Args: {
@@ -42543,6 +43081,10 @@ export type Database = {
       recipient_picker_filter_options: {
         Args: { p_organization_id: string }
         Returns: Json
+      }
+      recompute_daily_task_status: {
+        Args: { p_task_id: string }
+        Returns: undefined
       }
       reconcile_xendit_disbursement_completed: {
         Args: { p_disbursement_id: string }
