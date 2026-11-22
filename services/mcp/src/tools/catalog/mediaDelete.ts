@@ -15,26 +15,32 @@ import {
   type VerifiedFootageConfirmation,
 } from "../footage/confirmation";
 
-const photo = z.object({
-  kind: z.enum(["menu_photo", "location_photo"]),
-  id: z.string().uuid(),
-}).strict();
+// Published to MCP clients as one flat object (the SDK needs an object shape),
+// then checked per kind here.
+const mediaShape = {
+  kind: z.enum(["menu_photo", "location_photo", "reference_image"]),
+  id: z.string().uuid().optional(),
+  external_id: z.string().trim().min(1).max(80).optional(),
+  storage_path: z.string().trim().min(1).max(500).optional(),
+};
 
-const reference = z.object({
-  kind: z.literal("reference_image"),
-  external_id: z.string().trim().min(1).max(80),
-  storage_path: z.string().trim().min(1).max(500),
-}).strict();
+function checkKind(
+  value: { kind: string; id?: string; external_id?: string; storage_path?: string },
+  ctx: z.RefinementCtx,
+) {
+  const isPhoto = value.kind !== "reference_image";
+  const ok = isPhoto
+    ? Boolean(value.id) && value.external_id === undefined && value.storage_path === undefined
+    : value.id === undefined && Boolean(value.external_id) && Boolean(value.storage_path);
+  if (!ok) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "invalid_input" });
+}
 
-export const deleteCatalogMediaPreviewInput = z.discriminatedUnion("kind", [
-  photo.extend({ acknowledge_used: z.boolean().optional() }),
-  reference.extend({ acknowledge_used: z.boolean().optional() }),
-]);
+export const deleteCatalogMediaPreviewInput = z.object({
+  ...mediaShape,
+  acknowledge_used: z.boolean().optional(),
+}).strict().superRefine(checkKind);
 
-export const restoreCatalogMediaPreviewInput = z.discriminatedUnion("kind", [
-  photo,
-  reference,
-]);
+export const restoreCatalogMediaPreviewInput = z.object(mediaShape).strict().superRefine(checkKind);
 
 const USED_NEXT_STEP =
   "This image is mentioned by a shot list. Show the file and those jobs. Nothing is saved. "
@@ -90,7 +96,7 @@ export function previewDeleteCatalogMediaResult(
 ): Promise<Record<string, unknown>> {
   const parsed = deleteCatalogMediaPreviewInput.safeParse(args);
   if (!parsed.success) throw new Error("invalid_input");
-  return preview(ctx, parsed.data).then(async (row) => {
+  return preview(ctx, parsed.data as CatalogMediaDeleteInput).then(async (row) => {
     const summary = deleteSummary(row);
     if (summary.can_save !== true || !row.preview_id || !row.expires_at) {
       return { ...summary, can_save: false, next_step: USED_NEXT_STEP };
@@ -121,7 +127,7 @@ export function previewRestoreCatalogMediaResult(
 ): Promise<Record<string, unknown>> {
   const parsed = restoreCatalogMediaPreviewInput.safeParse(args);
   if (!parsed.success) throw new Error("invalid_input");
-  return preview(ctx, parsed.data).then(async (row) => {
+  return preview(ctx, parsed.data as CatalogMediaRestoreInput).then(async (row) => {
     const summary = {
       kind: row.kind,
       id: row.id ?? null,
