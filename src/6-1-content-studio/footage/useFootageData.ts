@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
+import { readAll as readAllFrom, signCatalogMedia } from "../shared/catalogQuery";
 import {
   buildFootageRows,
   type AssetRecord,
@@ -13,46 +14,8 @@ import {
   type UsageRecord,
 } from "./footageRows";
 
-const PAGE = 1000;
-const THUMB_BUCKET = "catalog-media";
-const THUMB_TTL_SECONDS = 60 * 60 * 6;
-
-// The footage tables are newer than the generated Supabase types.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type LooseQuery = any;
-const db = supabase as LooseQuery;
-
-async function readAll<T>(
-  table: string,
-  columns: string,
-  orgId: string,
-  extra?: (q: LooseQuery) => LooseQuery,
-): Promise<T[]> {
-  const out: T[] = [];
-  for (let from = 0; ; from += PAGE) {
-    let q = db.from(table).select(columns).eq("organization_id", orgId).order("id").range(from, from + PAGE - 1);
-    if (extra) q = extra(q);
-    const { data, error } = await q;
-    if (error) throw error;
-    out.push(...((data ?? []) as T[]));
-    if (!data || data.length < PAGE) break;
-  }
-  return out;
-}
-
-async function signThumbs(paths: string[]): Promise<Record<string, string>> {
-  const out: Record<string, string> = {};
-  const chunks: string[][] = [];
-  for (let i = 0; i < paths.length; i += 200) chunks.push(paths.slice(i, i + 200));
-  await Promise.all(
-    chunks.map(async (chunk) => {
-      const { data, error } = await supabase.storage.from(THUMB_BUCKET).createSignedUrls(chunk, THUMB_TTL_SECONDS);
-      if (error) return;
-      for (const item of data ?? []) if (item.path && item.signedUrl) out[item.path] = item.signedUrl;
-    }),
-  );
-  return out;
-}
+const readAll = <T,>(table: string, columns: string, orgId: string, extra?: Parameters<typeof readAllFrom>[4]) =>
+  readAllFrom<T>(supabase, table, columns, orgId, extra);
 
 export interface FootageQueryResult extends FootageData {
   thumbs: Record<string, string>;
@@ -91,7 +54,7 @@ export function useFootageData() {
       menus.sort((x, y) => x.created_at.localeCompare(y.created_at));
       const data = buildFootageRows({ assets, scenes, tagDefs, tagValues, usages, bans, menus });
       const paths = [...new Set(data.rows.map((r) => r.thumbPath).filter((p): p is string => Boolean(p)))];
-      const thumbs = await signThumbs(paths);
+      const thumbs = await signCatalogMedia(supabase, paths);
       return { ...data, thumbs };
     },
   });
