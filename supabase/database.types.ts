@@ -5395,6 +5395,385 @@ export type Database = {
           },
         ]
       }
+      catalog_location_areas: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          location_id: string
+          name: string
+          organization_id: string
+          position: number
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          location_id: string
+          name: string
+          organization_id: string
+          position: number
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          location_id?: string
+          name?: string
+          organization_id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_location_areas_location_org_fkey"
+            columns: ["location_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_locations"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "catalog_location_areas_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_location_photos: {
+        Row: {
+          areas: string[]
+          created_at: string
+          deleted_at: string | null
+          description: string | null
+          file_path: string
+          id: string
+          label: string
+          location_id: string
+          organization_id: string
+          position: number
+          ref: string | null
+          storage_path: string | null
+        }
+        Insert: {
+          areas?: string[]
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          file_path: string
+          id?: string
+          label: string
+          location_id: string
+          organization_id: string
+          position: number
+          ref?: string | null
+          storage_path?: string | null
+        }
+        Update: {
+          areas?: string[]
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          file_path?: string
+          id?: string
+          label?: string
+          location_id?: string
+          organization_id?: string
+          position?: number
+          ref?: string | null
+          storage_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_location_photos_location_org_fkey"
+            columns: ["location_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_locations"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "catalog_location_photos_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_location_sections: {
+        Row: {
+          areas: string[]
+          body: string
+          created_at: string
+          id: string
+          location_id: string
+          organization_id: string
+          position: number
+          title: string
+        }
+        Insert: {
+          areas?: string[]
+          body?: string
+          created_at?: string
+          id?: string
+          location_id: string
+          organization_id: string
+          position: number
+          title: string
+        }
+        Update: {
+          areas?: string[]
+          body?: string
+          created_at?: string
+          id?: string
+          location_id?: string
+          organization_id?: string
+          position?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_location_sections_location_org_fkey"
+            columns: ["location_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_locations"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "catalog_location_sections_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_locations: {
+        Row: {
+          created_at: string
+          external_id: string
+          id: string
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          external_id: string
+          id?: string
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          external_id?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_locations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_media_tombstones: {
+        Row: {
+          deleted_at: string
+          id: string
+          kind: string
+          object_paths: string[]
+          organization_id: string
+          payload: Json
+          purge_after: string
+          purged_at: string | null
+          restored_at: string | null
+        }
+        Insert: {
+          deleted_at?: string
+          id?: string
+          kind: string
+          object_paths: string[]
+          organization_id: string
+          payload: Json
+          purge_after: string
+          purged_at?: string | null
+          restored_at?: string | null
+        }
+        Update: {
+          deleted_at?: string
+          id?: string
+          kind?: string
+          object_paths?: string[]
+          organization_id?: string
+          payload?: Json
+          purge_after?: string
+          purged_at?: string | null
+          restored_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_media_tombstones_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_menu_fields: {
+        Row: {
+          body: string
+          created_at: string
+          field_key: string
+          id: string
+          menu_id: string
+          organization_id: string
+          position: number
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          field_key: string
+          id?: string
+          menu_id: string
+          organization_id: string
+          position: number
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          field_key?: string
+          id?: string
+          menu_id?: string
+          organization_id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_menu_fields_menu_org_fkey"
+            columns: ["menu_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_menus"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "catalog_menu_fields_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_menu_photos: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          file_path: string
+          id: string
+          label: string
+          menu_id: string
+          organization_id: string
+          position: number
+          ref: string | null
+          storage_path: string | null
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          file_path: string
+          id?: string
+          label: string
+          menu_id: string
+          organization_id: string
+          position: number
+          ref?: string | null
+          storage_path?: string | null
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          file_path?: string
+          id?: string
+          label?: string
+          menu_id?: string
+          organization_id?: string
+          position?: number
+          ref?: string | null
+          storage_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_menu_photos_menu_org_fkey"
+            columns: ["menu_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_menus"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "catalog_menu_photos_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_menus: {
+        Row: {
+          aliases: string[]
+          created_at: string
+          external_id: string
+          id: string
+          name: string
+          organization_id: string
+          product_knowledge_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          aliases?: string[]
+          created_at?: string
+          external_id: string
+          id?: string
+          name: string
+          organization_id: string
+          product_knowledge_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          aliases?: string[]
+          created_at?: string
+          external_id?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          product_knowledge_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_menus_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_menus_product_knowledge_id_fkey"
+            columns: ["product_knowledge_id"]
+            isOneToOne: false
+            referencedRelation: "product_knowledge"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       catalog_modifier_groups: {
         Row: {
           created_at: string
@@ -6354,6 +6733,44 @@ export type Database = {
           },
         ]
       }
+      catalog_prompt_fields: {
+        Row: {
+          body: string
+          created_at: string
+          field_key: string
+          id: string
+          organization_id: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          field_key: string
+          id?: string
+          organization_id: string
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          field_key?: string
+          id?: string
+          organization_id?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_prompt_fields_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       catalog_purchase_order_events: {
         Row: {
           actor_name_snapshot: string
@@ -6653,6 +7070,41 @@ export type Database = {
           },
         ]
       }
+      catalog_references: {
+        Row: {
+          created_at: string
+          document: Json
+          external_id: string
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document: Json
+          external_id: string
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document?: Json
+          external_id?: string
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_references_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       catalog_sales_type_gratuities: {
         Row: {
           created_at: string
@@ -6770,6 +7222,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "catalog_sales_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_shot_jobs: {
+        Row: {
+          created_at: string
+          document: Json
+          external_id: string
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document: Json
+          external_id: string
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document?: Json
+          external_id?: string
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_shot_jobs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -7086,6 +7573,44 @@ export type Database = {
             columns: ["to_outlet_id"]
             isOneToOne: false
             referencedRelation: "pos_outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_style_fields: {
+        Row: {
+          body: string
+          created_at: string
+          field_key: string
+          id: string
+          organization_id: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          field_key: string
+          id?: string
+          organization_id: string
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          field_key?: string
+          id?: string
+          organization_id?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_style_fields_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -12371,6 +12896,363 @@ export type Database = {
         }
         Relationships: []
       }
+      footage_assets: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          duration_seconds: number | null
+          file_key: string
+          id: string
+          location_label: string | null
+          media_type: string
+          note: string | null
+          organization_id: string
+          origin: string
+          preview_storage_path: string | null
+          product_label: string | null
+          storage_status: string
+          summary: string | null
+          thumb_storage_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          duration_seconds?: number | null
+          file_key: string
+          id?: string
+          location_label?: string | null
+          media_type: string
+          note?: string | null
+          organization_id: string
+          origin: string
+          preview_storage_path?: string | null
+          product_label?: string | null
+          storage_status?: string
+          summary?: string | null
+          thumb_storage_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          duration_seconds?: number | null
+          file_key?: string
+          id?: string
+          location_label?: string | null
+          media_type?: string
+          note?: string | null
+          organization_id?: string
+          origin?: string
+          preview_storage_path?: string | null
+          product_label?: string | null
+          storage_status?: string
+          summary?: string | null
+          thumb_storage_path?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "footage_assets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      footage_bans: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          reason: string
+          scene_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          reason: string
+          scene_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          reason?: string
+          scene_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "footage_bans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "footage_bans_scene_org_fkey"
+            columns: ["scene_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_scenes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      footage_scenes: {
+        Row: {
+          asset_id: string
+          created_at: string
+          end_seconds: number | null
+          id: string
+          note: string | null
+          organization_id: string
+          scene_index: number
+          scene_kind: string
+          start_seconds: number
+          summary: string | null
+          thumb_required: boolean
+          thumb_storage_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          end_seconds?: number | null
+          id?: string
+          note?: string | null
+          organization_id: string
+          scene_index: number
+          scene_kind: string
+          start_seconds: number
+          summary?: string | null
+          thumb_required?: boolean
+          thumb_storage_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          end_seconds?: number | null
+          id?: string
+          note?: string | null
+          organization_id?: string
+          scene_index?: number
+          scene_kind?: string
+          start_seconds?: number
+          summary?: string | null
+          thumb_required?: boolean
+          thumb_storage_path?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "footage_scenes_asset_org_fkey"
+            columns: ["asset_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_assets"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "footage_scenes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      footage_tag_defs: {
+        Row: {
+          applies_to: string
+          created_at: string
+          id: string
+          key: string
+          label: string
+          organization_id: string
+          position: number
+          updated_at: string
+          value_type: string
+        }
+        Insert: {
+          applies_to: string
+          created_at?: string
+          id?: string
+          key: string
+          label: string
+          organization_id: string
+          position?: number
+          updated_at?: string
+          value_type: string
+        }
+        Update: {
+          applies_to?: string
+          created_at?: string
+          id?: string
+          key?: string
+          label?: string
+          organization_id?: string
+          position?: number
+          updated_at?: string
+          value_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "footage_tag_defs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      footage_tag_values: {
+        Row: {
+          asset_id: string | null
+          created_at: string
+          id: string
+          organization_id: string
+          scene_id: string | null
+          tag_def_id: string
+          updated_at: string
+          value_bool: boolean | null
+          value_text: string | null
+        }
+        Insert: {
+          asset_id?: string | null
+          created_at?: string
+          id?: string
+          organization_id: string
+          scene_id?: string | null
+          tag_def_id: string
+          updated_at?: string
+          value_bool?: boolean | null
+          value_text?: string | null
+        }
+        Update: {
+          asset_id?: string | null
+          created_at?: string
+          id?: string
+          organization_id?: string
+          scene_id?: string | null
+          tag_def_id?: string
+          updated_at?: string
+          value_bool?: boolean | null
+          value_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "footage_tag_values_asset_org_fkey"
+            columns: ["asset_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_assets"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "footage_tag_values_def_org_fkey"
+            columns: ["tag_def_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_tag_defs"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "footage_tag_values_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "footage_tag_values_scene_org_fkey"
+            columns: ["scene_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_scenes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      footage_usages: {
+        Row: {
+          asset_id: string
+          created_at: string
+          external_ref: string | null
+          id: string
+          in_seconds: number | null
+          organization_id: string
+          out_seconds: number | null
+          scene_id: string | null
+          social_media_plan_id: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          in_seconds?: number | null
+          organization_id: string
+          out_seconds?: number | null
+          scene_id?: string | null
+          social_media_plan_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          in_seconds?: number | null
+          organization_id?: string
+          out_seconds?: number | null
+          scene_id?: string | null
+          social_media_plan_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "footage_usages_asset_org_fkey"
+            columns: ["asset_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_assets"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "footage_usages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "footage_usages_scene_asset_fkey"
+            columns: ["scene_id", "asset_id"]
+            isOneToOne: false
+            referencedRelation: "footage_scenes"
+            referencedColumns: ["id", "asset_id"]
+          },
+          {
+            foreignKeyName: "footage_usages_scene_org_fkey"
+            columns: ["scene_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_scenes"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "footage_usages_social_media_plan_id_fkey"
+            columns: ["social_media_plan_id"]
+            isOneToOne: false
+            referencedRelation: "social_media_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_definitions: {
         Row: {
           created_at: string
@@ -17458,6 +18340,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      mcp_footage_previews: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          organization_id: string
+          payload: Json
+          tool: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          organization_id: string
+          payload: Json
+          tool: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          organization_id?: string
+          payload?: Json
+          tool?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_footage_previews_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mcp_oauth_clients: {
         Row: {
@@ -37641,6 +38561,14 @@ export type Database = {
         Args: { p_organization_id: string; p_user_id: string }
         Returns: boolean
       }
+      catalog_footage_storage_paths: {
+        Args: { p_asset_id: string; p_organization_id: string }
+        Returns: Json
+      }
+      catalog_footage_usage_digest: {
+        Args: { p_asset_id: string; p_organization_id: string }
+        Returns: string
+      }
       catalog_inventory_po_mode: {
         Args: { p_organization_id: string }
         Returns: string
@@ -37649,6 +38577,7 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: string
       }
+      catalog_media_grace: { Args: never; Returns: string }
       catalog_po_actor_name: {
         Args: { p_organization_id: string }
         Returns: string
@@ -37676,6 +38605,18 @@ export type Database = {
         Args: { p_product: string }
         Returns: string
       }
+      catalog_reference_clear_path: {
+        Args: { p_document: Json; p_path: string }
+        Returns: Json
+      }
+      catalog_reference_restore_paths: {
+        Args: { p_document: Json; p_targets: Json }
+        Returns: Json
+      }
+      catalog_shot_mention_digest: {
+        Args: { p_needle: string; p_organization_id: string }
+        Returns: string
+      }
       catalog_stock_movement_outlet_unit_cost: {
         Args: {
           p_ingredient_id: string
@@ -37685,6 +38626,10 @@ export type Database = {
           p_variant_id: string
         }
         Returns: number
+      }
+      catalog_text_list_ok: {
+        Args: { p_items: string[]; p_max: number }
+        Returns: boolean
       }
       catalog_transfer_actor_name: {
         Args: { p_organization_id: string }
@@ -39706,6 +40651,78 @@ export type Database = {
         }
         Returns: Json
       }
+      mcp_apply_catalog_media_delete: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_apply_catalog_media_restore: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_apply_footage_ban: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_apply_footage_clip: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_apply_footage_delete: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_apply_footage_move: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_apply_footage_restore: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_apply_footage_scene_batch: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_apply_footage_usage: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       mcp_assign_task: {
         Args: {
           p_due_date: string
@@ -39735,6 +40752,18 @@ export type Database = {
           id: string
           step_id: string
         }[]
+      }
+      mcp_catalog_media_purge_commit: {
+        Args: { p_grace_seconds?: number; p_ids: Json }
+        Returns: Json
+      }
+      mcp_catalog_media_purge_plan: {
+        Args: { p_grace_seconds?: number }
+        Returns: Json
+      }
+      mcp_catalog_require_member: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: undefined
       }
       mcp_check_habit: {
         Args: {
@@ -40119,6 +41148,84 @@ export type Database = {
         }
         Returns: number
       }
+      mcp_footage_clean_key: { Args: { p_value: string }; Returns: string }
+      mcp_footage_clip_note: {
+        Args: { p_current: string; p_incoming: string; p_mode: string }
+        Returns: string
+      }
+      mcp_footage_normalize_ban: { Args: { p_input: Json }; Returns: Json }
+      mcp_footage_normalize_clip: { Args: { p_input: Json }; Returns: Json }
+      mcp_footage_normalize_move: { Args: { p_input: Json }; Returns: Json }
+      mcp_footage_normalize_scene_batch: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
+      mcp_footage_normalize_usage: { Args: { p_input: Json }; Returns: Json }
+      mcp_footage_require_member: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      mcp_footage_scene_json: { Args: { p_scene_id: string }; Returns: Json }
+      mcp_footage_scene_tag: {
+        Args: { p_key: string; p_organization_id: string; p_scene_id: string }
+        Returns: boolean
+      }
+      mcp_footage_set_scene_tag: {
+        Args: {
+          p_key: string
+          p_organization_id: string
+          p_scene_id: string
+          p_value: boolean
+        }
+        Returns: undefined
+      }
+      mcp_footage_take_preview: {
+        Args: {
+          p_organization_id: string
+          p_preview_id: string
+          p_tool: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_footage_usage_overlaps: {
+        Args: { p_end: number; p_in: number; p_out: number; p_start: number }
+        Returns: boolean
+      }
+      mcp_get_catalog_location: {
+        Args: {
+          p_id: string
+          p_name: string
+          p_organization_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_get_catalog_product: {
+        Args: {
+          p_id: string
+          p_name: string
+          p_organization_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_get_catalog_prompts: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_get_catalog_reference: {
+        Args: { p_id: string; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_get_catalog_shot_job: {
+        Args: { p_id: string; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_get_catalog_style: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
       mcp_get_content_brief: {
         Args: { p_id: string; p_organization_id: string; p_user_id: string }
         Returns: {
@@ -40142,6 +41249,33 @@ export type Database = {
           title: string
           updated_at: string
           version_no: number
+        }[]
+      }
+      mcp_get_footage: {
+        Args: {
+          p_file_key: string
+          p_organization_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_get_task: {
+        Args: {
+          p_organization_id: string
+          p_task_id: string
+          p_user_id: string
+        }
+        Returns: {
+          assignee_name: string
+          creator_name: string
+          description: string
+          due_date: string
+          id: string
+          plan_month: string
+          priority: string
+          status: string
+          steps: Json
+          title: string
         }[]
       }
       mcp_get_thinking_chain: {
@@ -40392,6 +41526,22 @@ export type Database = {
           storage_path: string
         }[]
       }
+      mcp_list_catalog_locations: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_list_catalog_products: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_list_catalog_references: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_list_catalog_shot_jobs: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
       mcp_list_catalog_suppliers: {
         Args: { p_organization_id: string; p_search: string; p_user_id: string }
         Returns: {
@@ -40499,6 +41649,10 @@ export type Database = {
           id: string
           status: string
         }[]
+      }
+      mcp_list_footage_bans: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: Json
       }
       mcp_list_habits: {
         Args: { p_date: string; p_organization_id: string; p_user_id: string }
@@ -40826,6 +41980,42 @@ export type Database = {
         Args: { p_organization_id: string; p_purchase_order_id: string }
         Returns: Json
       }
+      mcp_preview_catalog_media_delete: {
+        Args: { p_input: Json; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_preview_catalog_media_restore: {
+        Args: { p_input: Json; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_preview_footage_ban: {
+        Args: { p_input: Json; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_preview_footage_clip: {
+        Args: { p_input: Json; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_preview_footage_delete: {
+        Args: { p_input: Json; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_preview_footage_move: {
+        Args: { p_input: Json; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_preview_footage_restore: {
+        Args: { p_input: Json; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_preview_footage_scene_batch: {
+        Args: { p_input: Json; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
+      mcp_preview_footage_usage: {
+        Args: { p_input: Json; p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
       mcp_preview_ingredient_production: {
         Args: {
           p_organization_id: string
@@ -40924,6 +42114,23 @@ export type Database = {
         Returns: {
           id: string
         }[]
+      }
+      mcp_search_footage: {
+        Args: {
+          p_hijab?: boolean
+          p_include_banned?: boolean
+          p_limit?: number
+          p_location?: string
+          p_media_type?: string
+          p_organization_id: string
+          p_product?: string
+          p_query?: string
+          p_scene_kind?: string
+          p_unused?: boolean
+          p_user_id: string
+          p_watermark?: boolean
+        }
+        Returns: Json
       }
       mcp_set_content_plan_drive_link: {
         Args: {
@@ -42543,6 +43750,10 @@ export type Database = {
       recipient_picker_filter_options: {
         Args: { p_organization_id: string }
         Returns: Json
+      }
+      recompute_daily_task_status: {
+        Args: { p_task_id: string }
+        Returns: undefined
       }
       reconcile_xendit_disbursement_completed: {
         Args: { p_disbursement_id: string }
