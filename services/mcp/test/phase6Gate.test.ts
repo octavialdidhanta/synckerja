@@ -128,7 +128,7 @@ describe("mcp http gate", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       ok: true,
-      rev: "catalog-thumb-v1",
+      rev: "catalog-delete-v1",
       tools: [
         "content.plans.media.upload.start",
         "content.plans.media.versions.list",
@@ -146,6 +146,14 @@ describe("mcp http gate", () => {
         "footage.ban.add",
         "footage.clips.upsert.preview",
         "footage.clips.upsert",
+        "footage.delete.preview",
+        "footage.delete",
+        "footage.restore.preview",
+        "footage.restore",
+        "catalog.media.delete.preview",
+        "catalog.media.delete",
+        "catalog.media.restore.preview",
+        "catalog.media.restore",
         "catalog.products.list",
         "catalog.product.get",
         "catalog.locations.list",
