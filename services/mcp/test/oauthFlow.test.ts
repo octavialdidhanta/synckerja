@@ -385,6 +385,12 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     applyCatalogMediaDelete: async () => { throw new Error("unused"); },
     previewCatalogMediaRestore: async () => { throw new Error("unused"); },
     applyCatalogMediaRestore: async () => { throw new Error("unused"); },
+    previewCatalogStyleUpdate: async () => { throw new Error("unused"); },
+    applyCatalogStyleUpdate: async () => { throw new Error("unused"); },
+    previewCatalogReferenceUpsert: async () => { throw new Error("unused"); },
+    applyCatalogReferenceUpsert: async () => { throw new Error("unused"); },
+    previewCatalogShotJobUpsert: async () => { throw new Error("unused"); },
+    applyCatalogShotJobUpsert: async () => { throw new Error("unused"); },
     listTaskSteps: async () => [],
     createTaskStep: async () => {
       throw new Error("unused");

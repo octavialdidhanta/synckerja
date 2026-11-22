@@ -304,3 +304,137 @@ export async function applyCatalogMediaRestore(
     p_preview_id: previewId,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Library writes: style box, reference document, shot list job (preview → save).
+// ---------------------------------------------------------------------------
+
+export type CatalogStyleUpdateInput = { field_key: string; body: string; mode?: "replace" | "append" };
+
+export type CatalogStyleUpdatePreview = {
+  field_key: string;
+  mode: "replace" | "append";
+  is_new: boolean;
+  before: string | null;
+  after: string;
+  preview_id: string;
+  expires_at: string;
+};
+
+export type CatalogStyleUpdateSaved = {
+  saved: boolean;
+  field_key: string;
+  is_new: boolean;
+  before: string | null;
+  after: string;
+};
+
+export type CatalogDocumentUpsertInput = { external_id: string; document: Record<string, unknown> };
+
+export type CatalogReferenceUpsertPreview = {
+  external_id: string;
+  is_new: boolean;
+  before: { judul: string | null; beats: number; mg: number } | null;
+  after: { judul: string | null; beats: number; mg: number };
+  changed_keys: string[];
+  images_kept: number;
+  images_unlinked: string[];
+  preview_id: string;
+  expires_at: string;
+};
+
+export type CatalogReferenceUpsertSaved = {
+  saved: boolean;
+  external_id: string;
+  is_new: boolean;
+  beats: number;
+  mg: number;
+  images_kept: number;
+  images_unlinked: string[];
+};
+
+export type CatalogShotsDiff = { added: string[]; removed: string[]; changed: string[] };
+
+export type CatalogShotJobUpsertPreview = {
+  external_id: string;
+  is_new: boolean;
+  before: { judul: string | null; arsip: boolean; shots: number } | null;
+  after: { judul: string | null; arsip: boolean; shots: number };
+  shots_diff: CatalogShotsDiff;
+  preview_id: string;
+  expires_at: string;
+};
+
+export type CatalogShotJobUpsertSaved = {
+  saved: boolean;
+  external_id: string;
+  is_new: boolean;
+  shots: number;
+  shots_diff: CatalogShotsDiff;
+};
+
+export async function previewCatalogStyleUpdate(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: CatalogStyleUpdateInput,
+): Promise<CatalogStyleUpdatePreview> {
+  return callJson<CatalogStyleUpdatePreview>(admin, "mcp_preview_catalog_style_update", {
+    ...sessionArgs(ctx),
+    p_input: input,
+  });
+}
+
+export async function applyCatalogStyleUpdate(
+  admin: SupabaseClient,
+  ctx: Session,
+  previewId: string,
+): Promise<CatalogStyleUpdateSaved> {
+  return callJson<CatalogStyleUpdateSaved>(admin, "mcp_apply_catalog_style_update", {
+    ...sessionArgs(ctx),
+    p_preview_id: previewId,
+  });
+}
+
+export async function previewCatalogReferenceUpsert(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: CatalogDocumentUpsertInput,
+): Promise<CatalogReferenceUpsertPreview> {
+  return callJson<CatalogReferenceUpsertPreview>(admin, "mcp_preview_catalog_reference_upsert", {
+    ...sessionArgs(ctx),
+    p_input: input,
+  });
+}
+
+export async function applyCatalogReferenceUpsert(
+  admin: SupabaseClient,
+  ctx: Session,
+  previewId: string,
+): Promise<CatalogReferenceUpsertSaved> {
+  return callJson<CatalogReferenceUpsertSaved>(admin, "mcp_apply_catalog_reference_upsert", {
+    ...sessionArgs(ctx),
+    p_preview_id: previewId,
+  });
+}
+
+export async function previewCatalogShotJobUpsert(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: CatalogDocumentUpsertInput,
+): Promise<CatalogShotJobUpsertPreview> {
+  return callJson<CatalogShotJobUpsertPreview>(admin, "mcp_preview_catalog_shotlist_upsert", {
+    ...sessionArgs(ctx),
+    p_input: input,
+  });
+}
+
+export async function applyCatalogShotJobUpsert(
+  admin: SupabaseClient,
+  ctx: Session,
+  previewId: string,
+): Promise<CatalogShotJobUpsertSaved> {
+  return callJson<CatalogShotJobUpsertSaved>(admin, "mcp_apply_catalog_shotlist_upsert", {
+    ...sessionArgs(ctx),
+    p_preview_id: previewId,
+  });
+}

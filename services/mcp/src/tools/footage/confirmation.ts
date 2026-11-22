@@ -27,7 +27,10 @@ export type FootageConfirmableTool =
   | "footage.delete"
   | "footage.restore"
   | "catalog.media.delete"
-  | "catalog.media.restore";
+  | "catalog.media.restore"
+  | "catalog.style.update"
+  | "catalog.reference.upsert"
+  | "catalog.shotlist.upsert";
 
 export type FootageConfirmationIdentity = { userId: string; organizationId: string };
 
