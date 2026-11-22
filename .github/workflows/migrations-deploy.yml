@@ -8,8 +8,10 @@ name: Database migrations
 #                   are not yet recorded in supabase_migrations.schema_migrations.
 #
 # Rules (enforced in the plan job):
-#   - Only ADD files under supabase/migrations/. Editing, renaming or deleting a file that may
-#     already be applied is refused: change the schema with a new migration instead.
+#   - Only ADD files under supabase/migrations/, with one exception: a file may be edited when
+#     its version is not yet in the remote migration history. That repairs a migration whose
+#     apply failed. A version that is already applied cannot be edited.
+#   - Deleting or renaming a migration file is refused.
 #   - New file names must look like <14-digit version>_<name>.sql and be newer than every
 #     version already in the folder.
 #
@@ -49,13 +51,21 @@ jobs:
       - name: Only new migration files, newer than existing ones
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
-          changed="$(git diff --name-status --diff-filter=MDRT "$BASE"...HEAD -- supabase/migrations/)"
-          if [ -n "$changed" ]; then
-            echo "::error::Existing migration files were edited, renamed or deleted. Add a new migration instead:"
-            echo "$changed"
+          removed="$(git diff --name-status --diff-filter=DRT "$BASE"...HEAD -- supabase/migrations/)"
+          if [ -n "$removed" ]; then
+            echo "::error::Existing migration files were renamed or deleted. Add a new migration instead:"
+            echo "$removed"
             exit 1
           fi
+          modified="$(git diff --name-only --diff-filter=M "$BASE"...HEAD -- supabase/migrations/)"
+          if [ -n "$modified" ] && [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            echo "::error::Existing migration files were edited. Add a new migration instead:"
+            echo "$modified"
+            exit 1
+          fi
+          printf '%s\n' "$modified" > "$RUNNER_TEMP/modified-migrations.txt"
           added="$(git diff --name-only --diff-filter=A "$BASE"...HEAD -- supabase/migrations/)"
           if [ -z "$added" ]; then echo "No new migrations in this PR."; exit 0; fi
           latest_existing="$(git ls-tree --name-only "$BASE" supabase/migrations/ | sed -n 's#.*/\([0-9]\{14\}\)_.*\.sql$#\1#p' | sort | tail -1)"
@@ -93,6 +103,29 @@ jobs:
           set -o pipefail
           # The CLI reads SUPABASE_DB_PASSWORD from the environment (--password is ignored now).
           supabase link --project-ref "$SUPABASE_PROJECT_ID"
+          # An edit is allowed only while that version is still absent from the remote history.
+          # Applied rows show the version twice (local and remote). An unapplied file shows it once.
+          list="$(supabase migration list --linked)"
+          fail=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            v="$(basename "$f" | cut -d_ -f1)"
+            case "$v" in
+              [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+              *) echo "::error file=$f::Migration version is not 14 digits"; fail=1; continue ;;
+            esac
+            count="$(printf '%s\n' "$list" | { grep -o "$v" || true; } | wc -l | tr -d '[:space:]')"
+            if [ "$count" -ge 2 ]; then
+              echo "::error file=$f::Version $v is already applied. Add a new migration instead."
+              fail=1
+            elif [ "$count" -eq 1 ]; then
+              echo "Repairing unapplied migration $v"
+            else
+              echo "::error file=$f::Version $v was not found in the migration list."
+              fail=1
+            fi
+          done < "$RUNNER_TEMP/modified-migrations.txt"
+          if [ "$fail" -ne 0 ]; then exit "$fail"; fi
           supabase db push --remote --dry-run 2>&1 | tee dry-run.txt
           {
             echo "### Migrations that will run on merge"

@@ -1,6 +1,26 @@
 -- Catalog products and locations. Photo bytes stay on disk; these rows store text and relative paths.
 -- Footage labels stay text. product_knowledge_id is an optional later link and is not filled here.
 -- Menu description blocks are rows so a later industry template can add its own keys.
+-- A CHECK constraint cannot contain a subquery, so the list rule is a function.
+
+CREATE FUNCTION public.catalog_text_list_ok(p_items text[], p_max integer)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+SET search_path TO 'public'
+AS $ok$
+  SELECT NOT EXISTS (
+    SELECT 1
+    FROM unnest(COALESCE(p_items, ARRAY[]::text[])) AS item
+    WHERE item IS NULL
+       OR char_length(btrim(item)) = 0
+       OR char_length(item) > p_max
+  );
+$ok$;
+
+REVOKE ALL ON FUNCTION public.catalog_text_list_ok(text[], integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.catalog_text_list_ok(text[], integer) TO authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- catalog_menus
@@ -24,14 +44,7 @@ CREATE TABLE public.catalog_menus (
     char_length(btrim(name)) > 0
     AND char_length(name) <= 200
   ),
-  CONSTRAINT catalog_menus_aliases_check CHECK (
-    NOT EXISTS (
-      SELECT 1
-      FROM unnest(aliases) AS item
-      WHERE char_length(btrim(item)) = 0
-         OR char_length(item) > 200
-    )
-  )
+  CONSTRAINT catalog_menus_aliases_check CHECK (public.catalog_text_list_ok(aliases, 200))
 );
 
 COMMENT ON COLUMN public.catalog_menus.external_id IS
@@ -185,14 +198,7 @@ CREATE TABLE public.catalog_location_photos (
   CONSTRAINT catalog_location_photos_description_check CHECK (
     description IS NULL OR char_length(description) <= 4000
   ),
-  CONSTRAINT catalog_location_photos_areas_check CHECK (
-    NOT EXISTS (
-      SELECT 1
-      FROM unnest(areas) AS item
-      WHERE char_length(btrim(item)) = 0
-         OR char_length(item) > 80
-    )
-  ),
+  CONSTRAINT catalog_location_photos_areas_check CHECK (public.catalog_text_list_ok(areas, 80)),
   CONSTRAINT catalog_location_photos_position_check CHECK (position >= 0)
 );
 
@@ -224,14 +230,7 @@ CREATE TABLE public.catalog_location_sections (
     AND char_length(title) <= 200
   ),
   CONSTRAINT catalog_location_sections_body_check CHECK (char_length(body) <= 4000),
-  CONSTRAINT catalog_location_sections_areas_check CHECK (
-    NOT EXISTS (
-      SELECT 1
-      FROM unnest(areas) AS item
-      WHERE char_length(btrim(item)) = 0
-         OR char_length(item) > 80
-    )
-  ),
+  CONSTRAINT catalog_location_sections_areas_check CHECK (public.catalog_text_list_ok(areas, 80)),
   CONSTRAINT catalog_location_sections_position_check CHECK (position >= 0)
 );
 
