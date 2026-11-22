@@ -116,7 +116,18 @@ import {
   previewFootageUsage,
   searchFootage,
 } from "./db/footage";
-import { getCatalogLocation, getCatalogProduct, listCatalogLocations, listCatalogProducts } from "./db/catalog";
+import {
+  getCatalogLocation,
+  getCatalogProduct,
+  getCatalogPrompts,
+  getCatalogReference,
+  getCatalogShotJob,
+  getCatalogStyle,
+  listCatalogLocations,
+  listCatalogProducts,
+  listCatalogReferences,
+  listCatalogShotJobs,
+} from "./db/catalog";
 import { checkHabit, listHabits } from "./db/habits";
 import { attachTaskStepImage } from "./db/stepImages";
 import { switchConnectorOrganization } from "./db/connectorSession";
@@ -260,6 +271,12 @@ const app = createApp({
   getCatalogProduct: (ctx, address) => getCatalogProduct(admin, ctx, address),
   listCatalogLocations: (ctx) => listCatalogLocations(admin, ctx),
   getCatalogLocation: (ctx, address) => getCatalogLocation(admin, ctx, address),
+  getCatalogStyle: (ctx) => getCatalogStyle(admin, ctx),
+  getCatalogPrompts: (ctx) => getCatalogPrompts(admin, ctx),
+  listCatalogReferences: (ctx) => listCatalogReferences(admin, ctx),
+  getCatalogReference: (ctx, id) => getCatalogReference(admin, ctx, id),
+  listCatalogShotJobs: (ctx) => listCatalogShotJobs(admin, ctx),
+  getCatalogShotJob: (ctx, id) => getCatalogShotJob(admin, ctx, id),
   previewFootageSceneBatch: (ctx, input) => previewFootageSceneBatch(admin, ctx, input),
   applyFootageSceneBatch: (ctx, previewId) => applyFootageSceneBatch(admin, ctx, previewId),
   previewFootageUsage: (ctx, input) => previewFootageUsage(admin, ctx, input),

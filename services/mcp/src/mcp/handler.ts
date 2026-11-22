@@ -313,6 +313,18 @@ import {
   listCatalogLocationsResult,
   getCatalogLocationInput,
   getCatalogLocationResult,
+  getCatalogStyleInput,
+  getCatalogStyleResult,
+  getCatalogPromptsInput,
+  getCatalogPromptsResult,
+  listCatalogReferencesInput,
+  listCatalogReferencesResult,
+  getCatalogReferenceInput,
+  getCatalogReferenceResult,
+  listCatalogShotJobsInput,
+  listCatalogShotJobsResult,
+  getCatalogShotJobInput,
+  getCatalogShotJobResult,
   confirmFootageInput,
   upsertSceneBatchPreviewInput,
   previewSceneBatchResult,
@@ -741,6 +753,12 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     address: import("../db/catalog").CatalogAddress,
   ) => Promise<import("../db/catalog").CatalogLocation>;
+  getCatalogStyle: (ctx: McpAuthContext) => Promise<import("../db/catalog").CatalogTextBlocks>;
+  getCatalogPrompts: (ctx: McpAuthContext) => Promise<import("../db/catalog").CatalogTextBlocks>;
+  listCatalogReferences: (ctx: McpAuthContext) => Promise<import("../db/catalog").CatalogReferenceList>;
+  getCatalogReference: (ctx: McpAuthContext, id: string) => Promise<Record<string, unknown>>;
+  listCatalogShotJobs: (ctx: McpAuthContext) => Promise<import("../db/catalog").CatalogShotJobList>;
+  getCatalogShotJob: (ctx: McpAuthContext, id: string) => Promise<Record<string, unknown>>;
   previewFootageSceneBatch: (
     ctx: McpAuthContext,
     input: FootageSceneBatchInput,
@@ -932,6 +950,12 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "catalog.product.get": getCatalogProductInput,
   "catalog.locations.list": listCatalogLocationsInput,
   "catalog.location.get": getCatalogLocationInput,
+  "catalog.style.get": getCatalogStyleInput,
+  "catalog.prompts.get": getCatalogPromptsInput,
+  "catalog.references.list": listCatalogReferencesInput,
+  "catalog.reference.get": getCatalogReferenceInput,
+  "catalog.shotlists.list": listCatalogShotJobsInput,
+  "catalog.shotlist.get": getCatalogShotJobInput,
   "footage.scenes.upsert_batch.preview": upsertSceneBatchPreviewInput,
   "footage.scenes.upsert_batch": confirmFootageInput,
   "footage.usage.log.preview": usageLogPreviewInput,
@@ -1515,6 +1539,18 @@ async function runTool(
       return listCatalogLocationsResult(ctx, args, deps.listCatalogLocations);
     case "catalog.location.get":
       return getCatalogLocationResult(ctx, args, deps.getCatalogLocation);
+    case "catalog.style.get":
+      return getCatalogStyleResult(ctx, args, deps.getCatalogStyle);
+    case "catalog.prompts.get":
+      return getCatalogPromptsResult(ctx, args, deps.getCatalogPrompts);
+    case "catalog.references.list":
+      return listCatalogReferencesResult(ctx, args, deps.listCatalogReferences);
+    case "catalog.reference.get":
+      return getCatalogReferenceResult(ctx, args, deps.getCatalogReference);
+    case "catalog.shotlists.list":
+      return listCatalogShotJobsResult(ctx, args, deps.listCatalogShotJobs);
+    case "catalog.shotlist.get":
+      return getCatalogShotJobResult(ctx, args, deps.getCatalogShotJob);
     case "footage.scenes.upsert_batch.preview":
       return previewSceneBatchResult(ctx, args, deps.previewFootageSceneBatch, deps.signFootageConfirmation);
     case "footage.scenes.upsert_batch":

@@ -155,6 +155,20 @@ export {
   listCatalogLocationsInput,
   listCatalogLocationsResult,
 } from "./catalog/locations";
+export {
+  getCatalogPromptsInput,
+  getCatalogPromptsResult,
+  getCatalogReferenceInput,
+  getCatalogReferenceResult,
+  getCatalogShotJobInput,
+  getCatalogShotJobResult,
+  getCatalogStyleInput,
+  getCatalogStyleResult,
+  listCatalogReferencesInput,
+  listCatalogReferencesResult,
+  listCatalogShotJobsInput,
+  listCatalogShotJobsResult,
+} from "./catalog/library";
 export { confirmFootageInput } from "./footage/confirmation";
 export { upsertSceneBatchPreviewInput, previewSceneBatchResult, applySceneBatchResult } from "./footage/sceneBatch";
 export { usageLogPreviewInput, previewUsageLogResult, applyUsageLogResult } from "./footage/usageLog";

@@ -155,6 +155,12 @@ describe("buildAuthContext", () => {
       "catalog.product.get",
       "catalog.locations.list",
       "catalog.location.get",
+      "catalog.style.get",
+      "catalog.prompts.get",
+      "catalog.references.list",
+      "catalog.reference.get",
+      "catalog.shotlists.list",
+      "catalog.shotlist.get",
       "product_knowledge.list",
       "content.briefs.get",
       "content.briefs.voice.list",
@@ -428,6 +434,12 @@ describe("phase 3 tool visibility", () => {
     expect(names).toContain("catalog.product.get");
     expect(names).toContain("catalog.locations.list");
     expect(names).toContain("catalog.location.get");
+    expect(names).toContain("catalog.style.get");
+    expect(names).toContain("catalog.prompts.get");
+    expect(names).toContain("catalog.references.list");
+    expect(names).toContain("catalog.reference.get");
+    expect(names).toContain("catalog.shotlists.list");
+    expect(names).toContain("catalog.shotlist.get");
     expect(names).not.toContain("content.plans.schedule");
     expect(names).not.toContain("okr.objectives.create");
     expect(names).not.toContain("okr.objectives.department.create");

@@ -121,3 +121,79 @@ export async function getCatalogLocation(
     areas: Array.isArray(row.areas) ? row.areas : [],
   };
 }
+
+export type CatalogTextBlocks = Record<string, string>;
+
+export type CatalogReferenceSummary = {
+  id: string;
+  title: string | null;
+  file: string | null;
+  creator: string | null;
+  has_voice: boolean;
+  beat_count: number;
+  motion_count: number;
+};
+
+export type CatalogReferenceList = {
+  total: number;
+  references: CatalogReferenceSummary[];
+};
+
+export type CatalogShotJobSummary = {
+  id: string;
+  title: string | null;
+  location_id: string | null;
+  archived: boolean;
+  shot_count: number;
+};
+
+export type CatalogShotJobList = {
+  total: number;
+  jobs: CatalogShotJobSummary[];
+};
+
+export async function getCatalogStyle(admin: SupabaseClient, ctx: Session): Promise<CatalogTextBlocks> {
+  return callJson<CatalogTextBlocks>(admin, "mcp_get_catalog_style", sessionArgs(ctx));
+}
+
+export async function getCatalogPrompts(admin: SupabaseClient, ctx: Session): Promise<CatalogTextBlocks> {
+  return callJson<CatalogTextBlocks>(admin, "mcp_get_catalog_prompts", sessionArgs(ctx));
+}
+
+export async function listCatalogReferences(admin: SupabaseClient, ctx: Session): Promise<CatalogReferenceList> {
+  const row = await callJson<CatalogReferenceList>(admin, "mcp_list_catalog_references", sessionArgs(ctx));
+  return {
+    total: Number(row.total ?? 0),
+    references: Array.isArray(row.references) ? row.references : [],
+  };
+}
+
+export async function getCatalogReference(
+  admin: SupabaseClient,
+  ctx: Session,
+  id: string,
+): Promise<Record<string, unknown>> {
+  return callJson<Record<string, unknown>>(admin, "mcp_get_catalog_reference", {
+    ...sessionArgs(ctx),
+    p_id: id,
+  });
+}
+
+export async function listCatalogShotJobs(admin: SupabaseClient, ctx: Session): Promise<CatalogShotJobList> {
+  const row = await callJson<CatalogShotJobList>(admin, "mcp_list_catalog_shot_jobs", sessionArgs(ctx));
+  return {
+    total: Number(row.total ?? 0),
+    jobs: Array.isArray(row.jobs) ? row.jobs : [],
+  };
+}
+
+export async function getCatalogShotJob(
+  admin: SupabaseClient,
+  ctx: Session,
+  id: string,
+): Promise<Record<string, unknown>> {
+  return callJson<Record<string, unknown>>(admin, "mcp_get_catalog_shot_job", {
+    ...sessionArgs(ctx),
+    p_id: id,
+  });
+}
