@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { CONTENT_PAGE_PATH } from "../src/authz/context";
 import {
+  applyFootageClip,
   applyFootageSceneBatch,
+  previewFootageClip,
   previewFootageSceneBatch,
   previewFootageUsage,
 } from "../src/db/footage";
 import { MCP_TOOLS } from "../src/mcp/registry";
 import { banAddPreviewInput } from "../src/tools/footage/banAdd";
+import { applyClipUpsertResult, clipUpsertPreviewInput, previewClipUpsertResult } from "../src/tools/footage/clipUpsert";
 import {
   signFootageConfirmation,
   verifyFootageConfirmation,
@@ -62,6 +65,11 @@ describe("footage write tools", () => {
     expect(moveFootagePreviewInput.safeParse({ file_key: fileKey, new_file_key: "PIK2/sate/clip.mp4", organization_id: "org-2" }).success).toBe(false);
     expect(banAddPreviewInput.safeParse({ file_key: fileKey, scene_index: 2, reason: "ngga sesuai" }).success).toBe(true);
     expect(banAddPreviewInput.safeParse({ file_key: fileKey, scene_index: 2, reason: "  " }).success).toBe(false);
+    expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, product: "sate babi", origin: "AI" }).success).toBe(true);
+    expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey }).success).toBe(false);
+    expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, origin: "hp-cam" }).success).toBe(false);
+    expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, origin: "" }).success).toBe(false);
+    expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, summary: "Food court", organization_id: "org-2" }).success).toBe(false);
   });
 
   it("previews a batch with the session organization and leaves the preview id out of the answer", async () => {
@@ -91,6 +99,48 @@ describe("footage write tools", () => {
     expect(result).not.toHaveProperty("preview_id");
     expect(result.changes).toEqual([{ scene_index: 2, before: { hijab: false }, after: { hijab: true } }]);
     expect(String(result.next_step)).toContain("One yes confirms one write");
+  });
+
+  it("previews one clip through the session organization and leaves the preview id out", async () => {
+    const summary = "Food court rame, piring sate";
+    const { admin, calls } = fakeAdmin({
+      file_key: fileKey,
+      before: { product_label: "sate babi", summary, origin: "ai" },
+      after: { product_label: "sate babi; jeroan", summary: null, origin: "foto" },
+      preview_id: previewId,
+      expires_at: "2026-11-22T12:15:00.000Z",
+    });
+    const result = await previewClipUpsertResult(
+      ctx as never,
+      { file_key: fileKey, product: "sate babi; jeroan", summary: "", origin: "FOTO" },
+      (identity, input) => previewFootageClip(admin, identity, input),
+      async () => ({ confirm_token: "signed-token-value-123456", expires_at: "2026-11-22T12:15:00.000Z" }),
+    );
+    expect(calls[0].fn).toBe("mcp_preview_footage_clip");
+    expect(calls[0].args.p_organization_id).toBe("org-1");
+    expect(calls[0].args.p_input).toEqual({
+      file_key: fileKey,
+      product: "sate babi; jeroan",
+      summary: "",
+      origin: "foto",
+    });
+    expect(result).not.toHaveProperty("preview_id");
+    expect(result.after).toEqual({ product_label: "sate babi; jeroan", summary: null, origin: "foto" });
+    const expiresAt = new Date(Date.now() + 60_000).toISOString();
+    const signed = await signFootageConfirmation(secret, ctx, "footage.clips.upsert", previewId, expiresAt);
+    expect(signed.confirm_token).not.toContain(summary);
+    expect(signed.confirm_token.length).toBeLessThan(1000);
+    const saved = await applyClipUpsertResult(
+      ctx as never,
+      { confirm_token: signed.confirm_token },
+      (identity, tool, token) => verifyFootageConfirmation(secret, identity, tool, token, new Date()),
+      (identity, id) => applyFootageClip(admin, identity, id),
+    );
+    expect(saved.file_key).toBe(fileKey);
+    expect(calls[1]).toEqual({
+      fn: "mcp_apply_footage_clip",
+      args: { p_user_id: "user-1", p_organization_id: "org-1", p_preview_id: previewId },
+    });
   });
 
   it("turns a foreign organization argument into invalid_input before any write", () => {
@@ -199,6 +249,8 @@ describe("footage write tools", () => {
       "footage.move",
       "footage.ban.add.preview",
       "footage.ban.add",
+      "footage.clips.upsert.preview",
+      "footage.clips.upsert",
     ] as const;
     for (const name of writes) {
       const tool = MCP_TOOLS.find((item) => item.name === name);

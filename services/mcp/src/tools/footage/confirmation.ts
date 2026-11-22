@@ -22,7 +22,8 @@ export type FootageConfirmableTool =
   | "footage.scenes.upsert_batch"
   | "footage.usage.log"
   | "footage.move"
-  | "footage.ban.add";
+  | "footage.ban.add"
+  | "footage.clips.upsert";
 
 export type FootageConfirmationIdentity = { userId: string; organizationId: string };
 

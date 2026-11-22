@@ -103,12 +103,14 @@ import {
 } from "./db/dailyTasks";
 import {
   applyFootageBan,
+  applyFootageClip,
   applyFootageMove,
   applyFootageSceneBatch,
   applyFootageUsage,
   getFootage,
   listFootageBans,
   previewFootageBan,
+  previewFootageClip,
   previewFootageMove,
   previewFootageSceneBatch,
   previewFootageUsage,
@@ -261,6 +263,8 @@ const app = createApp({
   applyFootageMove: (ctx, previewId) => applyFootageMove(admin, ctx, previewId),
   previewFootageBan: (ctx, input) => previewFootageBan(admin, ctx, input),
   applyFootageBan: (ctx, previewId) => applyFootageBan(admin, ctx, previewId),
+  previewFootageClip: (ctx, input) => previewFootageClip(admin, ctx, input),
+  applyFootageClip: (ctx, previewId) => applyFootageClip(admin, ctx, previewId),
   listTaskSteps: (ctx, taskId) => listTaskSteps(admin, ctx, taskId),
   createTaskStep: (ctx, input) => createTaskStep(admin, ctx, input),
   updateTaskStep: (ctx, input) => updateTaskStep(admin, ctx, input),

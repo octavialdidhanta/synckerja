@@ -95,6 +95,9 @@ import type {
   FootageBanSaved,
   FootageBansResult,
   FootageClip,
+  FootageClipUpsertInput,
+  FootageClipUpsertPreview,
+  FootageClipUpsertSaved,
   FootageMoveInput,
   FootageMovePreview,
   FootageMoveSaved,
@@ -315,6 +318,9 @@ import {
   banAddPreviewInput,
   previewBanAddResult,
   applyBanAddResult,
+  clipUpsertPreviewInput,
+  previewClipUpsertResult,
+  applyClipUpsertResult,
   taskStepsInput,
   taskStepsResult,
   createStepInput,
@@ -728,6 +734,8 @@ export type McpReadDeps = {
   applyFootageMove: (ctx: McpAuthContext, previewId: string) => Promise<FootageMoveSaved>;
   previewFootageBan: (ctx: McpAuthContext, input: FootageBanInput) => Promise<FootageBanPreview>;
   applyFootageBan: (ctx: McpAuthContext, previewId: string) => Promise<FootageBanSaved>;
+  previewFootageClip: (ctx: McpAuthContext, input: FootageClipUpsertInput) => Promise<FootageClipUpsertPreview>;
+  applyFootageClip: (ctx: McpAuthContext, previewId: string) => Promise<FootageClipUpsertSaved>;
   signFootageConfirmation: (
     ctx: McpAuthContext,
     tool: import("../tools/footage/confirmation").FootageConfirmableTool,
@@ -912,6 +920,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "footage.move": confirmFootageInput,
   "footage.ban.add.preview": banAddPreviewInput,
   "footage.ban.add": confirmFootageInput,
+  "footage.clips.upsert.preview": clipUpsertPreviewInput,
+  "footage.clips.upsert": confirmFootageInput,
   "okr.cycles.list": cyclesInput,
   "okr.objectives.list": objectivesInput,
   "okr.departments.list": departmentsInput,
@@ -1493,6 +1503,10 @@ async function runTool(
       return previewBanAddResult(ctx, args, deps.previewFootageBan, deps.signFootageConfirmation);
     case "footage.ban.add":
       return applyBanAddResult(ctx, args, deps.verifyFootageConfirmation, deps.applyFootageBan);
+    case "footage.clips.upsert.preview":
+      return previewClipUpsertResult(ctx, args, deps.previewFootageClip, deps.signFootageConfirmation);
+    case "footage.clips.upsert":
+      return applyClipUpsertResult(ctx, args, deps.verifyFootageConfirmation, deps.applyFootageClip);
     case "content.plans.update":
       if (!updatePlanInput.safeParse(args).success) throw new Error("invalid_input");
       return updatePlanResult(
