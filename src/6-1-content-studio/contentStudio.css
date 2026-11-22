@@ -92,3 +92,40 @@
 .ck .zoom{position:absolute;inset:0;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;z-index:20;cursor:zoom-out}
 .ck .zoom img{max-width:92%;max-height:92%}
 .ck .tabs button.link{cursor:pointer}
+/* Shot List + rakit prompt (katalog.html) */
+.ck .lh{display:flex;justify-content:space-between;align-items:center;margin:0 0 10px;font-weight:600}
+.ck .jh{display:flex;align-items:center;gap:6px;margin:14px 0 4px;color:var(--mut);font-size:12.5px}
+.ck .jh .jt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx);font-weight:600}
+.ck .jc{font-size:11.5px}.ck .jc.ok{color:#8fd19e}
+.ck .it.si{padding:7px 10px}.ck .it.si .ck{color:#8fd19e;font-size:13px}.ck .it.si .wk{color:#ffcf8a}
+.ck .it.dn>span:first-child{opacity:.5}
+.ck details.arsip{margin-top:18px;border-top:1px solid var(--line);padding-top:10px}
+.ck details.arsip summary{cursor:pointer;color:var(--mut);font-size:13px}
+.ck .sbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ck .donel{display:flex;align-items:center;gap:5px;font-size:12.5px;padding:4px 10px;border:1px solid var(--line);border-radius:7px;color:var(--tx)}
+.ck .donel.on{border-color:#4f9a64;color:#8fd19e}
+.ck .note{font-size:12px;color:#ffcf8a;background:#2a2117;border:1px dashed #8a6a3a;border-radius:8px;padding:7px 10px;margin:0 0 12px}
+.ck .fr{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.ck .fr label,.ck .albl{font-size:12px;color:var(--mut);display:block;margin-bottom:4px}
+.ck select{width:100%;background:var(--card);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:8px}
+.ck textarea.act{width:100%;min-height:120px;background:var(--card);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:10px;font:13px/1.5 system-ui}
+.ck pre.out{white-space:pre-wrap;background:#0f0e0c;border:1px solid var(--line);border-radius:10px;padding:16px;font:12.5px/1.55 ui-monospace,Consolas,monospace;color:var(--tx);margin:0}
+.ck .pw{color:#ffb4a8;font-size:12.5px}
+.ck .pb{background:var(--acc);color:#1a1612;border:0;border-radius:7px;padding:6px 12px;font-weight:600;cursor:pointer;font-size:12.5px;white-space:nowrap}
+.ck .ach{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:4px 0 10px;font-size:12.5px;color:var(--mut)}
+.ck .ach .chip{padding:4px 10px;font-size:12px}
+.ck .rf{margin:18px 0 6px}
+.ck .rfg{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-top:8px}
+.ck .rfc{background:var(--card);border:2px solid var(--line);border-radius:9px;overflow:hidden;position:relative;display:flex;flex-direction:column}
+.ck .rfc.on{border-color:var(--acc)}.ck .rfc.off{opacity:.38}.ck .rfc.off img{filter:grayscale(.7)}
+.ck .rfc img,.ck .rfc .noph{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;cursor:grab}
+.ck .rfc .noph{display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:11px;background:#000;cursor:default}
+.ck .rfc .cb{position:absolute;top:6px;left:6px;width:22px;height:22px;border-radius:6px;background:rgba(0,0,0,.65);border:1px solid #fff8;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;color:var(--acc);z-index:2;padding:0}
+.ck .rfc .tp{position:absolute;top:6px;right:6px;font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(0,0,0,.65);max-width:calc(100% - 42px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ck .rfc .cap{flex:1;display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:8px;padding:8px 8px 8px 10px;min-height:52px;font-size:11px;color:var(--mut);line-height:1.35}
+.ck .rfc .cap .lb{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:11.5px}
+.ck .rfc .cap .tg{display:block;font-size:11px;color:var(--acc);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.ck .rfc .cap .tg:hover{text-decoration:underline}
+.ck .ic{flex:none;width:30px;height:30px;border-radius:7px;border:1px solid var(--line);background:#2c2823;color:var(--tx);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.ck .ic:hover{border-color:var(--acc);color:var(--acc)}.ck .ic svg{width:15px;height:15px}
+.ck .toast{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);background:#2c2823;border:1px solid var(--acc);color:var(--tx);padding:9px 16px;border-radius:9px;font-size:13px;z-index:30}

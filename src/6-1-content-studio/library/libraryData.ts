@@ -18,6 +18,8 @@ export interface LibraryPhoto {
   file: string;
   label: string;
   storagePath: string | null;
+  /** how the prompt names this photo in Reference Photos */
+  ref?: string;
   /** location photos only */
   desc?: string;
   area?: string[];
@@ -65,6 +67,7 @@ export interface MenuPhotoRow {
   file_path: string;
   label: string;
   storage_path: string | null;
+  ref?: string | null;
   position: number;
 }
 export interface LocationRow {
@@ -79,6 +82,7 @@ export interface LocationPhotoRow {
   file_path: string;
   label: string;
   storage_path: string | null;
+  ref?: string | null;
   description: string | null;
   areas: string[] | null;
   position: number;
@@ -111,7 +115,7 @@ export function buildMenus(menus: MenuRow[], fields: MenuFieldRow[], photos: Men
         fotos: photos
           .filter((p) => p.menu_id === m.id)
           .sort(byPos)
-          .map((p) => ({ id: p.id, file: p.file_path, label: p.label, storagePath: p.storage_path })),
+          .map((p) => ({ id: p.id, file: p.file_path, label: p.label, storagePath: p.storage_path, ref: p.ref ?? "" })),
       };
     });
 }
@@ -136,6 +140,7 @@ export function buildLocations(
           file: p.file_path,
           label: p.label,
           storagePath: p.storage_path,
+          ref: p.ref ?? "",
           desc: p.description ?? "",
           area: p.areas ?? [],
         })),
