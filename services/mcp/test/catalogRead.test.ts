@@ -63,7 +63,13 @@ describe("catalog read tools", () => {
   });
 
   it("opens a product by slug and by alias", async () => {
-    const row = { id: "iga-bakar-kox2", name: "Iga bakar", aliases: ["iga bakar"], fields: [], photos: [] };
+    const row = {
+      id: "iga-bakar-kox2",
+      name: "Iga bakar",
+      aliases: ["iga bakar"],
+      fields: [],
+      photos: [{ file_path: "foto/iga-bakar_foto1.png", storage_path: null, label: "foto", ref: null, position: 0 }],
+    };
     const bySlug = fakeAdmin(row);
     await getCatalogProductResult(ctx as never, { id: "iga-bakar-kox2" }, (identity, address) =>
       getCatalogProduct(bySlug.admin, identity, address),
@@ -80,6 +86,9 @@ describe("catalog read tools", () => {
       p_id: null,
       p_name: "iga bakar",
     });
+    const opened = await getCatalogProduct(byAlias.admin, ctx, { name: "iga bakar" });
+    expect(opened.photos[0].storage_path).toBeNull();
+    expect(opened.photos[0].file_path).toBe("foto/iga-bakar_foto1.png");
   });
 
   it("opens a location by name", async () => {

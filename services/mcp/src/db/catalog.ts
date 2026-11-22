@@ -22,7 +22,13 @@ export type CatalogProduct = {
   waiting: boolean;
   product_knowledge_id: string | null;
   fields: Array<{ key: string; body: string; position: number }>;
-  photos: Array<{ file_path: string; label: string; ref: string | null; position: number }>;
+  photos: Array<{
+    file_path: string;
+    storage_path: string | null;
+    label: string;
+    ref: string | null;
+    position: number;
+  }>;
 };
 
 export type CatalogLocationSummary = {
@@ -43,6 +49,7 @@ export type CatalogLocation = {
   waiting: boolean;
   photos: Array<{
     file_path: string;
+    storage_path: string | null;
     label: string;
     ref: string | null;
     description: string | null;
