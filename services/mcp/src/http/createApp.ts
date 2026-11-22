@@ -82,6 +82,7 @@ import type {
   UpdateTaskInput,
   WorkloadRow,
 } from "../db/dailyTasks";
+import type { FootageBansResult, FootageClip, FootageSearchFilters, FootageSearchResult } from "../db/footage";
 import type { HabitCheckInput, HabitCheckResult, HabitDayRow } from "../db/habits";
 import type { TaskStepImageRecord } from "../db/stepImages";
 import { isAccessRevoked } from "../authz/toolGate";
@@ -419,6 +420,9 @@ export type AppDeps = {
   ) => Promise<TaskObjectiveLink>;
   takeTaskInitiative: (ctx: McpAuthContext, input: TakeInitiativeInput) => Promise<TakeInitiativeResult>;
   getTask: (ctx: McpAuthContext, taskId: string) => Promise<TaskDetail>;
+  searchFootage: (ctx: McpAuthContext, input: FootageSearchFilters) => Promise<FootageSearchResult>;
+  getFootage: (ctx: McpAuthContext, fileKey: string) => Promise<FootageClip>;
+  listFootageBans: (ctx: McpAuthContext) => Promise<FootageBansResult>;
   listTaskSteps: (ctx: McpAuthContext, taskId: string) => Promise<TaskStepRow[]>;
   createTaskStep: (
     ctx: McpAuthContext,
@@ -566,8 +570,15 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "voice-download-v1",
-      tools: ["content.plans.media.upload.start", "content.plans.media.versions.list", "content.briefs.voice.get"],
+      rev: "footage-read-v1",
+      tools: [
+        "content.plans.media.upload.start",
+        "content.plans.media.versions.list",
+        "content.briefs.voice.get",
+        "footage.search",
+        "footage.get",
+        "footage.bans.list",
+      ],
     }),
   );
 

@@ -101,6 +101,7 @@ import {
   updateTaskStep,
   setTaskStepCompleted,
 } from "./db/dailyTasks";
+import { getFootage, listFootageBans, searchFootage } from "./db/footage";
 import { checkHabit, listHabits } from "./db/habits";
 import { attachTaskStepImage } from "./db/stepImages";
 import { switchConnectorOrganization } from "./db/connectorSession";
@@ -237,6 +238,9 @@ const app = createApp({
   linkTaskObjective: (ctx, input) => linkTaskObjective(admin, ctx, input),
   takeTaskInitiative: (ctx, input) => takeTaskInitiative(admin, ctx, input),
   getTask: (ctx, taskId) => getTask(admin, ctx, taskId),
+  searchFootage: (ctx, input) => searchFootage(admin, ctx, input),
+  getFootage: (ctx, fileKey) => getFootage(admin, ctx, fileKey),
+  listFootageBans: (ctx) => listFootageBans(admin, ctx),
   listTaskSteps: (ctx, taskId) => listTaskSteps(admin, ctx, taskId),
   createTaskStep: (ctx, input) => createTaskStep(admin, ctx, input),
   updateTaskStep: (ctx, input) => updateTaskStep(admin, ctx, input),
