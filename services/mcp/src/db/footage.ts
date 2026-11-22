@@ -29,6 +29,8 @@ export type FootageSearchFilters = {
   watermark?: boolean;
   media_type?: "video" | "image";
   unused?: boolean;
+  query?: string;
+  include_banned?: boolean;
   limit?: number;
 };
 
@@ -88,6 +90,8 @@ export async function searchFootage(
     p_media_type: input.media_type ?? null,
     p_unused: input.unused ?? null,
     p_limit: input.limit ?? null,
+    p_query: input.query ?? null,
+    p_include_banned: input.include_banned ?? null,
   });
   return {
     total: Number(row.total ?? 0),
@@ -322,6 +326,7 @@ export type FootageClipUpsertInput = {
   product?: string;
   summary?: string;
   note?: string;
+  note_mode?: "replace" | "append";
   origin?: "hp" | "ai" | "foto";
 };
 

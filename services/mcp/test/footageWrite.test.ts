@@ -66,6 +66,10 @@ describe("footage write tools", () => {
     expect(banAddPreviewInput.safeParse({ file_key: fileKey, scene_index: 2, reason: "ngga sesuai" }).success).toBe(true);
     expect(banAddPreviewInput.safeParse({ file_key: fileKey, scene_index: 2, reason: "  " }).success).toBe(false);
     expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, product: "sate babi", origin: "AI" }).success).toBe(true);
+    expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, note: "aman", note_mode: "append" }).success).toBe(true);
+    expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, note: "", note_mode: "replace" }).success).toBe(true);
+    expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, note: "  ", note_mode: "append" }).success).toBe(false);
+    expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, note_mode: "append" }).success).toBe(false);
     expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey }).success).toBe(false);
     expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, origin: "hp-cam" }).success).toBe(false);
     expect(clipUpsertPreviewInput.safeParse({ file_key: fileKey, origin: "" }).success).toBe(false);

@@ -26,6 +26,7 @@ DECLARE
   v_key text;
   v_text text;
   v_origin text;
+  v_mode text;
   v_payload jsonb;
 BEGIN
   IF p_input IS NULL OR jsonb_typeof(p_input) <> 'object' THEN
@@ -34,7 +35,7 @@ BEGIN
   IF EXISTS (
     SELECT 1
     FROM jsonb_object_keys(p_input) AS k
-    WHERE k NOT IN ('file_key', 'location', 'product', 'summary', 'note', 'origin')
+    WHERE k NOT IN ('file_key', 'location', 'product', 'summary', 'note', 'note_mode', 'origin')
   ) THEN
     RAISE EXCEPTION 'invalid_input' USING ERRCODE = '22023';
   END IF;
@@ -89,6 +90,20 @@ BEGIN
     v_payload := v_payload || jsonb_build_object('note', v_text);
   END IF;
 
+  IF jsonb_exists(p_input, 'note_mode') THEN
+    IF jsonb_typeof(p_input->'note_mode') <> 'string' OR NOT jsonb_exists(p_input, 'note') THEN
+      RAISE EXCEPTION 'invalid_input' USING ERRCODE = '22023';
+    END IF;
+    v_mode := lower(btrim(p_input->>'note_mode'));
+    IF v_mode NOT IN ('replace', 'append') THEN
+      RAISE EXCEPTION 'invalid_input' USING ERRCODE = '22023';
+    END IF;
+    IF v_mode = 'append' AND btrim(p_input->>'note') = '' THEN
+      RAISE EXCEPTION 'invalid_input' USING ERRCODE = '22023';
+    END IF;
+    v_payload := v_payload || jsonb_build_object('note_mode', v_mode);
+  END IF;
+
   IF jsonb_exists(p_input, 'origin') THEN
     IF jsonb_typeof(p_input->'origin') <> 'string' THEN
       RAISE EXCEPTION 'invalid_input' USING ERRCODE = '22023';
@@ -108,6 +123,43 @@ BEGIN
 END;
 $normalize_clip$;
 
+CREATE OR REPLACE FUNCTION public.mcp_footage_clip_note(
+  p_current text,
+  p_incoming text,
+  p_mode text
+)
+RETURNS text
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path TO 'public'
+AS $clip_note$
+DECLARE
+  v_mode text := COALESCE(NULLIF(lower(btrim(COALESCE(p_mode, ''))), ''), 'replace');
+  v_incoming text := btrim(COALESCE(p_incoming, ''));
+  v_current text := NULLIF(btrim(COALESCE(p_current, '')), '');
+  v_result text;
+BEGIN
+  IF v_mode NOT IN ('replace', 'append') THEN
+    RAISE EXCEPTION 'invalid_input' USING ERRCODE = '22023';
+  END IF;
+  IF v_mode = 'append' THEN
+    IF v_incoming = '' THEN
+      RAISE EXCEPTION 'invalid_input' USING ERRCODE = '22023';
+    END IF;
+    v_result := CASE
+      WHEN v_current IS NULL THEN v_incoming
+      ELSE v_current || E'\n' || v_incoming
+    END;
+  ELSE
+    v_result := NULLIF(v_incoming, '');
+  END IF;
+  IF v_result IS NOT NULL AND char_length(v_result) > 4000 THEN
+    RAISE EXCEPTION 'invalid_input' USING ERRCODE = '22023';
+  END IF;
+  RETURN v_result;
+END;
+$clip_note$;
+
 CREATE OR REPLACE FUNCTION public.mcp_preview_footage_clip(
   p_user_id uuid,
   p_organization_id uuid,
@@ -124,6 +176,7 @@ DECLARE
   v_asset public.footage_assets%ROWTYPE;
   v_before jsonb := '{}'::jsonb;
   v_after jsonb := '{}'::jsonb;
+  v_note text;
   v_id uuid;
   v_expires timestamptz;
 BEGIN
@@ -157,8 +210,10 @@ BEGIN
     v_after := v_after || jsonb_build_object('summary', NULLIF(v_payload->>'summary', ''));
   END IF;
   IF jsonb_exists(v_payload, 'note') THEN
+    v_note := public.mcp_footage_clip_note(v_asset.note, v_payload->>'note', v_payload->>'note_mode');
+    v_payload := (v_payload - 'note_mode') || jsonb_build_object('note', COALESCE(v_note, ''));
     v_before := v_before || jsonb_build_object('note', v_asset.note);
-    v_after := v_after || jsonb_build_object('note', NULLIF(v_payload->>'note', ''));
+    v_after := v_after || jsonb_build_object('note', v_note);
   END IF;
   IF jsonb_exists(v_payload, 'origin') THEN
     v_before := v_before || jsonb_build_object('origin', v_asset.origin);
@@ -279,6 +334,7 @@ END;
 $apply_clip$;
 
 REVOKE ALL ON FUNCTION public.mcp_footage_normalize_clip(jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.mcp_footage_clip_note(text, text, text) FROM PUBLIC, anon, authenticated, service_role;
 
 REVOKE ALL ON FUNCTION public.mcp_preview_footage_clip(uuid, uuid, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.mcp_preview_footage_clip(uuid, uuid, jsonb) TO service_role;

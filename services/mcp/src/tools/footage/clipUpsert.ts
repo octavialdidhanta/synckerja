@@ -23,6 +23,7 @@ export const clipUpsertPreviewInput = z.object({
   product: z.string().trim().max(500).optional(),
   summary: z.string().trim().max(4000).optional(),
   note: z.string().trim().max(4000).optional(),
+  note_mode: z.enum(["replace", "append"]).optional(),
   origin: originInput.optional(),
 }).strict().refine((value) =>
   value.location !== undefined
@@ -30,7 +31,8 @@ export const clipUpsertPreviewInput = z.object({
   || value.summary !== undefined
   || value.note !== undefined
   || value.origin !== undefined
-);
+).refine((value) => value.note_mode === undefined || value.note !== undefined)
+  .refine((value) => value.note_mode !== "append" || (value.note !== undefined && value.note.length > 0));
 
 type Sign = (
   ctx: McpAuthContext,

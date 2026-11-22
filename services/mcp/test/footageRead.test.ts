@@ -24,6 +24,9 @@ describe("footage read tools", () => {
   it("rejects organization_id and unknown filters", () => {
     expect(searchFootageInput.safeParse({}).success).toBe(true);
     expect(searchFootageInput.safeParse({ location: "PIK1", unused: true, limit: 30 }).success).toBe(true);
+    expect(searchFootageInput.safeParse({ jenis: "suasana", query: "food court", include_banned: true }).success).toBe(true);
+    expect(searchFootageInput.safeParse({ scene_kind: "produk", jenis: "suasana" }).success).toBe(false);
+    expect(searchFootageInput.safeParse({ query: " " }).success).toBe(false);
     expect(searchFootageInput.safeParse({ organization_id: "org-2" }).success).toBe(false);
     expect(searchFootageInput.safeParse({ media_type: "audio" }).success).toBe(false);
     expect(searchFootageInput.safeParse({ limit: 51 }).success).toBe(false);
@@ -51,11 +54,25 @@ describe("footage read tools", () => {
           p_media_type: null,
           p_unused: true,
           p_limit: null,
+          p_query: null,
+          p_include_banned: null,
         },
       },
     ]);
     expect(result.total).toBe(812);
     expect(result.scenes).toHaveLength(1);
+  });
+
+  it("maps jenis to scene_kind and passes the keyword and include_banned", async () => {
+    const { admin, calls } = fakeAdmin({ total: 1, scenes: [] });
+    await searchFootageResult(ctx as never, {
+      jenis: "Suasana",
+      query: "Food Court",
+      include_banned: true,
+    }, (identity, input) => searchFootage(admin, identity, input));
+    expect(calls[0].args.p_scene_kind).toBe("Suasana");
+    expect(calls[0].args.p_query).toBe("Food Court");
+    expect(calls[0].args.p_include_banned).toBe(true);
   });
 
   it("opens a clip with the session organization", async () => {
