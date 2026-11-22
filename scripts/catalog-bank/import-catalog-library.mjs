@@ -3,7 +3,8 @@
  *
  * Does not read or write footage, menu, location, or Product Knowledge rows.
  * Video files and photos stay on disk. Run this only after migration
- * 20261122180000 is applied. A later run replaces these four sets.
+ * 20261122180000 is applied. A later run upserts the same rows. It does not
+ * delete rows, and it refuses any organization other than Sate Sultan PIK.
  *
  *   node scripts/catalog-bank/import-catalog-library.mjs --dir "D:\Sate Sultan\Sate Sultan PIK\bank-footage" --dry-run
  */
@@ -83,7 +84,7 @@ function buildCatalog(dir) {
   return { style, prompts, referenceRows, jobRows };
 }
 
-function report(catalog) {
+function report(catalog, organizationId) {
   const beats = catalog.referenceRows.reduce(
     (sum, row) => sum + (Array.isArray(row.document.beats) ? row.document.beats.length : 0),
     0,
@@ -92,13 +93,14 @@ function report(catalog) {
     (sum, row) => sum + (Array.isArray(row.document.mg) ? row.document.mg.length : 0),
     0,
   );
-  console.log(`gaya ${catalog.style.length}`);
-  console.log(`prompt ${catalog.prompts.length}`);
-  console.log(`referensi ${catalog.referenceRows.length}`);
-  console.log(`beat ${beats}`);
-  console.log(`motion ${motions}`);
-  console.log(`shot list ${catalog.jobRows.length}`);
-  console.log(`shot ${catalog.jobRows.reduce((sum, row) => sum + row.shot_count, 0)}`);
+  const shots = catalog.jobRows.reduce((sum, row) => sum + row.shot_count, 0);
+  console.log(`org ${organizationId}`);
+  console.log("tulis upsert, tanpa hapus");
+  console.log(`catalog_style_fields ${catalog.style.length}`);
+  console.log(`catalog_prompt_fields ${catalog.prompts.length}`);
+  console.log(`catalog_references ${catalog.referenceRows.length}`);
+  console.log(`catalog_shot_jobs ${catalog.jobRows.length}`);
+  console.log(`di dalam dokumen: beat ${beats}, motion ${motions}, shot ${shots}`);
 }
 
 function loadEnv() {
@@ -120,8 +122,8 @@ async function must(query, label) {
   return data ?? [];
 }
 
-async function replaceFields(supabase, table, organizationId, rows) {
-  const saved = await must(
+async function upsertFields(supabase, table, organizationId, rows) {
+  await must(
     supabase
       .from(table)
       .upsert(
@@ -133,20 +135,12 @@ async function replaceFields(supabase, table, organizationId, rows) {
         })),
         { onConflict: "organization_id,field_key" },
       )
-      .select("id, field_key"),
+      .select("id"),
     `simpan ${table}`,
   );
-  const keep = new Set(saved.map((row) => row.field_key));
-  const existing = await must(
-    supabase.from(table).select("id, field_key").eq("organization_id", organizationId),
-    `baca ${table}`,
-  );
-  const gone = existing.filter((row) => !keep.has(row.field_key)).map((row) => row.id);
-  if (gone.length === 0) return;
-  await must(supabase.from(table).delete().eq("organization_id", organizationId).in("id", gone), `hapus ${table}`);
 }
 
-async function replaceDocuments(supabase, table, organizationId, rows) {
+async function upsertDocuments(supabase, table, organizationId, rows) {
   await must(
     supabase
       .from(table)
@@ -161,14 +155,6 @@ async function replaceDocuments(supabase, table, organizationId, rows) {
       .select("id"),
     `simpan ${table}`,
   );
-  const keep = new Set(rows.map((row) => row.external_id));
-  const existing = await must(
-    supabase.from(table).select("id, external_id").eq("organization_id", organizationId),
-    `baca ${table}`,
-  );
-  const gone = existing.filter((row) => !keep.has(row.external_id)).map((row) => row.id);
-  if (gone.length === 0) return;
-  await must(supabase.from(table).delete().eq("organization_id", organizationId).in("id", gone), `hapus ${table}`);
 }
 
 async function main() {
@@ -178,8 +164,12 @@ async function main() {
     process.exit(2);
   }
   const organizationId = arg("--org") || DEFAULT_ORG;
+  if (organizationId !== DEFAULT_ORG) {
+    console.error("Impor ini hanya untuk organisasi Sate Sultan PIK.");
+    process.exit(2);
+  }
   const catalog = buildCatalog(dir);
-  report(catalog);
+  report(catalog, organizationId);
   if (process.argv.includes("--dry-run")) return;
 
   loadEnv();
@@ -190,10 +180,10 @@ async function main() {
     process.exit(2);
   }
   const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  await replaceFields(supabase, "catalog_style_fields", organizationId, catalog.style);
-  await replaceFields(supabase, "catalog_prompt_fields", organizationId, catalog.prompts);
-  await replaceDocuments(supabase, "catalog_references", organizationId, catalog.referenceRows);
-  await replaceDocuments(supabase, "catalog_shot_jobs", organizationId, catalog.jobRows);
+  await upsertFields(supabase, "catalog_style_fields", organizationId, catalog.style);
+  await upsertFields(supabase, "catalog_prompt_fields", organizationId, catalog.prompts);
+  await upsertDocuments(supabase, "catalog_references", organizationId, catalog.referenceRows);
+  await upsertDocuments(supabase, "catalog_shot_jobs", organizationId, catalog.jobRows);
   console.log("impor selesai");
 }
 
