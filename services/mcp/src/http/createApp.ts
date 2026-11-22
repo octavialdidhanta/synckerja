@@ -116,6 +116,14 @@ import type {
   CatalogMediaRestoreInput,
   CatalogMediaRestorePreview,
   CatalogMediaRestoreSaved,
+  CatalogStyleUpdateInput,
+  CatalogStyleUpdatePreview,
+  CatalogStyleUpdateSaved,
+  CatalogDocumentUpsertInput,
+  CatalogReferenceUpsertPreview,
+  CatalogReferenceUpsertSaved,
+  CatalogShotJobUpsertPreview,
+  CatalogShotJobUpsertSaved,
 } from "../db/catalog";
 import type {
   CatalogAddress,
@@ -502,6 +510,12 @@ export type AppDeps = {
   applyCatalogMediaDelete: (ctx: McpAuthContext, previewId: string) => Promise<CatalogMediaDeleteSaved>;
   previewCatalogMediaRestore: (ctx: McpAuthContext, input: CatalogMediaRestoreInput) => Promise<CatalogMediaRestorePreview>;
   applyCatalogMediaRestore: (ctx: McpAuthContext, previewId: string) => Promise<CatalogMediaRestoreSaved>;
+  previewCatalogStyleUpdate: (ctx: McpAuthContext, input: CatalogStyleUpdateInput) => Promise<CatalogStyleUpdatePreview>;
+  applyCatalogStyleUpdate: (ctx: McpAuthContext, previewId: string) => Promise<CatalogStyleUpdateSaved>;
+  previewCatalogReferenceUpsert: (ctx: McpAuthContext, input: CatalogDocumentUpsertInput) => Promise<CatalogReferenceUpsertPreview>;
+  applyCatalogReferenceUpsert: (ctx: McpAuthContext, previewId: string) => Promise<CatalogReferenceUpsertSaved>;
+  previewCatalogShotJobUpsert: (ctx: McpAuthContext, input: CatalogDocumentUpsertInput) => Promise<CatalogShotJobUpsertPreview>;
+  applyCatalogShotJobUpsert: (ctx: McpAuthContext, previewId: string) => Promise<CatalogShotJobUpsertSaved>;
   listTaskSteps: (ctx: McpAuthContext, taskId: string) => Promise<TaskStepRow[]>;
   createTaskStep: (
     ctx: McpAuthContext,
@@ -649,7 +663,7 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "catalog-delete-v1",
+      rev: "catalog-library-write-v1",
       tools: [
         "content.plans.media.upload.start",
         "content.plans.media.versions.list",
@@ -675,6 +689,12 @@ export function createApp(deps: AppDeps) {
         "catalog.media.delete",
         "catalog.media.restore.preview",
         "catalog.media.restore",
+        "catalog.style.update.preview",
+        "catalog.style.update",
+        "catalog.reference.upsert.preview",
+        "catalog.reference.upsert",
+        "catalog.shotlist.upsert.preview",
+        "catalog.shotlist.upsert",
         "catalog.products.list",
         "catalog.product.get",
         "catalog.locations.list",

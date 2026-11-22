@@ -191,6 +191,17 @@ export {
   previewRestoreCatalogMediaResult,
   applyRestoreCatalogMediaResult,
 } from "./catalog/mediaDelete";
+export {
+  styleUpdatePreviewInput,
+  referenceUpsertPreviewInput,
+  shotlistUpsertPreviewInput,
+  previewCatalogStyleUpdateResult,
+  applyCatalogStyleUpdateResult,
+  previewCatalogReferenceUpsertResult,
+  applyCatalogReferenceUpsertResult,
+  previewCatalogShotlistUpsertResult,
+  applyCatalogShotlistUpsertResult,
+} from "./catalog/libraryWrite";
 export { taskStepsInput, taskStepsResult } from "./tasks/stepsList";
 export { createStepInput, createStepResult } from "./tasks/stepsCreate";
 export { updateStepResult, updateStepSchema } from "./tasks/stepsUpdate";

@@ -123,6 +123,14 @@ import type {
   CatalogMediaRestoreInput,
   CatalogMediaRestorePreview,
   CatalogMediaRestoreSaved,
+  CatalogStyleUpdateInput,
+  CatalogStyleUpdatePreview,
+  CatalogStyleUpdateSaved,
+  CatalogDocumentUpsertInput,
+  CatalogReferenceUpsertPreview,
+  CatalogReferenceUpsertSaved,
+  CatalogShotJobUpsertPreview,
+  CatalogShotJobUpsertSaved,
 } from "../db/catalog";
 import type { HabitCheckInput, HabitCheckResult, HabitDayRow } from "../db/habits";
 import type { TaskStepImageRecord } from "../db/stepImages";
@@ -367,6 +375,15 @@ import {
   restoreCatalogMediaPreviewInput,
   previewRestoreCatalogMediaResult,
   applyRestoreCatalogMediaResult,
+  styleUpdatePreviewInput,
+  referenceUpsertPreviewInput,
+  shotlistUpsertPreviewInput,
+  previewCatalogStyleUpdateResult,
+  applyCatalogStyleUpdateResult,
+  previewCatalogReferenceUpsertResult,
+  applyCatalogReferenceUpsertResult,
+  previewCatalogShotlistUpsertResult,
+  applyCatalogShotlistUpsertResult,
   taskStepsInput,
   taskStepsResult,
   createStepInput,
@@ -806,6 +823,12 @@ export type McpReadDeps = {
   applyCatalogMediaDelete: (ctx: McpAuthContext, previewId: string) => Promise<CatalogMediaDeleteSaved>;
   previewCatalogMediaRestore: (ctx: McpAuthContext, input: CatalogMediaRestoreInput) => Promise<CatalogMediaRestorePreview>;
   applyCatalogMediaRestore: (ctx: McpAuthContext, previewId: string) => Promise<CatalogMediaRestoreSaved>;
+  previewCatalogStyleUpdate: (ctx: McpAuthContext, input: CatalogStyleUpdateInput) => Promise<CatalogStyleUpdatePreview>;
+  applyCatalogStyleUpdate: (ctx: McpAuthContext, previewId: string) => Promise<CatalogStyleUpdateSaved>;
+  previewCatalogReferenceUpsert: (ctx: McpAuthContext, input: CatalogDocumentUpsertInput) => Promise<CatalogReferenceUpsertPreview>;
+  applyCatalogReferenceUpsert: (ctx: McpAuthContext, previewId: string) => Promise<CatalogReferenceUpsertSaved>;
+  previewCatalogShotJobUpsert: (ctx: McpAuthContext, input: CatalogDocumentUpsertInput) => Promise<CatalogShotJobUpsertPreview>;
+  applyCatalogShotJobUpsert: (ctx: McpAuthContext, previewId: string) => Promise<CatalogShotJobUpsertSaved>;
   signFootageConfirmation: (
     ctx: McpAuthContext,
     tool: import("../tools/footage/confirmation").FootageConfirmableTool,
@@ -1008,6 +1031,12 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "catalog.media.delete": confirmFootageInput,
   "catalog.media.restore.preview": restoreCatalogMediaPreviewInput,
   "catalog.media.restore": confirmFootageInput,
+  "catalog.style.update.preview": styleUpdatePreviewInput,
+  "catalog.style.update": confirmFootageInput,
+  "catalog.reference.upsert.preview": referenceUpsertPreviewInput,
+  "catalog.reference.upsert": confirmFootageInput,
+  "catalog.shotlist.upsert.preview": shotlistUpsertPreviewInput,
+  "catalog.shotlist.upsert": confirmFootageInput,
   "okr.cycles.list": cyclesInput,
   "okr.objectives.list": objectivesInput,
   "okr.departments.list": departmentsInput,
@@ -1629,6 +1658,18 @@ async function runTool(
       return previewRestoreCatalogMediaResult(ctx, args, deps.previewCatalogMediaRestore, deps.signFootageConfirmation);
     case "catalog.media.restore":
       return applyRestoreCatalogMediaResult(ctx, args, deps.verifyFootageConfirmation, deps.applyCatalogMediaRestore);
+    case "catalog.style.update.preview":
+      return previewCatalogStyleUpdateResult(ctx, args, deps.previewCatalogStyleUpdate, deps.signFootageConfirmation);
+    case "catalog.style.update":
+      return applyCatalogStyleUpdateResult(ctx, args, deps.verifyFootageConfirmation, deps.applyCatalogStyleUpdate);
+    case "catalog.reference.upsert.preview":
+      return previewCatalogReferenceUpsertResult(ctx, args, deps.previewCatalogReferenceUpsert, deps.signFootageConfirmation);
+    case "catalog.reference.upsert":
+      return applyCatalogReferenceUpsertResult(ctx, args, deps.verifyFootageConfirmation, deps.applyCatalogReferenceUpsert);
+    case "catalog.shotlist.upsert.preview":
+      return previewCatalogShotlistUpsertResult(ctx, args, deps.previewCatalogShotJobUpsert, deps.signFootageConfirmation);
+    case "catalog.shotlist.upsert":
+      return applyCatalogShotlistUpsertResult(ctx, args, deps.verifyFootageConfirmation, deps.applyCatalogShotJobUpsert);
     case "content.plans.update":
       if (!updatePlanInput.safeParse(args).success) throw new Error("invalid_input");
       return updatePlanResult(
