@@ -103,7 +103,16 @@ import type {
   FootageUsagePreview,
   FootageUsageSaved,
 } from "../db/footage";
-import type { CatalogAddress, CatalogLocation, CatalogLocationList, CatalogProduct, CatalogProductList } from "../db/catalog";
+import type {
+  CatalogAddress,
+  CatalogLocation,
+  CatalogLocationList,
+  CatalogProduct,
+  CatalogProductList,
+  CatalogReferenceList,
+  CatalogShotJobList,
+  CatalogTextBlocks,
+} from "../db/catalog";
 import type { HabitCheckInput, HabitCheckResult, HabitDayRow } from "../db/habits";
 import type { TaskStepImageRecord } from "../db/stepImages";
 import { isAccessRevoked } from "../authz/toolGate";
@@ -452,6 +461,12 @@ export type AppDeps = {
   getCatalogProduct: (ctx: McpAuthContext, address: CatalogAddress) => Promise<CatalogProduct>;
   listCatalogLocations: (ctx: McpAuthContext) => Promise<CatalogLocationList>;
   getCatalogLocation: (ctx: McpAuthContext, address: CatalogAddress) => Promise<CatalogLocation>;
+  getCatalogStyle: (ctx: McpAuthContext) => Promise<CatalogTextBlocks>;
+  getCatalogPrompts: (ctx: McpAuthContext) => Promise<CatalogTextBlocks>;
+  listCatalogReferences: (ctx: McpAuthContext) => Promise<CatalogReferenceList>;
+  getCatalogReference: (ctx: McpAuthContext, id: string) => Promise<Record<string, unknown>>;
+  listCatalogShotJobs: (ctx: McpAuthContext) => Promise<CatalogShotJobList>;
+  getCatalogShotJob: (ctx: McpAuthContext, id: string) => Promise<Record<string, unknown>>;
   previewFootageSceneBatch: (
     ctx: McpAuthContext,
     input: FootageSceneBatchInput,
@@ -612,7 +627,7 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "catalog-menu-v1",
+      rev: "catalog-library-v1",
       tools: [
         "content.plans.media.upload.start",
         "content.plans.media.versions.list",
@@ -634,6 +649,12 @@ export function createApp(deps: AppDeps) {
         "catalog.product.get",
         "catalog.locations.list",
         "catalog.location.get",
+        "catalog.style.get",
+        "catalog.prompts.get",
+        "catalog.references.list",
+        "catalog.reference.get",
+        "catalog.shotlists.list",
+        "catalog.shotlist.get",
       ],
     }),
   );

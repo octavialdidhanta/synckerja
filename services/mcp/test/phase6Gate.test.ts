@@ -128,7 +128,7 @@ describe("mcp http gate", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       ok: true,
-      rev: "catalog-menu-v1",
+      rev: "catalog-library-v1",
       tools: [
         "content.plans.media.upload.start",
         "content.plans.media.versions.list",
@@ -150,6 +150,12 @@ describe("mcp http gate", () => {
         "catalog.product.get",
         "catalog.locations.list",
         "catalog.location.get",
+        "catalog.style.get",
+        "catalog.prompts.get",
+        "catalog.references.list",
+        "catalog.reference.get",
+        "catalog.shotlists.list",
+        "catalog.shotlist.get",
       ],
     });
     expect(lookedUp).toBe(false);
