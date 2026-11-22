@@ -305,6 +305,14 @@ import {
   getFootageResult,
   listFootageBansInput,
   listFootageBansResult,
+  listCatalogProductsInput,
+  listCatalogProductsResult,
+  getCatalogProductInput,
+  getCatalogProductResult,
+  listCatalogLocationsInput,
+  listCatalogLocationsResult,
+  getCatalogLocationInput,
+  getCatalogLocationResult,
   confirmFootageInput,
   upsertSceneBatchPreviewInput,
   previewSceneBatchResult,
@@ -723,6 +731,16 @@ export type McpReadDeps = {
   searchFootage: (ctx: McpAuthContext, input: FootageSearchFilters) => Promise<FootageSearchResult>;
   getFootage: (ctx: McpAuthContext, fileKey: string) => Promise<FootageClip>;
   listFootageBans: (ctx: McpAuthContext) => Promise<FootageBansResult>;
+  listCatalogProducts: (ctx: McpAuthContext) => Promise<import("../db/catalog").CatalogProductList>;
+  getCatalogProduct: (
+    ctx: McpAuthContext,
+    address: import("../db/catalog").CatalogAddress,
+  ) => Promise<import("../db/catalog").CatalogProduct>;
+  listCatalogLocations: (ctx: McpAuthContext) => Promise<import("../db/catalog").CatalogLocationList>;
+  getCatalogLocation: (
+    ctx: McpAuthContext,
+    address: import("../db/catalog").CatalogAddress,
+  ) => Promise<import("../db/catalog").CatalogLocation>;
   previewFootageSceneBatch: (
     ctx: McpAuthContext,
     input: FootageSceneBatchInput,
@@ -910,6 +928,10 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "footage.search": searchFootageInput,
   "footage.get": getFootageInput,
   "footage.bans.list": listFootageBansInput,
+  "catalog.products.list": listCatalogProductsInput,
+  "catalog.product.get": getCatalogProductInput,
+  "catalog.locations.list": listCatalogLocationsInput,
+  "catalog.location.get": getCatalogLocationInput,
   "footage.scenes.upsert_batch.preview": upsertSceneBatchPreviewInput,
   "footage.scenes.upsert_batch": confirmFootageInput,
   "footage.usage.log.preview": usageLogPreviewInput,
@@ -1485,6 +1507,14 @@ async function runTool(
       return getFootageResult(ctx, args, deps.getFootage);
     case "footage.bans.list":
       return listFootageBansResult(ctx, args, deps.listFootageBans);
+    case "catalog.products.list":
+      return listCatalogProductsResult(ctx, args, deps.listCatalogProducts);
+    case "catalog.product.get":
+      return getCatalogProductResult(ctx, args, deps.getCatalogProduct);
+    case "catalog.locations.list":
+      return listCatalogLocationsResult(ctx, args, deps.listCatalogLocations);
+    case "catalog.location.get":
+      return getCatalogLocationResult(ctx, args, deps.getCatalogLocation);
     case "footage.scenes.upsert_batch.preview":
       return previewSceneBatchResult(ctx, args, deps.previewFootageSceneBatch, deps.signFootageConfirmation);
     case "footage.scenes.upsert_batch":

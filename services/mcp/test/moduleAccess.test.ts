@@ -151,6 +151,10 @@ describe("buildAuthContext", () => {
       "footage.search",
       "footage.get",
       "footage.bans.list",
+      "catalog.products.list",
+      "catalog.product.get",
+      "catalog.locations.list",
+      "catalog.location.get",
       "product_knowledge.list",
       "content.briefs.get",
       "content.briefs.voice.list",
@@ -420,6 +424,10 @@ describe("phase 3 tool visibility", () => {
     expect(names).toContain("footage.ban.add");
     expect(names).toContain("footage.clips.upsert.preview");
     expect(names).toContain("footage.clips.upsert");
+    expect(names).toContain("catalog.products.list");
+    expect(names).toContain("catalog.product.get");
+    expect(names).toContain("catalog.locations.list");
+    expect(names).toContain("catalog.location.get");
     expect(names).not.toContain("content.plans.schedule");
     expect(names).not.toContain("okr.objectives.create");
     expect(names).not.toContain("okr.objectives.department.create");

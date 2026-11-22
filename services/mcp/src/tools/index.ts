@@ -143,6 +143,18 @@ export { getTaskInput, getTaskResult } from "./tasks/get";
 export { searchFootageInput, searchFootageResult } from "./footage/search";
 export { getFootageInput, getFootageResult } from "./footage/get";
 export { listFootageBansInput, listFootageBansResult } from "./footage/bansList";
+export {
+  getCatalogProductInput,
+  getCatalogProductResult,
+  listCatalogProductsInput,
+  listCatalogProductsResult,
+} from "./catalog/products";
+export {
+  getCatalogLocationInput,
+  getCatalogLocationResult,
+  listCatalogLocationsInput,
+  listCatalogLocationsResult,
+} from "./catalog/locations";
 export { confirmFootageInput } from "./footage/confirmation";
 export { upsertSceneBatchPreviewInput, previewSceneBatchResult, applySceneBatchResult } from "./footage/sceneBatch";
 export { usageLogPreviewInput, previewUsageLogResult, applyUsageLogResult } from "./footage/usageLog";
