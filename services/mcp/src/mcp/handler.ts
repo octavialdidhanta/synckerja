@@ -89,7 +89,24 @@ import type {
   TaskSubstepRow,
   WorkloadRow,
 } from "../db/dailyTasks";
-import type { FootageBansResult, FootageClip, FootageSearchFilters, FootageSearchResult } from "../db/footage";
+import type {
+  FootageBanInput,
+  FootageBanPreview,
+  FootageBanSaved,
+  FootageBansResult,
+  FootageClip,
+  FootageMoveInput,
+  FootageMovePreview,
+  FootageMoveSaved,
+  FootageSceneBatchInput,
+  FootageSceneBatchPreview,
+  FootageSceneBatchSaved,
+  FootageSearchFilters,
+  FootageSearchResult,
+  FootageUsageInput,
+  FootageUsagePreview,
+  FootageUsageSaved,
+} from "../db/footage";
 import type { HabitCheckInput, HabitCheckResult, HabitDayRow } from "../db/habits";
 import type { TaskStepImageRecord } from "../db/stepImages";
 import type { SchedulePlanResult } from "../tools/content/plansSchedule";
@@ -285,6 +302,19 @@ import {
   getFootageResult,
   listFootageBansInput,
   listFootageBansResult,
+  confirmFootageInput,
+  upsertSceneBatchPreviewInput,
+  previewSceneBatchResult,
+  applySceneBatchResult,
+  usageLogPreviewInput,
+  previewUsageLogResult,
+  applyUsageLogResult,
+  moveFootagePreviewInput,
+  previewMoveFootageResult,
+  applyMoveFootageResult,
+  banAddPreviewInput,
+  previewBanAddResult,
+  applyBanAddResult,
   taskStepsInput,
   taskStepsResult,
   createStepInput,
@@ -687,6 +717,28 @@ export type McpReadDeps = {
   searchFootage: (ctx: McpAuthContext, input: FootageSearchFilters) => Promise<FootageSearchResult>;
   getFootage: (ctx: McpAuthContext, fileKey: string) => Promise<FootageClip>;
   listFootageBans: (ctx: McpAuthContext) => Promise<FootageBansResult>;
+  previewFootageSceneBatch: (
+    ctx: McpAuthContext,
+    input: FootageSceneBatchInput,
+  ) => Promise<FootageSceneBatchPreview>;
+  applyFootageSceneBatch: (ctx: McpAuthContext, previewId: string) => Promise<FootageSceneBatchSaved>;
+  previewFootageUsage: (ctx: McpAuthContext, input: FootageUsageInput) => Promise<FootageUsagePreview>;
+  applyFootageUsage: (ctx: McpAuthContext, previewId: string) => Promise<FootageUsageSaved>;
+  previewFootageMove: (ctx: McpAuthContext, input: FootageMoveInput) => Promise<FootageMovePreview>;
+  applyFootageMove: (ctx: McpAuthContext, previewId: string) => Promise<FootageMoveSaved>;
+  previewFootageBan: (ctx: McpAuthContext, input: FootageBanInput) => Promise<FootageBanPreview>;
+  applyFootageBan: (ctx: McpAuthContext, previewId: string) => Promise<FootageBanSaved>;
+  signFootageConfirmation: (
+    ctx: McpAuthContext,
+    tool: import("../tools/footage/confirmation").FootageConfirmableTool,
+    previewId: string,
+    expiresAt: string,
+  ) => Promise<import("../tools/footage/confirmation").SignedFootageConfirmation>;
+  verifyFootageConfirmation: (
+    ctx: McpAuthContext,
+    tool: import("../tools/footage/confirmation").FootageConfirmableTool,
+    token: string,
+  ) => Promise<import("../tools/footage/confirmation").VerifiedFootageConfirmation>;
   listTaskSteps: (ctx: McpAuthContext, taskId: string) => Promise<TaskStepRow[]>;
   createTaskStep: (
     ctx: McpAuthContext,
@@ -852,6 +904,14 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "footage.search": searchFootageInput,
   "footage.get": getFootageInput,
   "footage.bans.list": listFootageBansInput,
+  "footage.scenes.upsert_batch.preview": upsertSceneBatchPreviewInput,
+  "footage.scenes.upsert_batch": confirmFootageInput,
+  "footage.usage.log.preview": usageLogPreviewInput,
+  "footage.usage.log": confirmFootageInput,
+  "footage.move.preview": moveFootagePreviewInput,
+  "footage.move": confirmFootageInput,
+  "footage.ban.add.preview": banAddPreviewInput,
+  "footage.ban.add": confirmFootageInput,
   "okr.cycles.list": cyclesInput,
   "okr.objectives.list": objectivesInput,
   "okr.departments.list": departmentsInput,
@@ -1417,6 +1477,22 @@ async function runTool(
       return getFootageResult(ctx, args, deps.getFootage);
     case "footage.bans.list":
       return listFootageBansResult(ctx, args, deps.listFootageBans);
+    case "footage.scenes.upsert_batch.preview":
+      return previewSceneBatchResult(ctx, args, deps.previewFootageSceneBatch, deps.signFootageConfirmation);
+    case "footage.scenes.upsert_batch":
+      return applySceneBatchResult(ctx, args, deps.verifyFootageConfirmation, deps.applyFootageSceneBatch);
+    case "footage.usage.log.preview":
+      return previewUsageLogResult(ctx, args, deps.previewFootageUsage, deps.signFootageConfirmation);
+    case "footage.usage.log":
+      return applyUsageLogResult(ctx, args, deps.verifyFootageConfirmation, deps.applyFootageUsage);
+    case "footage.move.preview":
+      return previewMoveFootageResult(ctx, args, deps.previewFootageMove, deps.signFootageConfirmation);
+    case "footage.move":
+      return applyMoveFootageResult(ctx, args, deps.verifyFootageConfirmation, deps.applyFootageMove);
+    case "footage.ban.add.preview":
+      return previewBanAddResult(ctx, args, deps.previewFootageBan, deps.signFootageConfirmation);
+    case "footage.ban.add":
+      return applyBanAddResult(ctx, args, deps.verifyFootageConfirmation, deps.applyFootageBan);
     case "content.plans.update":
       if (!updatePlanInput.safeParse(args).success) throw new Error("invalid_input");
       return updatePlanResult(

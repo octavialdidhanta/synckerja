@@ -82,7 +82,24 @@ import type {
   UpdateTaskInput,
   WorkloadRow,
 } from "../db/dailyTasks";
-import type { FootageBansResult, FootageClip, FootageSearchFilters, FootageSearchResult } from "../db/footage";
+import type {
+  FootageBanInput,
+  FootageBanPreview,
+  FootageBanSaved,
+  FootageBansResult,
+  FootageClip,
+  FootageMoveInput,
+  FootageMovePreview,
+  FootageMoveSaved,
+  FootageSceneBatchInput,
+  FootageSceneBatchPreview,
+  FootageSceneBatchSaved,
+  FootageSearchFilters,
+  FootageSearchResult,
+  FootageUsageInput,
+  FootageUsagePreview,
+  FootageUsageSaved,
+} from "../db/footage";
 import type { HabitCheckInput, HabitCheckResult, HabitDayRow } from "../db/habits";
 import type { TaskStepImageRecord } from "../db/stepImages";
 import { isAccessRevoked } from "../authz/toolGate";
@@ -99,6 +116,10 @@ import { verifyAccessToken, type AccessClaims } from "../oauth/tokens";
 import type { SchedulePlanResult } from "../tools/content/plansSchedule";
 import { signConfirmation, verifyConfirmation } from "../tools/inventory/confirmation";
 import { signContentConfirmation, verifyContentConfirmation } from "../tools/content/contentConfirmation";
+import {
+  signFootageConfirmation as signFootageToken,
+  verifyFootageConfirmation as verifyFootageToken,
+} from "../tools/footage/confirmation";
 
 export type AppDeps = {
   config: McpServiceConfig;
@@ -423,6 +444,17 @@ export type AppDeps = {
   searchFootage: (ctx: McpAuthContext, input: FootageSearchFilters) => Promise<FootageSearchResult>;
   getFootage: (ctx: McpAuthContext, fileKey: string) => Promise<FootageClip>;
   listFootageBans: (ctx: McpAuthContext) => Promise<FootageBansResult>;
+  previewFootageSceneBatch: (
+    ctx: McpAuthContext,
+    input: FootageSceneBatchInput,
+  ) => Promise<FootageSceneBatchPreview>;
+  applyFootageSceneBatch: (ctx: McpAuthContext, previewId: string) => Promise<FootageSceneBatchSaved>;
+  previewFootageUsage: (ctx: McpAuthContext, input: FootageUsageInput) => Promise<FootageUsagePreview>;
+  applyFootageUsage: (ctx: McpAuthContext, previewId: string) => Promise<FootageUsageSaved>;
+  previewFootageMove: (ctx: McpAuthContext, input: FootageMoveInput) => Promise<FootageMovePreview>;
+  applyFootageMove: (ctx: McpAuthContext, previewId: string) => Promise<FootageMoveSaved>;
+  previewFootageBan: (ctx: McpAuthContext, input: FootageBanInput) => Promise<FootageBanPreview>;
+  applyFootageBan: (ctx: McpAuthContext, previewId: string) => Promise<FootageBanSaved>;
   listTaskSteps: (ctx: McpAuthContext, taskId: string) => Promise<TaskStepRow[]>;
   createTaskStep: (
     ctx: McpAuthContext,
@@ -570,7 +602,7 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "footage-read-v1",
+      rev: "footage-write-v1",
       tools: [
         "content.plans.media.upload.start",
         "content.plans.media.versions.list",
@@ -578,6 +610,14 @@ export function createApp(deps: AppDeps) {
         "footage.search",
         "footage.get",
         "footage.bans.list",
+        "footage.scenes.upsert_batch.preview",
+        "footage.scenes.upsert_batch",
+        "footage.usage.log.preview",
+        "footage.usage.log",
+        "footage.move.preview",
+        "footage.move",
+        "footage.ban.add.preview",
+        "footage.ban.add",
       ],
     }),
   );
@@ -710,6 +750,10 @@ export function createApp(deps: AppDeps) {
           signContentConfirmation(deps.config.jwtSecret, ctx, tool, payload, now()),
         verifyContentConfirmation: (ctx, tool, confirmToken) =>
           verifyContentConfirmation(deps.config.jwtSecret, ctx, tool, confirmToken, now()),
+        signFootageConfirmation: (ctx, tool, previewId, expiresAt) =>
+          signFootageToken(deps.config.jwtSecret, ctx, tool, previewId, expiresAt),
+        verifyFootageConfirmation: (ctx, tool, confirmToken) =>
+          verifyFootageToken(deps.config.jwtSecret, ctx, tool, confirmToken, now()),
       });
     } catch (error) {
       if (error instanceof AuthzError) {

@@ -101,7 +101,19 @@ import {
   updateTaskStep,
   setTaskStepCompleted,
 } from "./db/dailyTasks";
-import { getFootage, listFootageBans, searchFootage } from "./db/footage";
+import {
+  applyFootageBan,
+  applyFootageMove,
+  applyFootageSceneBatch,
+  applyFootageUsage,
+  getFootage,
+  listFootageBans,
+  previewFootageBan,
+  previewFootageMove,
+  previewFootageSceneBatch,
+  previewFootageUsage,
+  searchFootage,
+} from "./db/footage";
 import { checkHabit, listHabits } from "./db/habits";
 import { attachTaskStepImage } from "./db/stepImages";
 import { switchConnectorOrganization } from "./db/connectorSession";
@@ -241,6 +253,14 @@ const app = createApp({
   searchFootage: (ctx, input) => searchFootage(admin, ctx, input),
   getFootage: (ctx, fileKey) => getFootage(admin, ctx, fileKey),
   listFootageBans: (ctx) => listFootageBans(admin, ctx),
+  previewFootageSceneBatch: (ctx, input) => previewFootageSceneBatch(admin, ctx, input),
+  applyFootageSceneBatch: (ctx, previewId) => applyFootageSceneBatch(admin, ctx, previewId),
+  previewFootageUsage: (ctx, input) => previewFootageUsage(admin, ctx, input),
+  applyFootageUsage: (ctx, previewId) => applyFootageUsage(admin, ctx, previewId),
+  previewFootageMove: (ctx, input) => previewFootageMove(admin, ctx, input),
+  applyFootageMove: (ctx, previewId) => applyFootageMove(admin, ctx, previewId),
+  previewFootageBan: (ctx, input) => previewFootageBan(admin, ctx, input),
+  applyFootageBan: (ctx, previewId) => applyFootageBan(admin, ctx, previewId),
   listTaskSteps: (ctx, taskId) => listTaskSteps(admin, ctx, taskId),
   createTaskStep: (ctx, input) => createTaskStep(admin, ctx, input),
   updateTaskStep: (ctx, input) => updateTaskStep(admin, ctx, input),
