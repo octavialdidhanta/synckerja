@@ -84,7 +84,7 @@ export function useFootageData() {
         ),
         readAll<TagDefRecord>("footage_tag_defs", "id,key", org),
         readAll<TagValueRecord>("footage_tag_values", "id,tag_def_id,asset_id,scene_id,value_bool,value_text", org),
-        readAll<UsageRecord>("footage_usages", "id,asset_id,scene_id,external_ref,social_media_plan_id", org),
+        readAll<UsageRecord>("footage_usages", "id,asset_id,scene_id,in_seconds,out_seconds,external_ref,social_media_plan_id", org),
         readAll<BanRecord>("footage_bans", "id,scene_id,reason", org),
         readAll<MenuRecord & { created_at: string }>("catalog_menus", "id,name,aliases,created_at", org),
       ]);

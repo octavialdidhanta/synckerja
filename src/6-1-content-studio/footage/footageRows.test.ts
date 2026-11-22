@@ -37,6 +37,7 @@ const src: FootageSource = {
     { asset_id: "a1", scene_id: "s1", external_ref: "00d86b81", social_media_plan_id: null },
     { asset_id: "a1", scene_id: "s1", external_ref: "e2fb3654", social_media_plan_id: null },
     { asset_id: "a1", scene_id: null, external_ref: "00d86b81", social_media_plan_id: null },
+    { asset_id: "a1", scene_id: null, in_seconds: "3.0", out_seconds: 5, external_ref: "8dd2877b", social_media_plan_id: null },
     { asset_id: "a2", scene_id: null, external_ref: null, social_media_plan_id: "bd995747-5f9d-418c" },
   ],
   bans: [{ scene_id: "s2", reason: "senyum AI" }],
@@ -66,7 +67,9 @@ describe("buildFootageRows", () => {
     expect(byId.s1.lengkuas).toBe("tidak");
     expect(byId.s3.meja).toBe(true);
     expect(byId.s1.sp).toEqual(["00d86b81", "e2fb3654"]);
-    expect(byId.s1.pakai).toBe("00d86b81;e2fb3654");
+    expect(byId.s1.pakai).toBe("00d86b81;e2fb3654;8dd2877b");
+    // clip usage with in/out counts for the scene it overlaps (2.5–6s), not the other one
+    expect(byId.s2.sp).toEqual(["8dd2877b"]);
     expect(byId.s3.pakai).toBe("bd995747");
     expect(byId.s3.prod).toEqual(["Sup Sum Sum Kambing", "Sate Kambing Full Daging (74K)"]);
     expect(byId.s3.baru).toBe(true);

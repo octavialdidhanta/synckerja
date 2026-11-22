@@ -51,9 +51,11 @@
 .ck .c.ban{border-color:#b3262e}.ck .c.ban img{opacity:.35}
 .ck .bn{position:absolute;top:34%;left:0;right:0;text-align:center;background:rgba(179,38,46,.92);font-size:12px;font-weight:700;padding:4px 0}
 .ck .empty{color:var(--mut);padding:40px 20px}
-.ck .m{position:absolute;inset:0;background:rgba(0,0,0,.86);display:flex;align-items:center;justify-content:center;z-index:9}
-.ck .mb{display:flex;gap:18px;align-items:flex-start}
-.ck .m video,.ck .m .mimg{max-height:calc(100vh - 220px);max-width:46vw;border-radius:8px;background:#000}
+.ck .m{position:absolute;inset:0;background:rgba(0,0,0,.86);display:flex;align-items:center;justify-content:center;z-index:9;padding:24px 56px 24px 24px}
+.ck .mb{display:flex;gap:18px;align-items:flex-start;height:100%;min-height:0}
+.ck .mph{height:100%;display:flex;align-items:center}
+.ck .m video,.ck .m .mimg{max-height:100%;max-width:46vw;height:auto;border-radius:8px;background:#000;object-fit:contain}
+.ck .mi{max-height:100%;overflow-y:auto}
 .ck .mph{position:relative}.ck .mph .msg{position:absolute;left:0;right:0;bottom:0;padding:14px;background:linear-gradient(transparent,rgba(0,0,0,.9));font-size:12.5px;text-align:center;border-radius:0 0 8px 8px}
 .ck .mph .msg .hb{margin-top:8px}
 .ck .mi{width:320px;font-size:13px}.ck .mi div{margin-bottom:6px}
