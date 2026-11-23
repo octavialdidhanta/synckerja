@@ -117,6 +117,8 @@ describe("ReferenceTab", () => {
     expect(screen.getByText("Kelangkaan")).toBeTruthy();
     expect(screen.getByText("Visual menarik (1)")).toBeTruthy();
     expect(screen.getByText("Pilih folder referensi")).toBeTruthy();
+    // the message sits in one block inside the 9:16 box, so it does not split into flex columns
+    expect(document.querySelectorAll(".rvph > *")).toHaveLength(1);
   });
 
   it("puts a visual into the active Shot List job like katalog.html beatPakai()", async () => {
