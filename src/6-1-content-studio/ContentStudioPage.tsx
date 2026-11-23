@@ -1,3 +1,4 @@
+import { AgentTab } from "./agent/AgentTab";
 import { useLocation, useNavigate } from "react-router-dom";
 import { FootageTab } from "./footage/FootageTab";
 import { LibraryTab } from "./library/LibraryTab";
@@ -40,6 +41,8 @@ export default function ContentStudioPage() {
         <ShotListTab headLeft={headLeft} />
       ) : tab === "referensi" ? (
         <ReferenceTab headLeft={headLeft} />
+      ) : tab === "agent" ? (
+        <AgentTab headLeft={headLeft} />
       ) : (
         <LibraryTab key={tab} kind={tab === "produk" ? "menu" : "lokasi"} headLeft={headLeft} />
       )}

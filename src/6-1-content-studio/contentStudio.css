@@ -183,3 +183,33 @@
 .ck .ref .hist .hv{border:1px solid var(--line);border-radius:8px;padding:6px 9px;margin-top:6px;font-size:12.5px}
 .ck .ref .hist .hh{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;color:var(--mut)}
 .ck .ref .hist pre{margin-top:6px;opacity:.9}
+
+/* Agent tab */
+.ck .agent{flex:1;min-height:0;overflow-y:auto;padding:20px 24px 40px;display:flex;flex-direction:column;gap:28px;max-width:980px}
+.ck .agent h2{margin:0 0 4px;font-size:15px;font-weight:600;color:var(--tx)}
+.ck .agent .mut{color:var(--mut);font-size:13px;margin:0 0 12px}
+.ck .agent .bad{color:#ffb4a8;font-size:12.5px;margin:8px 0 0}
+.ck .agent code{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.ck .agent .empty{border:1px dashed var(--line);border-radius:10px;padding:16px;color:var(--mut);font-size:13px}
+.ck .agent .dev{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.ck .agent .dev-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px}
+.ck .agent .dev-top .mut{margin:0}
+.ck .agent .dot{width:9px;height:9px;border-radius:50%;background:#6b645a;flex:none}
+.ck .agent .dot.on{background:#5fc27a;box-shadow:0 0 0 3px rgba(95,194,122,.18)}
+.ck .agent .tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.ck .agent .tool{font-size:11.5px;border-radius:999px;padding:2px 9px;border:1px solid var(--line)}
+.ck .agent .tool.ok{color:#8fd19e}
+.ck .agent .tool.no{color:#ffb4a8;border-color:#6b2a24}
+.ck .agent .mk{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.ck .agent .mk select{background:var(--card);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:7px 8px;font-size:13px}
+.ck .agent .hb:disabled{opacity:.45;cursor:not-allowed}
+.ck .agent .hb.ghost{border-color:var(--line);color:var(--tx)}
+.ck .agent .hb.danger{border-color:#c0574b;color:#ffb4a8}
+.ck .agent .row{display:flex;gap:8px;align-items:center}
+.ck .agent .fresh{border:1px solid var(--acc);background:#2a2419;border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:13px}
+.ck .agent .fresh p{margin:0 0 8px}
+.ck .agent .fresh code{display:block;word-break:break-all;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:8px 10px;margin-bottom:10px;user-select:all}
+.ck .agent table.tok{width:100%;border-collapse:collapse;font-size:13px}
+.ck .agent table.tok th{text-align:left;color:var(--mut);font-weight:500;font-size:12px;padding:6px 8px;border-bottom:1px solid var(--line)}
+.ck .agent table.tok td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.ck .agent table.tok tr.off td{opacity:.5}
