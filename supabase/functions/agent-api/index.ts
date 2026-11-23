@@ -32,6 +32,10 @@ import {
  *   GET  /v1/catalog/context       tag defs, scene kinds, menus, locations, bans, tagged examples
  *   GET  /v1/footage/untagged      clips waiting for AI tags
  *   POST /v1/footage/tags          { asset_id, tags }                → saved as "perlu dicek"
+ *
+ * Inbox → bank (scope "catalog"), step 5: only after the video using the clip is final.
+ *   GET  /v1/footage/movable       inbox clips whose content is final
+ *   POST /v1/footage/moved         { asset_id, new_file_key }        → after the laptop moved the file
  */
 
 const BUCKET = "catalog-media";
@@ -111,8 +115,17 @@ Deno.serve(async (req) => {
       return json({ ok: true, ...(data as Record<string, unknown>) });
     }
 
-    if (req.method === "GET" && (path === "/v1/catalog/context" || path === "/v1/footage/untagged")) {
+    if (req.method === "GET" && (path === "/v1/catalog/context" || path === "/v1/footage/untagged" || path === "/v1/footage/movable")) {
       if (!ctx.scopes.includes("catalog")) return fail(403, "forbidden", "Token ini tidak punya akses katalog.");
+      if (path === "/v1/footage/movable") {
+        const { data, error } = await admin.rpc("agent_footage_movable", { p_token_id: ctx.tokenId });
+        if (error) {
+          const m = mapRpcError(error.message);
+          if (m.status === 500) console.error("agent_footage_movable", error.message);
+          return fail(m.status, m.code, "Gagal baca daftar pindahan.");
+        }
+        return json({ ok: true, ...(data as Record<string, unknown>) });
+      }
       if (path === "/v1/footage/untagged") {
         const { data, error } = await admin.rpc("agent_footage_untagged", { p_token_id: ctx.tokenId, p_limit: 10 });
         if (error) {
@@ -212,6 +225,15 @@ Deno.serve(async (req) => {
           return fail(400, "invalid_input", "asset_id (UUID) dan tags (object) wajib.");
         }
         const r = await rpc("agent_footage_tags", { p_asset_id: b.asset_id, p_input: b.tags });
+        return r.error ?? json({ ok: true, ...r.data });
+      }
+
+      if (path === "/v1/footage/moved") {
+        const b = body as Record<string, unknown> | null;
+        if (!isUuid(b?.asset_id) || typeof b?.new_file_key !== "string" || b.new_file_key.length > 2000) {
+          return fail(400, "invalid_input", "asset_id (UUID) dan new_file_key wajib.");
+        }
+        const r = await rpc("agent_footage_moved", { p_asset_id: b.asset_id, p_new_file_key: b.new_file_key });
         return r.error ?? json({ ok: true, ...r.data });
       }
 
