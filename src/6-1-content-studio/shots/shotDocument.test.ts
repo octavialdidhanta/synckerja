@@ -117,3 +117,26 @@ describe("shotDocument (katalog.html shot edits)", () => {
     expect(setJobArchived(doc(), true).arsip).toBe(true);
   });
 });
+
+describe("addShotFromReference (katalog.html beatPakai)", () => {
+  it("appends a shot that remembers its reference and its own def", async () => {
+    const { addShotFromReference } = await import("./shotDocument");
+    const { doc: d, id } = addShotFromReference(doc(), {
+      judul: "Hook — Kipas bara",
+      action: "Close-up.",
+      menu: "sate-kambing",
+      area: "Panggangan",
+      lokasi: "pik1-foodcourt",
+      fotos: ["foto/sate.png", "foto/grill.jpg"],
+      dari: "r4#0",
+    });
+    expect(id).toBe("P03");
+    expect(shot(d, "P03")).toMatchObject({
+      judul: "Hook — Kipas bara",
+      dari: "r4#0",
+      done: false,
+      angle: 1,
+      def: { action: "Close-up.", lokasi: "pik1-foodcourt", fotos: ["foto/sate.png", "foto/grill.jpg"] },
+    });
+  });
+});
