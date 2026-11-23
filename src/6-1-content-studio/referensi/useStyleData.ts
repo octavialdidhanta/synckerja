@@ -76,6 +76,7 @@ export function useStyleSave() {
         return "changed_elsewhere";
       }
       qc.setQueryData<StyleRow[]>(key, (old) => [...(old ?? []).filter((r) => r.field_key !== fieldKey), row]);
+      void qc.invalidateQueries({ queryKey: historyKey(org) });
       return "saved";
     } finally {
       setSaving(false);
@@ -83,4 +84,32 @@ export function useStyleSave() {
   };
 
   return { save, saving };
+}
+
+export interface StyleVersion {
+  id: string;
+  field_key: string;
+  body: string;
+  replaced_at: string;
+}
+
+const historyKey = (org: string | null | undefined) => ["content-studio", "style-history", org] as const;
+
+/** Older versions of every style box, newest first (catalog_style_history, written by trigger). */
+export function useStyleHistory() {
+  const { organizationId } = useOrgBootstrapPending();
+  return useQuery<StyleVersion[]>({
+    queryKey: historyKey(organizationId),
+    enabled: Boolean(organizationId),
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const rows = await readAll<StyleVersion>(
+        supabase,
+        "catalog_style_history",
+        "id,field_key,body,replaced_at",
+        organizationId as string,
+      );
+      return rows.sort((a, b) => b.replaced_at.localeCompare(a.replaced_at));
+    },
+  });
 }
