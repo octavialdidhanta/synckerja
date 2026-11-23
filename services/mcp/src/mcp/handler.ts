@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z, type ZodRawShape, type ZodTypeAny } from "zod";
 import { AuthzError } from "../authz/errors";
+import type { RenderJobPreview, RenderJobSaved, RenderJobsList } from "../db/render";
 import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
 import type { ContentBriefDetail, ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
@@ -377,6 +378,11 @@ import {
   clipCreatePreviewInput,
   previewClipCreateResult,
   applyClipCreateResult,
+  renderJobCreatePreviewInput,
+  renderJobsListInput,
+  previewRenderJobResult,
+  applyRenderJobResult,
+  listRenderJobsResult,
   deleteFootagePreviewInput,
   previewDeleteFootageResult,
   applyDeleteFootageResult,
@@ -834,6 +840,9 @@ export type McpReadDeps = {
   applyFootageClip: (ctx: McpAuthContext, previewId: string) => Promise<FootageClipUpsertSaved>;
   previewFootageClipCreate: (ctx: McpAuthContext, input: FootageClipCreateInput) => Promise<FootageClipCreatePreview>;
   applyFootageClipCreate: (ctx: McpAuthContext, previewId: string) => Promise<FootageClipCreateSaved>;
+  previewRenderJob: (ctx: McpAuthContext, input: { plan_id: string | null; title: string; spec: unknown }) => Promise<RenderJobPreview>;
+  applyRenderJob: (ctx: McpAuthContext, previewId: string) => Promise<RenderJobSaved>;
+  listRenderJobs: (ctx: McpAuthContext, limit: number) => Promise<RenderJobsList>;
   previewFootageDelete: (ctx: McpAuthContext, input: FootageDeleteInput) => Promise<FootageDeletePreview>;
   applyFootageDelete: (ctx: McpAuthContext, previewId: string) => Promise<FootageDeleteSaved>;
   previewFootageRestore: (ctx: McpAuthContext, input: FootageRestoreInput) => Promise<FootageRestorePreview>;
@@ -1048,6 +1057,9 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "footage.clips.upsert": confirmFootageInput,
   "footage.clips.create.preview": clipCreatePreviewInput,
   "footage.clips.create": confirmFootageInput,
+  "render.jobs.create.preview": renderJobCreatePreviewInput,
+  "render.jobs.create": confirmFootageInput,
+  "render.jobs.list": renderJobsListInput,
   "footage.delete.preview": deleteFootagePreviewInput,
   "footage.delete": confirmFootageInput,
   "footage.restore.preview": restoreFootagePreviewInput,
@@ -1683,6 +1695,12 @@ async function runTool(
       return previewClipCreateResult(ctx, args, deps.previewFootageClipCreate, deps.signFootageConfirmation);
     case "footage.clips.create":
       return applyClipCreateResult(ctx, args, deps.verifyFootageConfirmation, deps.applyFootageClipCreate);
+    case "render.jobs.create.preview":
+      return previewRenderJobResult(ctx, args, deps.previewRenderJob, deps.signFootageConfirmation);
+    case "render.jobs.create":
+      return applyRenderJobResult(ctx, args, deps.verifyFootageConfirmation, deps.applyRenderJob);
+    case "render.jobs.list":
+      return listRenderJobsResult(ctx, args, deps.listRenderJobs);
     case "footage.delete.preview":
       return previewDeleteFootageResult(ctx, args, deps.previewFootageDelete, deps.signFootageConfirmation);
     case "footage.delete":

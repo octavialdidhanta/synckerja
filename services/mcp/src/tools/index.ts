@@ -187,6 +187,13 @@ export { banAddPreviewInput, previewBanAddResult, applyBanAddResult } from "./fo
 export { clipUpsertPreviewInput, previewClipUpsertResult, applyClipUpsertResult } from "./footage/clipUpsert";
 export { clipCreatePreviewInput, previewClipCreateResult, applyClipCreateResult } from "./footage/clipCreate";
 export {
+  renderJobCreatePreviewInput,
+  renderJobsListInput,
+  previewRenderJobResult,
+  applyRenderJobResult,
+  listRenderJobsResult,
+} from "./render/jobs";
+export {
   deleteFootagePreviewInput,
   restoreFootagePreviewInput,
   previewDeleteFootageResult,

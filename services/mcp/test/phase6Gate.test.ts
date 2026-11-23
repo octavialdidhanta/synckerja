@@ -128,7 +128,7 @@ describe("mcp http gate", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       ok: true,
-      rev: "footage-clips-create-v1",
+      rev: "render-jobs-v1",
       tools: [
         "content.plans.media.upload.start",
         "content.plans.media.versions.list",
@@ -148,6 +148,9 @@ describe("mcp http gate", () => {
         "footage.clips.upsert",
         "footage.clips.create.preview",
         "footage.clips.create",
+        "render.jobs.create.preview",
+        "render.jobs.create",
+        "render.jobs.list",
         "footage.delete.preview",
         "footage.delete",
         "footage.restore.preview",

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import type { RenderJobPreview, RenderJobSaved, RenderJobsList } from "../db/render";
 import type { McpServiceConfig } from "../config";
 import { MEDIA_UPLOAD_CHUNK_BYTES, uploadNextStep } from "../tools/content/mediaUpload";
 import type { VoiceDownloadResponse } from "../db/briefVoice";
@@ -510,6 +511,9 @@ export type AppDeps = {
   applyFootageClip: (ctx: McpAuthContext, previewId: string) => Promise<FootageClipUpsertSaved>;
   previewFootageClipCreate: (ctx: McpAuthContext, input: FootageClipCreateInput) => Promise<FootageClipCreatePreview>;
   applyFootageClipCreate: (ctx: McpAuthContext, previewId: string) => Promise<FootageClipCreateSaved>;
+  previewRenderJob: (ctx: McpAuthContext, input: { plan_id: string | null; title: string; spec: unknown }) => Promise<RenderJobPreview>;
+  applyRenderJob: (ctx: McpAuthContext, previewId: string) => Promise<RenderJobSaved>;
+  listRenderJobs: (ctx: McpAuthContext, limit: number) => Promise<RenderJobsList>;
   previewFootageDelete: (ctx: McpAuthContext, input: FootageDeleteInput) => Promise<FootageDeletePreview>;
   applyFootageDelete: (ctx: McpAuthContext, previewId: string) => Promise<FootageDeleteSaved>;
   previewFootageRestore: (ctx: McpAuthContext, input: FootageRestoreInput) => Promise<FootageRestorePreview>;
@@ -671,7 +675,7 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "footage-clips-create-v1",
+      rev: "render-jobs-v1",
       tools: [
         "content.plans.media.upload.start",
         "content.plans.media.versions.list",
@@ -691,6 +695,9 @@ export function createApp(deps: AppDeps) {
         "footage.clips.upsert",
         "footage.clips.create.preview",
         "footage.clips.create",
+        "render.jobs.create.preview",
+        "render.jobs.create",
+        "render.jobs.list",
         "footage.delete.preview",
         "footage.delete",
         "footage.restore.preview",

@@ -36,7 +36,16 @@ import {
  * Inbox → bank (scope "catalog"), step 5: only after the video using the clip is final.
  *   GET  /v1/footage/movable       inbox clips whose content is final
  *   POST /v1/footage/moved         { asset_id, new_file_key }        → after the laptop moved the file
+ *
+ * Render queue (scope "render"), step 6. claim_token proves the Agent still owns the job.
+ *   POST /v1/jobs/claim                                              → oldest queued job (or a stale one), or null
+ *   POST /v1/jobs/<id>/progress     { claim_token, progress, stage, log } → { continue } (false = cancelled)
+ *   POST /v1/jobs/<id>/upload-start { claim_token, file_name, size_bytes } → one-time upload URL for the plan
+ *   POST /v1/jobs/<id>/finish       { claim_token, ok, result, error, log }
  */
+
+const MCP_PUBLIC_URL = (Deno.env.get("MCP_PUBLIC_URL") ?? "https://mcp.synckerja.com").replace(/\/+$/, "");
+const UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024;
 
 const BUCKET = "catalog-media";
 
@@ -151,6 +160,101 @@ Deno.serve(async (req) => {
         location_thumbs: thumbs
           .map((t, i) => ({ location: t.location, url: signed.data?.[i]?.signedUrl ?? null }))
           .filter((t) => t.url),
+      });
+    }
+
+    const jobRoute = /^\/v1\/jobs\/(claim|([0-9a-f-]{36})\/(progress|finish|upload-start))$/i.exec(path);
+    if (req.method === "POST" && jobRoute) {
+      if (!ctx.scopes.includes("render")) return fail(403, "forbidden", "Token ini tidak punya akses render.");
+      let body: Record<string, unknown> = {};
+      try {
+        body = ((await req.json()) ?? {}) as Record<string, unknown>;
+      } catch {
+        body = {};
+      }
+      const rpcErr = (fn: string, message: string) => {
+        const m = mapRpcError(message);
+        if (m.status === 500) console.error(fn, message);
+        return fail(m.status, m.code, m.status === 500 ? "Gagal simpan ke Synckerja." : m.code);
+      };
+
+      if (jobRoute[1] === "claim") {
+        const device = req.headers.get("X-Agent-Device") ?? "";
+        if (!isUuid(device)) return fail(400, "invalid_input", "X-Agent-Device harus UUID.");
+        const { data, error } = await admin.rpc("agent_job_claim", { p_token_id: ctx.tokenId, p_device_key: device });
+        if (error) return rpcErr("agent_job_claim", error.message);
+        return json({ ok: true, ...(data as Record<string, unknown>) });
+      }
+
+      const jobId = jobRoute[2]!;
+      const action = jobRoute[3]!.toLowerCase();
+      const claimToken = body.claim_token;
+      if (!isUuid(jobId) || !isUuid(claimToken)) return fail(400, "invalid_input", "job id dan claim_token harus UUID.");
+      const text = (v: unknown, max: number) => (typeof v === "string" ? v.slice(-max) : null);
+
+      if (action === "progress") {
+        const progress = typeof body.progress === "number" && Number.isFinite(body.progress) ? Math.round(body.progress) : null;
+        const { data, error } = await admin.rpc("agent_job_progress", {
+          p_token_id: ctx.tokenId, p_job_id: jobId, p_claim_token: claimToken,
+          p_progress: progress, p_stage: text(body.stage, 80), p_log: text(body.log, 20000),
+        });
+        if (error) return rpcErr("agent_job_progress", error.message);
+        return json({ ok: true, ...(data as Record<string, unknown>) });
+      }
+
+      if (action === "finish") {
+        if (typeof body.ok !== "boolean") return fail(400, "invalid_input", "ok wajib boolean.");
+        const result = body.result && typeof body.result === "object" && !Array.isArray(body.result) ? body.result : null;
+        const { data, error } = await admin.rpc("agent_job_finish", {
+          p_token_id: ctx.tokenId, p_job_id: jobId, p_claim_token: claimToken, p_ok: body.ok,
+          p_result: result, p_error: text(body.error, 2000), p_log: text(body.log, 20000),
+        });
+        if (error) return rpcErr("agent_job_finish", error.message);
+        return json({ ok: true, ...(data as Record<string, unknown>) });
+      }
+
+      // upload-start: a new version on the job's content plan, uploaded in the name of whoever confirmed the job.
+      const fileName = typeof body.file_name === "string" ? body.file_name.trim().slice(0, 200) : "";
+      const size = typeof body.size_bytes === "number" ? body.size_bytes : NaN;
+      if (!fileName || !Number.isFinite(size) || size <= 0) return fail(400, "invalid_input", "file_name dan size_bytes wajib.");
+      const { data: target, error: tErr } = await admin.rpc("agent_job_upload_target", {
+        p_token_id: ctx.tokenId, p_job_id: jobId, p_claim_token: claimToken,
+      });
+      if (tErr) return rpcErr("agent_job_upload_target", tErr.message);
+      const t = target as { plan_id: string | null; user_id?: string | null; reason?: string };
+      if (!t.plan_id) return json({ ok: true, upload: null, reason: t.reason ?? "no_plan" });
+      if (!t.user_id) return json({ ok: true, upload: null, reason: "no_user" });
+      const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/content-plan-media-upload`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "start",
+          plan_id: t.plan_id,
+          file_name: fileName,
+          mime_type: "video/mp4",
+          size_bytes: size,
+          organization_id: ctx.organizationId,
+          mcp_user_id: t.user_id,
+          internal_secret: Deno.env.get("SCHEDULED_POSTS_INTERNAL_SECRET") ?? "",
+        }),
+      });
+      const up = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok || typeof up.ticket !== "string") {
+        return json({ ok: true, upload: null, reason: typeof up.error === "string" ? up.error : `upload_start_${res.status}` });
+      }
+      return json({
+        ok: true,
+        upload: {
+          upload_url: `${MCP_PUBLIC_URL}/uploads/${up.ticket}`,
+          chunk_bytes: UPLOAD_CHUNK_BYTES,
+          version_no: up.version_no,
+          folder_url: up.folder_url,
+          expires_at: up.expires_at,
+        },
       });
     }
 

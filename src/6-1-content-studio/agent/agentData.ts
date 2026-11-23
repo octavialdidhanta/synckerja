@@ -74,3 +74,36 @@ export function toolList(tools: Record<string, unknown> | null | undefined): Too
   }
   return out.sort((a, b) => Number(a.ok) - Number(b.ok) || a.key.localeCompare(b.key));
 }
+
+export interface AgentJobRow {
+  id: string;
+  title: string;
+  status: "queued" | "running" | "done" | "failed" | "cancelled";
+  stage: string | null;
+  progress: number;
+  attempts: number;
+  max_attempts: number;
+  error: string | null;
+  result: { google_drive_link?: string; version_no?: number; output_file?: string } | null;
+  social_media_plan_id: string | null;
+  created_at: string;
+  finished_at: string | null;
+  heartbeat_at: string | null;
+}
+
+export const JOB_STATUS: Record<AgentJobRow["status"], string> = {
+  queued: "menunggu",
+  running: "jalan",
+  done: "selesai",
+  failed: "gagal",
+  cancelled: "dibatalkan",
+};
+
+/** Queued and running first (oldest first, like the Agent takes them), then the rest newest first. */
+export function sortJobs(jobs: AgentJobRow[]): AgentJobRow[] {
+  const active = jobs.filter((j) => j.status === "queued" || j.status === "running");
+  const rest = jobs.filter((j) => j.status !== "queued" && j.status !== "running");
+  active.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  rest.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return [...active, ...rest];
+}
