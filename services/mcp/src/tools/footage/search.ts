@@ -15,6 +15,7 @@ export const searchFootageInput = z
     query: z.string().trim().min(1).max(200).optional(),
     include_banned: z.boolean().optional(),
     limit: z.number().int().min(1).max(50).optional(),
+    tags: z.record(z.union([z.boolean(), z.string().trim().min(1).max(200)])).optional(),
   })
   .strict()
   .refine((value) =>

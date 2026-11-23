@@ -368,6 +368,7 @@ function Rakit({
     shotArea: picked?.shot.area,
     missingMenus: missing,
     allMenus: menus,
+    menuFieldDefs: lib.data?.menuFieldDefs,
   });
 
   const update = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
@@ -607,7 +608,7 @@ function Rakit({
         {loc ? (
           result.noLocationPhoto ? (
             <>
-              <b style={{ color: "#e8a33a" }}>Belum ada foto lokasi dicentang</b>: lokasi cuma pakai Scene, Atmosphere, Must
+              <b className="warn">Belum ada foto lokasi dicentang</b>: lokasi cuma pakai Scene, Atmosphere, Must
               NOT. Centang minimal 1 foto lokasi biar presisi. · Reference Photos <b>{refs.length}</b> foto
             </>
           ) : (

@@ -489,6 +489,9 @@ export type AppDeps = {
   getCatalogReference: (ctx: McpAuthContext, id: string) => Promise<Record<string, unknown>>;
   listCatalogShotJobs: (ctx: McpAuthContext) => Promise<CatalogShotJobList>;
   getCatalogShotJob: (ctx: McpAuthContext, id: string) => Promise<Record<string, unknown>>;
+  listIndustryTemplates: (ctx: McpAuthContext) => Promise<unknown>;
+  getCatalogSettings: (ctx: McpAuthContext) => Promise<unknown>;
+  applyIndustryTemplate: (ctx: McpAuthContext, code: string) => Promise<unknown>;
   previewFootageSceneBatch: (
     ctx: McpAuthContext,
     input: FootageSceneBatchInput,
@@ -705,6 +708,10 @@ export function createApp(deps: AppDeps) {
         "catalog.reference.get",
         "catalog.shotlists.list",
         "catalog.shotlist.get",
+        "catalog.industry.templates.list",
+        "catalog.settings.get",
+        "catalog.tags.list",
+        "catalog.industry.apply",
       ],
     }),
   );

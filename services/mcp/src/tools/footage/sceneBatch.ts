@@ -22,6 +22,7 @@ const scenePatch = z.object({
   watermark: z.boolean().optional(),
   meja_biru: z.boolean().optional(),
   lengkuas: z.boolean().optional(),
+  tags: z.record(z.union([z.boolean(), z.string().trim().min(1).max(200)])).optional(),
 }).strict().refine((scene) =>
   scene.scene_kind !== undefined
   || scene.summary !== undefined
@@ -30,6 +31,7 @@ const scenePatch = z.object({
   || scene.watermark !== undefined
   || scene.meja_biru !== undefined
   || scene.lengkuas !== undefined
+  || (scene.tags !== undefined && Object.keys(scene.tags).length > 0)
 );
 
 export const upsertSceneBatchPreviewInput = z.object({

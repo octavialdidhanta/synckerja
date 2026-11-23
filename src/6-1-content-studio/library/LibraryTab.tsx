@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { MENU_FIELDS, isFilled, type LibraryPhoto, type LocationItem, type MenuItem } from "./libraryData";
+import { isFilled, resolveMenuFields, type LibraryPhoto, type LocationItem, type MenuItem } from "./libraryData";
 import { useLibraryData } from "./useLibraryData";
 
 type Kind = "menu" | "lokasi";
@@ -33,6 +33,7 @@ export function LibraryTab({ kind, headLeft }: Props) {
 
   const x = items.find((i) => i.id === sel) ?? null;
   const url = (p: LibraryPhoto) => (p.storagePath ? data?.photos[p.storagePath] : undefined);
+  const menuFields = resolveMenuFields(data?.menuFieldDefs);
 
   return (
     <>
@@ -56,7 +57,7 @@ export function LibraryTab({ kind, headLeft }: Props) {
         </div>
         <div className="pmr">
           {x ? (
-            <Detail kind={kind} x={x} url={url} onZoom={setZoom} />
+            <Detail kind={kind} x={x} url={url} onZoom={setZoom} menuFields={menuFields} />
           ) : data && !items.length ? (
             <div className="sub">{kind === "menu" ? "Belum ada produk." : "Belum ada lokasi."}</div>
           ) : null}
@@ -126,18 +127,20 @@ function Detail({
   x,
   url,
   onZoom,
+  menuFields,
 }: {
   kind: Kind;
   x: MenuItem | LocationItem;
   url: (p: LibraryPhoto) => string | undefined;
   onZoom: (u: string) => void;
+  menuFields: [string, string][];
 }) {
   return (
     <>
       <h2>{x.nama}</h2>
       <div className="sub">
         {kind === "menu"
-          ? "Deskripsi makanan untuk bagian Main Subject di prompt Flow."
+          ? "Deskripsi produk untuk bagian Main Subject di prompt Flow."
           : "Deskripsi lokasi untuk bagian Location di prompt Flow."}
       </div>
       {!isFilled(x) ? (
@@ -151,7 +154,7 @@ function Detail({
       ) : null}
       <Photos kind={kind} x={x} url={url} onZoom={onZoom} />
       {"fields" in x ? (
-        MENU_FIELDS.map(([k, l]) => <Block key={k} label={l} val={x.fields[k]} />)
+        menuFields.map(([k, l]) => <Block key={k} label={l} val={x.fields[k]} />)
       ) : (
         <>
           <div className="hint2" style={{ margin: "14px 0 4px" }}>

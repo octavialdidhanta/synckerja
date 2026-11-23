@@ -45,7 +45,7 @@ export function useFootageData() {
           "id,asset_id,start_seconds,end_seconds,scene_kind,summary,note,thumb_storage_path",
           org,
         ),
-        readAll<TagDefRecord>("footage_tag_defs", "id,key", org),
+        readAll<TagDefRecord>("footage_tag_defs", "id,key,label,value_type,position", org),
         readAll<TagValueRecord>("footage_tag_values", "id,tag_def_id,asset_id,scene_id,value_bool,value_text", org),
         readAll<UsageRecord>("footage_usages", "id,asset_id,scene_id,in_seconds,out_seconds,external_ref,social_media_plan_id", org),
         readAll<BanRecord>("footage_bans", "id,scene_id,reason", org),

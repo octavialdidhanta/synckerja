@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  EMPTY_FILTERS,
-  FILTER_GROUPS,
+  emptyFilters,
+  filterGroups,
   NM,
   countLabel,
   filterOptions,
@@ -12,9 +12,11 @@ import {
   type FilterKey,
   type Filters,
   type FootageRow,
+  type TagDefRecord,
   type ViewMode,
 } from "./footageRows";
 import { useFootageData } from "./useFootageData";
+import { useFootageBan } from "./useFootageBan";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { connectBank, loadBankState, openBankFile, type BankState } from "./localBank";
 
@@ -27,8 +29,9 @@ const fmt = (n: number, d = 1) => n.toFixed(d);
 
 export function FootageTab({ headLeft }: Props) {
   const { data, isPending, error } = useFootageData();
+  const { setBan } = useFootageBan();
   const { organizationId } = useOrgBootstrapPending();
-  const [F, setF] = useState<Filters>(EMPTY_FILTERS);
+  const [F, setF] = useState<Filters>(() => emptyFilters());
   const [view, setView] = useState<ViewMode>("scene");
   const [q, setQ] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -42,8 +45,14 @@ export function FootageTab({ headLeft }: Props) {
   }, [organizationId]);
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
+  const tagDefs = useMemo(() => data?.tagDefs ?? [], [data]);
+  const groups = useMemo(() => filterGroups(tagDefs), [tagDefs]);
   const opts = useMemo(() => (data ? filterOptions(data) : null), [data]);
   const L = useMemo(() => visibleRows(rows, F, q, view), [rows, F, q, view]);
+
+  useEffect(() => {
+    setF(emptyFilters(tagDefs));
+  }, [organizationId, tagDefs]);
 
   const connect = useCallback(
     async (forcePick = false) => {
@@ -111,14 +120,14 @@ export function FootageTab({ headLeft }: Props) {
     <div className={"wrap" + (showFilters ? " showf" : "")}>
       <aside className="side">
         {opts &&
-          FILTER_GROUPS.map(({ key, title }) => (
+          groups.map(({ key, title }) => (
             <div className="grp" key={key}>
               <div className="gt">{title}</div>
               <div className="opts">
-                {[null, ...opts[key]].map((o) => {
+                {[null, ...(opts[key] ?? [])].map((o) => {
                   const on = F[key] === o;
                   const n = optionCount(rows, F, q, view, key, o);
-                  const text = o === null ? "Semua" : label(key, o);
+                  const text = o === null ? "Semua" : label(key, o, tagDefs);
                   return (
                     <button
                       key={o ?? "__all"}
@@ -137,46 +146,52 @@ export function FootageTab({ headLeft }: Props) {
           ))}
       </aside>
       <div className="content">
-        <div className="bar">
-          {!active.length && !q.trim() ? (
-            <span className="hint">Pilih filter di kiri. Klik kartu untuk memutar scene.</span>
-          ) : null}
-          {q.trim() ? (
-            <span className="pill">
-              Cari: {q.trim()}{" "}
-              <button type="button" onClick={() => setQ("")}>
-                ×
+        {active.length || q.trim() ? (
+          <div className="bar">
+            {q.trim() ? (
+              <span className="pill">
+                Cari: {q.trim()}{" "}
+                <button type="button" onClick={() => setQ("")}>
+                  ×
+                </button>
+              </span>
+            ) : null}
+            {active.map((k) => (
+              <span className="pill" key={k}>
+                {label(k, F[k] as string, tagDefs)}{" "}
+                <button type="button" onClick={() => setKey(k, null)}>
+                  ×
+                </button>
+              </span>
+            ))}
+            {active.length + (q.trim() ? 1 : 0) > 1 ? (
+              <button
+                type="button"
+                className="reset"
+                onClick={() => {
+                  setF(emptyFilters(tagDefs));
+                  setQ("");
+                }}
+              >
+                Reset semua
               </button>
-            </span>
-          ) : null}
-          {active.map((k) => (
-            <span className="pill" key={k}>
-              {label(k, F[k] as string)}{" "}
-              <button type="button" onClick={() => setKey(k, null)}>
-                ×
-              </button>
-            </span>
-          ))}
-          {active.length + (q.trim() ? 1 : 0) > 1 ? (
-            <button
-              type="button"
-              className="reset"
-              onClick={() => {
-                setF(EMPTY_FILTERS);
-                setQ("");
-              }}
-            >
-              Reset semua
-            </button>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
+        ) : null}
         <div className="grid">
           {isPending ? <div className="loading">Memuat footage…</div> : null}
           {error ? <div className="empty">Gagal memuat footage. Coba muat ulang halaman.</div> : null}
           {data && !L.length ? <div className="empty">Nggak ada yang cocok.</div> : null}
           {data &&
             L.map((d) => (
-              <Card key={d.id} d={d} view={view} thumb={d.thumbPath ? data.thumbs[d.thumbPath] : undefined} onOpen={openRow} />
+              <Card
+                key={d.id}
+                d={d}
+                view={view}
+                tagDefs={tagDefs}
+                thumb={d.thumbPath ? data.thumbs[d.thumbPath] : undefined}
+                onOpen={openRow}
+              />
             ))}
         </div>
       </div>
@@ -188,6 +203,7 @@ export function FootageTab({ headLeft }: Props) {
           bank={bank}
           openFile={openFile}
           onConnect={connect}
+          onSetBan={setBan}
           onClose={() => setOpen(null)}
         />
       ) : null}
@@ -200,15 +216,18 @@ function Card({
   d,
   view,
   thumb,
+  tagDefs,
   onOpen,
 }: {
   d: FootageRow;
   view: ViewMode;
   thumb?: string;
+  tagDefs: TagDefRecord[];
   onOpen: (d: FootageRow, onlySeg: boolean) => void;
 }) {
   const n = usageCount(d, view);
   const tm = d.img ? "🖼 gambar" : view === "scene" ? `${fmt(d.a)}–${fmt(d.b)}s` : "klip";
+  const tagLabel = (key: string) => tagDefs.find((t) => t.key === key)?.label ?? key.replace(/_/g, " ");
   return (
     <div className={"c" + (d.ban ? " ban" : "")} onClick={() => onOpen(d, view === "scene")}>
       {thumb ? <img loading="lazy" src={thumb} alt="" /> : <div className="noimg">tanpa thumbnail</div>}
@@ -220,10 +239,32 @@ function Card({
         <div className="tg">
           <i>{d.lok}</i>
           <i>{NM.jenis[d.jenis] ?? d.jenis}</i>
-          {d.hijab === "ya" ? <i className="w">ada hijab</i> : null}
-          {d.wm === "ya" ? <i className="w">watermark/UI</i> : null}
-          {d.meja ? <i className="w">meja biru</i> : null}
-          {d.lengkuas === "tidak" ? <i>tanpa lengkuas</i> : null}
+          {Object.entries(d.tags).map(([key, val]) => {
+            if (val !== true && val !== "ya" && val !== "true") {
+              if (key === "lengkuas" && (val === false || val === "tidak")) return <i key={key}>tanpa lengkuas</i>;
+              if (typeof val === "string" && val && val !== "tidak" && val !== "false") {
+                return (
+                  <i key={key} className="w">
+                    {tagLabel(key)}: {val}
+                  </i>
+                );
+              }
+              return null;
+            }
+            const text =
+              key === "hijab"
+                ? "ada hijab"
+                : key === "watermark_ui"
+                  ? "watermark/UI"
+                  : key === "meja_biru"
+                    ? "meja biru"
+                    : tagLabel(key).toLowerCase();
+            return (
+              <i key={key} className="w">
+                {text}
+              </i>
+            );
+          })}
           {n ? <i className="k">dipakai {n}x</i> : <i className="k fresh">belum dipakai</i>}
         </div>
       </div>
@@ -238,6 +279,7 @@ function PlayerModal({
   bank,
   openFile,
   onConnect,
+  onSetBan,
   onClose,
 }: {
   rows: FootageRow[];
@@ -246,19 +288,29 @@ function PlayerModal({
   bank: { state: BankState; name: string | null };
   openFile: (fileKey: string) => Promise<File>;
   onConnect: (forcePick?: boolean) => Promise<void>;
+  onSetBan: (sceneId: string, reason: string | null) => Promise<boolean>;
   onClose: () => void;
 }) {
   const [d, setD] = useState(initial.row);
   const [seg, setSeg] = useState<[number, number] | null>(initial.onlySeg ? [initial.row.a, initial.row.b] : null);
   const [src, setSrc] = useState<{ f: string; url: string } | null>(null);
   const [fileErr, setFileErr] = useState<string | null>(null);
+  // Bumped after "Pilih ulang folder" so we retry open even when the folder name is unchanged.
+  const [loadNonce, setLoadNonce] = useState(0);
+  const [banBusy, setBanBusy] = useState(false);
   const vref = useRef<HTMLVideoElement>(null);
   const sc = useMemo(() => rows.filter((x) => x.f === d.f), [rows, d.f]);
 
-  // Load the original file from the laptop folder once per clip.
+  // Keep the open scene in sync when the footage cache updates (ban / unban from this modal).
+  useEffect(() => {
+    const latest = rows.find((r) => r.id === d.id);
+    if (!latest) return;
+    setD((prev) => (prev.id === latest.id && prev.ban === latest.ban ? prev : { ...prev, ban: latest.ban }));
+  }, [rows, d.id]);
+
+  // Load the original file from the laptop folder once per clip (or after re-pick).
   useEffect(() => {
     if (bank.state !== "ready") return;
-    if (src?.f === d.f) return;
     let cancelled = false;
     setFileErr(null);
     openFile(d.f)
@@ -270,12 +322,29 @@ function PlayerModal({
         });
       })
       .catch(() => {
-        if (!cancelled) setFileErr(`File nggak ketemu di folder "${bank.name}". Pastikan yang dipilih folder bank-footage.`);
+        if (cancelled) return;
+        setSrc((prev) => {
+          if (prev) URL.revokeObjectURL(prev.url);
+          return null;
+        });
+        setFileErr(`File nggak ketemu di folder "${bank.name}". Pastikan yang dipilih folder bank-footage.`);
       });
     return () => {
       cancelled = true;
     };
-  }, [bank.state, bank.name, d.f, src?.f, openFile]);
+  }, [bank.state, bank.name, d.f, openFile, loadNonce]);
+
+  const rePickFolder = () => {
+    void (async () => {
+      await onConnect(true);
+      setSrc((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return null;
+      });
+      setFileErr(null);
+      setLoadNonce((n) => n + 1);
+    })();
+  };
 
   useEffect(
     () => () => {
@@ -323,7 +392,7 @@ function PlayerModal({
         <>
           Hubungkan folder <b>bank-footage</b> di laptop untuk memutar video asli.
           <br />
-          <button type="button" className="hb" onClick={() => void onConnect(true)}>
+          <button type="button" className="hb" onClick={rePickFolder}>
             Pilih folder bank-footage
           </button>
         </>
@@ -343,7 +412,7 @@ function PlayerModal({
         <>
           {fileErr}
           <br />
-          <button type="button" className="hb" onClick={() => void onConnect(true)}>
+          <button type="button" className="hb" onClick={rePickFolder}>
             Pilih ulang folder
           </button>
         </>
@@ -359,6 +428,26 @@ function PlayerModal({
       setD(x);
       setSeg([x.a, x.b]);
     }
+  };
+
+  const markBan = () => {
+    const reason = window.prompt("Alasan scene ini nggak boleh dipakai? (opsional)", "");
+    if (reason === null) return;
+    setBanBusy(true);
+    void onSetBan(d.id, reason.trim() || "tidak sesuai")
+      .then((ok) => {
+        if (ok) setD((prev) => ({ ...prev, ban: reason.trim() || "tidak sesuai" }));
+      })
+      .finally(() => setBanBusy(false));
+  };
+
+  const clearBan = () => {
+    setBanBusy(true);
+    void onSetBan(d.id, null)
+      .then((ok) => {
+        if (ok) setD((prev) => ({ ...prev, ban: null }));
+      })
+      .finally(() => setBanBusy(false));
   };
 
   return (
@@ -441,11 +530,22 @@ function PlayerModal({
             </div>
           ) : null}
           {d.ban ? (
-            <div style={{ color: "#ffb4a8" }}>
-              <b style={{ color: "#ffb4a8" }}>Jangan dipakai</b>
+            <div className="ban-note">
+              <b>Jangan dipakai</b>
               {d.ban}
             </div>
           ) : null}
+          <div className="act">
+            {d.ban ? (
+              <button type="button" className="btn g" disabled={banBusy} onClick={clearBan}>
+                Batalkan tanda
+              </button>
+            ) : (
+              <button type="button" className="btn" disabled={banBusy} onClick={markBan}>
+                🚫 Tandai jangan dipakai
+              </button>
+            )}
+          </div>
           <div style={{ marginTop: 12 }}>
             <code>{d.f}</code>
           </div>

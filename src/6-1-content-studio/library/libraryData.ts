@@ -3,6 +3,7 @@
  * (MENU and LOK arrays), built from catalog_menus / catalog_locations and their rows.
  */
 
+/** F&B default — prefer org `catalog_menu_field_defs` via resolveMenuFields(). */
 export const MENU_FIELDS: [key: string, label: string][] = [
   ["main", "Main Subject"],
   ["topping", "Signature Topping"],
@@ -12,6 +13,18 @@ export const MENU_FIELDS: [key: string, label: string][] = [
   ["larangan", "Larangan (must NOT)"],
   ["khusus", "Aturan khusus"],
 ];
+
+export type OrgMenuFieldDef = { field_key: string; label: string; position?: number };
+
+/** Org field defs when present; otherwise F&B defaults. */
+export function resolveMenuFields(defs?: OrgMenuFieldDef[] | null): [key: string, label: string][] {
+  if (defs && defs.length) {
+    return [...defs]
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.field_key.localeCompare(b.field_key))
+      .map((d) => [d.field_key, d.label] as [string, string]);
+  }
+  return MENU_FIELDS;
+}
 
 export interface LibraryPhoto {
   id: string;

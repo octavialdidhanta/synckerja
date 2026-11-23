@@ -438,3 +438,22 @@ export async function applyCatalogShotJobUpsert(
     p_preview_id: previewId,
   });
 }
+
+export async function listIndustryTemplates(admin: SupabaseClient, ctx: Session): Promise<unknown> {
+  return callJson(admin, "mcp_list_industry_templates", sessionArgs(ctx));
+}
+
+export async function getCatalogSettings(admin: SupabaseClient, ctx: Session): Promise<unknown> {
+  return callJson(admin, "mcp_get_catalog_settings", sessionArgs(ctx));
+}
+
+export async function applyIndustryTemplate(
+  admin: SupabaseClient,
+  ctx: Session,
+  code: string,
+): Promise<unknown> {
+  return callJson(admin, "mcp_apply_industry_template", {
+    ...sessionArgs(ctx),
+    p_code: code,
+  });
+}
