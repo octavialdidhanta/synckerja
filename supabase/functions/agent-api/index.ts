@@ -41,6 +41,7 @@ import {
  *   POST /v1/jobs/claim                                              → oldest queued job (or a stale one), or null
  *   POST /v1/jobs/<id>/progress     { claim_token, progress, stage, log } → { continue } (false = cancelled)
  *   POST /v1/jobs/<id>/upload-start { claim_token, file_name, size_bytes } → one-time upload URL for the plan
+ *   POST /v1/jobs/<id>/usage        { claim_token, shots: [{ file_key, in, out }] } → footage usage for the plan
  *   POST /v1/jobs/<id>/finish       { claim_token, ok, result, error, log }
  */
 
@@ -163,7 +164,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const jobRoute = /^\/v1\/jobs\/(claim|([0-9a-f-]{36})\/(progress|finish|upload-start))$/i.exec(path);
+    const jobRoute = /^\/v1\/jobs\/(claim|([0-9a-f-]{36})\/(progress|finish|upload-start|usage))$/i.exec(path);
     if (req.method === "POST" && jobRoute) {
       if (!ctx.scopes.includes("render")) return fail(403, "forbidden", "Token ini tidak punya akses render.");
       let body: Record<string, unknown> = {};
@@ -199,6 +200,15 @@ Deno.serve(async (req) => {
           p_progress: progress, p_stage: text(body.stage, 80), p_log: text(body.log, 20000),
         });
         if (error) return rpcErr("agent_job_progress", error.message);
+        return json({ ok: true, ...(data as Record<string, unknown>) });
+      }
+
+      if (action === "usage") {
+        if (!Array.isArray(body.shots)) return fail(400, "invalid_input", "shots wajib array.");
+        const { data, error } = await admin.rpc("agent_job_log_usage", {
+          p_token_id: ctx.tokenId, p_job_id: jobId, p_claim_token: claimToken, p_shots: body.shots,
+        });
+        if (error) return rpcErr("agent_job_log_usage", error.message);
         return json({ ok: true, ...(data as Record<string, unknown>) });
       }
 
