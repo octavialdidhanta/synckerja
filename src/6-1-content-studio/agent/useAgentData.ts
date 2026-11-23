@@ -95,7 +95,7 @@ export function useAgentJobs() {
     queryFn: async () => {
       const { data, error } = await db()
         .from("agent_jobs")
-        .select("id,title,status,stage,progress,attempts,max_attempts,error,result,social_media_plan_id,created_at,finished_at,heartbeat_at")
+        .select("id,title,status,stage,progress,attempts,max_attempts,error,log,result,social_media_plan_id,created_at,finished_at,heartbeat_at")
         .eq("organization_id", organizationId)
         .order("created_at", { ascending: false })
         .limit(30);

@@ -178,6 +178,26 @@ export function AgentTab({ headLeft }: Props) {
                     ) : null}
                   </p>
                 ) : null}
+                {j.log && (j.status === "failed" || j.status === "done" || j.status === "cancelled") ? (
+                  <details className="mut">
+                    <summary>Log Agent</summary>
+                    <pre
+                      style={{
+                        margin: "4px 0 0",
+                        maxHeight: 160,
+                        overflow: "auto",
+                        whiteSpace: "pre-wrap",
+                        fontSize: 11,
+                        lineHeight: 1.35,
+                        background: "#f3f4f6",
+                        borderRadius: 6,
+                        padding: 8,
+                      }}
+                    >
+                      {j.log.slice(-4000)}
+                    </pre>
+                  </details>
+                ) : null}
                 <div className="row">
                   {j.status === "queued" || j.status === "running" ? (
                     <button type="button" className="hb ghost" disabled={jobActions.cancel.isPending} onClick={() => jobActions.cancel.mutate(j.id)}>

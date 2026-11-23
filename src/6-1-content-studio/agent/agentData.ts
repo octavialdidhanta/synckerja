@@ -84,6 +84,8 @@ export interface AgentJobRow {
   attempts: number;
   max_attempts: number;
   error: string | null;
+  /** Tail of the Agent laptop log for this job (failed/done debugging). */
+  log: string | null;
   result: { google_drive_link?: string; version_no?: number; output_file?: string } | null;
   social_media_plan_id: string | null;
   created_at: string;
