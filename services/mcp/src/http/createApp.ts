@@ -89,6 +89,9 @@ import type {
   FootageBansResult,
   FootageClip,
   FootageClipUpsertInput,
+  FootageClipCreateInput,
+  FootageClipCreatePreview,
+  FootageClipCreateSaved,
   FootageClipUpsertPreview,
   FootageClipUpsertSaved,
   FootageMoveInput,
@@ -502,6 +505,8 @@ export type AppDeps = {
   applyFootageBan: (ctx: McpAuthContext, previewId: string) => Promise<FootageBanSaved>;
   previewFootageClip: (ctx: McpAuthContext, input: FootageClipUpsertInput) => Promise<FootageClipUpsertPreview>;
   applyFootageClip: (ctx: McpAuthContext, previewId: string) => Promise<FootageClipUpsertSaved>;
+  previewFootageClipCreate: (ctx: McpAuthContext, input: FootageClipCreateInput) => Promise<FootageClipCreatePreview>;
+  applyFootageClipCreate: (ctx: McpAuthContext, previewId: string) => Promise<FootageClipCreateSaved>;
   previewFootageDelete: (ctx: McpAuthContext, input: FootageDeleteInput) => Promise<FootageDeletePreview>;
   applyFootageDelete: (ctx: McpAuthContext, previewId: string) => Promise<FootageDeleteSaved>;
   previewFootageRestore: (ctx: McpAuthContext, input: FootageRestoreInput) => Promise<FootageRestorePreview>;
@@ -663,7 +668,7 @@ export function createApp(deps: AppDeps) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      rev: "catalog-library-write-v1",
+      rev: "footage-clips-create-v1",
       tools: [
         "content.plans.media.upload.start",
         "content.plans.media.versions.list",
@@ -681,6 +686,8 @@ export function createApp(deps: AppDeps) {
         "footage.ban.add",
         "footage.clips.upsert.preview",
         "footage.clips.upsert",
+        "footage.clips.create.preview",
+        "footage.clips.create",
         "footage.delete.preview",
         "footage.delete",
         "footage.restore.preview",

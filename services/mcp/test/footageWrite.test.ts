@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { CONTENT_PAGE_PATH } from "../src/authz/context";
 import {
   applyFootageClip,
+  applyFootageClipCreate,
   applyFootageSceneBatch,
   previewFootageClip,
+  previewFootageClipCreate,
   previewFootageSceneBatch,
   previewFootageUsage,
 } from "../src/db/footage";
@@ -11,6 +13,7 @@ import { publishedToolShape } from "../src/mcp/handler";
 import { MCP_TOOLS } from "../src/mcp/registry";
 import { banAddPreviewInput } from "../src/tools/footage/banAdd";
 import { applyClipUpsertResult, clipUpsertPreviewInput, previewClipUpsertResult } from "../src/tools/footage/clipUpsert";
+import { applyClipCreateResult, clipCreatePreviewInput, previewClipCreateResult } from "../src/tools/footage/clipCreate";
 import {
   signFootageConfirmation,
   verifyFootageConfirmation,
@@ -34,6 +37,77 @@ function fakeAdmin(data: unknown, error: { message: string } | null = null) {
   };
   return { admin: admin as never, calls };
 }
+
+describe("footage.clips.create", () => {
+  const base = { file_key: "INBOX/baru.mp4", media_type: "video", origin: "HP", duration_seconds: 12.5 };
+
+  it("accepts a new clip with scenes and rejects duplicate starts, scenes past the end, extra keys, and no scenes", () => {
+    const ok = clipCreatePreviewInput.safeParse({
+      ...base,
+      scenes: [{ start_seconds: 0, end_seconds: 5, scene_kind: "produk", hijab: false }, { start_seconds: 5, scene_kind: "orang" }],
+    });
+    expect(ok.success).toBe(true);
+    expect(ok.success && ok.data.origin).toBe("hp");
+    const scene = { start_seconds: 0, scene_kind: "produk" };
+    expect(clipCreatePreviewInput.safeParse({ ...base, scenes: [] }).success).toBe(false);
+    expect(clipCreatePreviewInput.safeParse({ ...base, scenes: [scene, scene] }).success).toBe(false);
+    expect(clipCreatePreviewInput.safeParse({ ...base, scenes: [{ ...scene, end_seconds: 20 }] }).success).toBe(false);
+    expect(clipCreatePreviewInput.safeParse({ ...base, scenes: [{ start_seconds: 3, end_seconds: 2, scene_kind: "x" }] }).success).toBe(false);
+    expect(clipCreatePreviewInput.safeParse({ ...base, scenes: [scene], organization_id: "org-2" }).success).toBe(false);
+    expect(clipCreatePreviewInput.safeParse({ ...base, origin: "kamera", scenes: [scene] }).success).toBe(false);
+    expect(clipCreatePreviewInput.safeParse({ ...base, scenes: Array.from({ length: 201 }, (_, i) => ({ start_seconds: i, scene_kind: "x" })) }).success).toBe(false);
+  });
+
+  it("previews through the session organization, signs only the preview id, and saves once", async () => {
+    const { admin, calls } = fakeAdmin({
+      clip: { file_key: "INBOX/baru.mp4", storage_status: "inbox" },
+      scenes: [{ scene_index: 1, start_seconds: 0, scene_kind: "produk" }],
+      scene_count: 1,
+      preview_id: previewId,
+      expires_at: "2026-11-23T12:15:00.000Z",
+    });
+    const result = await previewClipCreateResult(
+      ctx as never,
+      { ...base, scenes: [{ start_seconds: 0, scene_kind: "produk" }] },
+      (identity, input) => previewFootageClipCreate(admin, identity, input),
+      async (_c, tool) => {
+        expect(tool).toBe("footage.clips.create");
+        return { confirm_token: "signed-token-value-123456", expires_at: "2026-11-23T12:15:00.000Z" };
+      },
+    );
+    expect(calls[0].fn).toBe("mcp_preview_footage_clip_create");
+    expect(calls[0].args.p_organization_id).toBe("org-1");
+    expect(result).not.toHaveProperty("preview_id");
+    expect(result.scene_count).toBe(1);
+
+    const signed = await signFootageConfirmation(secret, ctx, "footage.clips.create", previewId, new Date(Date.now() + 60_000).toISOString());
+    const saved = await applyClipCreateResult(
+      ctx as never,
+      { confirm_token: signed.confirm_token },
+      (identity, tool, token) => verifyFootageConfirmation(secret, identity, tool, token, new Date()),
+      (identity, id) => applyFootageClipCreate(admin, identity, id),
+    );
+    expect(calls[1]).toEqual({
+      fn: "mcp_apply_footage_clip_create",
+      args: { p_user_id: "user-1", p_organization_id: "org-1", p_preview_id: previewId },
+    });
+    expect(saved).toBeTruthy();
+  });
+
+  it("refuses a confirm token signed for another footage tool", async () => {
+    const signed = await signFootageConfirmation(secret, ctx, "footage.clips.upsert", previewId, new Date(Date.now() + 60_000).toISOString());
+    await expect(
+      applyClipCreateResult(
+        ctx as never,
+        { confirm_token: signed.confirm_token },
+        (identity, tool, token) => verifyFootageConfirmation(secret, identity, tool, token, new Date()),
+        async () => {
+          throw new Error("should not save");
+        },
+      ),
+    ).rejects.toThrow("confirmation_invalid");
+  });
+});
 
 describe("footage write tools", () => {
   it("rejects organization_id, a 51st scene, a duplicate, and an empty patch", () => {
@@ -259,6 +333,8 @@ describe("footage write tools", () => {
       "footage.ban.add",
       "footage.clips.upsert.preview",
       "footage.clips.upsert",
+      "footage.clips.create.preview",
+      "footage.clips.create",
       "footage.delete.preview",
       "footage.delete",
       "footage.restore.preview",

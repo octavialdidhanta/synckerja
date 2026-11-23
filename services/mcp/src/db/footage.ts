@@ -377,6 +377,68 @@ export async function applyFootageClip(
   });
 }
 
+export type FootageClipCreateScene = {
+  start_seconds: number;
+  end_seconds?: number | null;
+  scene_kind: string;
+  summary?: string;
+  note?: string;
+  hijab?: boolean;
+  watermark?: boolean;
+  meja_biru?: boolean;
+  lengkuas?: boolean;
+};
+
+export type FootageClipCreateInput = {
+  file_key: string;
+  media_type: "video" | "image";
+  origin: "hp" | "ai" | "foto";
+  location?: string;
+  product?: string;
+  summary?: string;
+  note?: string;
+  duration_seconds?: number | null;
+  storage_status?: "inbox" | "bank";
+  scenes: FootageClipCreateScene[];
+};
+
+export type FootageClipCreatePreview = {
+  clip: Record<string, unknown>;
+  scenes: Array<Record<string, unknown>>;
+  scene_count: number;
+  preview_id: string;
+  expires_at: string;
+};
+
+export type FootageClipCreateSaved = {
+  saved: boolean;
+  file_key: string;
+  storage_status: string;
+  scene_count: number;
+};
+
+export async function previewFootageClipCreate(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: FootageClipCreateInput,
+): Promise<FootageClipCreatePreview> {
+  return callJson<FootageClipCreatePreview>(admin, "mcp_preview_footage_clip_create", {
+    ...sessionArgs(ctx),
+    p_input: input,
+  });
+}
+
+export async function applyFootageClipCreate(
+  admin: SupabaseClient,
+  ctx: Session,
+  previewId: string,
+): Promise<FootageClipCreateSaved> {
+  return callJson<FootageClipCreateSaved>(admin, "mcp_apply_footage_clip_create", {
+    ...sessionArgs(ctx),
+    p_preview_id: previewId,
+  });
+}
+
 export type FootageStorageFile = { kind: string; path: string };
 
 export type FootageDeleteInput = {
