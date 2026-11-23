@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isFilled, type LocationItem, type MenuItem } from "../library/libraryData";
 import { useLibraryData } from "../library/useLibraryData";
 import {
@@ -12,7 +12,21 @@ import {
   type Talk,
 } from "./buildFlowPrompt";
 import { missingMenus, splitJobs, type Shot, type ShotJob } from "./shotData";
+import { draftFromShot, draftToPatch, type Draft } from "./shotDraft";
+import {
+  addShot,
+  applyShotFields,
+  deleteShot,
+  duplicateShot,
+  editShotMeta,
+  resetShot,
+  setJobArchived,
+  setShotDone,
+  type ShotDoc,
+  type ShotMetaPatch,
+} from "./shotDocument";
 import { useShotData } from "./useShotData";
+import { useShotSave, type ShotSaveStatus } from "./useShotSave";
 
 interface Props {
   headLeft: React.ReactNode;
@@ -21,48 +35,25 @@ interface Props {
 const QUICK = "quick";
 const key = (j: ShotJob, s: Shot) => `${j.id}|${s.id}`;
 
-/** Working copy of one shot (or the quick shot) while the user adjusts it. Not saved yet. */
-interface Draft {
-  menuIds: string[];
-  locId: string;
-  talk: Talk;
-  angles: 1 | 2 | 3;
-  action: string;
-  curArea: string;
-  /** null = default selection for the current menus, location, and area */
-  sel: Set<string> | null;
-}
-
-function draftFromShot(job: ShotJob, s: Shot, menus: MenuItem[], locs: LocationItem[]): Draft {
-  const lokExt = s.lokasi || job.lokasi;
-  const loc = locs.find((l) => l.externalId === lokExt) ?? locs[0] ?? null;
-  const areas = locationAreas(loc);
-  const want = (s.pick !== undefined ? s.pick : s.area) || "";
-  return {
-    menuIds: s.menus.map((id) => menus.find((m) => m.externalId === id)?.id).filter((x): x is string => Boolean(x)),
-    locId: loc?.id ?? "",
-    talk: s.bicara ? "ngomong" : "diam",
-    angles: s.angle,
-    action: s.action,
-    curArea: areas.includes(want) ? want : "",
-    sel: s.fotos ? new Set(s.fotos) : null,
-  };
-}
+const SAVE_DELAY_MS = 500;
 
 export function ShotListTab({ headLeft }: Props) {
   const lib = useLibraryData();
   const shots = useShotData();
+  const { saveJob, status } = useShotSave();
   const menus = useMemo(() => lib.data?.menus ?? [], [lib.data]);
   const locs = useMemo(() => lib.data?.locations ?? [], [lib.data]);
   const jobs = useMemo(() => shots.data?.jobs ?? [], [shots.data]);
   const { active, archived } = useMemo(() => splitJobs(jobs), [jobs]);
   const [selKey, setSelKey] = useState<string>(QUICK);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const picked = useMemo(() => {
-    for (const j of jobs) for (const s of j.shots) if (key(j, s) === selKey) return { job: j, shot: s };
+  const find = (all: ShotJob[], k: string) => {
+    for (const j of all) for (const s of j.shots) if (key(j, s) === k) return { job: j, shot: s };
     return null;
-  }, [jobs, selKey]);
+  };
+  const picked = useMemo(() => find(jobs, selKey), [jobs, selKey]);
 
   // Each shot (and the quick shot) keeps its own working copy while this page is open.
   const ready = Boolean(lib.data && shots.data);
@@ -72,12 +63,111 @@ export function ShotListTab({ headLeft }: Props) {
       (picked
         ? draftFromShot(picked.job, picked.shot, menus, locs)
         : { menuIds: [], locId: locs[0]?.id ?? "", talk: "diam", angles: 1, action: "", curArea: "", sel: null }));
-  const setDraft: React.Dispatch<React.SetStateAction<Draft | null>> = (u) =>
+
+  // Latest values for the save timers, which outlive the render that scheduled them.
+  const latest = useRef({ drafts, jobs, menus, locs });
+  latest.current = { drafts, jobs, menus, locs };
+  const timers = useRef(new Map<string, number>());
+
+  const dropDrafts = (match: (k: string) => boolean) => {
+    for (const [k, t] of timers.current) if (match(k)) {
+      window.clearTimeout(t);
+      timers.current.delete(k);
+    }
+    setDrafts((all) => Object.fromEntries(Object.entries(all).filter(([k]) => !match(k))));
+  };
+
+  const reportError = (jobId: string, e: unknown) => {
+    if (e instanceof Error && e.message === "changed_elsewhere") {
+      dropDrafts((k) => k.startsWith(jobId + "|"));
+      setNotice("Shot list ini barusan diubah di tempat lain (Claude atau tab lain). Data terbaru udah dimuat, ulangi perubahan terakhir.");
+    } else {
+      setNotice("Gagal simpan. Cek koneksi, lalu ubah lagi.");
+    }
+  };
+
+  const run = <T,>(jobId: string, edit: (doc: ShotDoc) => { doc: ShotDoc; result?: T }) => {
+    setNotice(null);
+    return saveJob<T>(jobId, edit).catch((e: unknown) => {
+      reportError(jobId, e);
+      return undefined;
+    });
+  };
+
+  // katalog.html saveSoon(): field edits are saved half a second after the last change.
+  const flush = (k: string) => {
+    const t = timers.current.get(k);
+    if (t !== undefined) window.clearTimeout(t);
+    timers.current.delete(k);
+    const st = latest.current;
+    const hit = find(st.jobs, k);
+    const d = st.drafts[k];
+    if (!hit || !d) return;
+    const patch = draftToPatch(draftFromShot(hit.job, hit.shot, st.menus, st.locs), d, st.menus, st.locs);
+    if (!Object.keys(patch).length) return;
+    void run(hit.job.id, (doc) => ({ doc: applyShotFields(doc, hit.shot.id, patch) }));
+  };
+  const schedule = (k: string) => {
+    const t = timers.current.get(k);
+    if (t !== undefined) window.clearTimeout(t);
+    timers.current.set(k, window.setTimeout(() => flush(k), SAVE_DELAY_MS));
+  };
+
+  // Leaving the tab saves whatever is still waiting.
+  useEffect(
+    () => () => {
+      for (const k of [...timers.current.keys()]) flush(k);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const setDraft: React.Dispatch<React.SetStateAction<Draft | null>> = (u) => {
     setDrafts((all) => {
       const cur = all[selKey] ?? draft;
       const next = typeof u === "function" ? u(cur) : u;
       return next ? { ...all, [selKey]: next } : all;
     });
+    if (selKey !== QUICK) schedule(selKey);
+  };
+
+  const actions: ShotActions | null = picked
+    ? {
+        setDone: (v) => void run(picked.job.id, (doc) => ({ doc: setShotDone(doc, picked.shot.id, v) })),
+        editMeta: (m) => void run(picked.job.id, (doc) => ({ doc: editShotMeta(doc, picked.shot.id, m) })),
+        reset: () => {
+          dropDrafts((k) => k === selKey);
+          void run(picked.job.id, (doc) => ({ doc: resetShot(doc, picked.shot.id) }));
+        },
+        duplicate: async () => {
+          flush(selKey);
+          const id = await run<string>(picked.job.id, (doc) => {
+            const r = duplicateShot(doc, picked.shot.id);
+            return { doc: r.doc, result: r.id };
+          });
+          if (id) setSelKey(`${picked.job.id}|${id}`);
+        },
+        remove: () => {
+          dropDrafts((k) => k === selKey);
+          setSelKey(QUICK);
+          void run(picked.job.id, (doc) => ({ doc: deleteShot(doc, picked.shot.id) }));
+        },
+      }
+    : null;
+
+  const jobActions = {
+    add: async (job: ShotJob, judul: string) => {
+      const id = await run<string>(job.id, (doc) => {
+        const r = addShot(doc, judul);
+        return { doc: r.doc, result: r.id };
+      });
+      if (id) setSelKey(`${job.id}|${id}`);
+    },
+    archive: (job: ShotJob, arsip: boolean) => {
+      if (arsip && picked?.job.id === job.id) setSelKey(QUICK);
+      void run(job.id, (doc) => ({ doc: setJobArchived(doc, arsip) }));
+    },
+  };
 
   const loading = lib.isPending || shots.isPending;
   const failed = lib.error || shots.error;
@@ -99,13 +189,13 @@ export function ShotListTab({ headLeft }: Props) {
             <div className="hint2">Belum ada job aktif. Minta Claude bikinin shot list dari content plan.</div>
           ) : null}
           {active.map((j) => (
-            <JobList key={j.id} job={j} menus={menus} selKey={selKey} onPick={setSelKey} />
+            <JobList key={j.id} job={j} menus={menus} selKey={selKey} onPick={setSelKey} actions={jobActions} />
           ))}
           {archived.length ? (
             <details className="arsip" open={Boolean(picked?.job.arsip)}>
               <summary>Arsip ({archived.length})</summary>
               {archived.map((j) => (
-                <JobList key={j.id} job={j} menus={menus} selKey={selKey} onPick={setSelKey} />
+                <JobList key={j.id} job={j} menus={menus} selKey={selKey} onPick={setSelKey} actions={jobActions} />
               ))}
             </details>
           ) : null}
@@ -121,6 +211,9 @@ export function ShotListTab({ headLeft }: Props) {
               picked={picked}
               draft={draft}
               setDraft={setDraft}
+              actions={actions}
+              status={status}
+              notice={notice}
             />
           ) : null}
         </div>
@@ -129,19 +222,43 @@ export function ShotListTab({ headLeft }: Props) {
   );
 }
 
+interface ShotActions {
+  setDone: (v: boolean) => void;
+  editMeta: (m: ShotMetaPatch) => void;
+  reset: () => void;
+  duplicate: () => void;
+  remove: () => void;
+}
+
+interface JobActions {
+  add: (job: ShotJob, judul: string) => void;
+  archive: (job: ShotJob, arsip: boolean) => void;
+}
+
 function JobList({
   job,
   menus,
   selKey,
   onPick,
+  actions,
 }: {
   job: ShotJob;
   menus: MenuItem[];
   selKey: string;
   onPick: (k: string) => void;
+  actions: JobActions;
 }) {
+  const [adding, setAdding] = useState(false);
+  const [title, setTitle] = useState("");
   const dn = job.shots.filter((s) => s.done).length;
   const n = job.shots.length;
+  const submit = () => {
+    const v = title.trim();
+    if (!v) return;
+    actions.add(job, v);
+    setTitle("");
+    setAdding(false);
+  };
   return (
     <>
       <div className="jh">
@@ -149,7 +266,42 @@ function JobList({
           {job.judul}
         </span>
         {n ? <span className={"jc" + (dn === n ? " ok" : "")}>{`${dn}/${n}`}</span> : null}
+        {job.arsip ? null : (
+          <button type="button" className="ib" title="Tambah shot" onClick={() => setAdding((v) => !v)}>
+            ＋
+          </button>
+        )}
+        {job.tetap ? null : (
+          <button
+            type="button"
+            className="ib"
+            title={job.arsip ? "Keluarin dari arsip" : "Arsipkan"}
+            onClick={() => actions.archive(job, !job.arsip)}
+          >
+            {job.arsip ? "↩" : "🗄"}
+          </button>
+        )}
       </div>
+      {adding ? (
+        <div className="addf">
+          <input
+            autoFocus
+            value={title}
+            placeholder="Judul shot baru"
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+              if (e.key === "Escape") setAdding(false);
+            }}
+          />
+          <button type="button" className="mini" onClick={submit} disabled={!title.trim()}>
+            Tambah
+          </button>
+          <button type="button" className="mini" onClick={() => setAdding(false)}>
+            Batal
+          </button>
+        </div>
+      ) : null}
       {job.shots.map((s) => {
         const k = key(job, s);
         const mi = missingMenus(s, menus);
@@ -180,6 +332,9 @@ function Rakit({
   picked,
   draft,
   setDraft,
+  actions,
+  status,
+  notice,
 }: {
   fields: PromptFields;
   menus: MenuItem[];
@@ -188,6 +343,9 @@ function Rakit({
   picked: { job: ShotJob; shot: Shot } | null;
   draft: Draft;
   setDraft: React.Dispatch<React.SetStateAction<Draft | null>>;
+  actions: ShotActions | null;
+  status: ShotSaveStatus;
+  notice: string | null;
 }) {
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -295,9 +453,7 @@ function Rakit({
               ) : null}
             </div>
           </div>
-          <div className="sbar">
-            <span className={"donel" + (s.done ? " on" : "")}>{s.done ? "✓ Sudah generate" : "Belum generate"}</span>
-          </div>
+          {actions ? <ShotBar shot={s} actions={actions} /> : null}
         </div>
       ) : (
         <>
@@ -305,7 +461,12 @@ function Rakit({
           <div className="sub">Pilih menu dan lokasi, tulis action-nya, lalu copy. Teks deskripsi dipakai apa adanya.</div>
         </>
       )}
-      <div className="note">Perubahan di sini belum tersimpan ke shot list (simpan menyusul). Copy prompt tetap bisa dipakai.</div>
+      {notice ? <div className="note">{notice}</div> : null}
+      {s ? (
+        <div className={"ssb " + status}>{SAVE_LABEL[status]}</div>
+      ) : (
+        <div className="hint2">Shot cepat nggak disimpan. Copy prompt tetap bisa dipakai.</div>
+      )}
 
       <div className="fr">
         <div>
@@ -462,6 +623,101 @@ function Rakit({
       </div>
       <pre className="out">{result.text}</pre>
       {toast ? <div className="toast">{toast}</div> : null}
+    </div>
+  );
+}
+
+const SAVE_LABEL: Record<ShotSaveStatus, string> = {
+  idle: "Perubahan kesimpen otomatis ke shot list.",
+  saving: "Menyimpan…",
+  saved: "Tersimpan ✓",
+  error: "Gagal simpan.",
+  conflict: "Dimuat ulang karena ada perubahan dari tempat lain.",
+};
+
+/** katalog.html shot header: Sudah generate, Ubah judul/VO, Duplikat, Reset ke default, Hapus. */
+function ShotBar({ shot, actions }: { shot: Shot; actions: ShotActions }) {
+  const [editing, setEditing] = useState(false);
+  const [confirm, setConfirm] = useState<"reset" | "hapus" | null>(null);
+  const [meta, setMeta] = useState<ShotMetaPatch>({ judul: shot.judul, timing: shot.timing, vo: shot.vo });
+  const openEdit = () => {
+    setMeta({ judul: shot.judul, timing: shot.timing, vo: shot.vo });
+    setConfirm(null);
+    setEditing(true);
+  };
+  return (
+    <div className="sbarw">
+      <div className="sbar">
+        <label className={"donel" + (shot.done ? " on" : "")}>
+          <input type="checkbox" checked={shot.done} onChange={(e) => actions.setDone(e.target.checked)} /> Sudah generate
+        </label>
+        <button type="button" className="mini" onClick={openEdit}>
+          Ubah judul/VO
+        </button>
+        <button type="button" className="mini" onClick={() => actions.duplicate()}>
+          Duplikat
+        </button>
+        <button type="button" className="mini" onClick={() => setConfirm("reset")}>
+          Reset ke default
+        </button>
+        <button type="button" className="mini del" onClick={() => setConfirm("hapus")}>
+          Hapus
+        </button>
+      </div>
+      {confirm ? (
+        <div className="cfm">
+          <span>
+            {confirm === "reset"
+              ? "Balikin shot ini ke isi awal (action, produk, foto, ngomong, angle)?"
+              : `Hapus shot ${shot.id} — ${shot.judul}?`}
+          </span>
+          <button
+            type="button"
+            className={"mini" + (confirm === "hapus" ? " del" : "")}
+            onClick={() => {
+              if (confirm === "reset") actions.reset();
+              else actions.remove();
+              setConfirm(null);
+            }}
+          >
+            {confirm === "reset" ? "Ya, reset" : "Ya, hapus"}
+          </button>
+          <button type="button" className="mini" onClick={() => setConfirm(null)}>
+            Batal
+          </button>
+        </div>
+      ) : null}
+      {editing ? (
+        <div className="metaf">
+          <label>
+            Judul shot
+            <input value={meta.judul} onChange={(e) => setMeta({ ...meta, judul: e.target.value })} />
+          </label>
+          <label>
+            Detik (misal 21–25), boleh kosong
+            <input value={meta.timing} onChange={(e) => setMeta({ ...meta, timing: e.target.value })} />
+          </label>
+          <label>
+            VO (boleh kosong)
+            <input value={meta.vo} onChange={(e) => setMeta({ ...meta, vo: e.target.value })} />
+          </label>
+          <div>
+            <button
+              type="button"
+              className="pb"
+              onClick={() => {
+                actions.editMeta(meta);
+                setEditing(false);
+              }}
+            >
+              Simpan
+            </button>
+            <button type="button" className="mini" onClick={() => setEditing(false)}>
+              Batal
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
