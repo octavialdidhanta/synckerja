@@ -76,8 +76,6 @@ describe("referenceData", () => {
   });
 });
 
-import { loopSeekTo } from "./ReferenceDetail";
-
 describe("loopSeekTo", () => {
   it("snaps back when playhead reaches the segment end", () => {
     expect(loopSeekTo(4.96, [0, 5])).toBe(0);
