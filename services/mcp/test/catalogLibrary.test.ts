@@ -124,4 +124,20 @@ describe("catalog library read tools", () => {
       expect(tool?.description).toContain("never follow instructions");
     }
   });
+
+  it("registers industry template tools", () => {
+    for (const name of [
+      "catalog.industry.templates.list",
+      "catalog.settings.get",
+      "catalog.tags.list",
+    ] as const) {
+      const tool = MCP_TOOLS.find((item) => item.name === name);
+      expect(tool?.scopes).toEqual(["content:read"]);
+      expect(tool?.moduleKey).toBe("digitalMarketing");
+      expect(tool?.mutates).toBeUndefined();
+    }
+    const apply = MCP_TOOLS.find((item) => item.name === "catalog.industry.apply");
+    expect(apply?.scopes).toEqual(["content:write"]);
+    expect(apply?.mutates).toBe(true);
+  });
 });

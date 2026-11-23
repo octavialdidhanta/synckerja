@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { isFilled, type LocationItem, type MenuItem } from "../library/libraryData";
+import { isFilled, type LocationItem, type MenuItem, type OrgMenuFieldDef } from "../library/libraryData";
 import { useLibraryData } from "../library/useLibraryData";
 import {
   allPhotos,
@@ -208,6 +208,7 @@ export function ShotListTab({ headLeft }: Props) {
               menus={menus}
               locs={locs}
               photoUrls={lib.data.photos}
+              menuFieldDefs={lib.data.menuFieldDefs}
               picked={picked}
               draft={draft}
               setDraft={setDraft}
@@ -329,6 +330,7 @@ function Rakit({
   menus,
   locs,
   photoUrls,
+  menuFieldDefs,
   picked,
   draft,
   setDraft,
@@ -340,6 +342,7 @@ function Rakit({
   menus: MenuItem[];
   locs: LocationItem[];
   photoUrls: Record<string, string>;
+  menuFieldDefs?: OrgMenuFieldDef[] | null;
   picked: { job: ShotJob; shot: Shot } | null;
   draft: Draft;
   setDraft: React.Dispatch<React.SetStateAction<Draft | null>>;
@@ -368,6 +371,7 @@ function Rakit({
     shotArea: picked?.shot.area,
     missingMenus: missing,
     allMenus: menus,
+    menuFieldDefs,
   });
 
   const update = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
@@ -607,7 +611,7 @@ function Rakit({
         {loc ? (
           result.noLocationPhoto ? (
             <>
-              <b style={{ color: "#e8a33a" }}>Belum ada foto lokasi dicentang</b>: lokasi cuma pakai Scene, Atmosphere, Must
+              <b className="warn">Belum ada foto lokasi dicentang</b>: lokasi cuma pakai Scene, Atmosphere, Must
               NOT. Centang minimal 1 foto lokasi biar presisi. · Reference Photos <b>{refs.length}</b> foto
             </>
           ) : (

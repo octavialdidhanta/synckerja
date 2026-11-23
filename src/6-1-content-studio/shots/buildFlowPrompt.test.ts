@@ -107,6 +107,43 @@ describe("buildFlowPrompt", () => {
   });
 });
 
+describe("buildFlowPrompt electronics fields", () => {
+  it("uses org menu field defs instead of F&B topping/sauce", () => {
+    const [powerbank] = buildMenus(
+      [{ id: "e1", external_id: "powerbank-20000", name: "Powerbank 20000mAh", aliases: ["powerbank"], created_at: "a" }],
+      [
+        { menu_id: "e1", field_key: "main", body: "Matte powerbank", position: 1 },
+        { menu_id: "e1", field_key: "specs", body: "20000mAh USB-C PD", position: 2 },
+        { menu_id: "e1", field_key: "features", body: "Pass-through charging", position: 3 },
+        { menu_id: "e1", field_key: "larangan", body: "No food props", position: 6 },
+      ],
+      [],
+    );
+    const r = buildFlowPrompt({
+      fields,
+      menus: [powerbank],
+      loc: null,
+      refs: [],
+      action: "Show the LED.",
+      talk: "diam",
+      angles: 1,
+      curArea: "",
+      allMenus: [powerbank],
+      menuFieldDefs: [
+        { field_key: "main", label: "Main Subject", position: 1 },
+        { field_key: "specs", label: "Spesifikasi", position: 2 },
+        { field_key: "features", label: "Fitur", position: 3 },
+        { field_key: "larangan", label: "Larangan (must NOT)", position: 6 },
+      ],
+    });
+    expect(r.text).toContain("### Spesifikasi\n20000mAh USB-C PD");
+    expect(r.text).toContain("### Fitur\nPass-through charging");
+    expect(r.text).toContain("### Must NOT\nNo food props");
+    expect(r.text).not.toContain("Signature Topping");
+    expect(r.text).not.toContain("Dipping Sauce");
+  });
+});
+
 describe("shot list data", () => {
   const job = parseShotJob("e2fb3654", {
     judul: "Sumsum Disedot",

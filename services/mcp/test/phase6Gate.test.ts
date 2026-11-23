@@ -172,6 +172,10 @@ describe("mcp http gate", () => {
         "catalog.reference.get",
         "catalog.shotlists.list",
         "catalog.shotlist.get",
+        "catalog.industry.templates.list",
+        "catalog.settings.get",
+        "catalog.tags.list",
+        "catalog.industry.apply",
       ],
     });
     expect(lookedUp).toBe(false);

@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildFootageRows } from "./footageRows";
 import { FootageTab } from "./FootageTab";
 
@@ -25,14 +25,33 @@ vi.mock("./useFootageData", () => ({
 
 vi.mock("@/shared/auth/hooks/useOrgBootstrapPending", () => ({ useOrgBootstrapPending: () => ({ organizationId: "org-1" }) }));
 
+const connectBank = vi.fn(async () => ({ state: "ready" as const, name: "bank-footage" }));
+const openBankFile = vi.fn(async () => {
+  throw new Error("not-found");
+});
+
 vi.mock("./localBank", () => ({
-  loadBankState: () => Promise.resolve({ state: "none", name: null }),
-  connectBank: () => Promise.resolve({ state: "none", name: null }),
-  openBankFile: () => Promise.reject(new Error("no-folder")),
+  loadBankState: () => Promise.resolve({ state: "ready", name: "bank-footage" }),
+  connectBank: (...args: unknown[]) => connectBank(...(args as Parameters<typeof connectBank>)),
+  openBankFile: (...args: unknown[]) => openBankFile(...(args as Parameters<typeof openBankFile>)),
+}));
+
+const setBan = vi.fn(async () => true);
+vi.mock("./useFootageBan", () => ({
+  useFootageBan: () => ({ setBan: (...args: unknown[]) => setBan(...(args as Parameters<typeof setBan>)) }),
 }));
 
 describe("FootageTab", () => {
-  it("renders cards, filters with counts, and the player panel", () => {
+  beforeEach(() => {
+    connectBank.mockClear();
+    openBankFile.mockClear();
+    setBan.mockClear();
+    openBankFile.mockRejectedValue(new Error("not-found"));
+    connectBank.mockResolvedValue({ state: "ready", name: "bank-footage" });
+    setBan.mockResolvedValue(true);
+  });
+
+  it("renders cards, filters with counts, and the player panel", async () => {
     render(
       <div className="ck">
         <FootageTab headLeft={<h1>Content Studio</h1>} />
@@ -48,6 +67,51 @@ describe("FootageTab", () => {
     fireEvent.click(screen.getByText("Gigit sate"));
     const panel = document.querySelector(".m") as HTMLElement;
     expect(within(panel).getByText("PIK2/clip2.mp4")).toBeTruthy();
-    expect(within(panel).getByText(/Hubungkan folder/)).toBeTruthy();
+    await waitFor(() => expect(within(panel).getByText(/Pilih ulang folder/)).toBeTruthy());
+  });
+
+  it("retries opening the file after Pilih ulang folder even when the folder name is unchanged", async () => {
+    render(
+      <div className="ck">
+        <FootageTab headLeft={<h1>Content Studio</h1>} />
+      </div>,
+    );
+
+    fireEvent.click(screen.getByText("Sate dibakar"));
+    const panel = document.querySelector(".m") as HTMLElement;
+    await waitFor(() => expect(within(panel).getByText(/Pilih ulang folder/)).toBeTruthy());
+    const opensBefore = openBankFile.mock.calls.length;
+
+    await act(async () => {
+      fireEvent.click(within(panel).getByRole("button", { name: "Pilih ulang folder" }));
+    });
+
+    expect(connectBank).toHaveBeenCalledWith("org-1", true);
+    await waitFor(() => expect(openBankFile.mock.calls.length).toBeGreaterThan(opensBefore));
+  });
+
+  it("shows Tandai jangan dipakai / Batalkan tanda like katalog.html", async () => {
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("senyum AI");
+    render(
+      <div className="ck">
+        <FootageTab headLeft={<h1>Content Studio</h1>} />
+      </div>,
+    );
+
+    fireEvent.click(screen.getByText("Sate dibakar"));
+    const panel = document.querySelector(".m") as HTMLElement;
+    const mark = await within(panel).findByRole("button", { name: /Tandai jangan dipakai/ });
+    await act(async () => {
+      fireEvent.click(mark);
+    });
+    expect(promptSpy).toHaveBeenCalled();
+    expect(setBan).toHaveBeenCalledWith("s1", "senyum AI");
+    await within(panel).findByRole("button", { name: "Batalkan tanda" });
+
+    await act(async () => {
+      fireEvent.click(within(panel).getByRole("button", { name: "Batalkan tanda" }));
+    });
+    expect(setBan).toHaveBeenCalledWith("s1", null);
+    promptSpy.mockRestore();
   });
 });

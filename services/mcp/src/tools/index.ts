@@ -169,6 +169,16 @@ export {
   listCatalogShotJobsInput,
   listCatalogShotJobsResult,
 } from "./catalog/library";
+export {
+  applyIndustryTemplateInput,
+  applyIndustryTemplateResult,
+  getCatalogSettingsInput,
+  getCatalogSettingsResult,
+  listCatalogTagsInput,
+  listCatalogTagsResult,
+  listIndustryTemplatesInput,
+  listIndustryTemplatesResult,
+} from "./catalog/industry";
 export { confirmFootageInput } from "./footage/confirmation";
 export { upsertSceneBatchPreviewInput, previewSceneBatchResult, applySceneBatchResult } from "./footage/sceneBatch";
 export { usageLogPreviewInput, previewUsageLogResult, applyUsageLogResult } from "./footage/usageLog";

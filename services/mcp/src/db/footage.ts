@@ -18,6 +18,7 @@ export type FootageScene = {
   watermark_ui: boolean;
   lengkuas: boolean;
   meja_biru: boolean;
+  tags?: Record<string, boolean | string>;
   usage_count: number;
   banned: boolean;
   ban_reason: string | null;
@@ -34,6 +35,8 @@ export type FootageSearchFilters = {
   query?: string;
   include_banned?: boolean;
   limit?: number;
+  /** Generic tag filters resolved via footage_tag_defs (bool or text). */
+  tags?: Record<string, boolean | string>;
 };
 
 export type FootageSearchResult = {
@@ -94,6 +97,7 @@ export async function searchFootage(
     p_limit: input.limit ?? null,
     p_query: input.query ?? null,
     p_include_banned: input.include_banned ?? null,
+    p_tags: input.tags ?? null,
   });
   return {
     total: Number(row.total ?? 0),
@@ -126,6 +130,7 @@ export type FootageScenePatch = {
   watermark?: boolean;
   meja_biru?: boolean;
   lengkuas?: boolean;
+  tags?: Record<string, boolean | string>;
 };
 
 export type FootageSceneBatchInput = {

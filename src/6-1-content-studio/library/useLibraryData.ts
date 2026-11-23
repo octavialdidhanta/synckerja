@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
-import { readAll, signCatalogMedia } from "../shared/catalogQuery";
+import { readAll, readAllOptional, signCatalogMedia } from "../shared/catalogQuery";
 import {
   buildLocations,
   buildMenus,
@@ -13,12 +13,14 @@ import {
   type MenuItem,
   type MenuPhotoRow,
   type MenuRow,
+  type OrgMenuFieldDef,
 } from "./libraryData";
 
 export interface LibraryData {
   menus: MenuItem[];
   locations: LocationItem[];
   photos: Record<string, string>;
+  menuFieldDefs: OrgMenuFieldDef[];
 }
 
 export function useLibraryData() {
@@ -30,7 +32,7 @@ export function useLibraryData() {
     queryFn: async () => {
       const org = organizationId as string;
       const live = (q: { is: (c: string, v: null) => unknown }) => q.is("deleted_at", null);
-      const [menus, fields, menuPhotos, locs, locPhotos, sections] = await Promise.all([
+      const [menus, fields, menuPhotos, locs, locPhotos, sections, menuFieldDefs] = await Promise.all([
         readAll<MenuRow>(supabase, "catalog_menus", "id,external_id,name,aliases,created_at", org),
         readAll<MenuFieldRow>(supabase, "catalog_menu_fields", "id,menu_id,field_key,body,position", org),
         readAll<MenuPhotoRow>(supabase, "catalog_menu_photos", "id,menu_id,file_path,label,storage_path,ref,position", org, live),
@@ -43,6 +45,8 @@ export function useLibraryData() {
           live,
         ),
         readAll<LocationSectionRow>(supabase, "catalog_location_sections", "id,location_id,title,body,areas,position", org),
+        // Optional until industry-template migration is deployed.
+        readAllOptional<OrgMenuFieldDef>(supabase, "catalog_menu_field_defs", "id,field_key,label,position", org),
       ]);
       const paths = [...menuPhotos, ...locPhotos].map((p) => p.storage_path).filter((p): p is string => Boolean(p));
       const photos = await signCatalogMedia(supabase, paths);
@@ -50,6 +54,7 @@ export function useLibraryData() {
         menus: buildMenus(menus, fields, menuPhotos),
         locations: buildLocations(locs, locPhotos, sections),
         photos,
+        menuFieldDefs,
       };
     },
   });

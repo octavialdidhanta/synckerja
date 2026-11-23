@@ -350,6 +350,14 @@ import {
   listCatalogShotJobsResult,
   getCatalogShotJobInput,
   getCatalogShotJobResult,
+  listIndustryTemplatesInput,
+  listIndustryTemplatesResult,
+  getCatalogSettingsInput,
+  getCatalogSettingsResult,
+  listCatalogTagsInput,
+  listCatalogTagsResult,
+  applyIndustryTemplateInput,
+  applyIndustryTemplateResult,
   confirmFootageInput,
   upsertSceneBatchPreviewInput,
   previewSceneBatchResult,
@@ -808,6 +816,9 @@ export type McpReadDeps = {
   getCatalogReference: (ctx: McpAuthContext, id: string) => Promise<Record<string, unknown>>;
   listCatalogShotJobs: (ctx: McpAuthContext) => Promise<import("../db/catalog").CatalogShotJobList>;
   getCatalogShotJob: (ctx: McpAuthContext, id: string) => Promise<Record<string, unknown>>;
+  listIndustryTemplates: (ctx: McpAuthContext) => Promise<unknown>;
+  getCatalogSettings: (ctx: McpAuthContext) => Promise<unknown>;
+  applyIndustryTemplate: (ctx: McpAuthContext, code: string) => Promise<unknown>;
   previewFootageSceneBatch: (
     ctx: McpAuthContext,
     input: FootageSceneBatchInput,
@@ -1020,6 +1031,10 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "catalog.references.list": listCatalogReferencesInput,
   "catalog.reference.get": getCatalogReferenceInput,
   "catalog.shotlists.list": listCatalogShotJobsInput,
+  "catalog.industry.templates.list": listIndustryTemplatesInput,
+  "catalog.settings.get": getCatalogSettingsInput,
+  "catalog.tags.list": listCatalogTagsInput,
+  "catalog.industry.apply": applyIndustryTemplateInput,
   "catalog.shotlist.get": getCatalogShotJobInput,
   "footage.scenes.upsert_batch.preview": upsertSceneBatchPreviewInput,
   "footage.scenes.upsert_batch": confirmFootageInput,
@@ -1636,6 +1651,14 @@ async function runTool(
       return listCatalogShotJobsResult(ctx, args, deps.listCatalogShotJobs);
     case "catalog.shotlist.get":
       return getCatalogShotJobResult(ctx, args, deps.getCatalogShotJob);
+    case "catalog.industry.templates.list":
+      return listIndustryTemplatesResult(ctx, args, deps.listIndustryTemplates);
+    case "catalog.settings.get":
+      return getCatalogSettingsResult(ctx, args, deps.getCatalogSettings);
+    case "catalog.tags.list":
+      return listCatalogTagsResult(ctx, args, deps.getCatalogSettings);
+    case "catalog.industry.apply":
+      return applyIndustryTemplateResult(ctx, args, deps.applyIndustryTemplate);
     case "footage.scenes.upsert_batch.preview":
       return previewSceneBatchResult(ctx, args, deps.previewFootageSceneBatch, deps.signFootageConfirmation);
     case "footage.scenes.upsert_batch":

@@ -24,6 +24,8 @@ export interface FootageRow {
   klip: string;
   lok: string;
   prod: string[];
+  /** scene tag values by def key (bool or text) */
+  tags: Record<string, boolean | string>;
   hijab: YaTidak;
   wm: YaTidak;
   lengkuas: YaTidak;
@@ -62,6 +64,9 @@ export interface SceneRecord {
 export interface TagDefRecord {
   id: string;
   key: string;
+  label?: string | null;
+  value_type?: "bool" | "text" | null;
+  position?: number | null;
 }
 
 export interface TagValueRecord {
@@ -105,6 +110,8 @@ export interface FootageData {
   rows: FootageRow[];
   /** product names in catalog menu order (katalog.html PORD) */
   productOrder: string[];
+  /** bool tag defs that become filter groups */
+  tagDefs: TagDefRecord[];
 }
 
 const num = (v: number | string | null | undefined): number | null => {
@@ -215,6 +222,9 @@ export function buildFootageRows(src: FootageSource): FootageData {
       const tags = sceneTags.get(s.id) ?? {};
       // Lengkuas defaults to "ya" when the tag is missing, like the laptop catalog.
       const lengkuas: YaTidak = "lengkuas" in tags ? yt(tags.lengkuas) : "ya";
+      if (!("lengkuas" in tags) && src.tagDefs.some((d) => d.key === "lengkuas")) {
+        tags.lengkuas = true;
+      }
       rows.push({
         id: s.id,
         assetId: asset.id,
@@ -230,6 +240,7 @@ export function buildFootageRows(src: FootageSource): FootageData {
         klip: asset.summary ?? "",
         lok: asset.location_label?.trim() || "?",
         prod,
+        tags,
         hijab: yt(tags.hijab),
         wm: yt(tags.watermark_ui),
         lengkuas,
@@ -250,44 +261,67 @@ export function buildFootageRows(src: FootageSource): FootageData {
   }
   // Like katalog.html PORD: only catalog menu products become filter options.
 
-  return { rows, productOrder };
+  return {
+    rows,
+    productOrder,
+    tagDefs: [...src.tagDefs].sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.key.localeCompare(b.key)),
+  };
 }
 
 /* ---------------------------------------------------------------------------
  * Filters (same rules as katalog.html: chips(), ok(), cnt(), cat())
  * ------------------------------------------------------------------------- */
 
-export type FilterKey = "st" | "tipe" | "lok" | "prod" | "jenis" | "pakai" | "hijab" | "wm" | "lengkuas";
+export type FilterKey = string;
 export type ViewMode = "scene" | "klip";
-export type Filters = Record<FilterKey, string | null>;
+export type Filters = Record<string, string | null>;
 
-export const FILTER_GROUPS: { key: FilterKey; title: string }[] = [
+const BASE_FILTER_GROUPS: { key: FilterKey; title: string }[] = [
   { key: "st", title: "Status" },
   { key: "tipe", title: "Tipe" },
   { key: "lok", title: "Lokasi" },
   { key: "prod", title: "Produk" },
   { key: "jenis", title: "Isi scene" },
   { key: "pakai", title: "Pemakaian" },
-  { key: "hijab", title: "Hijab" },
-  { key: "wm", title: "Watermark / UI HP" },
-  { key: "lengkuas", title: "Lengkuas" },
 ];
 
-export const EMPTY_FILTERS: Filters = {
-  st: null,
-  tipe: null,
-  lok: null,
-  prod: null,
-  jenis: null,
-  pakai: null,
-  hijab: null,
-  wm: null,
-  lengkuas: null,
-};
+/** Fixed + per-org bool tag filters (hijab, watermark_ui, capacity_shown, …). */
+export function filterGroups(tagDefs: TagDefRecord[]): { key: FilterKey; title: string }[] {
+  const tags = tagDefs
+    .filter((d) => (d.value_type ?? "bool") === "bool")
+    .map((d) => ({
+      key: d.key,
+      title: d.label?.trim() || d.key,
+    }));
+  return [...BASE_FILTER_GROUPS, ...tags];
+}
+
+/** @deprecated use filterGroups(data.tagDefs) — kept for older imports */
+export const FILTER_GROUPS = filterGroups([
+  { id: "1", key: "hijab", label: "Hijab", value_type: "bool", position: 1 },
+  { id: "2", key: "watermark_ui", label: "Watermark / UI HP", value_type: "bool", position: 2 },
+  { id: "3", key: "lengkuas", label: "Lengkuas", value_type: "bool", position: 3 },
+]);
+
+export function emptyFilters(tagDefs: TagDefRecord[] = []): Filters {
+  const F: Filters = { st: null, tipe: null, lok: null, prod: null, jenis: null, pakai: null };
+  for (const d of tagDefs) {
+    if ((d.value_type ?? "bool") === "bool") F[d.key] = null;
+  }
+  return F;
+}
+
+/** @deprecated use emptyFilters(tagDefs) */
+export const EMPTY_FILTERS: Filters = emptyFilters([
+  { id: "1", key: "hijab", value_type: "bool" },
+  { id: "2", key: "watermark_ui", value_type: "bool" },
+  { id: "3", key: "lengkuas", value_type: "bool" },
+]);
 
 export const NM: Record<string, Record<string, string>> = {
   tipe: { video: "Video", gambar: "Gambar" },
   hijab: { tidak: "Tanpa hijab", ya: "Ada hijab" },
+  watermark_ui: { tidak: "Bersih", ya: "Ada watermark/UI" },
   wm: { tidak: "Bersih", ya: "Ada watermark/UI" },
   lengkuas: { ya: "Pakai lengkuas", tidak: "Tanpa lengkuas" },
   st: { boleh: "Boleh dipakai", "jangan dipakai": "Jangan dipakai" },
@@ -303,25 +337,32 @@ export const NM: Record<string, Record<string, string>> = {
   },
 };
 
-export function label(k: FilterKey, o: string): string {
-  return NM[k]?.[o] ?? (o === "?" ? "Belum jelas" : o);
+export function label(k: FilterKey, o: string, tagDefs: TagDefRecord[] = []): string {
+  if (NM[k]?.[o]) return NM[k][o];
+  if (tagDefs.some((d) => d.key === k && (d.value_type ?? "bool") === "bool")) {
+    return o === "ya" ? "Ya" : o === "tidak" ? "Tidak" : o;
+  }
+  return o === "?" ? "Belum jelas" : o;
 }
 
 const uniq = (a: string[]) => [...new Set(a)].filter((x) => x !== "");
 
-export function filterOptions(data: FootageData): Record<FilterKey, string[]> {
+export function filterOptions(data: FootageData): Record<string, string[]> {
   const D = data.rows;
-  return {
+  const out: Record<string, string[]> = {
     st: ["boleh", "jangan dipakai"],
     tipe: ["video", "gambar"],
     lok: uniq(D.map((d) => d.lok)).sort(),
     prod: data.productOrder.filter((n) => D.some((d) => d.prod.includes(n))),
     jenis: uniq(D.map((d) => d.jenis)),
     pakai: ["belum", "1x", "2x+"],
-    hijab: ["tidak", "ya"],
-    wm: ["tidak", "ya"],
-    lengkuas: ["ya", "tidak"],
   };
+  for (const def of data.tagDefs) {
+    if ((def.value_type ?? "bool") !== "bool") continue;
+    // lengkuas chip order matches katalog.html (ya first)
+    out[def.key] = def.key === "lengkuas" ? ["ya", "tidak"] : ["tidak", "ya"];
+  }
+  return out;
 }
 
 export function usageCount(d: FootageRow, view: ViewMode): number {
@@ -341,8 +382,27 @@ export function rowValue(d: FootageRow, k: FilterKey, view: ViewMode): string {
       return usageCat(d, view);
     case "prod":
       return d.prod.join(";");
-    default:
-      return d[k];
+    case "tipe":
+      return d.tipe;
+    case "lok":
+      return d.lok;
+    case "jenis":
+      return d.jenis;
+    case "hijab":
+      return d.hijab;
+    case "wm":
+    case "watermark_ui":
+      return d.wm;
+    case "lengkuas":
+      return d.lengkuas;
+    default: {
+      const raw = d.tags[k];
+      if (typeof raw === "boolean") return raw ? "ya" : "tidak";
+      if (typeof raw === "string" && (raw === "ya" || raw === "tidak" || raw === "true" || raw === "false")) {
+        return raw === "ya" || raw === "true" ? "ya" : "tidak";
+      }
+      return raw == null ? "tidak" : String(raw);
+    }
   }
 }
 

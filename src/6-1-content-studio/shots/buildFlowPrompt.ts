@@ -2,7 +2,15 @@
  * Google Flow prompt builder, ported line by line from katalog.html buildPrompt()
  * and refPhotos(). Pure functions: the UI passes the current choices in.
  */
-import { MENU_FIELDS, isFilled, type LibraryPhoto, type LocationItem, type MenuItem } from "../library/libraryData";
+import {
+  MENU_FIELDS,
+  isFilled,
+  resolveMenuFields,
+  type LibraryPhoto,
+  type LocationItem,
+  type MenuItem,
+  type OrgMenuFieldDef,
+} from "../library/libraryData";
 
 export type Talk = "diam" | "ngomong";
 export type PromptFields = Record<string, string>;
@@ -51,6 +59,8 @@ export interface PromptInput {
   missingMenus?: string[];
   /** every catalog menu, to name the dish that owns a product photo */
   allMenus: MenuItem[];
+  /** org product field defs; falls back to F&B MENU_FIELDS */
+  menuFieldDefs?: OrgMenuFieldDef[] | null;
 }
 
 export interface PromptResult {
@@ -106,6 +116,7 @@ export function buildFlowPrompt(p: PromptInput): PromptResult {
     views = vw.map((r) => r.label || ftag(r));
   }
 
+  const menuFields = resolveMenuFields(p.menuFieldDefs);
   const ms = p.menus;
   if (ms.length > 1) {
     o.push(
@@ -115,15 +126,18 @@ export function buildFlowPrompt(p: PromptInput): PromptResult {
     ms.forEach((m) => {
       const F = m.fields;
       o.push("", `### ${m.nama}`, F.main || "");
-      if (F.topping) o.push("Topping: " + F.topping);
-      if (F.presentation) o.push("Served: " + F.presentation);
+      menuFields
+        .filter(([k]) => k !== "main" && k !== "khusus" && k !== "larangan")
+        .forEach(([k, lb]) => {
+          if (F[k]) o.push(`${lb}: ${F[k]}`);
+        });
       if (F.larangan) o.push("Must NOT: " + F.larangan);
     });
     o.push("");
   } else {
     ms.forEach((m) => {
       o.push(`## ${n++}. Main Subject — ${m.nama}`);
-      MENU_FIELDS.filter(([k]) => k !== "khusus" && k !== "larangan").forEach(([k, lb]) => {
+      menuFields.filter(([k]) => k !== "khusus" && k !== "larangan").forEach(([k, lb]) => {
         const v = m.fields[k];
         if (v) o.push("", `### ${lb}`, v);
       });
