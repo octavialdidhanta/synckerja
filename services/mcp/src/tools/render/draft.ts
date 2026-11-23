@@ -25,6 +25,7 @@ const textIn = z
     end: z.number().finite().min(0).max(3600),
     style: z.enum(["hook", "sub"]).optional(),
     anim: z.enum(["none", "fade", "pop", "typewriter"]).optional(),
+    behind_person: z.boolean().optional(),
   })
   .strict()
   .refine((t) => t.end > t.start);
@@ -141,6 +142,7 @@ export function buildDraftSpec(
     end: t.end,
     style: (t.style ?? "sub") as string,
     anim: t.anim ?? ("pop" as const),
+    ...(t.behind_person ? { behind_person: true as const } : {}),
   }));
   for (const t of texts) {
     if (!(t.style in styles)) {
@@ -303,6 +305,6 @@ export async function draftRenderJobResult(
     brief_hints,
     warnings,
     next_step:
-      "Review the draft spec (edit shots/texts/audio if needed). Then call render.jobs.create.preview with the same title, plan_id, and this spec. After the user clearly says yes, call render.jobs.create with that confirm_token. Music defaults follow Gaya musik (usually -18 dB under VO); the Agent applies sidechain ducking and loudnorm -14 LUFS. Effects (halftone, SAM) are not in this spec — omit them.",
+      "Review the draft spec (edit shots/texts/audio if needed). Then call render.jobs.create.preview with the same title, plan_id, and this spec. After the user clearly says yes, call render.jobs.create with that confirm_token. Music defaults follow Gaya musik (usually -18 dB under VO); the Agent applies sidechain ducking and loudnorm -14 LUFS. Set texts[].behind_person=true for text behind the person (Agent needs SAM2+RVM). Halftone and other CapCut effects are still omitted.",
   };
 }

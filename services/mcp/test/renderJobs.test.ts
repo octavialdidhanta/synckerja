@@ -53,6 +53,14 @@ describe("render job spec v1", () => {
     expect(bad({ shots: [{ file_key: "a.mp4", in: 2, out: 2 }] })).toBe(false);
     expect(bad({})).toBe(true);
   });
+
+  it("accepts behind_person on texts for SAM+RVM layering", () => {
+    const parsed = renderSpecV1.parse({
+      ...spec,
+      texts: [{ text: "di belakang", start: 0, end: 1.5, style: "sub", behind_person: true }],
+    });
+    expect(parsed.texts[0]?.behind_person).toBe(true);
+  });
 });
 
 describe("render.jobs.create", () => {
@@ -104,7 +112,16 @@ describe("render.jobs.draft", () => {
     ],
     vo_file: "vo/VO_full.mp3",
     music_file: "_build/musik.mp3",
-    texts: [{ text: "Weekend rame!", start: 0.2, end: 2, style: "hook" as const, anim: "pop" as const }],
+    texts: [
+      {
+        text: "Weekend rame!",
+        start: 0.2,
+        end: 2,
+        style: "hook" as const,
+        anim: "pop" as const,
+        behind_person: true,
+      },
+    ],
   };
 
   it("builds a valid spec with hook/sub styles and -18 dB music", () => {
@@ -118,6 +135,7 @@ describe("render.jobs.draft", () => {
     expect(spec.styles.sub?.y).toBe(-0.6);
     expect(Object.keys(spec.styles)).toEqual(expect.arrayContaining(["hook", "sub"]));
     expect(spec.texts[0]?.style).toBe("hook");
+    expect(spec.texts[0]?.behind_person).toBe(true);
     expect(warnings.some((w) => /Gaya teks diterapkan/.test(w))).toBe(true);
   });
 

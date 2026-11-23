@@ -90,6 +90,8 @@ export const renderSpecV1 = z
             style: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/),
             layer: z.number().int().min(0).max(9).optional(),
             anim: z.enum(["none", "fade", "pop", "typewriter"]).optional(),
+            /** Draw under the person matte on the laptop Agent (SAM2 gate + RVM foreground). */
+            behind_person: z.boolean().optional(),
           })
           .strict()
           .refine((t) => t.end > t.start),
