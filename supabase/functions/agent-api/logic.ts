@@ -70,8 +70,8 @@ function optText(v: unknown, max: number): string | null | undefined {
 }
 
 export function parseHeartbeat(body: unknown, deviceHeader: string | null):
-  | { ok: true; value: HeartbeatInput }
-  | { ok: false; error: string } {
+  | { ok: true; value: HeartbeatInput; error?: undefined }
+  | { ok: false; error: string; value?: undefined } {
   if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: "body harus object JSON" };
   const b = body as Record<string, unknown>;
   const deviceKey = (deviceHeader ?? (typeof b.device_key === "string" ? b.device_key : "")).trim();
@@ -91,4 +91,39 @@ export function parseHeartbeat(body: unknown, deviceHeader: string | null):
     tools = b.tools as Record<string, unknown>;
   }
   return { ok: true, value: { deviceKey: deviceKey.toLowerCase(), name, agentVersion, platform, tools, lastError } };
+}
+
+export function isUuid(v: unknown): v is string {
+  return typeof v === "string" && UUID.test(v);
+}
+
+/** Postgres RAISE codes → HTTP status + code the Agent understands. */
+export function mapRpcError(message: string): { status: number; code: string } {
+  for (const [needle, status] of [
+    ["token_inactive", 401],
+    ["file_key_taken", 409],
+    ["not_found", 404],
+    ["invalid_input", 400],
+  ] as const) {
+    if (message.includes(needle)) return { status, code: needle };
+  }
+  return { status: 500, code: "internal_error" };
+}
+
+export function parseFileKeys(body: unknown): string[] | null {
+  if (!body || typeof body !== "object") return null;
+  const keys = (body as Record<string, unknown>).file_keys;
+  if (!Array.isArray(keys) || keys.length > 500) return null;
+  if (!keys.every((k) => typeof k === "string" && k.length > 0 && k.length <= 2000)) return null;
+  return keys as string[];
+}
+
+export function parseMediaDone(body: unknown): { assetId: string; preview: boolean; sceneIds: string[] } | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  if (!isUuid(b.asset_id)) return null;
+  const sceneIds = b.scene_ids ?? [];
+  if (!Array.isArray(sceneIds) || sceneIds.length > 200 || !sceneIds.every(isUuid)) return null;
+  if (b.preview !== undefined && typeof b.preview !== "boolean") return null;
+  return { assetId: b.asset_id, preview: b.preview === true, sceneIds: sceneIds as string[] };
 }

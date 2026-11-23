@@ -1,6 +1,15 @@
 /// <reference lib="deno.ns" />
 import { deepStrictEqual as assertEquals } from "node:assert";
-import { extractAgentToken, parseAuthRow, parseHeartbeat, routePath, sha256Hex } from "./logic.ts";
+import {
+  extractAgentToken,
+  mapRpcError,
+  parseAuthRow,
+  parseFileKeys,
+  parseHeartbeat,
+  parseMediaDone,
+  routePath,
+  sha256Hex,
+} from "./logic.ts";
 
 const TOKEN = "sk_agent_d7e26bf5_d0f976f02de1da33970762164b0fab9a76976c1bc4872210";
 const DEVICE = "11111111-1111-1111-1111-111111111111";
@@ -38,4 +47,20 @@ Deno.test("parseHeartbeat validates the device and trims text", () => {
   assertEquals(parseHeartbeat({ device_name: "x", agent_version: 3 }, DEVICE).ok, false);
   assertEquals(parseHeartbeat({ device_name: "x", tools: { big: "a".repeat(30_000) } }, DEVICE).ok, false);
   assertEquals(parseHeartbeat([], DEVICE).ok, false);
+});
+
+Deno.test("footage request parsers", () => {
+  assertEquals(parseFileKeys({ file_keys: ["INBOX/a.mp4"] }), ["INBOX/a.mp4"]);
+  assertEquals(parseFileKeys({ file_keys: [1] }), null);
+  assertEquals(parseFileKeys({}), null);
+  assertEquals(parseMediaDone({ asset_id: DEVICE, preview: true, scene_ids: [DEVICE] }), {
+    assetId: DEVICE,
+    preview: true,
+    sceneIds: [DEVICE],
+  });
+  assertEquals(parseMediaDone({ asset_id: DEVICE })?.sceneIds, []);
+  assertEquals(parseMediaDone({ asset_id: "x" }), null);
+  assertEquals(parseMediaDone({ asset_id: DEVICE, scene_ids: ["x"] }), null);
+  assertEquals(mapRpcError("ERROR: file_key_taken"), { status: 409, code: "file_key_taken" });
+  assertEquals(mapRpcError("boom").status, 500);
 });

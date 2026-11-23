@@ -85,6 +85,8 @@
         "npm:@radix-ui/react-toggle-group@^1.1.10",
         "npm:@radix-ui/react-toggle@^1.1.9",
         "npm:@radix-ui/react-tooltip@^1.2.7",
+        "npm:@sentry/react@^11.15.0",
+        "npm:@sentry/vite-plugin@^11.15.0",
         "npm:@supabase/auth-js@2.100.1",
         "npm:@supabase/supabase-js@^2.100.1",
         "npm:@tailwindcss/typography@~0.5.16",
@@ -148,7 +150,6 @@
         "npm:vite-plugin-pwa@~0.21.2",
         "npm:vite@^5.4.19",
         "npm:vitest@^3.2.4",
-        "npm:xlsx@~0.18.5",
         "npm:zod@^3.25.76"
       ]
     }
