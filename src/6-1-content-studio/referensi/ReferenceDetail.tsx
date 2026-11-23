@@ -103,7 +103,12 @@ export function RefVideo({
           </button>
         </>
       );
-    return <div className="rvph">{msg}</div>;
+    // One wrapper so the text and button stack inside the flex box instead of becoming columns.
+    return (
+      <div className="rvph">
+        <div>{msg}</div>
+      </div>
+    );
   }
   return (
     <video
