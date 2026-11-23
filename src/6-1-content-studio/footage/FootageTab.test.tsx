@@ -32,13 +32,13 @@ const openBankFile = vi.fn(async () => {
 
 vi.mock("./localBank", () => ({
   loadBankState: () => Promise.resolve({ state: "ready", name: "bank-footage" }),
-  connectBank: (...args: unknown[]) => connectBank(...args),
-  openBankFile: (...args: unknown[]) => openBankFile(...args),
+  connectBank: (...args: unknown[]) => connectBank(...(args as Parameters<typeof connectBank>)),
+  openBankFile: (...args: unknown[]) => openBankFile(...(args as Parameters<typeof openBankFile>)),
 }));
 
 const setBan = vi.fn(async () => true);
 vi.mock("./useFootageBan", () => ({
-  useFootageBan: () => ({ setBan: (...args: unknown[]) => setBan(...args) }),
+  useFootageBan: () => ({ setBan: (...args: unknown[]) => setBan(...(args as Parameters<typeof setBan>)) }),
 }));
 
 describe("FootageTab", () => {
