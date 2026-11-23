@@ -31,7 +31,8 @@ export type FootageConfirmableTool =
   | "catalog.media.restore"
   | "catalog.style.update"
   | "catalog.reference.upsert"
-  | "catalog.shotlist.upsert";
+  | "catalog.shotlist.upsert"
+  | "render.jobs.create";
 
 export type FootageConfirmationIdentity = { userId: string; organizationId: string };
 

@@ -1,8 +1,15 @@
 /** Agent tab: which laptops run the Synckerja Agent for this organization, and its access tokens. */
 import { useState } from "react";
 import { useCurrentUserRole } from "@/shared/hooks/useCurrentUserRole";
-import { ago, isOnline, tokenState, toolList } from "./agentData";
-import { useAgentDevices, useAgentTokenActions, useAgentTokens, type CreatedToken } from "./useAgentData";
+import { ago, isOnline, JOB_STATUS, sortJobs, tokenState, toolList } from "./agentData";
+import {
+  useAgentDevices,
+  useAgentJobActions,
+  useAgentJobs,
+  useAgentTokenActions,
+  useAgentTokens,
+  type CreatedToken,
+} from "./useAgentData";
 
 interface Props {
   headLeft: React.ReactNode;
@@ -33,6 +40,8 @@ export function AgentTab({ headLeft }: Props) {
   const devices = useAgentDevices();
   const tokens = useAgentTokens();
   const { create, revoke } = useAgentTokenActions();
+  const jobs = useAgentJobs();
+  const jobActions = useAgentJobActions();
   const role = useCurrentUserRole();
   const canManage = role.data === "owner" || role.data === "admin";
 
@@ -128,6 +137,61 @@ export function AgentTab({ headLeft }: Props) {
                 </div>
               );
             })
+          )}
+        </section>
+
+        <section>
+          <h2>Antrian render</h2>
+          <p className="mut">
+            Video yang dirender Agent di laptop. Job dibuat Claude di chat setelah dikonfirmasi; hasilnya masuk ke content
+            plan sebagai versi baru (Need Review).
+          </p>
+          {jobs.isLoading ? (
+            <p className="mut">Memuat…</p>
+          ) : (jobs.data ?? []).length === 0 ? (
+            <div className="empty">Belum ada job render.</div>
+          ) : (
+            sortJobs(jobs.data ?? []).map((j) => (
+              <div key={j.id} className={"job " + j.status}>
+                <div className="dev-top">
+                  <b>{j.title}</b>
+                  <span className={"st " + j.status}>{JOB_STATUS[j.status]}</span>
+                  {j.stage && j.status === "running" ? <span className="mut">{j.stage}</span> : null}
+                  <span className="mut">{ago(j.created_at)}</span>
+                  {j.attempts > 1 ? <span className="mut">percobaan {j.attempts}/{j.max_attempts}</span> : null}
+                </div>
+                {j.status === "running" ? (
+                  <div className="bar" aria-label={`progres ${j.progress}%`}>
+                    <i style={{ width: `${Math.max(2, j.progress)}%` }} />
+                  </div>
+                ) : null}
+                {j.error && j.status !== "done" ? <p className="bad">{j.error}</p> : null}
+                {j.status === "done" && j.result ? (
+                  <p className="mut">
+                    {j.result.version_no ? `Versi ${j.result.version_no} di content plan. ` : ""}
+                    {j.result.google_drive_link ? (
+                      <a href={j.result.google_drive_link} target="_blank" rel="noreferrer">
+                        Buka video
+                      </a>
+                    ) : j.result.output_file ? (
+                      <code>{j.result.output_file}</code>
+                    ) : null}
+                  </p>
+                ) : null}
+                <div className="row">
+                  {j.status === "queued" || j.status === "running" ? (
+                    <button type="button" className="hb ghost" disabled={jobActions.cancel.isPending} onClick={() => jobActions.cancel.mutate(j.id)}>
+                      Batalkan
+                    </button>
+                  ) : null}
+                  {j.status === "failed" || j.status === "cancelled" ? (
+                    <button type="button" className="hb" disabled={jobActions.retry.isPending} onClick={() => jobActions.retry.mutate(j.id)}>
+                      Coba lagi
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ))
           )}
         </section>
 

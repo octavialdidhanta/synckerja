@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
-import type { AgentDeviceRow, AgentTokenRow } from "./agentData";
+import type { AgentDeviceRow, AgentJobRow, AgentTokenRow } from "./agentData";
 
 // agent_* tables are newer than the generated Supabase types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -9,6 +9,7 @@ type LooseClient = any;
 const db = () => supabase as LooseClient;
 
 const devicesKey = (org: string | null | undefined) => ["content-studio", "agent-devices", org] as const;
+const jobsKey = (org: string | null | undefined) => ["content-studio", "agent-jobs", org] as const;
 const tokensKey = (org: string | null | undefined) => ["content-studio", "agent-tokens", org] as const;
 
 /** Devices serving the active organization. Refreshes every 30 s so online/offline stays honest. */
@@ -82,4 +83,37 @@ export function useAgentTokenActions() {
   });
 
   return { create, revoke };
+}
+
+/** Latest 30 render jobs; refreshes every 10 s while the tab is open. */
+export function useAgentJobs() {
+  const { organizationId } = useOrgBootstrapPending();
+  return useQuery<AgentJobRow[]>({
+    queryKey: jobsKey(organizationId),
+    enabled: Boolean(organizationId),
+    refetchInterval: 10_000,
+    queryFn: async () => {
+      const { data, error } = await db()
+        .from("agent_jobs")
+        .select("id,title,status,stage,progress,attempts,max_attempts,error,result,social_media_plan_id,created_at,finished_at,heartbeat_at")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      return (data ?? []) as AgentJobRow[];
+    },
+  });
+}
+
+export function useAgentJobActions() {
+  const qc = useQueryClient();
+  const { organizationId } = useOrgBootstrapPending();
+  const refresh = () => qc.invalidateQueries({ queryKey: jobsKey(organizationId) });
+  const run = async (fn: string, jobId: string) => {
+    const { error } = await db().rpc(fn, { p_job_id: jobId });
+    if (error) throw new Error(error.message);
+  };
+  const cancel = useMutation({ mutationFn: (jobId: string) => run("agent_job_cancel", jobId), onSuccess: refresh });
+  const retry = useMutation({ mutationFn: (jobId: string) => run("agent_job_retry", jobId), onSuccess: refresh });
+  return { cancel, retry };
 }
