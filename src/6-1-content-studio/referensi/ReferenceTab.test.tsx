@@ -78,6 +78,9 @@ vi.mock("./useStyleData", () => ({
     ],
     isPending: false,
   }),
+  useStyleHistory: () => ({
+    data: [{ id: "h1", field_key: "teks", body: "- Caption emas lama", replaced_at: "2026-11-20T10:00:00Z" }],
+  }),
   useStyleSave: () => ({
     saving: false,
     save: (key: string, body: string) => {
@@ -160,5 +163,20 @@ describe("ReferenceTab", () => {
       fireEvent.click(screen.getByText("Simpan"));
     });
     expect(styleSaves).toEqual([{ key: "teks", body: ta.value }]);
+  });
+
+  it("shows a box's older versions and restores one into the editor before saving", async () => {
+    renderTab();
+    fireEvent.click(screen.getByText("Riwayat (1)"));
+    fireEvent.click(screen.getByText("Lihat"));
+    expect(screen.getByText("- Caption emas lama")).toBeTruthy();
+    fireEvent.click(screen.getByText("Balikin ke versi ini"));
+    const ta = screen.getByLabelText("Gaya teks & motion graphic") as HTMLTextAreaElement;
+    expect(ta.value).toBe("- Caption emas lama");
+    expect(styleSaves).toHaveLength(0);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Simpan"));
+    });
+    expect(styleSaves).toEqual([{ key: "teks", body: "- Caption emas lama" }]);
   });
 });
