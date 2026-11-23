@@ -89,7 +89,7 @@ export const renderSpecV1 = z
             end: sec,
             style: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/),
             layer: z.number().int().min(0).max(9).optional(),
-            anim: z.enum(["none", "fade", "pop", "typewriter"]).optional(),
+            anim: z.enum(["none", "fade", "pop", "typewriter", "menu_label"]).optional(),
             /** Draw under the person matte on the laptop Agent (SAM2 gate + RVM foreground). */
             behind_person: z.boolean().optional(),
           })
@@ -98,6 +98,15 @@ export const renderSpecV1 = z
       )
       .max(200)
       .default([]),
+    /** End card. Halftone covers the last `seconds` (default 1) then fades to white. */
+    outro: z
+      .object({
+        kind: z.literal("halftone"),
+        seconds: z.number().finite().min(0.4).max(3).optional(),
+        logo: relPath.optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .refine((s) => s.texts.every((t) => t.style in s.styles), { message: "every text needs a style defined in styles" });
