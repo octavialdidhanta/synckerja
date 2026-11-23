@@ -4,6 +4,7 @@ import { LayoutDashboard, Calendar, BookOpen, Settings, FileText, Lock, Sparkles
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 import { useHeaderTabPageAccess } from '@/shared/auth/page-access/useHeaderTabPageAccess';
+import { contentStudioNavState } from '@/6-1-content-studio/studioTabs';
 
 interface HeaderAndTabProps {
   activeMainTab: string;
@@ -75,7 +76,11 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange, flushBottom }: He
   const handleTabClick = (tab: any) => {
     handleTabChange(tab.id);
     if (tab.route) {
-      navigate(tab.route);
+      if (tab.id === 'content-studio') {
+        navigate(tab.route, { state: contentStudioNavState(location.pathname) });
+      } else {
+        navigate(tab.route);
+      }
     }
   };
 

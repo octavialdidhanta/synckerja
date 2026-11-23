@@ -1,25 +1,15 @@
 import { Link } from "react-router-dom";
 import { SYNCKERJA_BRAND_LOGO_SRC } from "@/shared/brand/brandLogo";
 import type { Employee } from "../../hooks/useEmployees";
-import { appearanceFromId, BAY_CARPETS, type OfficeAppearance } from "./appearance";
+import { appearanceFromId, type OfficeAppearance } from "./appearance";
+import type { OfficeBay } from "./groupAiEmployeesByDepartment";
 
-export type OfficeBay = {
-  id: string;
-  name: string;
-  employees: Employee[];
-};
-
-export function groupAiEmployeesByDepartment(employees: Employee[], unassignedLabel: string): OfficeBay[] {
-  const groups = new Map<string, OfficeBay>();
-  for (const employee of employees) {
-    const name = employee.department_name?.trim() || unassignedLabel;
-    const id = name.toLocaleLowerCase();
-    const current = groups.get(id) ?? { id, name, employees: [] };
-    current.employees.push(employee);
-    groups.set(id, current);
-  }
-  return [...groups.values()].sort((left, right) => left.name.localeCompare(right.name, "id"));
-}
+const WHITE_GRID = {
+  backgroundColor: "#ffffff",
+  backgroundImage:
+    "linear-gradient(90deg, rgba(0,0,0,0.12) 1px, transparent 1px), linear-gradient(rgba(0,0,0,0.12) 1px, transparent 1px)",
+  backgroundSize: "28px 28px",
+} as const;
 
 function Hair({ appearance }: { appearance: OfficeAppearance }) {
   if (appearance.hairStyle === 1) {
@@ -186,9 +176,9 @@ function Workstation({
 function Partition({ side }: { side: "left" | "right" }) {
   return (
     <div className={`pointer-events-none absolute inset-y-0 z-20 w-7 ${side === "left" ? "left-0" : "right-0"}`} aria-hidden>
-      <div className="flex h-full flex-col justify-between border-x-4 border-[#b7a48c] bg-[#efe8dc] px-0.5 py-2">
+      <div className="flex h-full flex-col justify-between border-x-4 border-gray-300 bg-gray-100 px-0.5 py-2">
         {Array.from({ length: 6 }, (_, index) => (
-          <div key={index} className="h-9 w-full rounded-[2px] bg-white/80 shadow-inner ring-1 ring-[#d9cbb8]" />
+          <div key={index} className="h-9 w-full rounded-[2px] bg-white shadow-inner ring-1 ring-black/10" />
         ))}
       </div>
     </div>
@@ -197,24 +187,26 @@ function Partition({ side }: { side: "left" | "right" }) {
 
 function DepartmentRoom({
   bay,
-  carpet,
   noRoleLabel,
   jobDescFor,
   catalogLabelFor,
 }: {
   bay: OfficeBay;
-  carpet: string;
   noRoleLabel: string;
   jobDescFor: (employeeId: string) => { line: string; books: string[] };
   catalogLabelFor: (employeeId: string) => string;
 }) {
   return (
-    <section className="relative w-fit max-w-full overflow-hidden rounded-md shadow-[0_10px_24px_rgba(70,52,32,0.12)]" aria-label={bay.name}>
+    <section
+      className="relative flex h-full min-h-0 w-fit max-w-full flex-col self-stretch overflow-hidden rounded-md shadow-[0_10px_24px_rgba(15,23,42,0.08)] ring-1 ring-black/10"
+      aria-label={bay.name}
+      style={WHITE_GRID}
+    >
       <Partition side="left" />
       <Partition side="right" />
-      <div className="border-b-4 border-[#cbbba4] bg-[#f7f1e8] px-8 pb-3 pt-4">
+      <div className="relative z-10 flex-shrink-0 border-b border-black/10 bg-white/90 px-8 pb-3 pt-4">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="rounded-sm bg-[#fffaf3] px-3 py-1 text-xs font-semibold tracking-wide text-[#5c4a32] shadow-sm ring-1 ring-[#e4d5c0]">
+          <h2 className="rounded-sm bg-white px-3 py-1 text-xs font-semibold tracking-wide text-gray-700 shadow-sm ring-1 ring-black/10">
             {bay.name}
           </h2>
           <svg viewBox="0 0 36 36" className="h-8 w-8" aria-hidden>
@@ -226,20 +218,12 @@ function DepartmentRoom({
         </div>
         <div className="flex gap-2">
           {Array.from({ length: 3 }, (_, index) => (
-            <div key={index} className="h-12 w-28 rounded-[2px] border-4 border-[#e7e0d4] bg-gradient-to-b from-sky-200 to-sky-50 shadow-inner sm:w-36" />
+            <div key={index} className="h-12 w-28 rounded-[2px] border-4 border-gray-200 bg-gradient-to-b from-sky-200 to-sky-50 shadow-inner sm:w-36" />
           ))}
         </div>
       </div>
-      <div className="relative px-8 py-4" style={{ backgroundColor: carpet }}>
-        <div
-          className="pointer-events-none absolute inset-0 opacity-40"
-          style={{
-            backgroundImage: "linear-gradient(90deg, rgba(90,70,45,0.08) 1px, transparent 1px)",
-            backgroundSize: "22px 100%",
-          }}
-          aria-hidden
-        />
-        <div className="relative flex flex-wrap items-end gap-x-2 gap-y-4">
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-8 py-4">
+        <div className="relative flex flex-wrap content-start items-end gap-x-2 gap-y-4">
           {bay.employees.map((employee) => {
             const jobDesc = jobDescFor(employee.id);
             return (
@@ -272,12 +256,8 @@ export function OfficeWorkspace({
 }) {
   return (
     <div
-      className="relative min-h-[calc(100vh-150px)] flex-1 rounded-lg p-3 sm:p-4"
-      style={{
-        backgroundColor: "#d7cec0",
-        backgroundImage: "linear-gradient(90deg, rgba(90,70,45,0.07) 1px, transparent 1px), linear-gradient(rgba(90,70,45,0.07) 1px, transparent 1px)",
-        backgroundSize: "28px 28px",
-      }}
+      className="relative flex h-full min-h-[calc(100vh-150px)] flex-1 flex-col self-stretch overflow-hidden rounded-lg p-3 sm:p-4"
+      style={WHITE_GRID}
     >
       <style>
         {`
@@ -296,12 +276,11 @@ export function OfficeWorkspace({
           }
         `}
       </style>
-      <div className="flex flex-col gap-4">
-        {bays.map((bay, index) => (
+      <div className="relative z-0 flex min-h-0 min-w-0 flex-1 items-stretch gap-4">
+        {bays.map((bay) => (
           <DepartmentRoom
             key={bay.id}
             bay={bay}
-            carpet={BAY_CARPETS[index % BAY_CARPETS.length] ?? BAY_CARPETS[0]}
             noRoleLabel={noRoleLabel}
             jobDescFor={jobDescFor}
             catalogLabelFor={catalogLabelFor}

@@ -1274,6 +1274,12 @@ export function ThinkingLabPage() {
       : null;
 
   const handleTabChange = (newTab: string) => {
+    if (newTab === 'content-studio') {
+      navigate('/digital-marketing/social-media/content-studio/footage', {
+        state: { contentStudioReturnTo: '/digital-marketing/social-media/thinking-lab' },
+      });
+      return;
+    }
     navigate(`/digital-marketing/social-media/${newTab}`);
   };
 

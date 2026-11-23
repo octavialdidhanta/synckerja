@@ -1,10 +1,11 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { prefetchAppRoute } from '@/shared/routing/prefetchAppRoute';
-import { LayoutDashboard, Calendar, BookOpen, Settings, FileText, Lock, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Calendar, BookOpen, Settings, FileText, Lock, Sparkles, Clapperboard } from 'lucide-react';
 import { useHeaderTabPageAccess } from '@/shared/auth/page-access/useHeaderTabPageAccess';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
+import { contentStudioNavState } from '@/6-1-content-studio/studioTabs';
 
 interface HeaderAndTabProps {
   activeMainTab: string;
@@ -55,6 +56,14 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabPro
       accessPath: '/thinking-lab'
     },
     {
+      id: 'content-studio',
+      label: 'Content Studio',
+      icon: Clapperboard,
+      description: 'Footage bank, products, locations, shot lists, and references',
+      route: '/digital-marketing/social-media/content-studio/footage',
+      accessPath: '/digital-marketing/social-media'
+    },
+    {
       id: 'settings',
       label: 'Settings',
       icon: Settings,
@@ -66,7 +75,11 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabPro
   const handleTabClick = (tab: any) => {
     handleTabChange(tab.id);
     if (tab.route) {
-      navigate(tab.route);
+      if (tab.id === 'content-studio') {
+        navigate(tab.route, { state: contentStudioNavState(location.pathname) });
+      } else {
+        navigate(tab.route);
+      }
     }
   };
 
@@ -82,6 +95,9 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabPro
     }
     if (location.pathname.includes('thinking-lab')) {
       return 'thinking-lab';
+    }
+    if (location.pathname.includes('content-studio')) {
+      return 'content-studio';
     }
     if (location.pathname.includes('settings')) {
       return 'settings';

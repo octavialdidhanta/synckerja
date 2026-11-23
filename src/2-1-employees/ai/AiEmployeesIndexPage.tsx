@@ -6,7 +6,8 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useEmployees } from "../hooks/useEmployees";
 import { AiEmployeesIndexSkeleton } from "./AiEmployeesIndexSkeleton";
 import { HireAiEmployeeDialog } from "./HireAiEmployeeDialog";
-import { groupAiEmployeesByDepartment, OfficeWorkspace } from "./office/OfficeWorkspace";
+import { groupAiEmployeesByDepartment } from "./office/groupAiEmployeesByDepartment";
+import { OfficeWorkspace } from "./office/OfficeWorkspace";
 import { useAiEmployeeCatalogs } from "./useAiEmployeeCatalogs";
 import { useAiEmployeeSeats } from "./useAiEmployeeSeats";
 
@@ -87,8 +88,8 @@ export default function AiEmployeesIndexPage() {
                     </div>
                   ) : null}
                 </div>
-                <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 items-start gap-2">
-                  <div className="col-span-12 flex min-w-0 flex-col gap-2">
+                <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 items-stretch gap-2 [grid-template-rows:minmax(0,1fr)]">
+                  <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col gap-2">
                     {!allowed ? (
                       <div className="rounded-md border border-border bg-card p-4 text-sm text-gray-700">
                         {t("aiEmployee.page.forbidden", "Halaman ini hanya untuk owner dan admin organisasi ini.")}

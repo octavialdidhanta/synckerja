@@ -18,7 +18,7 @@ export function RefVideo({
   file: string;
   folder: Folder;
   open: (file: string) => Promise<File>;
-  onConnect: (forcePick?: boolean) => void;
+  onConnect: (forcePick?: boolean) => void | Promise<void>;
   jump: Jump | null;
   onHeight?: (h: number) => void;
 }) {
@@ -26,6 +26,8 @@ export function RefVideo({
   const loop = useRef<[number, number] | null>(null);
   const [src, setSrc] = useState<{ file: string; url: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Bumped after "Pilih ulang folder" so we retry open even when the folder name is unchanged.
+  const [loadNonce, setLoadNonce] = useState(0);
 
   useEffect(() => {
     if (folder.state !== "ready" || !file) return;
@@ -40,12 +42,28 @@ export function RefVideo({
         });
       })
       .catch(() => {
-        if (!cancelled) setErr(`File "${file}" nggak ketemu di folder "${folder.name}". Pastikan yang dipilih folder referensi.`);
+        if (cancelled) return;
+        setSrc((prev) => {
+          if (prev) URL.revokeObjectURL(prev.url);
+          return null;
+        });
+        setErr(`File "${file}" nggak ketemu di folder "${folder.name}". Pastikan yang dipilih folder referensi.`);
       });
     return () => {
       cancelled = true;
     };
-  }, [folder.state, folder.name, file, open]);
+  }, [folder.state, folder.name, file, open, loadNonce]);
+
+  const rePickFolder = () => {
+    void Promise.resolve(onConnect(true)).finally(() => {
+      setSrc((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return null;
+      });
+      setErr(null);
+      setLoadNonce((n) => n + 1);
+    });
+  };
 
   useEffect(
     () => () => {
@@ -78,7 +96,7 @@ export function RefVideo({
         <>
           Hubungkan folder <b>referensi</b> di laptop untuk memutar videonya.
           <br />
-          <button type="button" className="hb" onClick={() => onConnect(true)}>
+          <button type="button" className="hb" onClick={rePickFolder}>
             Pilih folder referensi
           </button>
         </>
@@ -98,7 +116,7 @@ export function RefVideo({
         <>
           {err}
           <br />
-          <button type="button" className="hb" onClick={() => onConnect(true)}>
+          <button type="button" className="hb" onClick={rePickFolder}>
             Pilih ulang folder
           </button>
         </>
@@ -139,7 +157,7 @@ export function RefDetail({
   r: Reference;
   folder: Folder;
   open: (file: string) => Promise<File>;
-  onConnect: (forcePick?: boolean) => void;
+  onConnect: (forcePick?: boolean) => void | Promise<void>;
   jump: Jump | null;
   setJump: (j: Jump) => void;
   beatCard: (x: RefBeat) => React.ReactNode;

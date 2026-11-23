@@ -37,7 +37,7 @@ function SidebarBrandHeader() {
   const showBrandText = isMobile || state === "expanded";
 
   return (
-    <div className="flex min-h-[3.25rem] shrink-0 items-center border-b border-slate-300 dark:border-slate-600">
+    <div className="box-border flex h-[52px] min-h-[52px] max-h-[52px] shrink-0 items-center border-b border-neutral-300 dark:border-neutral-600">
       <Link
         to="/"
         className={cn(
@@ -138,14 +138,14 @@ function SubSidebarPanel({ items, titleKey, isSubItemLocked }: SubSidebarPanelPr
   };
 
   const sectionHeaderClassName =
-    "box-border flex min-h-[3.25rem] shrink-0 items-center border-b border-slate-300 bg-muted/40 px-4 py-2 dark:border-slate-600";
+    "box-border flex min-h-[3.25rem] shrink-0 items-center border-b border-neutral-200 bg-[#f5f5f5] px-4 py-2 dark:border-neutral-600";
 
   return (
     <div
-      className="h-full w-64 overflow-hidden bg-card font-sans antialiased"
+      className="h-full w-64 overflow-hidden bg-[#f5f5f5] font-sans antialiased dark:bg-background"
       style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
     >
-      <div className="box-border flex h-full w-64 flex-col border-r border-slate-200 bg-card dark:border-slate-700/60">
+      <div className="box-border flex h-full w-64 flex-col border-r border-neutral-200 bg-[#f5f5f5] dark:border-neutral-700/60 dark:bg-background">
         <div className="flex-1 overflow-y-auto seamless-scroll">
           {sections.map((section) => (
             <section key={section.title} className="flex flex-col">
@@ -360,9 +360,10 @@ export function AppSidebar() {
       >
         <Sidebar
           collapsible="icon"
-          className="fixed left-0 top-16 z-40 h-full border-r-2 border-slate-300 bg-card shadow-none dark:border-slate-600"
+          className="fixed left-0 top-16 z-50 h-full border-r border-neutral-200 bg-[#fafafa] shadow-[2px_0_6px_rgba(0,0,0,0.06)] dark:border-neutral-600 dark:bg-background dark:shadow-[2px_0_6px_rgba(0,0,0,0.2)] [&_[data-sidebar=sidebar]]:!bg-[#fafafa] dark:[&_[data-sidebar=sidebar]]:!bg-background"
           style={{
             fontFamily: "system-ui, -apple-system, sans-serif",
+            top: "4rem",
             height: "calc(100vh - 4rem)",
           }}
         >
@@ -493,7 +494,7 @@ export function AppSidebar() {
           className={cn(
             // Parent is pinned to the collapsed rail, so track the expanded rail edge with a
             // GPU transform that matches the rail's own width timing.
-            "absolute left-full top-0 z-50 h-full w-64 overflow-hidden transform-gpu",
+            "absolute left-full top-0 z-30 h-full w-64 overflow-hidden transform-gpu",
             "transition-transform duration-300 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
             railExpanded
               ? "translate-x-[calc(var(--sidebar-width)-var(--sidebar-width-icon))]"

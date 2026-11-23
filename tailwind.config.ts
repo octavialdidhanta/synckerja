@@ -110,6 +110,20 @@ export default {
           department: "hsl(var(--okr-department))",
           individual: "hsl(var(--okr-individual))",
         },
+        /* Pure gray shell (no blue tint). Page fill ~#f0f0f0; chrome lighter. */
+        gray: {
+          50: "#fafafa",
+          100: "#f0f0f0",
+          200: "#e5e5e5",
+          300: "#a3a3a3",
+          400: "#737373",
+          500: "#525252",
+          600: "#404040",
+          700: "#262626",
+          800: "#171717",
+          900: "#0a0a0a",
+          950: "#0a0a0a",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

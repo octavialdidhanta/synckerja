@@ -95,6 +95,12 @@ const ProductKnowledgeContent: React.FC = () => {
 
   const handleTabChange = (newTab: string) => {
     setActiveMainTab(newTab);
+    if (newTab === 'content-studio') {
+      navigate('/digital-marketing/social-media/content-studio/footage', {
+        state: { contentStudioReturnTo: '/digital-marketing/social-media/product-knowledge' },
+      });
+      return;
+    }
     navigate(`/digital-marketing/social-media/${newTab}`);
   };
 

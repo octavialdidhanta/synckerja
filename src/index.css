@@ -17,24 +17,25 @@ All colors MUST be HSL.
    * Hindari hijau/oranye/ungu/hardcoded Tailwind di luar tiga poros ini; gunakan token di bawah.
    */
   :root {
-    --background: 0 0% 99%;
-    --foreground: 220 20% 10%;
+    /* Shell / page fill = soft neutral (~#f0f0f0). Cards stay white. */
+    --background: 0 0% 94.1%;
+    --foreground: 0 0% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 20% 10%;
+    --card-foreground: 0 0% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 10%;
+    --popover-foreground: 0 0% 10%;
 
     /* Primary actions, selected states, rings — brand blue */
     --primary: 204 70% 42%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 20% 10%;
+    --secondary: 0 0% 94.1%;
+    --secondary-foreground: 0 0% 10%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 0 0% 94.1%;
+    --muted-foreground: 0 0% 45%;
 
     /* Hover / subtle highlights — light blue (not green/teal) */
     --accent: 204 55% 94%;
@@ -43,8 +44,8 @@ All colors MUST be HSL.
     --destructive: 359 77% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
+    --border: 0 0% 83%;
+    --input: 0 0% 83%;
     --ring: 204 70% 42%;
 
     --radius: 0.75rem;
@@ -54,7 +55,7 @@ All colors MUST be HSL.
      * success*  = variasi BIRU (positif / aktif / hadir) — bukan hijau.
      * warning*  = variasi MERAH aksen (terlambat, perhatian, callout penting).
      * info*     = BIRU informasi / selesai / sekunder kuat.
-     * neutral*  = netral di atas putih (draft, teks sekunder).
+     * neutral*  = abu murni (tanpa tint biru).
      * okr-*     = semua hirarki OKR tetap hue biru brand (beda saturasi/terang).
      */
     --brand-blue: 204 70% 42%;
@@ -63,13 +64,13 @@ All colors MUST be HSL.
     --brand-blue-on-soft: 204 70% 30%;
     --brand-red: 359 77% 52%;
     --brand-white: 0 0% 100%;
-    --auth-split-bg: 220 14% 96%;
+    --auth-split-bg: 0 0% 94.1%;
 
-    /* Surfaces (netral, hue 220 selaras dengan foreground) */
-    --surface-subtle: 220 14% 97%;
-    --surface-muted: 220 14% 94%;
+    /* Surfaces — abu murni, selaras shell page */
+    --surface-subtle: 0 0% 96%;
+    --surface-muted: 0 0% 94.1%;
     --surface-raised: 0 0% 100%;
-    --surface-border: 220 13% 88%;
+    --surface-border: 0 0% 86%;
 
     /* Positif / aktif / hadir — palet biru (bukan hijau) */
     --success: 204 70% 40%;
@@ -85,8 +86,8 @@ All colors MUST be HSL.
     --info-foreground: 204 70% 28%;
     --info-muted: 204 50% 94%;
 
-    --neutral-status: 220 10% 42%;
-    --neutral-muted: 220 14% 96%;
+    --neutral-status: 0 0% 42%;
+    --neutral-muted: 0 0% 94.1%;
 
     /* OKR — seluruh level memakai keluarga biru */
     --okr-company: 204 70% 42%;
@@ -95,16 +96,17 @@ All colors MUST be HSL.
 
     /* Auth marketing panel (light) */
     --auth-panel: var(--auth-split-bg);
-    --auth-panel-foreground: 220 20% 12%;
-    --auth-panel-muted: 220 10% 40%;
+    --auth-panel-foreground: 0 0% 12%;
+    --auth-panel-muted: 0 0% 40%;
 
+    /* Sidebar/header slightly lighter than page --background so chrome does not blend. */
     --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-foreground: 0 0% 26%;
+    --sidebar-primary: 0 0% 10%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
+    --sidebar-accent: 0 0% 94.1%;
+    --sidebar-accent-foreground: 0 0% 10%;
+    --sidebar-border: 0 0% 86%;
     --sidebar-ring: 204 70% 42%;
   }
 

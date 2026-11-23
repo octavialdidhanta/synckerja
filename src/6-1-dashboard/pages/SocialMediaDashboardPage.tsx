@@ -385,6 +385,12 @@ const SocialMediaContent = () => {
 
   const handleTabChange = (newTab: string) => {
     setActiveMainTab(newTab);
+    if (newTab === 'content-studio') {
+      navigate('/digital-marketing/social-media/content-studio/footage', {
+        state: { contentStudioReturnTo: location.pathname },
+      });
+      return;
+    }
     navigate(`/digital-marketing/social-media/${newTab}`);
   };
 

@@ -240,7 +240,9 @@ export function ReferenceTab({ headLeft }: Props) {
                 Semua visual menarik dari referensi, dikelompokkan per peran. Klik gambar buat lihat di videonya, klik{" "}
                 <b>Pakai di Shot List</b> buat masukin ke job.
               </div>
-              {!activeJobs.length ? <div className="hint2">Belum ada job aktif di Shot List, jadi tombol Pakai belum bisa dipakai.</div> : null}
+              {!activeJobs.length ? (
+                <div className="note">Belum ada job aktif di Shot List, jadi tombol Pakai belum bisa dipakai.</div>
+              ) : null}
               {PERAN.map((p) => [p, allBeats.filter((o) => o.x.peran === p)] as const)
                 .filter(([, v]) => v.length)
                 .map(([p, v]) => (

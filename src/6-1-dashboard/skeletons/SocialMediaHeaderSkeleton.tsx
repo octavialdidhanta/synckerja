@@ -8,6 +8,7 @@ const HEADER_TABS = [
   { id: 'product-knowledge', label: 'Creative' },
   { id: 'script-generator', label: 'Customer Persona' },
   { id: 'thinking-lab', label: 'Thinking Lab' },
+  { id: 'content-studio', label: 'Content Studio' },
   { id: 'settings', label: 'Settings' },
 ] as const;
 

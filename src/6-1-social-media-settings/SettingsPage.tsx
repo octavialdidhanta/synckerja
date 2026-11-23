@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { toast } from 'sonner';
@@ -36,6 +36,7 @@ import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModul
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { t } = useAppTranslation();
   const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
@@ -175,6 +176,12 @@ export const SettingsPage: React.FC = () => {
 
   const handleTabChange = (newTab: string) => {
     setActiveMainTab(newTab);
+    if (newTab === 'content-studio') {
+      navigate('/digital-marketing/social-media/content-studio/footage', {
+        state: { contentStudioReturnTo: location.pathname },
+      });
+      return;
+    }
     navigate(`/digital-marketing/social-media/${newTab}`);
   };
 

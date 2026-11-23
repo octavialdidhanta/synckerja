@@ -21,15 +21,16 @@ export function AiEmployeesIndexSkeleton() {
                 <Skeleton className="h-10 w-40 shrink-0" />
               </div>
               <div
-                className="min-h-[calc(100vh-150px)] flex-1 rounded-lg p-4"
+                className="flex h-full min-h-[calc(100vh-150px)] flex-1 flex-col self-stretch overflow-hidden rounded-lg p-4"
                 style={{
-                  backgroundColor: "#d7cec0",
-                  backgroundImage: "linear-gradient(90deg, rgba(90,70,45,0.07) 1px, transparent 1px), linear-gradient(rgba(90,70,45,0.07) 1px, transparent 1px)",
+                  backgroundColor: "#ffffff",
+                  backgroundImage:
+                    "linear-gradient(90deg, rgba(0,0,0,0.12) 1px, transparent 1px), linear-gradient(rgba(0,0,0,0.12) 1px, transparent 1px)",
                   backgroundSize: "28px 28px",
                 }}
               >
-                <div className="overflow-hidden rounded-md bg-[#eadcc8]">
-                  <div className="border-b-4 border-[#cbbba4] bg-[#f7f1e8] px-8 pb-3 pt-4">
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md bg-white/80 ring-1 ring-black/10">
+                  <div className="border-b border-black/10 bg-white/80 px-8 pb-3 pt-4">
                     <Skeleton className="mb-3 h-6 w-28" />
                     <div className="flex gap-2">
                       <Skeleton className="h-12 flex-1" />
@@ -37,9 +38,9 @@ export function AiEmployeesIndexSkeleton() {
                       <Skeleton className="h-12 flex-1" />
                     </div>
                   </div>
-                  <div className="flex gap-6 px-8 py-6">
-                    <Skeleton className="h-44 w-[220px] bg-[#c4b39a]/50" />
-                    <Skeleton className="h-44 w-[220px] bg-[#c4b39a]/40" />
+                  <div className="flex flex-1 gap-6 px-8 py-6">
+                    <Skeleton className="h-44 w-[220px]" />
+                    <Skeleton className="h-44 w-[220px]" />
                   </div>
                 </div>
               </div>

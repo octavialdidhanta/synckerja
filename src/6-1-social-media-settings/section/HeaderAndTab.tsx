@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, BookOpen, Settings, FileText, Lock, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Calendar, BookOpen, Settings, FileText, Lock, Sparkles, Clapperboard } from 'lucide-react';
 import { useHeaderTabPageAccess } from '@/shared/auth/page-access/useHeaderTabPageAccess';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
@@ -53,6 +53,14 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabPro
       accessPath: '/thinking-lab'
     },
     {
+      id: 'content-studio',
+      label: 'Content Studio',
+      icon: Clapperboard,
+      description: 'Footage bank, products, locations, shot lists, and references',
+      route: '/digital-marketing/social-media/content-studio/footage',
+      accessPath: '/digital-marketing/social-media'
+    },
+    {
       id: 'settings',
       label: 'Settings',
       icon: Settings,
@@ -78,6 +86,9 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabPro
     }
     if (location.pathname.includes('thinking-lab')) {
       return 'thinking-lab';
+    }
+    if (location.pathname.includes('content-studio')) {
+      return 'content-studio';
     }
     if (location.pathname.includes('settings')) {
       return 'settings';
