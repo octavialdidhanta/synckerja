@@ -65,7 +65,8 @@ describe("studioTabFromPath", () => {
     expect(studioTabFromPath("/digital-marketing/social-media/content-studio/produk")).toBe("produk");
     expect(studioTabFromPath("/digital-marketing/social-media/content-studio/lokasi/")).toBe("lokasi");
     expect(studioTabFromPath("/digital-marketing/social-media/content-studio/shot-list")).toBe("shot-list");
-    expect(studioTabFromPath("/digital-marketing/social-media/content-studio/referensi")).toBe("footage");
+    expect(studioTabFromPath("/digital-marketing/social-media/content-studio/referensi")).toBe("referensi");
+    expect(studioTabFromPath("/digital-marketing/social-media/content-studio/gaya")).toBe("footage");
     expect(studioTabFromPath("/digital-marketing/social-media/content-studio")).toBe("footage");
   });
 });

@@ -143,3 +143,38 @@
 .ck .ic{flex:none;width:30px;height:30px;border-radius:7px;border:1px solid var(--line);background:#2c2823;color:var(--tx);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .ck .ic:hover{border-color:var(--acc);color:var(--acc)}.ck .ic svg{width:15px;height:15px}
 .ck .toast{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);background:#2c2823;border:1px solid var(--acc);color:var(--tx);padding:9px 16px;border-radius:9px;font-size:13px;z-index:30}
+
+/* Referensi (katalog.html refDetail / bankView / mgBank / Gaya baku). Scoped under .ref so .tg/.sa don't leak into other tabs. */
+.ck .ref .it{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:13.5px}
+.ck .ref .it:hover{background:#25211d}.ck .ref .it.on{background:#3b3320;color:var(--acc);font-weight:600}
+.ck .ref .hint2.inl,.ck .ref .hint2.tight{margin:0}.ck .ref .hint2.tight{margin-top:3px}
+.ck .ref .badge-new{display:inline-block;font-size:10.5px;padding:1px 7px;border-radius:9px;background:var(--new);color:#fff;font-weight:400}
+.ck .ref .refw{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-top:10px}
+.ck .ref .refw video,.ck .ref .rvph{width:300px;max-width:100%;aspect-ratio:9/16;object-fit:contain;border-radius:10px;background:#000;flex:none}
+.ck .ref .rvph{display:flex;align-items:center;justify-content:center;text-align:center;padding:16px;font-size:12.5px;color:var(--mut);line-height:1.6}
+.ck .ref .rvph .hb{margin-top:8px}
+.ck .ref .rcol{flex:1;min-width:0;overflow-y:auto;padding-right:8px;max-height:533px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.14) transparent}
+.ck .ref .rs{padding:7px 9px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;font-size:13px;cursor:pointer;line-height:1.45}
+.ck .ref .rs:hover{border-color:var(--acc)}
+.ck .ref .rvo{border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13.5px;line-height:1.7}
+.ck .ref .rvo div{cursor:pointer}.ck .ref .rvo div:hover{color:var(--acc)}
+.ck .ref .rl{margin:4px 0 0 18px;padding:0;font-size:13px;line-height:1.55}
+.ck .ref .rt{color:var(--acc);font-size:12px;margin-right:8px;font-variant-numeric:tabular-nums}
+.ck .ref .bt{display:flex;gap:10px;padding:9px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:13px;line-height:1.45}
+.ck .ref .bt>img,.ck .ref .bt>.noimg{width:84px;height:150px;object-fit:cover;border-radius:7px;cursor:pointer;flex:none;background:#000}
+.ck .ref .bt .tg{display:inline-block;font-size:11px;padding:1px 7px;border-radius:9px;background:rgba(255,255,255,.1);margin-right:4px}
+.ck .ref .bt .hk{background:#FFD640;color:#111;font-weight:600}
+.ck .ref .bt .sa{margin-top:6px;padding:7px 9px;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:7px}
+.ck .ref .bt details{margin-top:4px}.ck .ref .bt pre{white-space:pre-wrap;font-size:12px;margin:4px 0}
+.ck .ref .bt .pick{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;font-size:12px}
+.ck .ref .bt .pick select{width:auto;max-width:260px;padding:3px 6px;font-size:12px}
+.ck .ref .mgc .anim{margin-top:3px;font-size:12.5px}.ck .ref .mgc .fnt{margin-top:5px;font-size:12.5px}
+.ck .ref .mgc .sw{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid rgba(255,255,255,.3);vertical-align:-2px;margin-left:4px}
+.ck .ref .mgc .smp{width:84px;height:150px;object-fit:cover;border-radius:7px;flex:none;background:#000;cursor:zoom-in}
+.ck .ref .mgf{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.ck .ref .mgf .mini.on{background:var(--acc);color:#111}
+.ck .ref .blk{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.ck .ref .blk .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.ck .ref .blk .hd b{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--acc)}
+.ck .ref .blk pre{white-space:pre-wrap;margin:0;font:13px/1.55 system-ui,"Segoe UI",sans-serif;color:var(--tx)}
+.ck .ref .blk textarea{width:100%;min-height:220px;background:#151311;color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:8px;font:13px/1.5 system-ui}

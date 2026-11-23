@@ -182,3 +182,36 @@ export function addShot(doc: ShotDoc, judul: string): { doc: ShotDoc; id: string
 export function setJobArchived(doc: ShotDoc, arsip: boolean): ShotDoc {
   return { ...doc, arsip };
 }
+
+export interface ShotFromReference {
+  judul: string;
+  action: string;
+  menu: string;
+  area: string;
+  lokasi: string;
+  fotos: string[];
+  /** reference id and beat index, e.g. "r4#6" */
+  dari: string;
+}
+
+/** katalog.html beatPakai(): a reference visual becomes a new shot at the end of the job. */
+export function addShotFromReference(doc: ShotDoc, src: ShotFromReference): { doc: ShotDoc; id: string } {
+  const id = newShotId(doc);
+  const shot: RawShot = {
+    id,
+    judul: src.judul,
+    timing: "",
+    vo: "",
+    action: src.action,
+    menu: src.menu,
+    area: src.area,
+    lokasi: src.lokasi,
+    fotos: [...src.fotos],
+    bicara: false,
+    angle: 1,
+    done: false,
+    dari: src.dari,
+    def: { action: src.action, menu: src.menu, area: src.area, lokasi: src.lokasi, fotos: [...src.fotos], bicara: false, angle: 1 },
+  };
+  return { doc: withShots(doc, [...shotsOf(doc), shot]), id };
+}

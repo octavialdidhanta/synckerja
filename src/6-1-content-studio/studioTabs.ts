@@ -5,7 +5,7 @@ export const STUDIO_TABS = [
   { id: "produk", label: "Produk", ready: true },
   { id: "lokasi", label: "Lokasi", ready: true },
   { id: "shot-list", label: "Shot List", ready: true },
-  { id: "referensi", label: "Referensi", ready: false },
+  { id: "referensi", label: "Referensi", ready: true },
 ] as const;
 
 export type StudioTab = (typeof STUDIO_TABS)[number]["id"];

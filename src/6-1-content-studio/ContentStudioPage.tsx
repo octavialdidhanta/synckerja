@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { FootageTab } from "./footage/FootageTab";
 import { LibraryTab } from "./library/LibraryTab";
+import { ReferenceTab } from "./referensi/ReferenceTab";
 import { ShotListTab } from "./shots/ShotListTab";
 import { CONTENT_STUDIO_BASE, STUDIO_TABS, studioTabFromPath } from "./studioTabs";
 import "./contentStudio.css";
@@ -37,6 +38,8 @@ export default function ContentStudioPage() {
         <FootageTab headLeft={headLeft} />
       ) : tab === "shot-list" ? (
         <ShotListTab headLeft={headLeft} />
+      ) : tab === "referensi" ? (
+        <ReferenceTab headLeft={headLeft} />
       ) : (
         <LibraryTab key={tab} kind={tab === "produk" ? "menu" : "lokasi"} headLeft={headLeft} />
       )}
