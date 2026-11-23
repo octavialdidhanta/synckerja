@@ -311,7 +311,7 @@ function JobList({
               {s.id} — {s.judul}
             </span>
             {s.done ? (
-              <span className="ck">✓</span>
+              <span className="okm">✓</span>
             ) : mi.length ? (
               <span className="wk" title="Produk belum ada di katalog">
                 ⚠

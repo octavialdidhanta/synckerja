@@ -18,7 +18,7 @@ const archivedDoc = {
   judul: "Sumsum Disedot",
   lokasi: "teras",
   arsip: true,
-  shots: [{ id: "P01", judul: "Hook sumsum", menu: "sup-sumsum", action: "Lift one bone.", area: "Ruang makan", vo: "Tulang sumsumnya banyak" }],
+  shots: [{ id: "P01", judul: "Hook sumsum", menu: "sup-sumsum", action: "Lift one bone.", area: "Ruang makan", vo: "Tulang sumsumnya banyak", done: true }],
 };
 const activeDoc = {
   judul: "Hari 5",
@@ -71,6 +71,9 @@ describe("ShotListTab", () => {
     renderTab();
     expect(screen.getByText("Rakit prompt Google Flow")).toBeTruthy();
     expect(screen.getByText("Arsip (1)")).toBeTruthy();
+    // the done mark must not reuse the root .ck class, or it gets the full-height studio styles
+    expect(document.querySelectorAll(".it.si .okm")).toHaveLength(1);
+    expect(document.querySelectorAll(".it.si .ck")).toHaveLength(0);
 
     fireEvent.click(screen.getByText("P01 — Hook sumsum"));
     expect(screen.getByText(/VO: Tulang sumsumnya banyak/)).toBeTruthy();
