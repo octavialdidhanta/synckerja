@@ -59,6 +59,7 @@ describe("footage read tools", () => {
           p_limit: null,
           p_query: null,
           p_include_banned: null,
+          p_tags: null,
         },
       },
     ]);
