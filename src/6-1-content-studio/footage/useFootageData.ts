@@ -53,8 +53,8 @@ export function useFootageData() {
       ]);
       menus.sort((x, y) => x.created_at.localeCompare(y.created_at));
       const data = buildFootageRows({ assets, scenes, tagDefs, tagValues, usages, bans, menus });
-      const paths = [...new Set(data.rows.map((r) => r.thumbPath).filter((p): p is string => Boolean(p)))];
-      const thumbs = await signCatalogMedia(supabase, paths);
+      const thumbPaths = [...new Set(data.rows.map((r) => r.thumbPath).filter((p): p is string => Boolean(p)))];
+      const thumbs = await signCatalogMedia(supabase, thumbPaths);
       return { ...data, thumbs };
     },
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, isOnline, sortJobs, tokenState, toolList, type AgentJobRow } from "./agentData";
+import { ago, deviceLink, isOnline, sortJobs, tokenState, toolList, visibleDevices, type AgentJobRow } from "./agentData";
 
 const NOW = new Date("2026-11-23T06:00:00Z").getTime();
 const before = (ms: number) => new Date(NOW - ms).toISOString();
@@ -16,6 +16,25 @@ describe("Agent tab helpers", () => {
     expect(isOnline(before(60_000), NOW)).toBe(true);
     expect(isOnline(before(130_000), NOW)).toBe(false);
     expect(isOnline(null, NOW)).toBe(false);
+  });
+
+  it("drops a laptop as soon as its token is revoked, even after a fresh heartbeat", () => {
+    const active = { revoked_at: null, expires_at: before(-86_400_000) };
+    const cut = {
+      id: "cut",
+      last_seen_at: before(10_000),
+      token_id: "revoked",
+      token: { revoked_at: before(1_000), expires_at: before(-86_400_000) },
+    };
+    const live = { id: "live", last_seen_at: before(10_000), token_id: "ok", token: active };
+    expect(deviceLink(cut, NOW)).toBe("terputus");
+    expect(deviceLink({ last_seen_at: before(10_000), token_id: "old", token: { revoked_at: null, expires_at: before(1_000) } }, NOW)).toBe("terputus");
+    expect(deviceLink({ last_seen_at: before(10_000), token_id: null, token: null }, NOW)).toBe("terputus");
+    expect(deviceLink(live, NOW)).toBe("online");
+    expect(visibleDevices([cut, live], NOW).map((row) => row.id)).toEqual(["live"]);
+    expect(visibleDevices([cut], NOW).map((row) => row.id)).toEqual(["cut"]);
+    const older = { ...cut, id: "older", last_seen_at: before(30 * 60_000) };
+    expect(visibleDevices([older, { ...cut, id: "newer" }], NOW).map((row) => row.id)).toEqual(["newer"]);
   });
 
   it("ago reads naturally", () => {

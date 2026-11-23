@@ -1,7 +1,7 @@
 /** Agent tab: which laptops run the Synckerja Agent for this organization, and its access tokens. */
 import { useState } from "react";
 import { useCurrentUserRole } from "@/shared/hooks/useCurrentUserRole";
-import { ago, isOnline, JOB_STATUS, sortJobs, tokenState, toolList } from "./agentData";
+import { ago, deviceLink, JOB_STATUS, sortJobs, tokenState, toolList, visibleDevices } from "./agentData";
 import {
   useAgentDevices,
   useAgentJobActions,
@@ -10,6 +10,7 @@ import {
   useAgentTokens,
   type CreatedToken,
 } from "./useAgentData";
+import type { AgentTokenRow } from "./agentData";
 
 interface Props {
   headLeft: React.ReactNode;
@@ -24,7 +25,7 @@ const EXPIRY_OPTIONS = [
 const ERRORS: Record<string, string> = {
   not_owner_or_admin: "Cuma owner/admin yang bisa bikin atau cabut token.",
   too_many_tokens: "Maksimal 20 token aktif. Cabut yang sudah nggak dipakai dulu.",
-  invalid_label: "Isi nama device dulu (maks 80 huruf).",
+  invalid_label: "Isi nama laptop dulu (maks 80 huruf).",
 };
 
 function errorText(e: unknown): string {
@@ -35,6 +36,83 @@ function errorText(e: unknown): string {
 
 const dateText = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "—";
+
+const INSTALLER_HREF =
+  "https://github.com/octavialdidhanta/synckerja-agent/releases/latest/download/Synckerja-Office.exe";
+
+function InstallerDownload() {
+  return (
+    <a className="hb" href={INSTALLER_HREF} download="Synckerja-Office.exe">
+      Download installer
+    </a>
+  );
+}
+
+const TOOL_LABEL: Record<string, string> = {
+  anthropic_key: "Anthropic",
+  chromium: "Chromium",
+  ffmpeg: "FFmpeg",
+  ffprobe: "FFprobe",
+  fonts: "Font",
+  node: "Node",
+  onnxruntime: "ONNX",
+  remotion: "Remotion",
+  rvm: "RVM",
+  sam2: "SAM",
+  whisper: "Whisper",
+};
+
+function toolLabel(key: string): string {
+  return TOOL_LABEL[key] ?? key.replace(/_/g, " ");
+}
+
+function TokenRow({
+  row,
+  confirmRevoke,
+  onAsk,
+  onCancel,
+  onRevoke,
+  pending,
+}: {
+  row: AgentTokenRow;
+  confirmRevoke: string | null;
+  onAsk: (id: string) => void;
+  onCancel: () => void;
+  onRevoke: (id: string) => void;
+  pending: boolean;
+}) {
+  const st = tokenState(row);
+  return (
+    <tr className={st === "aktif" ? "" : "off"}>
+      <td>{row.label}</td>
+      <td>
+        <code>sk_agent_{row.token_prefix}_…</code>
+      </td>
+      <td>
+        <span className={st === "aktif" ? "pill-status" : "pill-status off"}>{st}</span>
+      </td>
+      <td>{ago(row.last_used_at)}</td>
+      <td>{dateText(row.expires_at)}</td>
+      <td>
+        {st === "aktif" &&
+          (confirmRevoke === row.id ? (
+            <span className="row">
+              <button type="button" className="hb danger" disabled={pending} onClick={() => onRevoke(row.id)}>
+                Ya, cabut
+              </button>
+              <button type="button" className="hb ghost" onClick={onCancel}>
+                Batal
+              </button>
+            </span>
+          ) : (
+            <button type="button" className="hb ghost" onClick={() => onAsk(row.id)}>
+              Cabut
+            </button>
+          ))}
+      </td>
+    </tr>
+  );
+}
 
 export function AgentTab({ headLeft }: Props) {
   const devices = useAgentDevices();
@@ -50,6 +128,7 @@ export function AgentTab({ headLeft }: Props) {
   const [fresh, setFresh] = useState<CreatedToken | null>(null);
   const [copied, setCopied] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
+  const [showRetired, setShowRetired] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const onCreate = async () => {
@@ -83,246 +162,278 @@ export function AgentTab({ headLeft }: Props) {
     }
   };
 
-  const deviceRows = devices.data ?? [];
+  const deviceRows = visibleDevices(devices.data ?? []);
   const tokenRows = tokens.data ?? [];
+  const activeTokens = tokenRows.filter((t) => tokenState(t) === "aktif");
+  const retiredTokens = tokenRows.filter((t) => tokenState(t) !== "aktif");
 
   return (
     <>
       <header className="ck-head">{headLeft}</header>
       <div className="agent">
-        <section>
-          <h2>Laptop yang menjalankan Agent</h2>
-          <p className="mut">
-            Agent adalah program di laptop yang jaga folder footage, render video, dan upload hasilnya ke content plan.
-            Status diperbarui tiap menit.
-          </p>
-          {devices.isLoading ? (
-            <p className="mut">Memuat…</p>
-          ) : devices.isError ? (
-            <p className="bad">Gagal memuat daftar device.</p>
-          ) : deviceRows.length === 0 ? (
-            <div className="empty">Belum ada Agent yang tersambung ke organisasi ini.</div>
-          ) : (
-            deviceRows.map((row) => {
-              const d = row.agent_devices;
-              if (!d) return null;
-              const online = isOnline(row.last_seen_at);
-              const tools = toolList(d.tools);
-              const missing = tools.filter((t) => !t.ok);
-              return (
-                <div key={row.device_id} className="dev">
-                  <div className="dev-top">
-                    <span className={online ? "dot on" : "dot"} />
-                    <b>{d.name}</b>
-                    <span className={online ? "livok" : "mut"}>
-                      {online ? "online" : `offline · terakhir ${ago(row.last_seen_at)}`}
-                    </span>
-                    <span className="mut">
-                      {[d.agent_version && `v${d.agent_version}`, d.platform].filter(Boolean).join(" · ")}
-                    </span>
-                  </div>
-                  {tools.length > 0 && (
-                    <div className="tools">
-                      {tools.map((t) => (
-                        <span key={t.key} className={t.ok ? "tool ok" : "tool no"} title={t.detail ?? undefined}>
-                          {t.ok ? "✓" : "✕"} {t.key}
+        <div className="agent-main">
+          <section className="panel">
+            {devices.isLoading ? (
+              <p className="mut">Memuat…</p>
+            ) : devices.isError ? (
+              <p className="bad">Gagal memuat daftar laptop.</p>
+            ) : deviceRows.length === 0 ? (
+              <div className="empty">
+                Belum ada laptop yang tersambung.
+                <InstallerDownload />
+              </div>
+            ) : (
+              deviceRows.map((row) => {
+                const d = row.agent_devices;
+                if (!d) return null;
+                const link = deviceLink({
+                  last_seen_at: row.last_seen_at,
+                  token_id: row.token_id,
+                  token: row.agent_tokens,
+                });
+                const online = link === "online";
+                const tools = toolList(d.tools);
+                const missing = tools.filter((t) => !t.ok);
+                return (
+                  <div key={row.device_id} className="dev">
+                    <div className="dev-top">
+                      <div className="dev-id">
+                        <span className={online ? "dot on" : "dot"} />
+                        <b>{d.name}</b>
+                        <span className={online ? "pill-status" : "pill-status off"}>
+                          {link === "online" ? "Online" : link === "terputus" ? "Terputus" : "Offline"}
                         </span>
-                      ))}
+                      </div>
+                      <div className="dev-side">
+                        <span className="dev-meta" title={d.platform ?? undefined}>
+                          {online ? (d.agent_version ? `v${d.agent_version}` : "") : ago(row.last_seen_at)}
+                        </span>
+                        <InstallerDownload />
+                      </div>
                     </div>
-                  )}
-                  {missing.length > 0 && (
-                    <p className="bad">Belum lengkap: {missing.map((t) => t.key).join(", ")}. Fitur yang butuh ini belum bisa jalan.</p>
-                  )}
-                  {d.last_error && <p className="bad">Error terakhir: {d.last_error}</p>}
-                </div>
-              );
-            })
-          )}
-        </section>
-
-        <section>
-          <h2>Antrian render</h2>
-          <p className="mut">
-            Video yang dirender Agent di laptop. Job dibuat Claude di chat setelah dikonfirmasi; hasilnya masuk ke content
-            plan sebagai versi baru (Need Review).
-          </p>
-          {jobs.isLoading ? (
-            <p className="mut">Memuat…</p>
-          ) : (jobs.data ?? []).length === 0 ? (
-            <div className="empty">Belum ada job render.</div>
-          ) : (
-            sortJobs(jobs.data ?? []).map((j) => (
-              <div key={j.id} className={"job " + j.status}>
-                <div className="dev-top">
-                  <b>{j.title}</b>
-                  <span className={"st " + j.status}>{JOB_STATUS[j.status]}</span>
-                  {j.stage && j.status === "running" ? <span className="mut">{j.stage}</span> : null}
-                  <span className="mut">{ago(j.created_at)}</span>
-                  {j.attempts > 1 ? <span className="mut">percobaan {j.attempts}/{j.max_attempts}</span> : null}
-                </div>
-                {j.status === "running" ? (
-                  <div className="bar" aria-label={`progres ${j.progress}%`}>
-                    <i style={{ width: `${Math.max(2, j.progress)}%` }} />
+                    {tools.length > 0 && (
+                      <div className="tools">
+                        {tools.map((t) => (
+                          <span
+                            key={t.key}
+                            className={online && t.ok ? "tool ok" : "tool no"}
+                            title={online ? (t.detail ?? undefined) : link === "terputus" ? "Laptop terputus" : "Laptop offline"}
+                          >
+                            {toolLabel(t.key)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {missing.length > 0 && (
+                      <p className="note">Belum lengkap: {missing.map((t) => toolLabel(t.key)).join(", ")}.</p>
+                    )}
+                    {d.last_error && <p className="bad">Error terakhir: {d.last_error}</p>}
                   </div>
-                ) : null}
-                {j.error && j.status !== "done" ? <p className="bad">{j.error}</p> : null}
-                {j.status === "done" && j.result ? (
-                  <p className="mut">
-                    {j.result.version_no ? `Versi ${j.result.version_no} di content plan. ` : ""}
-                    {j.result.google_drive_link ? (
-                      <a href={j.result.google_drive_link} target="_blank" rel="noreferrer">
-                        Buka video
-                      </a>
-                    ) : j.result.output_file ? (
-                      <code>{j.result.output_file}</code>
-                    ) : null}
-                  </p>
-                ) : null}
-                {j.log && (j.status === "failed" || j.status === "done" || j.status === "cancelled") ? (
-                  <details className="mut">
-                    <summary>Log Agent</summary>
-                    <pre
-                      style={{
-                        margin: "4px 0 0",
-                        maxHeight: 160,
-                        overflow: "auto",
-                        whiteSpace: "pre-wrap",
-                        fontSize: 11,
-                        lineHeight: 1.35,
-                        background: "#f3f4f6",
-                        borderRadius: 6,
-                        padding: 8,
-                      }}
-                    >
-                      {j.log.slice(-4000)}
-                    </pre>
-                  </details>
-                ) : null}
-                <div className="row">
-                  {j.status === "queued" || j.status === "running" ? (
-                    <button type="button" className="hb ghost" disabled={jobActions.cancel.isPending} onClick={() => jobActions.cancel.mutate(j.id)}>
-                      Batalkan
-                    </button>
-                  ) : null}
-                  {j.status === "failed" || j.status === "cancelled" ? (
-                    <button type="button" className="hb" disabled={jobActions.retry.isPending} onClick={() => jobActions.retry.mutate(j.id)}>
-                      Coba lagi
-                    </button>
-                  ) : null}
+                );
+              })
+            )}
+          </section>
+
+          <section className="panel fill">
+            <div className="panel-h">
+              <h2>Token</h2>
+              <p>Satu token untuk satu laptop. Cabut kalau tidak dipakai lagi.</p>
+            </div>
+
+            {!canManage ? (
+              <div className="empty">Cuma owner atau admin yang bisa melihat dan membuat token.</div>
+            ) : (
+              <>
+                <div className="mk">
+                  <label className="field">
+                    <span>Nama laptop</span>
+                    <input
+                      placeholder="Ketik nama laptop"
+                      maxLength={80}
+                      value={label}
+                      onChange={(e) => setLabel(e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Berlaku</span>
+                    <select value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label="Masa berlaku">
+                      {EXPIRY_OPTIONS.map((o) => (
+                        <option key={o.days} value={o.days}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="button" className="hb" disabled={!label.trim() || create.isPending} onClick={() => void onCreate()}>
+                    {create.isPending ? "Membuat…" : "Buat token"}
+                  </button>
                 </div>
-              </div>
-            ))
-          )}
-        </section>
 
-        <section>
-          <h2>Token Agent</h2>
-          <p className="mut">
-            Satu token per laptop. Token cuma bisa akses katalog footage dan antrian render organisasi ini, dan bisa
-            dicabut kapan saja. Simpan di file <code>.env</code> Agent, jangan dibagikan.
-          </p>
-
-          {!canManage ? (
-            <div className="empty">Cuma owner/admin yang bisa melihat dan membuat token.</div>
-          ) : (
-            <>
-              <div className="mk">
-                <input
-                  className="q"
-                  placeholder="Nama device, contoh: Laptop Aldi"
-                  maxLength={80}
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                />
-                <select value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label="Masa berlaku">
-                  {EXPIRY_OPTIONS.map((o) => (
-                    <option key={o.days} value={o.days}>
-                      Berlaku {o.label}
-                    </option>
-                  ))}
-                </select>
-                <button type="button" className="hb" disabled={!label.trim() || create.isPending} onClick={() => void onCreate()}>
-                  {create.isPending ? "Membuat…" : "Buat token"}
-                </button>
-              </div>
-
-              {fresh && (
-                <div className="fresh">
-                  <p>
-                    <b>Salin sekarang.</b> Token ini cuma ditampilkan sekali. Kalau hilang, buat token baru.
-                  </p>
-                  <code>{fresh.token}</code>
-                  <div className="row">
-                    <button type="button" className="hb" onClick={() => void copy()}>
-                      {copied ? "Tersalin ✓" : "Salin"}
-                    </button>
-                    <button type="button" className="hb ghost" onClick={() => setFresh(null)}>
-                      Sudah disimpan
-                    </button>
+                {fresh && (
+                  <div className="fresh">
+                    <p>
+                      <b>Salin sekarang.</b> Token ini cuma ditampilkan sekali.
+                    </p>
+                    <code>{fresh.token}</code>
+                    <div className="row">
+                      <button type="button" className="hb" onClick={() => void copy()}>
+                        {copied ? "Tersalin" : "Salin"}
+                      </button>
+                      <button type="button" className="hb ghost" onClick={() => setFresh(null)}>
+                        Sudah disimpan
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {err && <p className="bad">{err}</p>}
+                {err && <p className="bad">{err}</p>}
 
-              {tokens.isLoading ? (
-                <p className="mut">Memuat…</p>
-              ) : tokenRows.length === 0 ? (
-                <div className="empty">Belum ada token.</div>
-              ) : (
-                <table className="tok">
-                  <thead>
-                    <tr>
-                      <th>Nama</th>
-                      <th>Token</th>
-                      <th>Status</th>
-                      <th>Terakhir dipakai</th>
-                      <th>Berlaku sampai</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tokenRows.map((t) => {
-                      const st = tokenState(t);
-                      return (
-                        <tr key={t.id} className={st === "aktif" ? "" : "off"}>
-                          <td>{t.label}</td>
-                          <td>
-                            <code>sk_agent_{t.token_prefix}_…</code>
-                          </td>
-                          <td className={st === "aktif" ? "livok" : "mut"}>{st}</td>
-                          <td>{ago(t.last_used_at)}</td>
-                          <td>{dateText(t.expires_at)}</td>
-                          <td>
-                            {st === "aktif" &&
-                              (confirmRevoke === t.id ? (
-                                <span className="row">
-                                  <button
-                                    type="button"
-                                    className="hb danger"
-                                    disabled={revoke.isPending}
-                                    onClick={() => void onRevoke(t.id)}
-                                  >
-                                    Ya, cabut
-                                  </button>
-                                  <button type="button" className="hb ghost" onClick={() => setConfirmRevoke(null)}>
-                                    Batal
-                                  </button>
-                                </span>
-                              ) : (
-                                <button type="button" className="hb ghost" onClick={() => setConfirmRevoke(t.id)}>
-                                  Cabut
+                {tokens.isLoading ? (
+                  <p className="mut">Memuat…</p>
+                ) : tokenRows.length === 0 ? (
+                  <div className="empty">Belum ada token.</div>
+                ) : (
+                  <>
+                    {activeTokens.length === 0 && retiredTokens.length === 0 ? null : (
+                      <table className="tok">
+                        <colgroup>
+                          <col className="c-name" />
+                          <col className="c-token" />
+                          <col className="c-status" />
+                          <col className="c-used" />
+                          <col className="c-exp" />
+                          <col className="c-act" />
+                        </colgroup>
+                        <thead>
+                          <tr>
+                            <th>Nama</th>
+                            <th>Token</th>
+                            <th>Status</th>
+                            <th>Dipakai</th>
+                            <th>Berlaku</th>
+                            <th />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activeTokens.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="blank">
+                                Tidak ada token aktif.
+                              </td>
+                            </tr>
+                          ) : (
+                            activeTokens.map((t) => (
+                              <TokenRow
+                                key={t.id}
+                                row={t}
+                                confirmRevoke={confirmRevoke}
+                                onAsk={setConfirmRevoke}
+                                onCancel={() => setConfirmRevoke(null)}
+                                onRevoke={(id) => void onRevoke(id)}
+                                pending={revoke.isPending}
+                              />
+                            ))
+                          )}
+                          {retiredTokens.length > 0 && (
+                            <tr className="fold">
+                              <td colSpan={6}>
+                                <button
+                                  type="button"
+                                  className="fold-btn"
+                                  aria-expanded={showRetired}
+                                  onClick={() => setShowRetired((open) => !open)}
+                                >
+                                  {showRetired ? "▾" : "▸"} {retiredTokens.length} token sudah dicabut
                                 </button>
-                              ))}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </>
-          )}
+                              </td>
+                            </tr>
+                          )}
+                          {showRetired &&
+                            retiredTokens.map((t) => (
+                              <TokenRow
+                                key={t.id}
+                                row={t}
+                                confirmRevoke={confirmRevoke}
+                                onAsk={setConfirmRevoke}
+                                onCancel={() => setConfirmRevoke(null)}
+                                onRevoke={(id) => void onRevoke(id)}
+                                pending={revoke.isPending}
+                              />
+                            ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </section>
+        </div>
+
+        <section className="agent-side panel fill">
+          <div className="panel-h">
+            <h2>Antrian render</h2>
+            <p>Video yang selesai masuk ke content plan.</p>
+          </div>
+          <div className="agent-jobs">
+            {jobs.isLoading ? (
+              <p className="mut">Memuat…</p>
+            ) : (jobs.data ?? []).length === 0 ? (
+              <div className="empty">Belum ada job render.</div>
+            ) : (
+              sortJobs(jobs.data ?? []).map((j) => (
+                <div key={j.id} className={"job " + j.status}>
+                  <div className="job-top">
+                    <b className="job-title">{j.title}</b>
+                    <span className={"st " + j.status}>{JOB_STATUS[j.status]}</span>
+                  </div>
+                  <div className="job-meta">
+                    {j.stage && j.status === "running" ? <span>{j.stage}</span> : null}
+                    <span>{ago(j.created_at)}</span>
+                    {j.attempts > 1 ? <span>percobaan {j.attempts}/{j.max_attempts}</span> : null}
+                  </div>
+                  {j.status === "running" ? (
+                    <div className="bar" aria-label={`progres ${j.progress}%`}>
+                      <i style={{ width: `${Math.max(2, j.progress)}%` }} />
+                    </div>
+                  ) : null}
+                  {j.error && j.status !== "done" ? <p className="bad">{j.error}</p> : null}
+                  {j.status === "done" && j.result ? (
+                    <p className="job-meta">
+                      {j.result.version_no ? <span>Versi {j.result.version_no}</span> : null}
+                      {j.result.google_drive_link ? (
+                        <a href={j.result.google_drive_link} target="_blank" rel="noreferrer">
+                          Buka video
+                        </a>
+                      ) : j.result.output_file ? (
+                        <code>{j.result.output_file}</code>
+                      ) : null}
+                    </p>
+                  ) : null}
+                  {j.log && (j.status === "failed" || j.status === "done" || j.status === "cancelled") ? (
+                    <details className="log">
+                      <summary>Log</summary>
+                      <pre>{j.log.slice(-4000)}</pre>
+                    </details>
+                  ) : null}
+                  {j.status === "queued" || j.status === "running" || j.status === "failed" || j.status === "cancelled" ? (
+                    <div className="row">
+                      {j.status === "queued" || j.status === "running" ? (
+                        <button type="button" className="hb ghost" disabled={jobActions.cancel.isPending} onClick={() => jobActions.cancel.mutate(j.id)}>
+                          Batalkan
+                        </button>
+                      ) : null}
+                      {j.status === "failed" || j.status === "cancelled" ? (
+                        <button type="button" className="hb" disabled={jobActions.retry.isPending} onClick={() => jobActions.retry.mutate(j.id)}>
+                          Coba lagi
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </div>
         </section>
       </div>
     </>

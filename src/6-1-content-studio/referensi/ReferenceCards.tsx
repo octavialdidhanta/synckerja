@@ -44,9 +44,9 @@ export function BeatCard({
   return (
     <div className="bt">
       {image ? (
-        <img src={image} alt="" onClick={onSeek} title="Putar di detik ini" />
+        <img src={image} alt="" onClick={onSeek} title="Putar berulang bagian ini" />
       ) : (
-        <div className="noimg" onClick={onSeek} title="Putar di detik ini" />
+        <div className="noimg" onClick={onSeek} title="Putar berulang bagian ini" />
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
         <span className={"tg" + (x.hook ? " hk" : "")}>{role}</span>

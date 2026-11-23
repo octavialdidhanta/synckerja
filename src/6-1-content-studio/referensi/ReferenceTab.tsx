@@ -81,6 +81,12 @@ export function ReferenceTab({ headLeft }: Props) {
   const openRef = (r: Reference, j: Jump) => {
     setSel({ kind: "ref", id: r.id });
     setJump(j);
+    if (j.loop) flash(`Muter berulang ${fmtT(j.loop[0])}–${fmtT(j.loop[1])}`);
+  };
+
+  const setJumpLoop = (j: Jump) => {
+    setJump(j);
+    if (j.loop) flash(`Muter berulang ${fmtT(j.loop[0])}–${fmtT(j.loop[1])}`);
   };
 
   // katalog.html beatPakai(): the visual becomes a new shot in an active Shot List job.
@@ -134,7 +140,10 @@ export function ReferenceTab({ headLeft }: Props) {
       menus={menus}
       locs={locs}
       jobs={activeJobs}
-      onSeek={() => openRef(r, { t: x.a })}
+      onSeek={() => {
+        const end = x.b > x.a ? x.b : x.a + 2;
+        openRef(r, { t: x.a, loop: [x.a, end], key: Date.now() });
+      }}
       onUse={(job) => void pakaiBeat(r, x, job)}
       onNoJob={() => flash("Belum ada job aktif di Shot List")}
     />
@@ -147,7 +156,7 @@ export function ReferenceTab({ headLeft }: Props) {
       image={x.thumbPath ? images[x.thumbPath] : undefined}
       sample={x.samplePath ? images[x.samplePath] : undefined}
       showSource={inBank}
-      onLoop={() => openRef(r, { t: x.a, loop: [x.a, x.b] })}
+      onLoop={() => openRef(r, { t: x.a, loop: [x.a, x.b], key: Date.now() })}
       onStandard={() => makeStandard(r, x)}
     />
   );
@@ -276,7 +285,7 @@ export function ReferenceTab({ headLeft }: Props) {
                 open={referensiFolder.open}
                 onConnect={connect}
                 jump={jump}
-                setJump={setJump}
+                setJump={setJumpLoop}
                 beatCard={(x) => beatCard(current, x, false)}
                 motionCard={(x) => motionCard(current, x, false)}
               />

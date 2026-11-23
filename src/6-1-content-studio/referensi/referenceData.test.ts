@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { loopSeekTo } from "./ReferenceDetail";
 import { fmtT, motionKinds, parseReference, standardLine, unanalyzedFiles } from "./referenceData";
 
 const r4 = parseReference("r4", {
@@ -72,5 +73,17 @@ describe("referenceData", () => {
   it("formats seconds as m:ss", () => {
     expect(fmtT(66.3)).toBe("1:06");
     expect(fmtT(0)).toBe("0:00");
+  });
+});
+
+import { loopSeekTo } from "./ReferenceDetail";
+
+describe("loopSeekTo", () => {
+  it("snaps back when playhead reaches the segment end", () => {
+    expect(loopSeekTo(4.96, [0, 5])).toBe(0);
+    expect(loopSeekTo(5, [0, 5])).toBe(0);
+    expect(loopSeekTo(2, [0, 5])).toBeNull();
+    expect(loopSeekTo(5, null)).toBeNull();
+    expect(loopSeekTo(5, [5, 5])).toBeNull();
   });
 });

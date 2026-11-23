@@ -19,6 +19,8 @@ export interface FootageRow {
   a: number;
   b: number;
   thumbPath: string | null;
+  /** Old 480p path, if one was stored. Playback uses the laptop file, not this. */
+  previewPath: string | null;
   isi: string;
   jenis: string;
   klip: string;
@@ -53,6 +55,7 @@ export interface AssetRecord {
   storage_status: string | null;
   duration_seconds: number | string | null;
   tag_status?: string | null;
+  preview_storage_path?: string | null;
 }
 
 export interface SceneRecord {
@@ -240,6 +243,7 @@ export function buildFootageRows(src: FootageSource): FootageData {
         a,
         b,
         thumbPath: s.thumb_storage_path,
+        previewPath: asset.preview_storage_path ?? null,
         isi: s.summary ?? "",
         jenis: s.scene_kind,
         klip: asset.summary ?? "",

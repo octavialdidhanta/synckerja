@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   emptyFilters,
   filterGroups,
@@ -18,7 +18,7 @@ import {
 import { useFootageData } from "./useFootageData";
 import { useFootageBan, useFootageTagCheck } from "./useFootageBan";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
-import { connectBank, loadBankState, openBankFile, type BankState } from "./localBank";
+import { footagePlayUrl, probeAgent, probeFootage, type AgentLink } from "./localPlay";
 
 interface Props {
   /** Title and studio tabs, shown at the left of the header. */
@@ -36,13 +36,18 @@ export function FootageTab({ headLeft }: Props) {
   const [view, setView] = useState<ViewMode>("scene");
   const [q, setQ] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [bank, setBank] = useState<{ state: BankState; name: string | null }>({ state: "none", name: null });
+  const [agent, setAgent] = useState<AgentLink>("checking");
   const [open, setOpen] = useState<{ row: FootageRow; onlySeg: boolean } | null>(null);
 
-  // The bank-footage folder is remembered per organization; switching org loads that org's folder.
   useEffect(() => {
-    setBank({ state: "none", name: null });
-    void loadBankState(organizationId).then(setBank);
+    let cancelled = false;
+    setAgent("checking");
+    void probeAgent().then((ok) => {
+      if (!cancelled) setAgent(ok ? "on" : "off");
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [organizationId]);
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
@@ -55,35 +60,20 @@ export function FootageTab({ headLeft }: Props) {
     setF(emptyFilters(tagDefs));
   }, [organizationId, tagDefs]);
 
-  const connect = useCallback(
-    async (forcePick = false) => {
-      setBank(await connectBank(organizationId, forcePick));
-    },
-    [organizationId],
-  );
-  const openFile = useCallback((fileKey: string) => openBankFile(organizationId, fileKey), [organizationId]);
+  const laptopLive =
+    agent === "on" ? (
+      <span className="livok" title="Video diputar dari folder yang dipilih di Siapkan Synckerja">
+        ● Laptop
+      </span>
+    ) : agent === "off" ? (
+      <span className="livno">Agent off</span>
+    ) : null;
 
   const headerRight = (
     <>
       <span className="cnt">{data ? countLabel(L, view) : ""}</span>
       <div className="top-r">
-        <span className="live">
-          {bank.state === "ready" ? (
-            <span className="livok" title={`Video diputar langsung dari folder "${bank.name}" di laptop`}>
-              ● Laptop: {bank.name}
-            </span>
-          ) : bank.state === "unsupported" ? (
-            <span className="livno">Putar video butuh Chrome/Edge</span>
-          ) : bank.state === "needs-permission" ? (
-            <button type="button" className="hb" onClick={() => void connect()}>
-              Izinkan folder {bank.name}
-            </button>
-          ) : (
-            <button type="button" className="hb" onClick={() => void connect(true)}>
-              Hubungkan folder bank-footage
-            </button>
-          )}
-        </span>
+        <span className="live">{laptopLive}</span>
         <button type="button" className="fb" onClick={() => setShowFilters((v) => !v)}>
           Filter
         </button>
@@ -107,8 +97,7 @@ export function FootageTab({ headLeft }: Props) {
   const active = (Object.keys(F) as FilterKey[]).filter((k) => F[k] !== null);
   const setKey = (k: FilterKey, v: string | null) => setF((prev) => ({ ...prev, [k]: v }));
 
-  const openRow = async (row: FootageRow, onlySeg: boolean) => {
-    if (bank.state === "needs-permission") setBank(await connectBank(organizationId));
+  const openRow = (row: FootageRow, onlySeg: boolean) => {
     setOpen({ row, onlySeg });
   };
 
@@ -201,9 +190,8 @@ export function FootageTab({ headLeft }: Props) {
           rows={rows}
           initial={open}
           thumbs={data.thumbs}
-          bank={bank}
-          openFile={openFile}
-          onConnect={connect}
+          organizationId={organizationId}
+          agent={agent}
           onSetBan={setBan}
           onCheckTags={checkTags}
           onClose={() => setOpen(null)}
@@ -283,9 +271,8 @@ function PlayerModal({
   rows,
   initial,
   thumbs,
-  bank,
-  openFile,
-  onConnect,
+  organizationId,
+  agent,
   onSetBan,
   onCheckTags,
   onClose,
@@ -293,9 +280,8 @@ function PlayerModal({
   rows: FootageRow[];
   initial: { row: FootageRow; onlySeg: boolean };
   thumbs: Record<string, string>;
-  bank: { state: BankState; name: string | null };
-  openFile: (fileKey: string) => Promise<File>;
-  onConnect: (forcePick?: boolean) => Promise<void>;
+  organizationId: string | null | undefined;
+  agent: AgentLink;
   onSetBan: (sceneId: string, reason: string | null) => Promise<boolean>;
   onCheckTags: (assetId: string) => Promise<boolean>;
   onClose: () => void;
@@ -304,8 +290,6 @@ function PlayerModal({
   const [seg, setSeg] = useState<[number, number] | null>(initial.onlySeg ? [initial.row.a, initial.row.b] : null);
   const [src, setSrc] = useState<{ f: string; url: string } | null>(null);
   const [fileErr, setFileErr] = useState<string | null>(null);
-  // Bumped after "Pilih ulang folder" so we retry open even when the folder name is unchanged.
-  const [loadNonce, setLoadNonce] = useState(0);
   const [banBusy, setBanBusy] = useState(false);
   const vref = useRef<HTMLVideoElement>(null);
   const sc = useMemo(() => rows.filter((x) => x.f === d.f), [rows, d.f]);
@@ -321,53 +305,29 @@ function PlayerModal({
     );
   }, [rows, d.id]);
 
-  // Load the original file from the laptop folder once per clip (or after re-pick).
+  // Ask the Agent on this laptop for the original file. The page does not pick a folder.
   useEffect(() => {
-    if (bank.state !== "ready") return;
     let cancelled = false;
     setFileErr(null);
-    openFile(d.f)
-      .then((file) => {
-        if (cancelled) return;
-        setSrc((prev) => {
-          if (prev) URL.revokeObjectURL(prev.url);
-          return { f: d.f, url: URL.createObjectURL(file) };
-        });
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setSrc((prev) => {
-          if (prev) URL.revokeObjectURL(prev.url);
-          return null;
-        });
-        setFileErr(`File nggak ketemu di folder "${bank.name}". Pastikan yang dipilih folder bank-footage.`);
-      });
+    setSrc(null);
+    if (agent !== "on" || !organizationId) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    const url = footagePlayUrl(organizationId, d.f);
+    void probeFootage(organizationId, d.f).then((result) => {
+      if (cancelled) return;
+      if (result === "ok") setSrc({ f: d.f, url });
+      else if (result === "missing") setFileErr("File tidak ada di folder laptop");
+      else if (result === "other-org") setFileErr("Laptop ini bukan untuk organisasi ini");
+      else if (result === "pending") setFileErr("Agent belum tersambung ke organisasi ini");
+      else setFileErr("Agent belum jalan");
+    });
     return () => {
       cancelled = true;
     };
-  }, [bank.state, bank.name, d.f, openFile, loadNonce]);
-
-  const rePickFolder = () => {
-    void (async () => {
-      await onConnect(true);
-      setSrc((prev) => {
-        if (prev) URL.revokeObjectURL(prev.url);
-        return null;
-      });
-      setFileErr(null);
-      setLoadNonce((n) => n + 1);
-    })();
-  };
-
-  useEffect(
-    () => () => {
-      setSrc((prev) => {
-        if (prev) URL.revokeObjectURL(prev.url);
-        return null;
-      });
-    },
-    [],
-  );
+  }, [agent, organizationId, d.f]);
 
   // Jump to the scene start whenever the scene or source changes.
   useEffect(() => {
@@ -395,41 +355,12 @@ function PlayerModal({
   };
 
   const thumb = d.thumbPath ? thumbs[d.thumbPath] : undefined;
-  const ready = bank.state === "ready" && src?.f === d.f && !fileErr;
+  const ready = Boolean(src?.f === d.f && src.url && !fileErr);
 
   let notice: React.ReactNode = null;
   if (!ready) {
-    if (bank.state === "unsupported") notice = <>Putar video asli dari laptop butuh Chrome atau Edge.</>;
-    else if (bank.state === "none")
-      notice = (
-        <>
-          Hubungkan folder <b>bank-footage</b> di laptop untuk memutar video asli.
-          <br />
-          <button type="button" className="hb" onClick={rePickFolder}>
-            Pilih folder bank-footage
-          </button>
-        </>
-      );
-    else if (bank.state === "needs-permission")
-      notice = (
-        <>
-          Izinkan akses ke folder <b>{bank.name}</b>.
-          <br />
-          <button type="button" className="hb" onClick={() => void onConnect()}>
-            Izinkan
-          </button>
-        </>
-      );
-    else if (fileErr)
-      notice = (
-        <>
-          {fileErr}
-          <br />
-          <button type="button" className="hb" onClick={rePickFolder}>
-            Pilih ulang folder
-          </button>
-        </>
-      );
+    if (fileErr) notice = <>{fileErr}</>;
+    else if (agent === "off") notice = <>Agent belum jalan</>;
     else notice = <>Membuka file…</>;
   }
 
@@ -470,7 +401,17 @@ function PlayerModal({
       </button>
       <div className="mb">
         {ready && !d.img ? (
-          <video ref={vref} src={src!.url} controls muted playsInline onTimeUpdate={onTime} />
+          <div className="mph">
+            <video
+              ref={vref}
+              src={src!.url}
+              crossOrigin="anonymous"
+              controls
+              muted
+              playsInline
+              onTimeUpdate={onTime}
+            />
+          </div>
         ) : ready && d.img ? (
           <img className="mimg" src={src!.url} alt="" />
         ) : (
@@ -480,49 +421,52 @@ function PlayerModal({
           </div>
         )}
         <div className="mi">
-          <div style={{ fontSize: 15, marginBottom: 8 }}>{d.isi}</div>
+          <p className="lead">{d.isi}</p>
           {d.img ? (
-            <div>
-              <b>Tipe</b>gambar
+            <div className="row">
+              <b>Tipe</b>
+              <span>gambar</span>
             </div>
           ) : (
-            <div>
+            <div className="row">
               <b>Scene</b>
-              {d.sc} dari {sc.length} · {fmt(d.a, 2)}–{fmt(d.b, 2)}s
+              <span>
+                {d.sc} dari {sc.length} · {fmt(d.a, 2)}–{fmt(d.b, 2)}s
+              </span>
             </div>
           )}
-          <div>
+          <div className="row">
             <b>Isi klip</b>
-            {d.klip}
+            <span>{d.klip}</span>
           </div>
-          <div>
+          <div className="row">
             <b>Lokasi</b>
-            {d.lok}
+            <span>{d.lok}</span>
           </div>
-          <div>
+          <div className="row">
             <b>Produk</b>
-            {d.prod.join(", ") || "—"}
+            <span>{d.prod.join(", ") || "—"}</span>
           </div>
-          <div>
+          <div className="row">
             <b>Hijab</b>
-            {d.hijab}
+            <span>{d.hijab}</span>
           </div>
-          <div>
+          <div className="row">
             <b>Watermark/UI</b>
-            {d.wm}
+            <span>{d.wm}</span>
           </div>
-          <div>
+          <div className="row">
             <b>Scene ini</b>
-            {d.sp.length ? `dipakai ${d.sp.length}x: ${d.sp.join(", ")}` : "belum pernah dipakai"}
+            <span>{d.sp.length ? `dipakai ${d.sp.length}x: ${d.sp.join(", ")}` : "belum pernah dipakai"}</span>
           </div>
-          <div>
+          <div className="row">
             <b>Klip ini</b>
-            {d.pakai || "belum dipakai"}
+            <span>{d.pakai || "belum dipakai"}</span>
           </div>
           {d.cat ? (
-            <div>
+            <div className="row">
               <b>Catatan</b>
-              {d.cat}
+              <span>{d.cat}</span>
             </div>
           ) : null}
           {!d.img ? (
@@ -546,7 +490,7 @@ function PlayerModal({
             <div className="ai-note">
               <b>{d.tag === "belum" ? "Belum ditag" : "Tag dari AI"}</b>
               {d.tag === "belum"
-                ? "Agent baru memasukkan klip ini. Tag AI menyusul otomatis."
+                ? "Agent baru memasukkan klip ini. Tag AI otomatis menyusul jika Agent punya API key Claude; bisa juga ditag lewat Claude chat / MCP."
                 : "Cek isi, lokasi, produk, hijab & watermark. Kalau ada yang salah, ubah lewat Claude; kalau sudah benar, klik tombol di bawah."}
               {d.tag === "perlu_dicek" ? (
                 <button type="button" className="btn" onClick={() => void onCheckTags(d.assetId)}>
