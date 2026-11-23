@@ -2,9 +2,16 @@
 
 export const ONLINE_WINDOW_MS = 2 * 60 * 1000;
 
+export interface AgentDeviceToken {
+  revoked_at: string | null;
+  expires_at: string | null;
+}
+
 export interface AgentDeviceRow {
   device_id: string;
   last_seen_at: string;
+  token_id: string | null;
+  agent_tokens: AgentDeviceToken | null;
   agent_devices: {
     id: string;
     name: string;
@@ -40,6 +47,39 @@ export function isOnline(lastSeenAt: string | null | undefined, now = Date.now()
   if (!lastSeenAt) return false;
   const t = new Date(lastSeenAt).getTime();
   return Number.isFinite(t) && now - t < ONLINE_WINDOW_MS;
+}
+
+export interface DevicePresence {
+  last_seen_at: string | null;
+  /** Absent when the row was not loaded with its token. Null means this laptop has no token. */
+  token_id?: string | null;
+  token?: AgentDeviceToken | null;
+}
+
+export type DeviceLink = "online" | "offline" | "terputus";
+
+/**
+ * A revoked, expired, or missing token drops the laptop immediately.
+ * A recent heartbeat does not keep it green. Heartbeat age matters only while the token is still valid.
+ */
+export function deviceLink(row: DevicePresence, now = Date.now()): DeviceLink {
+  const tokenLoaded = row.token_id !== undefined || row.token !== undefined;
+  if (tokenLoaded && !row.token_id) return "terputus";
+  if (row.token && tokenState(row.token, now) !== "aktif") return "terputus";
+  return isOnline(row.last_seen_at, now) ? "online" : "offline";
+}
+
+/**
+ * While a laptop is still connected, hide the ones that have stopped.
+ * When every laptop is disconnected, keep only the one heard from most recently
+ * so an older laptop does not reappear beside it.
+ */
+export function visibleDevices<T extends DevicePresence>(rows: T[], now = Date.now()): T[] {
+  const online = rows.filter((row) => deviceLink(row, now) === "online");
+  if (online.length > 0) return online;
+  if (rows.length <= 1) return rows;
+  const latest = [...rows].sort((a, b) => (b.last_seen_at ?? "").localeCompare(a.last_seen_at ?? ""))[0];
+  return latest ? [latest] : rows;
 }
 
 /** "baru saja", "5 menit lalu", "3 jam lalu", "2 hari lalu". */

@@ -97,7 +97,7 @@ function Photos({
                 {kind === "lokasi" ? (
                   <>
                     <br />
-                    <span style={{ color: "var(--acc)" }}>Area: {f.area?.length ? f.area.join(", ") : "belum diisi"}</span>
+                    <span className="area-meta">Area: {f.area?.length ? f.area.join(", ") : "belum diisi"}</span>
                   </>
                 ) : null}
               </figcaption>

@@ -138,14 +138,14 @@ function SubSidebarPanel({ items, titleKey, isSubItemLocked }: SubSidebarPanelPr
   };
 
   const sectionHeaderClassName =
-    "box-border flex min-h-[3.25rem] shrink-0 items-center border-b border-neutral-200 bg-[#f5f5f5] px-4 py-2 dark:border-neutral-600";
+    "box-border flex min-h-[3.25rem] shrink-0 items-center border-b border-neutral-200 bg-[#ffffff] px-4 py-2 dark:border-neutral-600";
 
   return (
     <div
-      className="h-full w-64 overflow-hidden bg-[#f5f5f5] font-sans antialiased dark:bg-background"
+      className="h-full w-64 overflow-hidden bg-[#ffffff] font-sans antialiased dark:bg-background"
       style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
     >
-      <div className="box-border flex h-full w-64 flex-col border-r border-neutral-200 bg-[#f5f5f5] dark:border-neutral-700/60 dark:bg-background">
+      <div className="box-border flex h-full w-64 flex-col border-r border-neutral-200 bg-[#ffffff] dark:border-neutral-700/60 dark:bg-background">
         <div className="flex-1 overflow-y-auto seamless-scroll">
           {sections.map((section) => (
             <section key={section.title} className="flex flex-col">
@@ -360,7 +360,7 @@ export function AppSidebar() {
       >
         <Sidebar
           collapsible="icon"
-          className="fixed left-0 top-16 z-50 h-full border-r border-neutral-200 bg-[#fafafa] shadow-[2px_0_6px_rgba(0,0,0,0.06)] dark:border-neutral-600 dark:bg-background dark:shadow-[2px_0_6px_rgba(0,0,0,0.2)] [&_[data-sidebar=sidebar]]:!bg-[#fafafa] dark:[&_[data-sidebar=sidebar]]:!bg-background"
+          className="fixed left-0 top-16 z-50 h-full border-r border-neutral-200 bg-[#ffffff] shadow-[2px_0_6px_rgba(0,0,0,0.06)] dark:border-neutral-600 dark:bg-background dark:shadow-[2px_0_6px_rgba(0,0,0,0.2)] [&_[data-sidebar=sidebar]]:!bg-[#ffffff] dark:[&_[data-sidebar=sidebar]]:!bg-background"
           style={{
             fontFamily: "system-ui, -apple-system, sans-serif",
             top: "4rem",

@@ -99,8 +99,8 @@ All colors MUST be HSL.
     --auth-panel-foreground: 0 0% 12%;
     --auth-panel-muted: 0 0% 40%;
 
-    /* Sidebar/header slightly lighter than page --background so chrome does not blend. */
-    --sidebar-background: 0 0% 98%;
+    /* Sidebar/header chrome: pure white so it stays distinct from page --background. */
+    --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 0 0% 26%;
     --sidebar-primary: 0 0% 10%;
     --sidebar-primary-foreground: 0 0% 98%;

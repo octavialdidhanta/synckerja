@@ -4,7 +4,17 @@ import type { FolderState } from "../shared/localFolder";
 import { fmtT, motionKinds, type RefBeat, type RefMotion, type Reference } from "./referenceData";
 
 type Folder = { state: FolderState; name: string | null };
-export type Jump = { t: number; loop?: [number, number] };
+/** `key` forces re-apply when the same segment is clicked again (katalog.html loopR). */
+export type Jump = { t: number; loop?: [number, number]; key?: number };
+
+/** True when the playhead should snap back to the loop start (katalog.html timeupdate). */
+export function loopSeekTo(currentTime: number, seg: [number, number] | null): number | null {
+  if (!seg) return null;
+  const [start, end] = seg;
+  if (!(end > start)) return null;
+  if (currentTime >= end - 0.05) return start;
+  return null;
+}
 
 /** Plays a file from the referensi folder; seeks or loops whenever `jump` changes (katalog.html seekR / loopR). */
 export function RefVideo({
@@ -22,12 +32,18 @@ export function RefVideo({
   jump: Jump | null;
   onHeight?: (h: number) => void;
 }) {
-  const vref = useRef<HTMLVideoElement>(null);
+  const vref = useRef<HTMLVideoElement | null>(null);
   const loop = useRef<[number, number] | null>(null);
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const [src, setSrc] = useState<{ file: string; url: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   // Bumped after "Pilih ulang folder" so we retry open even when the folder name is unchanged.
   const [loadNonce, setLoadNonce] = useState(0);
+
+  const attachVideo = (el: HTMLVideoElement | null) => {
+    vref.current = el;
+    setVideoEl(el);
+  };
 
   useEffect(() => {
     if (folder.state !== "ready" || !file) return;
@@ -75,17 +91,56 @@ export function RefVideo({
     [],
   );
 
+  // Keep loop range on a ref so the native timeupdate handler always sees the latest segment.
   useEffect(() => {
-    const v = vref.current;
+    loop.current = jump?.loop ?? null;
+  }, [jump]);
+
+  // katalog.html loopR / seekR: native timeupdate + seek/play whenever jump (or the <video>) changes.
+  useEffect(() => {
+    const v = videoEl;
     if (!v || !jump || src?.file !== file) return;
-    const go = () => {
+
+    const onTime = () => {
+      const next = loopSeekTo(v.currentTime, loop.current);
+      if (next != null) v.currentTime = next;
+    };
+
+    const apply = () => {
       loop.current = jump.loop ?? null;
-      v.currentTime = jump.t;
+      try {
+        v.currentTime = jump.t;
+      } catch {
+        /* ignore seek errors before ready */
+      }
       void v.play().catch(() => undefined);
     };
-    if (v.readyState >= 1) go();
-    else v.onloadedmetadata = go;
-  }, [jump, src, file]);
+
+    v.addEventListener("timeupdate", onTime);
+    if (v.readyState >= 1) apply();
+    else v.addEventListener("loadedmetadata", apply, { once: true });
+
+    return () => {
+      v.removeEventListener("timeupdate", onTime);
+      v.removeEventListener("loadedmetadata", apply);
+    };
+  }, [jump, jump?.key, videoEl, src?.file, file]);
+
+  useEffect(() => {
+    if (!onHeight || !videoEl) return;
+    const report = () => {
+      const h = videoEl.offsetHeight;
+      if (h > 50) onHeight(h);
+    };
+    report();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(report) : null;
+    ro?.observe(videoEl);
+    window.addEventListener("resize", report);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", report);
+    };
+  }, [onHeight, videoEl, src?.url]);
 
   const ready = folder.state === "ready" && src?.file === file && !err;
   if (!ready) {
@@ -128,18 +183,15 @@ export function RefVideo({
       </div>
     );
   }
+
   return (
     <video
-      ref={vref}
+      ref={attachVideo}
       src={src!.url}
       controls
       playsInline
       preload="metadata"
       onLoadedMetadata={(e) => onHeight?.(e.currentTarget.offsetHeight)}
-      onTimeUpdate={(e) => {
-        const v = e.currentTarget;
-        if (loop.current && v.currentTime >= loop.current[1]) v.currentTime = loop.current[0];
-      }}
     />
   );
 }
@@ -165,14 +217,18 @@ export function RefDetail({
 }) {
   // katalog.html fitR(): the right column scrolls inside the video's height.
   const [h, setH] = useState<number | null>(null);
-  const seek = (t: number) => setJump({ t });
+  /** Seek + loop only that segment until the user picks another (katalog.html loopR). */
+  const loopPart = (a: number, b: number) => {
+    const end = b > a ? b : a + 2;
+    setJump({ t: a, loop: [a, end], key: Date.now() });
+  };
   return (
     <div className="refw">
       <RefVideo file={r.file} folder={folder} open={open} onConnect={onConnect} jump={jump} onHeight={(v) => v > 50 && setH(v)} />
       <div className="rcol" style={h ? { maxHeight: h } : undefined}>
         <div className="gt">Struktur</div>
         {r.struktur.map((s, i) => (
-          <div key={i} className="rs" onClick={() => seek(s.a)}>
+          <div key={i} className="rs" onClick={() => loopPart(s.a, s.b)} title="Putar berulang bagian ini">
             <span className="rt">
               {fmtT(s.a)}–{fmtT(s.b)}
             </span>
@@ -182,19 +238,23 @@ export function RefDetail({
           </div>
         ))}
         <div className="gt" style={{ marginTop: 12 }}>
-          Teks VO {r.vo.length ? "(klik buat lompat ke detiknya)" : ""}
+          Teks VO {r.vo.length ? "(klik buat ulang bagian itu)" : ""}
         </div>
         {r.vo.length ? (
           <div className="rvo">
-            {r.vo.map((v, i) => (
-              <div key={i} onClick={() => seek(v.a)}>
-                <span className="rt">{fmtT(v.a)}</span>
-                {v.t}
-              </div>
-            ))}
+            {r.vo.map((v, i) => {
+              const next = r.vo[i + 1];
+              const end = v.b > v.a ? v.b : next && next.a > v.a ? next.a : v.a + 2;
+              return (
+                <div key={i} onClick={() => loopPart(v.a, end)} title="Putar berulang baris ini">
+                  <span className="rt">{fmtT(v.a)}</span>
+                  {v.t}
+                </div>
+              );
+            })}
           </div>
         ) : (
-          <div className="hint2">Video ini tanpa VO, cuma musik/suara asli.</div>
+          <div className="rbox">Video ini tanpa VO, cuma musik/suara asli.</div>
         )}
         <div className="gt" style={{ marginTop: 12 }}>
           Kenapa bagus
