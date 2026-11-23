@@ -139,6 +139,39 @@ describe("render.jobs.draft", () => {
     expect(warnings.some((w) => /Gaya teks diterapkan/.test(w))).toBe(true);
   });
 
+  it("locks the menu label and a 1s halftone outro", () => {
+    const { spec, warnings } = buildDraftSpec(
+      renderJobDraftInput.parse({
+        ...draftArgs,
+        outro: "halftone",
+        logo_file: "brand/emblem.png",
+        texts: [{ text: "Sup Sumsum Kambing", start: 0.4, end: 2.2, style: "menu" as const }],
+      }),
+      { teks: "", musik: "" },
+    );
+    expect(spec.styles.menu).toMatchObject({
+      color: "#1A1A1A",
+      bg: "#F6E27A",
+      font: "instrument-serif",
+      x: -0.42,
+      y: -0.32,
+    });
+    expect(spec.texts[0]?.anim).toBe("menu_label");
+    expect(spec.outro).toEqual({ kind: "halftone", seconds: 1, logo: "brand/emblem.png" });
+    expect(renderSpecV1.parse(spec).outro?.kind).toBe("halftone");
+    expect(warnings.some((w) => /logo_file diabaikan/.test(w))).toBe(false);
+  });
+
+  it("warns when halftone has no logo and still refuses a free effects list", () => {
+    const { spec, warnings } = buildDraftSpec(
+      renderJobDraftInput.parse({ ...draftArgs, outro: "halftone", texts: [] }),
+      { teks: "x", musik: "x" },
+    );
+    expect(spec.outro).toEqual({ kind: "halftone", seconds: 1 });
+    expect(warnings.some((w) => /tanpa emblem/.test(w))).toBe(true);
+    expect(renderSpecV1.safeParse({ ...spec, effects: ["halftone"] }).success).toBe(false);
+  });
+
   it("parses music dB and hex colors from Gaya", () => {
     expect(extractHexColors("maroon #7A181E kuning #FFD640")).toEqual(["#7A181E", "#FFD640"]);
     expect(defaultMusicDb({ musik: "musik -16 dB di bawah VO" })).toBe(-16);

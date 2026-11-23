@@ -23,7 +23,7 @@ const textIn = z
     text: z.string().min(1).max(300),
     start: z.number().finite().min(0).max(3600),
     end: z.number().finite().min(0).max(3600),
-    style: z.enum(["hook", "sub"]).optional(),
+    style: z.enum(["hook", "sub", "menu"]).optional(),
     anim: z.enum(["none", "fade", "pop", "typewriter"]).optional(),
     behind_person: z.boolean().optional(),
   })
@@ -54,6 +54,10 @@ export const renderJobDraftInput = z
     vo_file: relAudio.optional(),
     music_file: relAudio.optional(),
     texts: z.array(textIn).max(40).optional(),
+    /** End card. "halftone" plays the locked 1s print-dot closer. */
+    outro: z.enum(["halftone"]).optional(),
+    /** Production-folder image used as the halftone emblem, for example brand/emblem.png. */
+    logo_file: relAudio.optional(),
   })
   .strict();
 
@@ -115,6 +119,21 @@ export function defaultRenderStyles(gaya: CatalogTextBlocks): RenderSpecV1["styl
   };
 }
 
+/** Locked look of the reference menu label: pale yellow box, black serif, lower left. */
+export function menuLabelStyle(): RenderSpecV1["styles"][string] {
+  return {
+    size: 8,
+    color: "#1A1A1A",
+    bg: "#F6E27A",
+    bg_alpha: 1,
+    bold: false,
+    font: "instrument-serif",
+    x: -0.42,
+    y: -0.32,
+    max_width: 0.72,
+  };
+}
+
 /** Music bed under VO; parse first "N dB" from Gaya musik (Agent also ducks + loudnorm -14). */
 export function defaultMusicDb(gaya: CatalogTextBlocks): number {
   const m = /(-?\d+(?:\.\d+)?)\s*dB/i.exec(gaya.musik ?? "");
@@ -136,19 +155,33 @@ export function buildDraftSpec(
   } else {
     warnings.push("Gaya baku blok 'teks' kosong; memakai style CapCut default.");
   }
-  const texts = (input.texts ?? []).map((t) => ({
-    text: t.text,
-    start: t.start,
-    end: t.end,
-    style: (t.style ?? "sub") as string,
-    anim: t.anim ?? ("pop" as const),
-    ...(t.behind_person ? { behind_person: true as const } : {}),
-  }));
+  const wantsMenu = (input.texts ?? []).some((t) => t.style === "menu");
+  if (wantsMenu) styles.menu = menuLabelStyle();
+  const texts = (input.texts ?? []).map((t) => {
+    const style = (t.style ?? "sub") as string;
+    const menu = style === "menu";
+    if (menu && t.anim) warnings.push('style "menu" mengunci animasi menu_label; anim yang dikirim diabaikan.');
+    return {
+      text: t.text,
+      start: t.start,
+      end: t.end,
+      style,
+      anim: menu ? ("menu_label" as const) : (t.anim ?? ("pop" as const)),
+      ...(t.behind_person ? { behind_person: true as const } : {}),
+    };
+  });
   for (const t of texts) {
     if (!(t.style in styles)) {
       warnings.push(`style "${t.style}" tidak ada di draft; diganti "sub"`);
       t.style = "sub";
     }
+  }
+  let outro: RenderSpecV1["outro"];
+  if (input.outro === "halftone") {
+    outro = { kind: "halftone", seconds: 1, ...(input.logo_file ? { logo: input.logo_file } : {}) };
+    if (!input.logo_file) warnings.push("outro halftone tanpa logo_file; penutup memudar ke putih tanpa emblem.");
+  } else if (input.logo_file) {
+    warnings.push("logo_file diabaikan karena outro bukan halftone.");
   }
   const musicDb = defaultMusicDb(gaya);
   const audio: RenderSpecV1["audio"] = {};
@@ -184,6 +217,7 @@ export function buildDraftSpec(
     audio,
     styles,
     texts,
+    ...(outro ? { outro } : {}),
   };
   const parsed = renderSpecV1.safeParse(raw);
   if (!parsed.success) {
@@ -305,6 +339,6 @@ export async function draftRenderJobResult(
     brief_hints,
     warnings,
     next_step:
-      "Review the draft spec (edit shots/texts/audio if needed). Then call render.jobs.create.preview with the same title, plan_id, and this spec. After the user clearly says yes, call render.jobs.create with that confirm_token. Music defaults follow Gaya musik (usually -18 dB under VO); the Agent applies sidechain ducking and loudnorm -14 LUFS. Set texts[].behind_person=true for text behind the person (Agent needs SAM2+RVM). Halftone and other CapCut effects are still omitted.",
+      "Review the draft spec (edit shots/texts/audio if needed). Then call render.jobs.create.preview with the same title, plan_id, and this spec. After the user clearly says yes, call render.jobs.create with that confirm_token. Music defaults follow Gaya musik (usually -18 dB under VO); the Agent applies sidechain ducking and loudnorm -14 LUFS. texts[].style=menu draws the yellow typewriter menu label. outro=halftone adds the 1s dotted closer (optional logo_file inside the production folder). behind_person=true places that text under the person (Agent SAM2+RVM). A top-level effects array is still refused.",
   };
 }
