@@ -98,6 +98,9 @@ import type {
   FootageClipUpsertInput,
   FootageClipUpsertPreview,
   FootageClipUpsertSaved,
+  FootageClipCreateInput,
+  FootageClipCreatePreview,
+  FootageClipCreateSaved,
   FootageMoveInput,
   FootageMovePreview,
   FootageMoveSaved,
@@ -363,6 +366,9 @@ import {
   clipUpsertPreviewInput,
   previewClipUpsertResult,
   applyClipUpsertResult,
+  clipCreatePreviewInput,
+  previewClipCreateResult,
+  applyClipCreateResult,
   deleteFootagePreviewInput,
   previewDeleteFootageResult,
   applyDeleteFootageResult,
@@ -815,6 +821,8 @@ export type McpReadDeps = {
   applyFootageBan: (ctx: McpAuthContext, previewId: string) => Promise<FootageBanSaved>;
   previewFootageClip: (ctx: McpAuthContext, input: FootageClipUpsertInput) => Promise<FootageClipUpsertPreview>;
   applyFootageClip: (ctx: McpAuthContext, previewId: string) => Promise<FootageClipUpsertSaved>;
+  previewFootageClipCreate: (ctx: McpAuthContext, input: FootageClipCreateInput) => Promise<FootageClipCreatePreview>;
+  applyFootageClipCreate: (ctx: McpAuthContext, previewId: string) => Promise<FootageClipCreateSaved>;
   previewFootageDelete: (ctx: McpAuthContext, input: FootageDeleteInput) => Promise<FootageDeletePreview>;
   applyFootageDelete: (ctx: McpAuthContext, previewId: string) => Promise<FootageDeleteSaved>;
   previewFootageRestore: (ctx: McpAuthContext, input: FootageRestoreInput) => Promise<FootageRestorePreview>;
@@ -1023,6 +1031,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "footage.ban.add": confirmFootageInput,
   "footage.clips.upsert.preview": clipUpsertPreviewInput,
   "footage.clips.upsert": confirmFootageInput,
+  "footage.clips.create.preview": clipCreatePreviewInput,
+  "footage.clips.create": confirmFootageInput,
   "footage.delete.preview": deleteFootagePreviewInput,
   "footage.delete": confirmFootageInput,
   "footage.restore.preview": restoreFootagePreviewInput,
@@ -1646,6 +1656,10 @@ async function runTool(
       return previewClipUpsertResult(ctx, args, deps.previewFootageClip, deps.signFootageConfirmation);
     case "footage.clips.upsert":
       return applyClipUpsertResult(ctx, args, deps.verifyFootageConfirmation, deps.applyFootageClip);
+    case "footage.clips.create.preview":
+      return previewClipCreateResult(ctx, args, deps.previewFootageClipCreate, deps.signFootageConfirmation);
+    case "footage.clips.create":
+      return applyClipCreateResult(ctx, args, deps.verifyFootageConfirmation, deps.applyFootageClipCreate);
     case "footage.delete.preview":
       return previewDeleteFootageResult(ctx, args, deps.previewFootageDelete, deps.signFootageConfirmation);
     case "footage.delete":

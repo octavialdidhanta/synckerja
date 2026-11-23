@@ -24,6 +24,7 @@ export type FootageConfirmableTool =
   | "footage.move"
   | "footage.ban.add"
   | "footage.clips.upsert"
+  | "footage.clips.create"
   | "footage.delete"
   | "footage.restore"
   | "catalog.media.delete"

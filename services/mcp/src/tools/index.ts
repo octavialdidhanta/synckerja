@@ -175,6 +175,7 @@ export { usageLogPreviewInput, previewUsageLogResult, applyUsageLogResult } from
 export { moveFootagePreviewInput, previewMoveFootageResult, applyMoveFootageResult } from "./footage/move";
 export { banAddPreviewInput, previewBanAddResult, applyBanAddResult } from "./footage/banAdd";
 export { clipUpsertPreviewInput, previewClipUpsertResult, applyClipUpsertResult } from "./footage/clipUpsert";
+export { clipCreatePreviewInput, previewClipCreateResult, applyClipCreateResult } from "./footage/clipCreate";
 export {
   deleteFootagePreviewInput,
   restoreFootagePreviewInput,
