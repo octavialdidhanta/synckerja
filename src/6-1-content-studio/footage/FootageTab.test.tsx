@@ -23,6 +23,8 @@ vi.mock("./useFootageData", () => ({
   useFootageData: () => ({ data: { ...data, thumbs: { "t/s1.jpg": "https://x/s1.jpg" } }, isPending: false, error: null }),
 }));
 
+vi.mock("@/shared/auth/hooks/useOrgBootstrapPending", () => ({ useOrgBootstrapPending: () => ({ organizationId: "org-1" }) }));
+
 vi.mock("./localBank", () => ({
   loadBankState: () => Promise.resolve({ state: "none", name: null }),
   connectBank: () => Promise.resolve({ state: "none", name: null }),

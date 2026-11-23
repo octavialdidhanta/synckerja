@@ -1,7 +1,6 @@
 /** One reference (video left, analysis right) and the motion graphic bank, ported from katalog.html refDetail() / mgBank(). */
 import { useEffect, useRef, useState } from "react";
 import type { FolderState } from "../shared/localFolder";
-import { referensiFolder } from "./localReferensi";
 import { fmtT, motionKinds, type RefBeat, type RefMotion, type Reference } from "./referenceData";
 
 type Folder = { state: FolderState; name: string | null };
@@ -11,12 +10,14 @@ export type Jump = { t: number; loop?: [number, number] };
 export function RefVideo({
   file,
   folder,
+  open,
   onConnect,
   jump,
   onHeight,
 }: {
   file: string;
   folder: Folder;
+  open: (file: string) => Promise<File>;
   onConnect: (forcePick?: boolean) => void;
   jump: Jump | null;
   onHeight?: (h: number) => void;
@@ -30,8 +31,7 @@ export function RefVideo({
     if (folder.state !== "ready" || !file) return;
     let cancelled = false;
     setErr(null);
-    referensiFolder
-      .open(file)
+    open(file)
       .then((f) => {
         if (cancelled) return;
         setSrc((prev) => {
@@ -45,7 +45,7 @@ export function RefVideo({
     return () => {
       cancelled = true;
     };
-  }, [folder.state, folder.name, file]);
+  }, [folder.state, folder.name, file, open]);
 
   useEffect(
     () => () => {
@@ -129,6 +129,7 @@ export function RefVideo({
 export function RefDetail({
   r,
   folder,
+  open,
   onConnect,
   jump,
   setJump,
@@ -137,6 +138,7 @@ export function RefDetail({
 }: {
   r: Reference;
   folder: Folder;
+  open: (file: string) => Promise<File>;
   onConnect: (forcePick?: boolean) => void;
   jump: Jump | null;
   setJump: (j: Jump) => void;
@@ -148,7 +150,7 @@ export function RefDetail({
   const seek = (t: number) => setJump({ t });
   return (
     <div className="refw">
-      <RefVideo file={r.file} folder={folder} onConnect={onConnect} jump={jump} onHeight={(v) => v > 50 && setH(v)} />
+      <RefVideo file={r.file} folder={folder} open={open} onConnect={onConnect} jump={jump} onHeight={(v) => v > 50 && setH(v)} />
       <div className="rcol" style={h ? { maxHeight: h } : undefined}>
         <div className="gt">Struktur</div>
         {r.struktur.map((s, i) => (
