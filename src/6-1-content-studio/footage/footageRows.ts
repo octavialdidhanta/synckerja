@@ -37,7 +37,11 @@ export interface FootageRow {
   ban: string | null;
   cat: string;
   baru: boolean;
+  /** clip tags: belum (Agent, untagged), perlu_dicek (AI, not checked), dicek (by a person) */
+  tag: TagStatus;
 }
+
+export type TagStatus = "belum" | "perlu_dicek" | "dicek";
 
 export interface AssetRecord {
   id: string;
@@ -48,6 +52,7 @@ export interface AssetRecord {
   summary: string | null;
   storage_status: string | null;
   duration_seconds: number | string | null;
+  tag_status?: string | null;
 }
 
 export interface SceneRecord {
@@ -250,6 +255,7 @@ export function buildFootageRows(src: FootageSource): FootageData {
         ban: bans.get(s.id) ?? null,
         cat: s.note ?? "",
         baru: asset.storage_status === "inbox",
+        tag: asset.tag_status === "belum" || asset.tag_status === "perlu_dicek" ? asset.tag_status : "dicek",
       });
     });
   }
@@ -283,6 +289,7 @@ const BASE_FILTER_GROUPS: { key: FilterKey; title: string }[] = [
   { key: "prod", title: "Produk" },
   { key: "jenis", title: "Isi scene" },
   { key: "pakai", title: "Pemakaian" },
+  { key: "tag", title: "Tag" },
 ];
 
 /** Fixed + per-org bool tag filters (hijab, watermark_ui, capacity_shown, …). */
@@ -304,7 +311,7 @@ export const FILTER_GROUPS = filterGroups([
 ]);
 
 export function emptyFilters(tagDefs: TagDefRecord[] = []): Filters {
-  const F: Filters = { st: null, tipe: null, lok: null, prod: null, jenis: null, pakai: null };
+  const F: Filters = { st: null, tipe: null, lok: null, prod: null, jenis: null, pakai: null, tag: null };
   for (const d of tagDefs) {
     if ((d.value_type ?? "bool") === "bool") F[d.key] = null;
   }
@@ -326,6 +333,7 @@ export const NM: Record<string, Record<string, string>> = {
   lengkuas: { ya: "Pakai lengkuas", tidak: "Tanpa lengkuas" },
   st: { boleh: "Boleh dipakai", "jangan dipakai": "Jangan dipakai" },
   pakai: { belum: "belum dipakai", "1x": "baru 1x", "2x+": "2x atau lebih" },
+  tag: { perlu_dicek: "Tag AI, perlu dicek", belum: "Belum ditag", dicek: "Sudah dicek" },
   jenis: {
     produk: "produk aja",
     orang: "ada orang",
@@ -356,6 +364,8 @@ export function filterOptions(data: FootageData): Record<string, string[]> {
     prod: data.productOrder.filter((n) => D.some((d) => d.prod.includes(n))),
     jenis: uniq(D.map((d) => d.jenis)),
     pakai: ["belum", "1x", "2x+"],
+    // Only when there is something to check: otherwise every clip is "Sudah dicek" and the group is noise.
+    tag: D.some((d) => d.tag !== "dicek") ? ["perlu_dicek", "belum", "dicek"] : [],
   };
   for (const def of data.tagDefs) {
     if ((def.value_type ?? "bool") !== "bool") continue;
@@ -388,6 +398,8 @@ export function rowValue(d: FootageRow, k: FilterKey, view: ViewMode): string {
       return d.lok;
     case "jenis":
       return d.jenis;
+    case "tag":
+      return d.tag;
     case "hijab":
       return d.hijab;
     case "wm":

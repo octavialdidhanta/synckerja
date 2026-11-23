@@ -213,3 +213,9 @@
 .ck .agent table.tok th{text-align:left;color:var(--mut);font-weight:500;font-size:12px;padding:6px 8px;border-bottom:1px solid var(--line)}
 .ck .agent table.tok td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
 .ck .agent table.tok tr.off td{opacity:.5}
+
+/* Footage: AI tag status (Synckerja Agent) */
+.ck .c .ai{position:absolute;bottom:auto;top:28px;left:6px;background:#3b3320;color:var(--acc);border:1px solid var(--acc);font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;letter-spacing:.02em}
+.ck .ai-note{border:1px solid var(--acc);background:#2a2419;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:13px;display:flex;flex-direction:column;gap:6px}
+.ck .ai-note b{color:var(--acc)}
+.ck .ai-note .btn{align-self:flex-start}

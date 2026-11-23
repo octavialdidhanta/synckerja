@@ -27,6 +27,11 @@ import {
  *   POST /v1/footage/register      { clip }  (footage.clips.create)  → asset_id + scene ids
  *   POST /v1/footage/media-upload  { asset_id }                      → signed upload URLs (preview + thumbs)
  *   POST /v1/footage/media-done    { asset_id, preview, scene_ids }  → link the uploaded files
+ *
+ * AI tags (scope "catalog"), step 4: only clips still "belum" (never a person's tags).
+ *   GET  /v1/catalog/context       tag defs, scene kinds, menus, locations, bans, tagged examples
+ *   GET  /v1/footage/untagged      clips waiting for AI tags
+ *   POST /v1/footage/tags          { asset_id, tags }                → saved as "perlu dicek"
  */
 
 const BUCKET = "catalog-media";
@@ -106,6 +111,36 @@ Deno.serve(async (req) => {
       return json({ ok: true, ...(data as Record<string, unknown>) });
     }
 
+    if (req.method === "GET" && (path === "/v1/catalog/context" || path === "/v1/footage/untagged")) {
+      if (!ctx.scopes.includes("catalog")) return fail(403, "forbidden", "Token ini tidak punya akses katalog.");
+      if (path === "/v1/footage/untagged") {
+        const { data, error } = await admin.rpc("agent_footage_untagged", { p_token_id: ctx.tokenId, p_limit: 10 });
+        if (error) {
+          const m = mapRpcError(error.message);
+          return fail(m.status, m.code, "Gagal baca antrian tag.");
+        }
+        return json({ ok: true, ...(data as Record<string, unknown>) });
+      }
+      const { data, error } = await admin.rpc("agent_catalog_context", { p_token_id: ctx.tokenId });
+      if (error) {
+        const m = mapRpcError(error.message);
+        if (m.status === 500) console.error("agent_catalog_context", error.message);
+        return fail(m.status, m.code, "Gagal baca konteks katalog.");
+      }
+      const c = data as Record<string, unknown> & { location_thumbs?: Array<{ location: string; path: string }> };
+      const thumbs = c.location_thumbs ?? [];
+      const signed = thumbs.length
+        ? await admin.storage.from(BUCKET).createSignedUrls(thumbs.map((t) => t.path), 3600)
+        : { data: [] as Array<{ signedUrl: string | null }> };
+      return json({
+        ok: true,
+        ...c,
+        location_thumbs: thumbs
+          .map((t, i) => ({ location: t.location, url: signed.data?.[i]?.signedUrl ?? null }))
+          .filter((t) => t.url),
+      });
+    }
+
     if (req.method === "POST" && path.startsWith("/v1/footage/")) {
       if (!ctx.scopes.includes("catalog")) return fail(403, "forbidden", "Token ini tidak punya akses katalog.");
       let body: unknown;
@@ -169,6 +204,15 @@ Deno.serve(async (req) => {
             })),
           ),
         });
+      }
+
+      if (path === "/v1/footage/tags") {
+        const b = body as Record<string, unknown> | null;
+        if (!isUuid(b?.asset_id) || !b?.tags || typeof b.tags !== "object" || Array.isArray(b.tags)) {
+          return fail(400, "invalid_input", "asset_id (UUID) dan tags (object) wajib.");
+        }
+        const r = await rpc("agent_footage_tags", { p_asset_id: b.asset_id, p_input: b.tags });
+        return r.error ?? json({ ok: true, ...r.data });
       }
 
       if (path === "/v1/footage/media-done") {

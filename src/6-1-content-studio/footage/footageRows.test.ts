@@ -108,3 +108,21 @@ describe("filters", () => {
     expect(optionCount(rows, F, "", "scene", "prod", "Sate Babi")).toBe(2);
   });
 });
+
+describe("AI tag status (Synckerja Agent)", () => {
+  it("rows carry the clip tag status and the Tag filter only shows when something needs a look", () => {
+    const plain = buildFootageRows(src);
+    expect(plain.rows.every((r) => r.tag === "dicek")).toBe(true);
+    expect(filterOptions(plain).tag).toEqual([]);
+
+    const withAi = buildFootageRows({
+      ...src,
+      assets: src.assets.map((a) => (a.id === "a2" ? { ...a, tag_status: "perlu_dicek" } : a)),
+    });
+    expect(withAi.rows.find((r) => r.assetId === "a2")?.tag).toBe("perlu_dicek");
+    expect(filterOptions(withAi).tag).toEqual(["perlu_dicek", "belum", "dicek"]);
+    const F = { ...EMPTY_FILTERS, tag: "perlu_dicek" };
+    expect(visibleRows(withAi.rows, F, "", "scene").map((r) => r.id)).toEqual(["s3"]);
+    expect(optionCount(withAi.rows, F, "", "scene", "tag", "dicek")).toBe(3);
+  });
+});

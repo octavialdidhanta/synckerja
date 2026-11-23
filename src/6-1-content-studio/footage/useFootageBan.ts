@@ -64,3 +64,33 @@ export function useFootageBan() {
 
   return { setBan };
 }
+
+/** "Tag sudah benar": the AI tags of a clip were checked by a person. */
+export function useFootageTagCheck() {
+  const { organizationId } = useOrgBootstrapPending();
+  const qc = useQueryClient();
+  const key = footageQueryKey(organizationId);
+
+  return useCallback(
+    async (assetId: string) => {
+      const previous = qc.getQueryData<FootageQueryResult>(key);
+      qc.setQueryData<FootageQueryResult>(key, (prev) =>
+        prev ? { ...prev, rows: prev.rows.map((r) => (r.assetId === assetId ? { ...r, tag: "dicek" } : r)) } : prev,
+      );
+      // tag_status is newer than the generated Supabase types.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from("footage_assets")
+        .update({ tag_status: "dicek" })
+        .eq("organization_id", organizationId)
+        .eq("id", assetId);
+      if (error) {
+        qc.setQueryData(key, previous);
+        toast.error("Gagal menyimpan. Cek koneksi, lalu coba lagi.");
+        return false;
+      }
+      return true;
+    },
+    [organizationId, qc, key],
+  );
+}
