@@ -7,7 +7,8 @@ import { splitJobs, type ShotJob } from "../shots/shotData";
 import { useShotData } from "../shots/useShotData";
 import { useShotSave } from "../shots/useShotSave";
 import { BeatCard, MotionCard } from "./ReferenceCards";
-import { referensiFolder } from "./localReferensi";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
+import { referensiFolderFor } from "./localReferensi";
 import {
   fmtT,
   PERAN,
@@ -48,6 +49,9 @@ export function ReferenceTab({ headLeft }: Props) {
   const [toast, setToast] = useState<string | null>(null);
   const [folder, setFolder] = useState<{ state: FolderState; name: string | null }>({ state: "none", name: null });
   const [files, setFiles] = useState<string[]>([]);
+  // The referensi folder is remembered per organization, so one org never lists another org's videos.
+  const { organizationId } = useOrgBootstrapPending();
+  const referensiFolder = useMemo(() => referensiFolderFor(organizationId), [organizationId]);
 
   const flash = useCallback((t: string) => {
     setToast(t);
@@ -55,14 +59,19 @@ export function ReferenceTab({ headLeft }: Props) {
   }, []);
 
   useEffect(() => {
+    setFolder({ state: "none", name: null });
+    setFiles([]);
     void referensiFolder.load().then(setFolder);
-  }, []);
+  }, [referensiFolder]);
   useEffect(() => {
     if (folder.state === "ready") void referensiFolder.listFiles().then(setFiles).catch(() => setFiles([]));
-  }, [folder.state, folder.name]);
-  const connect = useCallback(async (forcePick = false) => {
-    setFolder(await referensiFolder.connect(forcePick));
-  }, []);
+  }, [folder.state, folder.name, referensiFolder]);
+  const connect = useCallback(
+    async (forcePick = false) => {
+      setFolder(await referensiFolder.connect(forcePick));
+    },
+    [referensiFolder],
+  );
 
   const pending = useMemo(() => unanalyzedFiles(files, refs), [files, refs]);
   const allBeats = useMemo(() => refs.flatMap((r) => r.beats.map((x) => ({ r, x }))), [refs]);
@@ -250,7 +259,7 @@ export function ReferenceTab({ headLeft }: Props) {
               <h2>{sel.file}</h2>
               <div className="sub">Belum dianalisa. Minta Claude: <b>"analisa referensi baru"</b>.</div>
               <div className="refw">
-                <RefVideo file={sel.file} folder={folder} onConnect={connect} jump={null} />
+                <RefVideo file={sel.file} folder={folder} open={referensiFolder.open} onConnect={connect} jump={null} />
               </div>
             </>
           ) : current ? (
@@ -262,6 +271,7 @@ export function ReferenceTab({ headLeft }: Props) {
               <RefDetail
                 r={current}
                 folder={folder}
+                open={referensiFolder.open}
                 onConnect={connect}
                 jump={jump}
                 setJump={setJump}

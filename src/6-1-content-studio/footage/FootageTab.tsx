@@ -15,6 +15,7 @@ import {
   type ViewMode,
 } from "./footageRows";
 import { useFootageData } from "./useFootageData";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { connectBank, loadBankState, openBankFile, type BankState } from "./localBank";
 
 interface Props {
@@ -26,6 +27,7 @@ const fmt = (n: number, d = 1) => n.toFixed(d);
 
 export function FootageTab({ headLeft }: Props) {
   const { data, isPending, error } = useFootageData();
+  const { organizationId } = useOrgBootstrapPending();
   const [F, setF] = useState<Filters>(EMPTY_FILTERS);
   const [view, setView] = useState<ViewMode>("scene");
   const [q, setQ] = useState("");
@@ -33,17 +35,23 @@ export function FootageTab({ headLeft }: Props) {
   const [bank, setBank] = useState<{ state: BankState; name: string | null }>({ state: "none", name: null });
   const [open, setOpen] = useState<{ row: FootageRow; onlySeg: boolean } | null>(null);
 
+  // The bank-footage folder is remembered per organization; switching org loads that org's folder.
   useEffect(() => {
-    void loadBankState().then(setBank);
-  }, []);
+    setBank({ state: "none", name: null });
+    void loadBankState(organizationId).then(setBank);
+  }, [organizationId]);
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
   const opts = useMemo(() => (data ? filterOptions(data) : null), [data]);
   const L = useMemo(() => visibleRows(rows, F, q, view), [rows, F, q, view]);
 
-  const connect = useCallback(async (forcePick = false) => {
-    setBank(await connectBank(forcePick));
-  }, []);
+  const connect = useCallback(
+    async (forcePick = false) => {
+      setBank(await connectBank(organizationId, forcePick));
+    },
+    [organizationId],
+  );
+  const openFile = useCallback((fileKey: string) => openBankFile(organizationId, fileKey), [organizationId]);
 
   const headerRight = (
     <>
@@ -90,7 +98,7 @@ export function FootageTab({ headLeft }: Props) {
   const setKey = (k: FilterKey, v: string | null) => setF((prev) => ({ ...prev, [k]: v }));
 
   const openRow = async (row: FootageRow, onlySeg: boolean) => {
-    if (bank.state === "needs-permission") setBank(await connectBank());
+    if (bank.state === "needs-permission") setBank(await connectBank(organizationId));
     setOpen({ row, onlySeg });
   };
 
@@ -178,6 +186,7 @@ export function FootageTab({ headLeft }: Props) {
           initial={open}
           thumbs={data.thumbs}
           bank={bank}
+          openFile={openFile}
           onConnect={connect}
           onClose={() => setOpen(null)}
         />
@@ -227,6 +236,7 @@ function PlayerModal({
   initial,
   thumbs,
   bank,
+  openFile,
   onConnect,
   onClose,
 }: {
@@ -234,6 +244,7 @@ function PlayerModal({
   initial: { row: FootageRow; onlySeg: boolean };
   thumbs: Record<string, string>;
   bank: { state: BankState; name: string | null };
+  openFile: (fileKey: string) => Promise<File>;
   onConnect: (forcePick?: boolean) => Promise<void>;
   onClose: () => void;
 }) {
@@ -250,7 +261,7 @@ function PlayerModal({
     if (src?.f === d.f) return;
     let cancelled = false;
     setFileErr(null);
-    openBankFile(d.f)
+    openFile(d.f)
       .then((file) => {
         if (cancelled) return;
         setSrc((prev) => {
@@ -264,7 +275,7 @@ function PlayerModal({
     return () => {
       cancelled = true;
     };
-  }, [bank.state, bank.name, d.f, src?.f]);
+  }, [bank.state, bank.name, d.f, src?.f, openFile]);
 
   useEffect(
     () => () => {

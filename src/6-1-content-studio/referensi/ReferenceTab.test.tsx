@@ -86,14 +86,14 @@ vi.mock("./useStyleData", () => ({
     },
   }),
 }));
-vi.mock("./localReferensi", () => ({
-  referensiFolder: {
-    load: () => Promise.resolve({ state: "none", name: null }),
-    connect: () => Promise.resolve({ state: "none", name: null }),
-    open: () => Promise.reject(new Error("no-folder")),
-    listFiles: () => Promise.resolve([]),
-  },
-}));
+const noFolder = {
+  load: () => Promise.resolve({ state: "none", name: null }),
+  connect: () => Promise.resolve({ state: "none", name: null }),
+  open: () => Promise.reject(new Error("no-folder")),
+  listFiles: () => Promise.resolve([]),
+};
+vi.mock("./localReferensi", () => ({ referensiFolderFor: () => noFolder }));
+vi.mock("@/shared/auth/hooks/useOrgBootstrapPending", () => ({ useOrgBootstrapPending: () => ({ organizationId: "org-1" }) }));
 
 const renderTab = () =>
   render(

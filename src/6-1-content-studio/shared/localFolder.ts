@@ -70,8 +70,33 @@ export interface LocalFolder {
   listFiles(): Promise<string[]>;
 }
 
-/** One remembered folder per key (bank-footage, referensi …). */
-export function createLocalFolder(storageKey: string, pickerId: string): LocalFolder {
+const NO_ORG: LocalFolder = {
+  load: async () => ({ state: localFolderSupported() ? "none" : "unsupported", name: null }),
+  connect: async () => ({ state: localFolderSupported() ? "none" : "unsupported", name: null }),
+  open: async () => {
+    throw new Error("no-folder");
+  },
+  listFiles: async () => [],
+};
+
+/**
+ * One remembered folder per kind (bank-footage, referensi …) and per organization:
+ * a folder picked in one org never shows up in another org.
+ */
+export function createLocalFolder(kind: string, pickerId: string): (organizationId: string | null | undefined) => LocalFolder {
+  const byOrg = new Map<string, LocalFolder>();
+  return (organizationId) => {
+    if (!organizationId) return NO_ORG;
+    let f = byOrg.get(organizationId);
+    if (!f) {
+      f = folderFor(`${kind}:${organizationId}`, `${pickerId}_${organizationId.slice(0, 8)}`);
+      byOrg.set(organizationId, f);
+    }
+    return f;
+  };
+}
+
+function folderFor(storageKey: string, pickerId: string): LocalFolder {
   let dir: DirHandle | null = null;
 
   const load: LocalFolder["load"] = async () => {
