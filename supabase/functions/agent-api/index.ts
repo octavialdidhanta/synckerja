@@ -1,4 +1,3 @@
-/// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { extractAgentToken, parseAuthRow, parseHeartbeat, routePath, sha256Hex } from "./logic.ts";
