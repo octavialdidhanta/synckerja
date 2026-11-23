@@ -8,6 +8,20 @@ const SIGNED_TTL_SECONDS = 60 * 60 * 6;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LooseQuery = any;
 
+/** True when PostgREST/Postgres says the relation is missing (migration not deployed yet). */
+export function isMissingRelationError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as { code?: string; message?: string; details?: string; hint?: string };
+  const blob = `${e.code ?? ""} ${e.message ?? ""} ${e.details ?? ""} ${e.hint ?? ""}`.toLowerCase();
+  return (
+    e.code === "42P01" ||
+    e.code === "PGRST205" ||
+    blob.includes("does not exist") ||
+    blob.includes("could not find the table") ||
+    blob.includes("schema cache")
+  );
+}
+
 /** Reads every row of one org-scoped table, 1000 rows per request. */
 export async function readAll<T>(
   client: SupabaseClient,
@@ -27,6 +41,22 @@ export async function readAll<T>(
     if (!data || data.length < PAGE) break;
   }
   return out;
+}
+
+/** Like readAll, but returns [] when the table is not deployed yet. */
+export async function readAllOptional<T>(
+  client: SupabaseClient,
+  table: string,
+  columns: string,
+  orgId: string,
+  extra?: (q: LooseQuery) => LooseQuery,
+): Promise<T[]> {
+  try {
+    return await readAll<T>(client, table, columns, orgId, extra);
+  } catch (error) {
+    if (isMissingRelationError(error)) return [];
+    throw error;
+  }
 }
 
 /** Signed URLs for private catalog-media objects (thumbnails and photos), keyed by storage path. */

@@ -1,11 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
-import { readAll } from "../shared/catalogQuery";
+import { isMissingRelationError, readAll, readAllOptional } from "../shared/catalogQuery";
 import type { CatalogSettings, IndustryTemplate, MenuFieldDef, SceneKindDef, TagDef } from "./catalogSettingsData";
 
 export function catalogSettingsKey(orgId: string | null | undefined) {
   return ["content-studio", "catalog-settings", orgId] as const;
+}
+
+export class CatalogMigrationPendingError extends Error {
+  constructor() {
+    super("catalog_migration_pending");
+    this.name = "CatalogMigrationPendingError";
+  }
 }
 
 export function useCatalogSettings() {
@@ -26,10 +33,16 @@ export function useCatalogSettings() {
           .from("catalog_industry_templates")
           .select("code,label,description,position")
           .order("position"),
-        readAll<MenuFieldDef>(supabase, "catalog_menu_field_defs", "id,field_key,label,position", org),
+        readAllOptional<MenuFieldDef>(supabase, "catalog_menu_field_defs", "id,field_key,label,position", org),
         readAll<TagDef>(supabase, "footage_tag_defs", "id,key,label,applies_to,value_type,position", org),
-        readAll<SceneKindDef>(supabase, "footage_scene_kind_defs", "id,key,label,position", org),
+        readAllOptional<SceneKindDef>(supabase, "footage_scene_kind_defs", "id,key,label,position", org),
       ]);
+      if (settingsRows.error && isMissingRelationError(settingsRows.error)) {
+        throw new CatalogMigrationPendingError();
+      }
+      if (templates.error && isMissingRelationError(templates.error)) {
+        throw new CatalogMigrationPendingError();
+      }
       if (settingsRows.error) throw settingsRows.error;
       if (templates.error) throw templates.error;
       return {

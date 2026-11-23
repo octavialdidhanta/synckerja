@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
-import { readAll, signCatalogMedia } from "../shared/catalogQuery";
+import { readAll, readAllOptional, signCatalogMedia } from "../shared/catalogQuery";
 import {
   buildLocations,
   buildMenus,
@@ -45,7 +45,8 @@ export function useLibraryData() {
           live,
         ),
         readAll<LocationSectionRow>(supabase, "catalog_location_sections", "id,location_id,title,body,areas,position", org),
-        readAll<OrgMenuFieldDef>(supabase, "catalog_menu_field_defs", "id,field_key,label,position", org),
+        // Optional until industry-template migration is deployed.
+        readAllOptional<OrgMenuFieldDef>(supabase, "catalog_menu_field_defs", "id,field_key,label,position", org),
       ]);
       const paths = [...menuPhotos, ...locPhotos].map((p) => p.storage_path).filter((p): p is string => Boolean(p));
       const photos = await signCatalogMedia(supabase, paths);

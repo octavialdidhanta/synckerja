@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  CatalogMigrationPendingError,
   useAddSceneKind,
   useApplyIndustryTemplate,
   useCatalogSettings,
@@ -34,7 +35,13 @@ export function SettingsTab({ headLeft }: Props) {
             Template industri
           </div>
           {isPending ? <div className="loading">Memuat…</div> : null}
-          {error ? <div className="empty">Gagal memuat. Coba muat ulang.</div> : null}
+          {error ? (
+            <div className="empty">
+              {error instanceof CatalogMigrationPendingError || error.message === "catalog_migration_pending"
+                ? "Migrasi template industri belum deploy. Merge PR lalu tunggu job deploy."
+                : "Gagal memuat. Coba muat ulang."}
+            </div>
+          ) : null}
           {(data?.templates ?? []).map((t) => (
             <div
               key={t.code}
