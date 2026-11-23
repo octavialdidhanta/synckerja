@@ -606,3 +606,6 @@ verify_jwt = false
 
 [functions.wa-click-track]
 verify_jwt = false
+
+[functions.agent-api]
+verify_jwt = false
