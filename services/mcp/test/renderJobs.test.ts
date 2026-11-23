@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { applyRenderJob, previewRenderJob } from "../src/db/render";
 import { MCP_TOOLS } from "../src/mcp/registry";
 import { signFootageConfirmation, verifyFootageConfirmation } from "../src/tools/footage/confirmation";
+import {
+  buildDraftSpec,
+  defaultMusicDb,
+  defaultRenderStyles,
+  draftRenderJobResult,
+  extractHexColors,
+  renderJobDraftInput,
+} from "../src/tools/render/draft";
 import { applyRenderJobResult, previewRenderJobResult, renderJobCreatePreviewInput } from "../src/tools/render/jobs";
 import { renderSpecV1, specDuration } from "../src/tools/render/renderSpec";
 
@@ -77,7 +85,92 @@ describe("render.jobs.create", () => {
 
   it("is registered as a write that needs confirmation, and the list is read only", () => {
     const names = MCP_TOOLS.map((t) => t.name);
-    expect(names).toEqual(expect.arrayContaining(["render.jobs.create.preview", "render.jobs.create", "render.jobs.list"]));
+    expect(names).toEqual(
+      expect.arrayContaining(["render.jobs.draft", "render.jobs.create.preview", "render.jobs.create", "render.jobs.list"]),
+    );
     expect(renderJobCreatePreviewInput.safeParse({ title: "x", spec, organization_id: "o2" }).success).toBe(false);
+  });
+});
+
+describe("render.jobs.draft", () => {
+  const draftArgs = {
+    title: "Hari 6 render",
+    production: "bd995747 Hari 6 Coba",
+    output_name: "bd995747_Hari6_v1_9x16",
+    plan_id: "8c5e1b2e-5d7a-4a43-9c55-6a0f8e7a1b20",
+    shots: [
+      { file_key: "PIK1/sate babi/Basting_satay_7910de9b.mp4", in: 1.2, out: 3.4, label: "hook" },
+      { file_key: "INBOX/C0002.MP4", in: 0, out: 1.5 },
+    ],
+    vo_file: "vo/VO_full.mp3",
+    music_file: "_build/musik.mp3",
+    texts: [{ text: "Weekend rame!", start: 0.2, end: 2, style: "hook" as const, anim: "pop" as const }],
+  };
+
+  it("builds a valid spec with hook/sub styles and -18 dB music", () => {
+    const { spec, warnings } = buildDraftSpec(renderJobDraftInput.parse(draftArgs), {
+      teks: "Hook: kuning #FFD640. Area aman: 14% atas dan 20% bawah. Subtitle Poppins.",
+      musik: "Volume musik sekitar -18 dB di bawah VO. Loudness -14 LUFS.",
+    });
+    expect(renderSpecV1.parse(spec).audio.music?.db).toBe(-18);
+    expect(spec.styles.hook?.color).toBe("#FFD640");
+    expect(spec.styles.hook?.y).toBe(0.72);
+    expect(spec.styles.sub?.y).toBe(-0.6);
+    expect(Object.keys(spec.styles)).toEqual(expect.arrayContaining(["hook", "sub"]));
+    expect(spec.texts[0]?.style).toBe("hook");
+    expect(warnings.some((w) => /Gaya teks diterapkan/.test(w))).toBe(true);
+  });
+
+  it("parses music dB and hex colors from Gaya", () => {
+    expect(extractHexColors("maroon #7A181E kuning #FFD640")).toEqual(["#7A181E", "#FFD640"]);
+    expect(defaultMusicDb({ musik: "musik -16 dB di bawah VO" })).toBe(-16);
+    expect(defaultRenderStyles({ teks: "" }).hook?.color).toBe("#FFFFFF");
+  });
+
+  it("warns when audio or gaya is missing and when file_key is unknown", async () => {
+    const out = await draftRenderJobResult(
+      ctx,
+      { ...draftArgs, vo_file: undefined, music_file: undefined },
+      async () => ({}),
+      async () => null,
+    );
+    expect(out.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/Tidak ada VO\/musik/),
+        expect.stringMatching(/teks/),
+        expect.stringMatching(/file_key belum ada/),
+      ]),
+    );
+    expect(out.next_step).toMatch(/create\.preview/);
+    expect((out.summary as { duration_seconds: number }).duration_seconds).toBeCloseTo(3.7, 5);
+  });
+
+  it("returns brief_hints for plan_id without auto-picking footage", async () => {
+    const out = await draftRenderJobResult(
+      ctx,
+      draftArgs,
+      async () => ({ teks: "Hook #FFD640", musik: "-18 dB" }),
+      async () => ({ file_key: "x", duration_seconds: 10 }),
+      async () => ({ title: "Hari 5", caption: "CTA chat dulu", voice_over: "Rame banget weekend" }),
+    );
+    expect(out.brief_hints).toMatchObject({
+      title: "Hari 5",
+      caption: "CTA chat dulu",
+      suggested_vo_file: null,
+    });
+    const noVo = await draftRenderJobResult(
+      ctx,
+      { ...draftArgs, vo_file: undefined },
+      async () => ({ teks: "x", musik: "x" }),
+      undefined,
+      async () => ({ title: "T", caption: null, voice_over: "Ada VO" }),
+    );
+    expect((noVo.brief_hints as { suggested_vo_file: string }).suggested_vo_file).toBe("vo/VO_full.mp3");
+    expect(noVo.warnings).toEqual(expect.arrayContaining([expect.stringMatching(/voice_over/)]));
+  });
+
+  it("refuses organization_id and empty shots", () => {
+    expect(renderJobDraftInput.safeParse({ ...draftArgs, organization_id: "o2" }).success).toBe(false);
+    expect(renderJobDraftInput.safeParse({ ...draftArgs, shots: [] }).success).toBe(false);
   });
 });

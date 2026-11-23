@@ -194,6 +194,14 @@ export {
   listRenderJobsResult,
 } from "./render/jobs";
 export {
+  renderJobDraftInput,
+  draftRenderJobResult,
+  buildDraftSpec,
+  defaultRenderStyles,
+  defaultMusicDb,
+  extractHexColors,
+} from "./render/draft";
+export {
   deleteFootagePreviewInput,
   restoreFootagePreviewInput,
   previewDeleteFootageResult,

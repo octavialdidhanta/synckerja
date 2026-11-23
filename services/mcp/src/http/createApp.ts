@@ -695,6 +695,7 @@ export function createApp(deps: AppDeps) {
         "footage.clips.upsert",
         "footage.clips.create.preview",
         "footage.clips.create",
+        "render.jobs.draft",
         "render.jobs.create.preview",
         "render.jobs.create",
         "render.jobs.list",

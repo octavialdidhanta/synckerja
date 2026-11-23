@@ -164,6 +164,7 @@ describe("buildAuthContext", () => {
       "catalog.industry.templates.list",
       "catalog.settings.get",
       "catalog.tags.list",
+      "render.jobs.draft",
       "render.jobs.list",
       "product_knowledge.list",
       "content.briefs.get",

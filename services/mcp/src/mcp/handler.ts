@@ -383,6 +383,8 @@ import {
   previewRenderJobResult,
   applyRenderJobResult,
   listRenderJobsResult,
+  renderJobDraftInput,
+  draftRenderJobResult,
   deleteFootagePreviewInput,
   previewDeleteFootageResult,
   applyDeleteFootageResult,
@@ -1057,6 +1059,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "footage.clips.upsert": confirmFootageInput,
   "footage.clips.create.preview": clipCreatePreviewInput,
   "footage.clips.create": confirmFootageInput,
+  "render.jobs.draft": renderJobDraftInput,
   "render.jobs.create.preview": renderJobCreatePreviewInput,
   "render.jobs.create": confirmFootageInput,
   "render.jobs.list": renderJobsListInput,
@@ -1695,6 +1698,28 @@ async function runTool(
       return previewClipCreateResult(ctx, args, deps.previewFootageClipCreate, deps.signFootageConfirmation);
     case "footage.clips.create":
       return applyClipCreateResult(ctx, args, deps.verifyFootageConfirmation, deps.applyFootageClipCreate);
+    case "render.jobs.draft":
+      return draftRenderJobResult(
+        ctx,
+        args,
+        deps.getCatalogStyle,
+        async (c, fileKey) => {
+          try {
+            const clip = await deps.getFootage(c, fileKey);
+            return { file_key: clip.file_key, duration_seconds: clip.duration_seconds };
+          } catch {
+            return null;
+          }
+        },
+        async (c, planId) => {
+          try {
+            const brief = await deps.getContentBrief(c, planId);
+            return { title: brief.title, caption: brief.caption, voice_over: brief.voice_over };
+          } catch {
+            return null;
+          }
+        },
+      );
     case "render.jobs.create.preview":
       return previewRenderJobResult(ctx, args, deps.previewRenderJob, deps.signFootageConfirmation);
     case "render.jobs.create":
