@@ -12,6 +12,7 @@ export const STUDIO_TABS = [
   { id: "lokasi", label: "Lokasi", ready: true },
   { id: "shot-list", label: "Shot List", ready: true },
   { id: "referensi", label: "Referensi", ready: true },
+  { id: "agent", label: "Agent", ready: true },
   { id: "pengaturan", label: "Pengaturan", ready: true },
 ] as const;
 
