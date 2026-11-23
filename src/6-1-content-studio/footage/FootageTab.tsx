@@ -16,7 +16,7 @@ import {
   type ViewMode,
 } from "./footageRows";
 import { useFootageData } from "./useFootageData";
-import { useFootageBan } from "./useFootageBan";
+import { useFootageBan, useFootageTagCheck } from "./useFootageBan";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { connectBank, loadBankState, openBankFile, type BankState } from "./localBank";
 
@@ -30,6 +30,7 @@ const fmt = (n: number, d = 1) => n.toFixed(d);
 export function FootageTab({ headLeft }: Props) {
   const { data, isPending, error } = useFootageData();
   const { setBan } = useFootageBan();
+  const checkTags = useFootageTagCheck();
   const { organizationId } = useOrgBootstrapPending();
   const [F, setF] = useState<Filters>(() => emptyFilters());
   const [view, setView] = useState<ViewMode>("scene");
@@ -204,6 +205,7 @@ export function FootageTab({ headLeft }: Props) {
           openFile={openFile}
           onConnect={connect}
           onSetBan={setBan}
+          onCheckTags={checkTags}
           onClose={() => setOpen(null)}
         />
       ) : null}
@@ -234,6 +236,11 @@ function Card({
       <span className="tm">{tm}</span>
       {d.baru ? <span className="nw">BARU</span> : null}
       {d.ban ? <span className="bn">JANGAN DIPAKAI</span> : null}
+      {d.tag !== "dicek" ? (
+        <span className="ai" title={d.tag === "belum" ? "Belum ditag" : "Tag dari AI, belum dicek orang"}>
+          {d.tag === "belum" ? "BELUM DITAG" : "AI · CEK"}
+        </span>
+      ) : null}
       <div className="b">
         <div className="s">{view === "scene" ? d.isi : d.klip}</div>
         <div className="tg">
@@ -280,6 +287,7 @@ function PlayerModal({
   openFile,
   onConnect,
   onSetBan,
+  onCheckTags,
   onClose,
 }: {
   rows: FootageRow[];
@@ -289,6 +297,7 @@ function PlayerModal({
   openFile: (fileKey: string) => Promise<File>;
   onConnect: (forcePick?: boolean) => Promise<void>;
   onSetBan: (sceneId: string, reason: string | null) => Promise<boolean>;
+  onCheckTags: (assetId: string) => Promise<boolean>;
   onClose: () => void;
 }) {
   const [d, setD] = useState(initial.row);
@@ -305,7 +314,11 @@ function PlayerModal({
   useEffect(() => {
     const latest = rows.find((r) => r.id === d.id);
     if (!latest) return;
-    setD((prev) => (prev.id === latest.id && prev.ban === latest.ban ? prev : { ...prev, ban: latest.ban }));
+    setD((prev) =>
+      prev.id === latest.id && prev.ban === latest.ban && prev.tag === latest.tag
+        ? prev
+        : { ...prev, ban: latest.ban, tag: latest.tag },
+    );
   }, [rows, d.id]);
 
   // Load the original file from the laptop folder once per clip (or after re-pick).
@@ -527,6 +540,19 @@ function PlayerModal({
               <button type="button" className={seg ? "" : "on"} onClick={() => pickScene("all")}>
                 Putar semua
               </button>
+            </div>
+          ) : null}
+          {d.tag !== "dicek" ? (
+            <div className="ai-note">
+              <b>{d.tag === "belum" ? "Belum ditag" : "Tag dari AI"}</b>
+              {d.tag === "belum"
+                ? "Agent baru memasukkan klip ini. Tag AI menyusul otomatis."
+                : "Cek isi, lokasi, produk, hijab & watermark. Kalau ada yang salah, ubah lewat Claude; kalau sudah benar, klik tombol di bawah."}
+              {d.tag === "perlu_dicek" ? (
+                <button type="button" className="btn" onClick={() => void onCheckTags(d.assetId)}>
+                  ✓ Tag sudah benar
+                </button>
+              ) : null}
             </div>
           ) : null}
           {d.ban ? (

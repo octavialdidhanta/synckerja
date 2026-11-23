@@ -102,6 +102,7 @@ export function mapRpcError(message: string): { status: number; code: string } {
   for (const [needle, status] of [
     ["token_inactive", 401],
     ["file_key_taken", 409],
+    ["already_tagged", 409],
     ["not_found", 404],
     ["invalid_input", 400],
   ] as const) {

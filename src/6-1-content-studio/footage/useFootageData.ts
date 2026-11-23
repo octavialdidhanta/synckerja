@@ -36,7 +36,7 @@ export function useFootageData() {
       const [assets, scenes, tagDefs, tagValues, usages, bans, menus] = await Promise.all([
         readAll<AssetRecord>(
           "footage_assets",
-          "id,file_key,media_type,location_label,product_label,summary,storage_status,duration_seconds",
+          "id,file_key,media_type,location_label,product_label,summary,storage_status,duration_seconds,tag_status",
           org,
           (q) => q.is("deleted_at", null),
         ),

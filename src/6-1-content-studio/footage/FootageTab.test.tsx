@@ -5,7 +5,7 @@ import { FootageTab } from "./FootageTab";
 
 const data = buildFootageRows({
   assets: [
-    { id: "a1", file_key: "PIK1/clip1.mp4", media_type: "video", location_label: "PIK1", product_label: "sate babi", summary: "Klip satu", storage_status: "bank", duration_seconds: 5 },
+    { id: "a1", file_key: "PIK1/clip1.mp4", media_type: "video", location_label: "PIK1", product_label: "sate babi", summary: "Klip satu", storage_status: "bank", duration_seconds: 5, tag_status: "perlu_dicek" },
     { id: "a2", file_key: "PIK2/clip2.mp4", media_type: "video", location_label: "PIK2", product_label: "sate babi", summary: "Klip dua", storage_status: "bank", duration_seconds: 5 },
   ],
   scenes: [
@@ -37,8 +37,10 @@ vi.mock("./localBank", () => ({
 }));
 
 const setBan = vi.fn(async () => true);
+const checkTags = vi.fn(async () => true);
 vi.mock("./useFootageBan", () => ({
   useFootageBan: () => ({ setBan: (...args: unknown[]) => setBan(...(args as Parameters<typeof setBan>)) }),
+  useFootageTagCheck: () => (...args: unknown[]) => checkTags(...(args as Parameters<typeof checkTags>)),
 }));
 
 describe("FootageTab", () => {
@@ -113,5 +115,21 @@ describe("FootageTab", () => {
     });
     expect(setBan).toHaveBeenCalledWith("s1", null);
     promptSpy.mockRestore();
+  });
+
+  it("marks AI-tagged clips and lets a person confirm the tags", async () => {
+    render(
+      <div className="ck">
+        <FootageTab headLeft={<h1>Content Studio</h1>} />
+      </div>,
+    );
+    expect(screen.getByText("AI · CEK")).toBeTruthy();
+    fireEvent.click(screen.getByText("Sate dibakar"));
+    const panel = document.querySelector(".m") as HTMLElement;
+    const ok = await within(panel).findByRole("button", { name: /Tag sudah benar/ });
+    await act(async () => {
+      fireEvent.click(ok);
+    });
+    expect(checkTags).toHaveBeenCalledWith("a1");
   });
 });
