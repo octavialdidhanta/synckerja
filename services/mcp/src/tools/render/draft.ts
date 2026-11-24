@@ -24,8 +24,13 @@ const textIn = z
     text: z.string().min(1).max(300),
     start: z.number().finite().min(0).max(3600),
     end: z.number().finite().min(0).max(3600),
-    style: z.enum(["hook", "sub", "menu"]).optional(),
-    anim: z.enum(["none", "fade", "pop", "typewriter"]).optional(),
+    style: z.enum(["hook", "sub", "menu", "info"]).optional(),
+    anim: z.enum(["none", "fade", "pop", "typewriter", "highlight", "pop_shake", "slide"]).optional(),
+    /** VO word timings for a highlighted subtitle, in seconds on the final video. */
+    words: z
+      .array(z.object({ text: z.string().min(1).max(60), start: z.number().min(0).max(3600), end: z.number().min(0).max(3600) }).strict())
+      .max(60)
+      .optional(),
     behind_person: z.boolean().optional(),
   })
   .strict()
@@ -124,10 +129,47 @@ export function defaultRenderStyles(gaya: CatalogTextBlocks): RenderSpecV1["styl
   };
 }
 
-/** Locked look of the reference menu label: pale yellow box, black serif, under the food (see specChecks MENU_SAFE_Y). */
-export function menuLabelStyle(): RenderSpecV1["styles"][string] {
+/** The Gaya baku teks line that starts with a label (for example "Label nama menu"), or "". */
+function gayaLine(teks: string, label: RegExp): string {
+  return teks.split(/\r?\n/).find((l) => label.test(l)) ?? "";
+}
+
+/**
+ * What the Gaya baku teks box asks the Agent to animate: the spoken word lit in the subtitle ("kata yang lagi
+ * diucapkan ... kuning") and a small shake on the hook ("getar").
+ */
+export function gayaAnimations(gaya: CatalogTextBlocks): { hook: "pop" | "pop_shake"; sub: "pop" | "highlight"; highlight: string | null } {
+  const teks = gaya.teks ?? "";
+  const subLine = gayaLine(teks, /subtitle/i);
+  const spoken = /(diucapkan|diucapin|diomongin|spoken)/i.test(subLine);
+  const lit = extractHexColors(subLine).find((h) => h !== "#FFFFFF" && h !== "#000000") ?? null;
   return {
-    size: 8,
+    hook: /getar|shake/i.test(gayaLine(teks, /hook/i)) ? "pop_shake" : "pop",
+    sub: spoken ? "highlight" : "pop",
+    highlight: spoken ? (lit ?? "#FFD640") : null,
+  };
+}
+
+/** Info label (berat porsi, lama masak, best seller): the Gaya baku "Label info" box colour (else neutral dark), white text, slides in. */
+export function infoLabelStyle(gaya: CatalogTextBlocks): RenderSpecV1["styles"][string] {
+  const line = gayaLine(gaya.teks ?? "", /label info/i);
+  // No colour in this organization's Gaya baku: a neutral dark box, never another brand's colour.
+  const bg = extractHexColors(line).find((h) => h !== "#FFFFFF");
+  return { size: 8, color: "#FFFFFF", bg: bg ?? "#222222", bg_alpha: bg ? 1 : 0.85, bold: true, font: "poppins", y: 0.5, max_width: 0.8 };
+}
+
+/**
+ * Menu label under the food (see specChecks MENU_SAFE_Y). When Gaya baku teks has a "Label nama menu" line with a
+ * box colour, that look is used (white bold on the colour); otherwise the reference look (pale yellow, black serif).
+ */
+export function menuLabelStyle(gaya: CatalogTextBlocks = {}): RenderSpecV1["styles"][string] {
+  const line = gayaLine(gaya.teks ?? "", /label nama menu/i);
+  const box = extractHexColors(line).find((h) => h !== "#FFFFFF");
+  if (box) {
+    return { size: 10, color: "#FFFFFF", bg: box, bg_alpha: 1, bold: true, font: "poppins", x: -0.42, y: -0.5, max_width: 0.72 };
+  }
+  return {
+    size: 10,
     color: "#1A1A1A",
     bg: "#F6E27A",
     bg_alpha: 1,
@@ -161,7 +203,12 @@ export function buildDraftSpec(
     warnings.push("Gaya baku blok 'teks' kosong; memakai style CapCut default.");
   }
   const wantsMenu = (input.texts ?? []).some((t) => t.style === "menu");
-  if (wantsMenu) styles.menu = menuLabelStyle();
+  if (wantsMenu) styles.menu = menuLabelStyle(gaya);
+  if ((input.texts ?? []).some((t) => t.style === "info")) styles.info = infoLabelStyle(gaya);
+  const anims = gayaAnimations(gaya);
+  if (anims.highlight && styles.sub) styles.sub.highlight = anims.highlight;
+  const defaultAnim = (style: string) =>
+    style === "hook" ? anims.hook : style === "sub" ? anims.sub : style === "info" ? ("slide" as const) : ("pop" as const);
   const texts = (input.texts ?? []).map((t) => {
     const style = (t.style ?? "sub") as string;
     const menu = style === "menu";
@@ -171,10 +218,16 @@ export function buildDraftSpec(
       start: t.start,
       end: t.end,
       style,
-      anim: menu ? ("menu_label" as const) : (t.anim ?? ("pop" as const)),
+      anim: menu ? ("menu_label" as const) : (t.anim ?? defaultAnim(style)),
+      ...(t.words?.length ? { words: t.words } : {}),
       ...(t.behind_person ? { behind_person: true as const } : {}),
     };
   });
+  if (anims.sub === "highlight" || anims.hook === "pop_shake") {
+    warnings.push(
+      `Animasi dari Gaya teks: hook ${anims.hook}, subtitle ${anims.sub}${anims.highlight ? ` (${anims.highlight})` : ""}. Butuh Agent v0.1.10 atau lebih baru.`,
+    );
+  }
   for (const t of texts) {
     if (!(t.style in styles)) {
       warnings.push(`style "${t.style}" tidak ada di draft; diganti "sub"`);

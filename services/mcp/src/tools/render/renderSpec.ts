@@ -40,6 +40,8 @@ export const renderStyle = z
     x: z.number().min(-1).max(1).optional(),
     y: z.number().min(-1).max(1).optional(),
     max_width: z.number().min(0.1).max(1).optional(),
+    /** anim "highlight": colour of the word being spoken (Gaya baku: kuning #FFD640). */
+    highlight: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   })
   .strict();
 
@@ -89,7 +91,15 @@ export const renderSpecV1 = z
             end: sec,
             style: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/),
             layer: z.number().int().min(0).max(9).optional(),
-            anim: z.enum(["none", "fade", "pop", "typewriter", "menu_label"]).optional(),
+            anim: z.enum(["none", "fade", "pop", "typewriter", "menu_label", "highlight", "pop_shake", "slide"]).optional(),
+            /**
+             * anim "highlight": when each word is spoken, in seconds on the final video (from the VO word timings).
+             * Without it the words light up one after another, timed by their length.
+             */
+            words: z
+              .array(z.object({ text: z.string().min(1).max(60), start: z.number().min(0).max(3600), end: z.number().min(0).max(3600) }).strict())
+              .max(60)
+              .optional(),
             /** Draw under the person matte on the laptop Agent (SAM2 gate + RVM foreground). */
             behind_person: z.boolean().optional(),
           })

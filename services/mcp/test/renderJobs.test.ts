@@ -226,3 +226,70 @@ describe("render.jobs.draft", () => {
     expect(renderJobDraftInput.safeParse({ ...draftArgs, shots: [] }).success).toBe(false);
   });
 });
+
+const draftArgs = {
+  title: "Gaya anim",
+  production: "379e87fc Sate Kambing",
+  output_name: "379e87fc_Sate_Kambing_VO_v2_9x16",
+  shots: [{ file_key: "PIK1/sate kambing/a.mp4", in: 0, out: 12 }],
+  vo_file: "vo/VO_full.mp3",
+};
+
+describe("draft follows the Gaya baku teks animations (Sate Sultan PIK box, 24 Nov 2026)", () => {
+  const teks = [
+    "- Hook: teks besar kuning #FFD640 + putih, garis tepi hitam, muncul pop per baris dengan getar kecil. Tampil dari detik 0.",
+    "- Subtitle: Poppins Bold putih dengan garis tepi hitam, kata yang lagi diucapkan jadi kuning #FFD640 dan sedikit membesar.",
+    "- Label nama menu: tulisan putih di kotak maroon #7A181E, letaknya di bawah makanan.",
+    "- Label info maroon (#7A181E, tulisan putih, masuk dengan slide): khusus fakta singkat.",
+  ].join("\n");
+
+  it("lights the spoken word, shakes the hook, and draws menu and info labels in maroon", () => {
+    const { spec } = buildDraftSpec(
+      renderJobDraftInput.parse({
+        ...draftArgs,
+        texts: [
+          { text: "SATE KAMBING TANPA BAU PRENGUS", start: 0, end: 1.2, style: "hook" },
+          { text: "Ternyata isinya full daging,", start: 1.3, end: 2.5, style: "sub" },
+          { text: "Sate Kambing Full Daging", start: 2.6, end: 3.5, style: "menu" },
+          { text: "Best seller", start: 2.6, end: 3.5, style: "info" },
+        ],
+      }),
+      { teks },
+    );
+    expect(spec.texts.map((t) => t.anim)).toEqual(["pop_shake", "highlight", "menu_label", "slide"]);
+    expect(spec.styles.sub?.highlight).toBe("#FFD640");
+    expect(spec.styles.menu).toMatchObject({ bg: "#7A181E", color: "#FFFFFF", size: 10, y: -0.5 });
+    expect(spec.styles.info).toMatchObject({ bg: "#7A181E", color: "#FFFFFF" });
+  });
+
+  it("keeps plain pop and the reference menu look when Gaya baku says nothing about them", () => {
+    const { spec } = buildDraftSpec(
+      renderJobDraftInput.parse({ ...draftArgs, texts: [{ text: "x y", start: 0, end: 1, style: "sub" }, { text: "Menu", start: 1, end: 2, style: "menu" }] }),
+      { teks: "- Hook: kuning" },
+    );
+    expect(spec.texts[0]!.anim).toBe("pop");
+    expect(spec.styles.sub?.highlight).toBeUndefined();
+    expect(spec.styles.menu).toMatchObject({ bg: "#F6E27A", font: "instrument-serif" });
+  });
+
+  it("never gives another organization the Sate Sultan maroon when its Gaya baku has no label colour", () => {
+    const { spec } = buildDraftSpec(
+      renderJobDraftInput.parse({ ...draftArgs, texts: [{ text: "Best seller", start: 0, end: 1, style: "info" }] }),
+      { teks: "- Hook: putih besar" },
+    );
+    expect(spec.styles.info).toMatchObject({ bg: "#222222", bg_alpha: 0.85 });
+    expect(JSON.stringify(spec.styles)).not.toContain("7A181E");
+  });
+
+  it("passes VO word timings through to the spec", () => {
+    const words = [
+      { text: "nggak", start: 10.1, end: 10.4 },
+      { text: "alot", start: 10.5, end: 10.9 },
+    ];
+    const { spec } = buildDraftSpec(
+      renderJobDraftInput.parse({ ...draftArgs, texts: [{ text: "nggak alot", start: 10, end: 11, style: "sub", words }] }),
+      { teks },
+    );
+    expect(spec.texts[0]).toMatchObject({ anim: "highlight", words });
+  });
+});
