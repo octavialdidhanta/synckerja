@@ -156,6 +156,7 @@ describe("buildAuthContext", () => {
       "catalog.locations.list",
       "catalog.location.get",
       "catalog.style.get",
+      "playbook.get",
       "catalog.prompts.get",
       "catalog.references.list",
       "catalog.reference.get",
