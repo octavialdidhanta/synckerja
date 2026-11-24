@@ -9,12 +9,19 @@ import {
   type VerifiedFootageConfirmation,
 } from "../footage/confirmation";
 import { renderSpecV1, specDuration } from "./renderSpec";
+import type { CatalogTextBlocks } from "../../db/catalog";
+import { checkSpec, specCheckPasses } from "./specChecks";
 
 export const renderJobCreatePreviewInput = z
   .object({
     plan_id: z.string().uuid().nullable().optional(),
     title: z.string().trim().min(1).max(200),
     spec: renderSpecV1,
+    /** Keep a "wajib" style finding for this one video, with a reason the user can read. Technical errors cannot be overridden. */
+    overrides: z
+      .array(z.object({ code: z.string().trim().min(1).max(60), reason: z.string().trim().min(5).max(300) }).strict())
+      .max(20)
+      .optional(),
   })
   .strict();
 
@@ -28,6 +35,7 @@ export async function previewRenderJobResult(
   args: unknown,
   preview: (ctx: McpAuthContext, input: { plan_id: string | null; title: string; spec: unknown }) => Promise<RenderJobPreview>,
   sign: Sign,
+  getStyle?: (ctx: McpAuthContext) => Promise<CatalogTextBlocks>,
 ): Promise<Record<string, unknown>> {
   const parsed = renderJobCreatePreviewInput.safeParse(args);
   if (!parsed.success) {
@@ -35,6 +43,16 @@ export async function previewRenderJobResult(
     throw new Error(`invalid_input: ${where}`);
   }
   const { spec, title } = parsed.data;
+  // Same checks as render.jobs.draft, enforced here: nothing is queued while a technical error or an unresolved "wajib" remains.
+  const checks = checkSpec(spec, getStyle ? await getStyle(ctx) : {}, parsed.data.overrides ?? []);
+  if (!specCheckPasses(checks)) {
+    return {
+      error: "spec_check_failed",
+      checks,
+      next_step:
+        "Nothing is saved. Fix every checks.errors item (cannot be overridden) and every checks.required item, or pass overrides [{code, reason}] for a required style rule the user wants to keep for this video. Then preview again.",
+    };
+  }
   const row = await preview(ctx, { plan_id: parsed.data.plan_id ?? null, title, spec });
   const signed = await sign(ctx, "render.jobs.create", row.preview_id, row.expires_at);
   return {
@@ -50,6 +68,7 @@ export async function previewRenderJobResult(
       music: spec.audio.music?.file ?? null,
       uploads_to_plan: Boolean(row.plan),
     },
+    checks,
     ...signed,
     next_step: FOOTAGE_CONFIRM_NEXT_STEP,
   };

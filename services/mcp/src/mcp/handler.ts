@@ -494,6 +494,7 @@ import {
   aiEmployeeRoutineUpsertInput,
   aiEmployeeScheduleUpdateInput,
 } from "../tools";
+import { playbookGetInput, playbookGetResult } from "../tools/playbook/playbookGet";
 import type { ToolCallOutcome } from "../db/toolGate";
 import { filterTools, isToolVisible } from "./filterTools";
 import { MCP_SERVER_INSTRUCTIONS } from "./instructions";
@@ -1038,6 +1039,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "catalog.locations.list": listCatalogLocationsInput,
   "catalog.location.get": getCatalogLocationInput,
   "catalog.style.get": getCatalogStyleInput,
+  "playbook.get": playbookGetInput,
   "catalog.prompts.get": getCatalogPromptsInput,
   "catalog.references.list": listCatalogReferencesInput,
   "catalog.reference.get": getCatalogReferenceInput,
@@ -1654,6 +1656,8 @@ async function runTool(
       return listCatalogLocationsResult(ctx, args, deps.listCatalogLocations);
     case "catalog.location.get":
       return getCatalogLocationResult(ctx, args, deps.getCatalogLocation);
+    case "playbook.get":
+      return playbookGetResult(args);
     case "catalog.style.get":
       return getCatalogStyleResult(ctx, args, deps.getCatalogStyle);
     case "catalog.prompts.get":
@@ -1721,7 +1725,7 @@ async function runTool(
         },
       );
     case "render.jobs.create.preview":
-      return previewRenderJobResult(ctx, args, deps.previewRenderJob, deps.signFootageConfirmation);
+      return previewRenderJobResult(ctx, args, deps.previewRenderJob, deps.signFootageConfirmation, deps.getCatalogStyle);
     case "render.jobs.create":
       return applyRenderJobResult(ctx, args, deps.verifyFootageConfirmation, deps.applyRenderJob);
     case "render.jobs.list":

@@ -154,7 +154,7 @@ describe("render.jobs.draft", () => {
       bg: "#F6E27A",
       font: "instrument-serif",
       x: -0.42,
-      y: -0.32,
+      y: -0.5,
     });
     expect(spec.texts[0]?.anim).toBe("menu_label");
     expect(spec.outro).toEqual({ kind: "halftone", seconds: 1, logo: "brand/emblem.png" });
