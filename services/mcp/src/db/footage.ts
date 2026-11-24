@@ -538,3 +538,19 @@ export async function applyFootageRestore(
     p_preview_id: previewId,
   });
 }
+
+const CATALOG_MEDIA_BUCKET = "catalog-media";
+
+/**
+ * Bytes of one scene thumbnail (a 240 px wide jpg the Agent uploads at scan time). Only paths under the active
+ * organization's thumbs folder are served; anything else is refused before storage is touched.
+ */
+export async function downloadFootageThumb(admin: SupabaseClient, ctx: Session, storagePath: string): Promise<Uint8Array> {
+  const prefix = `${ctx.organizationId}/thumbs/`;
+  if (!storagePath.startsWith(prefix) || storagePath.includes("..") || !/\.jpe?g$/i.test(storagePath)) {
+    throw new Error("forbidden");
+  }
+  const { data, error } = await admin.storage.from(CATALOG_MEDIA_BUCKET).download(storagePath);
+  if (error || !data) throw new Error("not_found");
+  return new Uint8Array(await data.arrayBuffer());
+}

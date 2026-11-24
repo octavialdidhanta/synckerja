@@ -329,6 +329,9 @@ import {
   searchFootageResult,
   getFootageInput,
   getFootageResult,
+  viewFootageScenesInput,
+  viewFootageScenesResult,
+  isMcpContentResult,
   listFootageBansInput,
   listFootageBansResult,
   listCatalogProductsInput,
@@ -808,6 +811,7 @@ export type McpReadDeps = {
   getTask: (ctx: McpAuthContext, taskId: string) => Promise<TaskDetail>;
   searchFootage: (ctx: McpAuthContext, input: FootageSearchFilters) => Promise<FootageSearchResult>;
   getFootage: (ctx: McpAuthContext, fileKey: string) => Promise<FootageClip>;
+  getFootageThumb: (ctx: McpAuthContext, storagePath: string) => Promise<Uint8Array>;
   listFootageBans: (ctx: McpAuthContext) => Promise<FootageBansResult>;
   listCatalogProducts: (ctx: McpAuthContext) => Promise<import("../db/catalog").CatalogProductList>;
   getCatalogProduct: (
@@ -1048,6 +1052,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "content.catalog.list": catalogInput,
   "footage.search": searchFootageInput,
   "footage.get": getFootageInput,
+  "footage.scenes.view": viewFootageScenesInput,
   "footage.bans.list": listFootageBansInput,
   "catalog.products.list": listCatalogProductsInput,
   "catalog.product.get": getCatalogProductInput,
@@ -1661,6 +1666,8 @@ async function runTool(
       return searchFootageResult(ctx, args, deps.searchFootage);
     case "footage.get":
       return getFootageResult(ctx, args, deps.getFootage);
+    case "footage.scenes.view":
+      return viewFootageScenesResult(ctx, args, deps.getFootage, deps.getFootageThumb);
     case "footage.bans.list":
       return listFootageBansResult(ctx, args, deps.listFootageBans);
     case "catalog.products.list":
@@ -2179,6 +2186,8 @@ export async function handleMcpRequest(
           const body = await runTool(tool.name, fresh, (args ?? {}) as ToolArgs, deps, claims);
           const stamped = tool.mutates ? stampOrganization(body, fresh) : body;
           await noteCall(deps, fresh, tool.name, "ok");
+          // A tool that returns pictures (footage.scenes.view) sends its content blocks as they are.
+          if (isMcpContentResult(stamped)) return { content: stamped.mcpContent };
           return { content: [{ type: "text" as const, text: JSON.stringify(stamped) }] };
         } catch (error) {
           await noteCall(deps, fresh, tool.name, "error");

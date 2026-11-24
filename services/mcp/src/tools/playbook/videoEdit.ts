@@ -10,7 +10,7 @@
  * Every tool named here must exist (test/playbook.test.ts).
  */
 
-export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-24.1";
+export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-24.2";
 
 export const VIDEO_EDIT_PLAYBOOK = `
 # Synckerja video edit playbook
@@ -37,7 +37,8 @@ Never work around a refused tool, a blocked download or a sandbox limit. Say wha
 - footage.search per storyboard shot, filtered by location and product. Prefer unused scenes and new inbox footage (file_key starting with INBOX/), then the bank.
 - footage.bans.list once: avoid scenes with the same problem as a banned one. Read every scene note (for example "looks AI", "do not use") and respect it.
 - Never mix locations in one video. Never show one product as another.
-- Check the chosen scenes with your own eyes when you can see frames: talent expression must follow Gaya baku talent; watch for unwanted objects, stickers, watermarks and people who must not appear. When you cannot see frames, say that the choice rests on the catalog tags.
+- Look at the candidate scenes with footage.scenes.view (one picture per scene, up to 24 per call) instead of making contact sheets yourself. Check talent expression against Gaya baku talent, and watch for unwanted objects, stickers, watermarks and people who must not appear.
+- Only for frame-exact in and out points, or a scene that changes inside, look at the source file itself. If you cannot see any picture, say that the choice rests on the catalog tags.
 - New inbox footage is registered and AI-tagged by the Synckerja Agent on its own. Fix a wrong tag with footage.scenes.upsert_batch.preview; do not register or tag the same file again.
 
 ## 3. Voice over

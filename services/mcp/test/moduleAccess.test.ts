@@ -150,6 +150,7 @@ describe("buildAuthContext", () => {
       "content.catalog.list",
       "footage.search",
       "footage.get",
+      "footage.scenes.view",
       "footage.bans.list",
       "catalog.products.list",
       "catalog.product.get",

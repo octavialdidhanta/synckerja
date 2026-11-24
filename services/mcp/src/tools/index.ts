@@ -142,6 +142,8 @@ export { takeInitiativeInput, takeInitiativeResult } from "./tasks/take";
 export { getTaskInput, getTaskResult } from "./tasks/get";
 export { searchFootageInput, searchFootageResult } from "./footage/search";
 export { getFootageInput, getFootageResult } from "./footage/get";
+export { isMcpContentResult, viewFootageScenesInput, viewFootageScenesResult, VIEW_MAX_SCENES } from "./footage/view";
+export type { McpContentBlock, McpContentResult } from "./footage/view";
 export { listFootageBansInput, listFootageBansResult } from "./footage/bansList";
 export {
   getCatalogProductInput,
