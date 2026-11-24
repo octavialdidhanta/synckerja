@@ -7,7 +7,7 @@ import { z } from "zod";
 import type { McpAuthContext } from "../../authz/context";
 import type { CatalogTextBlocks } from "../../db/catalog";
 import { renderSpecV1, specDuration, type RenderSpecV1 } from "./renderSpec";
-import { checkSpec, footageFindings } from "./specChecks";
+import { checkSpec, footageFindings, referenceFindings } from "./specChecks";
 
 const shotIn = z
   .object({
@@ -59,6 +59,10 @@ export const renderJobDraftInput = z
     outro: z.enum(["halftone"]).optional(),
     /** Production-folder image used as the halftone emblem, for example brand/emblem.png. */
     logo_file: relAudio.optional(),
+    /** Ids of the catalog reference videos this edit borrows structure or motion from (catalog.reference.get). */
+    references: z.array(z.string().trim().min(1).max(80)).max(5).optional(),
+    /** Why no reference fits this edit, when references is empty. */
+    no_reference_reason: z.string().trim().min(5).max(300).optional(),
   })
   .strict();
 
@@ -242,6 +246,7 @@ export async function draftRenderJobResult(
   getStyle: (ctx: McpAuthContext) => Promise<CatalogTextBlocks>,
   lookupFootage?: (ctx: McpAuthContext, fileKey: string) => Promise<FootageKeyInfo | null>,
   getBrief?: BriefLookup,
+  listReferences?: (ctx: McpAuthContext) => Promise<Array<{ id: string; title: string | null }>>,
 ): Promise<Record<string, unknown>> {
   const parsed = renderJobDraftInput.safeParse(args);
   if (!parsed.success) {
@@ -281,10 +286,20 @@ export async function draftRenderJobResult(
   }
 
   const checks = checkSpec(spec, gaya, [], footageErrors);
+  if (listReferences) {
+    let available: Array<{ id: string; title: string | null }> = [];
+    try {
+      available = await listReferences(ctx);
+    } catch {
+      available = [];
+    }
+    checks.suggestions.push(...referenceFindings(gaya, input, available));
+  }
 
   return {
     title: input.title,
     plan_id: input.plan_id ?? null,
+    references: input.references ?? [],
     spec,
     checks,
     summary: {

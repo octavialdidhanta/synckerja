@@ -1,27 +1,41 @@
 #!/bin/sh
 # Runs before every push from this clone (enable once with: git config core.hooksPath .githooks).
-# Typecheck the Office app, then run only the tests related to the files this push changes.
+# Office app (src/): typecheck, then only the tests related to the files this push changes.
+# MCP server (services/mcp/): its whole test suite (about 10 s), the same one CI runs.
 # Emergency only: git push --no-verify
 set -e
 
 remote_main="origin/main"
 git rev-parse --verify --quiet "$remote_main" >/dev/null || remote_main=""
 
-changed=""
+changed_app=""
+changed_mcp=""
 if [ -n "$remote_main" ]; then
-  changed=$(git diff --name-only --diff-filter=ACMR "$remote_main"...HEAD -- 'src/**/*.ts' 'src/**/*.tsx' || true)
+  changed_app=$(git diff --name-only --diff-filter=ACMR "$remote_main"...HEAD -- 'src/**/*.ts' 'src/**/*.tsx' || true)
+  changed_mcp=$(git diff --name-only "$remote_main"...HEAD -- 'services/mcp/' || true)
 fi
 
-if [ -z "$changed" ]; then
-  echo "[pre-push] tidak ada perubahan di src/, cek dilewati."
+if [ -z "$changed_app" ] && [ -z "$changed_mcp" ]; then
+  echo "[pre-push] tidak ada perubahan di src/ atau services/mcp/, cek dilewati."
   exit 0
 fi
 
-echo "[pre-push] typecheck…"
-npm run -s typecheck
+if [ -n "$changed_app" ]; then
+  echo "[pre-push] typecheck Office…"
+  npm run -s typecheck
 
-echo "[pre-push] tes yang terkait perubahan…"
-# shellcheck disable=SC2086
-npx vitest related --run --passWithNoTests $changed
+  echo "[pre-push] tes Office yang terkait perubahan…"
+  # shellcheck disable=SC2086
+  npx vitest related --run --passWithNoTests $changed_app
+fi
+
+if [ -n "$changed_mcp" ]; then
+  if [ ! -d services/mcp/node_modules ]; then
+    echo "[pre-push] pasang dependensi MCP (sekali saja)…"
+    npm --prefix services/mcp ci --no-audit --no-fund
+  fi
+  echo "[pre-push] tes MCP…"
+  npm --prefix services/mcp test --silent
+fi
 
 echo "[pre-push] aman, lanjut push."

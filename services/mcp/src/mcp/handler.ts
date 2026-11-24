@@ -1738,6 +1738,7 @@ async function runTool(
             return null;
           }
         },
+        async (c) => (await deps.listCatalogReferences(c)).references.map((r) => ({ id: r.id, title: r.title })),
       );
     case "render.jobs.create.preview":
       return previewRenderJobResult(

@@ -10,7 +10,7 @@
  * Every tool named here must exist (test/playbook.test.ts).
  */
 
-export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-24.2";
+export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-24.3";
 
 export const VIDEO_EDIT_PLAYBOOK = `
 # Synckerja video edit playbook
@@ -31,7 +31,7 @@ Never work around a refused tool, a blocked download or a sandbox limit. Say wha
 3. catalog.style.get: read all style boxes (vo, editing, teks, musik, talent) and follow them in every step.
 4. Facts for any text on screen: catalog.product.get and product_knowledge.list. Never write a claim (price, process, ingredient, portion) that is not there.
 5. Places: catalog.location.get. Read its "Must NOT" and each product's restrictions: they are the organization's own footage rules (for example locations that must not be mixed, or people who must not appear with a certain product).
-6. Structure and motion ideas: catalog.references.list and catalog.reference.get. A reference never overrides Gaya baku.
+6. Structure and motion ideas: catalog.references.list, then catalog.reference.get for the ones that fit this brief. Borrow their hook, beats and motion graphics so the video does not feel like a template. A reference never overrides Gaya baku.
 
 ## 2. Footage
 - footage.search per storyboard shot, filtered by location and product. Prefer unused scenes and new inbox footage (file_key starting with INBOX/), then the bank.
@@ -52,7 +52,7 @@ Never work around a refused tool, a blocked download or a sandbox limit. Say wha
 - When Gaya baku asks for something the render cannot do yet, say so before rendering.
 
 ## 5. Render through the Synckerja Agent
-1. render.jobs.draft with the shots (file_key, in, out), texts and music. Styles come from Gaya baku.
+1. render.jobs.draft with the shots (file_key, in, out), texts and music, plus references (the reference ids you borrowed from) or no_reference_reason. Styles come from Gaya baku.
 2. Fix every error the draft returns. For each warning: fix it, or keep it only with a short reason the user can read.
 3. render.jobs.create.preview, show the summary, and wait for a clear yes. Then render.jobs.create.
 4. Follow it with render.jobs.list until it is done or failed. If it stays queued, the Agent on the laptop is offline: tell the user; do not render somewhere else unless they ask.

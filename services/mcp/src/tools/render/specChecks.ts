@@ -145,9 +145,54 @@ const GAYA_RULES: GayaRule[] = [
         .map((f) => `${f} ada di luar vo/ atau _build/; folder produksi hanya vo, _build, _capcut, output.`);
     },
   },
+  {
+    // Creative input, not a spec rule: checked by render.jobs.draft from its references input (see referenceFindings).
+    // It only ever suggests (wajib in the aturan box is read as saran), so it never blocks a render.
+    code: "reference_unused",
+    levels: { ketat: "saran", seimbang: "saran", bebas: "mati" },
+    check: () => [],
+  },
 ];
 
 export const GAYA_RULE_CODES = GAYA_RULES.map((r) => r.code);
+
+/**
+ * Was the edit built on the organization's reference videos? The AI names the ids it used (references) or says why
+ * none fit (no_reference_reason). Unknown ids and silence become one suggestion that lists what is available.
+ */
+export function referenceFindings(
+  gaya: CatalogTextBlocks,
+  input: { references?: string[]; no_reference_reason?: string },
+  available: Array<{ id: string; title: string | null }>,
+): Finding[] {
+  if (available.length === 0) return [];
+  const level = ruleLevels(gaya).levels["reference_unused"];
+  if (level === "mati") return [];
+  const list = available
+    .slice(0, 8)
+    .map((r) => `${r.id}${r.title ? ` (${r.title})` : ""}`)
+    .join(", ");
+  const used = input.references ?? [];
+  const known = new Set(available.map((r) => r.id));
+  const unknown = used.filter((id) => !known.has(id));
+  const out: Finding[] = [];
+  if (unknown.length) {
+    out.push({
+      code: "reference_unused",
+      kind: "gaya",
+      level: "saran",
+      message: `Referensi ${unknown.join(", ")} tidak ada di katalog org ini. Yang ada: ${list}.`,
+    });
+  } else if (used.length === 0 && !input.no_reference_reason?.trim()) {
+    out.push({
+      code: "reference_unused",
+      kind: "gaya",
+      level: "saran",
+      message: `Edit ini belum memakai referensi. Baca catalog.reference.get untuk struktur, beat, dan motion graphic, lalu isi references [id], atau isi no_reference_reason kalau memang tidak ada yang cocok. Yang ada: ${list}.`,
+    });
+  }
+  return out;
+}
 export const TEKNIS_RULE_CODES = ["text_outside_video", "text_too_short", "shots_empty_duration"] as const;
 
 function teknisFindings(spec: RenderSpecV1): Finding[] {

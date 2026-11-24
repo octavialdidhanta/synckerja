@@ -6,6 +6,7 @@ import {
   checkSpec,
   footageFindings,
   hitsBannedPhrase,
+  referenceFindings,
   ruleLevels,
   specCheckPasses,
 } from "../src/tools/render/specChecks";
@@ -150,5 +151,30 @@ describe("footage checks stop a render the Agent cannot finish", () => {
     );
     expect(out.error).toBe("spec_check_failed");
     expect(codes((out.checks as { errors: Array<{ code: string }> }).errors)).toEqual(["shot_past_clip_end"]);
+  });
+});
+
+describe("reference check (creativity): a suggestion, never a block", () => {
+  const refs = [
+    { id: "r4", title: "Malam sate asap" },
+    { id: "r7", title: null },
+  ];
+  it("suggests the available references when the draft names none and gives no reason", () => {
+    const [f] = referenceFindings({}, {}, refs);
+    expect(f).toMatchObject({ code: "reference_unused", level: "saran" });
+    expect(f!.message).toContain("r4 (Malam sate asap), r7");
+  });
+  it("is quiet when references are used, or a reason is given, or the org has none", () => {
+    expect(referenceFindings({}, { references: ["r4"] }, refs)).toEqual([]);
+    expect(referenceFindings({}, { no_reference_reason: "brief minta format testimoni polos" }, refs)).toEqual([]);
+    expect(referenceFindings({}, {}, [])).toEqual([]);
+  });
+  it("flags an id the catalog does not have, and stays a suggestion even when aturan says wajib", () => {
+    const [f] = referenceFindings({ aturan: "reference_unused: wajib" }, { references: ["r99"] }, refs);
+    expect(f).toMatchObject({ level: "saran" });
+    expect(f!.message).toContain("r99");
+  });
+  it("is off with preset bebas", () => {
+    expect(referenceFindings({ aturan: "preset: bebas" }, {}, refs)).toEqual([]);
   });
 });
