@@ -11,6 +11,7 @@ import {
   routePath,
   sha256Hex,
 } from "./logic.ts";
+import { AgentReleaseError, latestAgentRelease } from "../_shared/agentRelease.ts";
 
 /**
  * API for the Synckerja Agent (laptop program). Spec: github.com/octavialdidhanta/synckerja-agent SPEC.md.
@@ -21,6 +22,7 @@ import {
  *
  *   GET  /v1/whoami      → organization, scopes, token expiry
  *   POST /v1/heartbeat   → { device_name, agent_version, platform, tools, last_error } + X-Agent-Device: <uuid>
+ *   GET  /v1/release     → { version, zip_url } latest Agent release; zip_url is GitHub's pre-signed link (minutes)
  *
  * Footage (scope "catalog"), step 3: the Agent can only ADD new inbox clips and their media.
  *   POST /v1/footage/check         { file_keys }                    → which already exist
@@ -95,6 +97,20 @@ Deno.serve(async (req) => {
         scopes: ctx.scopes,
         expires_at: ctx.expiresAt,
       });
+    }
+
+    // Tray "Cek versi baru": the laptop only has its org token, never a GitHub token.
+    if (req.method === "GET" && path === "/v1/release") {
+      try {
+        const r = await latestAgentRelease(Deno.env.get("AGENT_RELEASE_GITHUB_TOKEN") ?? "", ["zip"]);
+        return json({ ok: true, version: r.version, published_at: r.publishedAt, zip_url: r.zipUrl });
+      } catch (e) {
+        if (e instanceof AgentReleaseError) {
+          console.error("agent release", e.code, e.message);
+          return fail(e.code === "not_configured" ? 503 : 502, e.code, e.message);
+        }
+        throw e;
+      }
     }
 
     if (req.method === "POST" && path === "/v1/heartbeat") {

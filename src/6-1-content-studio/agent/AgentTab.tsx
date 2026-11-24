@@ -1,6 +1,7 @@
 /** Agent tab: which laptops run the Synckerja Agent for this organization, and its access tokens. */
 import { useState } from "react";
 import { useCurrentUserRole } from "@/shared/hooks/useCurrentUserRole";
+import { supabase } from "@/shared/lib/supabaseClient";
 import { ago, deviceLink, JOB_STATUS, sortJobs, tokenState, toolList, visibleDevices } from "./agentData";
 import {
   useAgentDevices,
@@ -37,14 +38,34 @@ function errorText(e: unknown): string {
 const dateText = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "—";
 
-const INSTALLER_HREF =
-  "https://github.com/octavialdidhanta/synckerja-agent/releases/latest/download/Synckerja-Office.exe";
-
+/**
+ * The Agent repo is private: the browser asks Synckerja (edge function agent-installer) for GitHub's
+ * pre-signed link to the latest Synckerja-Office.exe, valid a few minutes, then downloads from there.
+ */
 function InstallerDownload() {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const download = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke("agent-installer", { body: {} });
+      const url = (data as { url?: unknown } | null)?.url;
+      if (fnError || typeof url !== "string") throw new Error("no_url");
+      window.location.href = url;
+    } catch {
+      setError("Installer belum bisa diunduh. Coba lagi sebentar.");
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
-    <a className="hb" href={INSTALLER_HREF} download="Synckerja-Office.exe">
-      Download installer
-    </a>
+    <>
+      <button type="button" className="hb" disabled={busy} onClick={() => void download()}>
+        {busy ? "Menyiapkan…" : "Download installer"}
+      </button>
+      {error ? <span role="alert">{error}</span> : null}
+    </>
   );
 }
 
