@@ -179,13 +179,57 @@ export function ruleLevels(gaya: CatalogTextBlocks): { preset: Preset; levels: R
   return { preset, levels };
 }
 
+/** Catalog facts about one footage file: null when the organization's catalog has no such file_key. */
+export type FootageLookup = (fileKey: string) => Promise<{ duration_seconds: number | null } | null>;
+
+/**
+ * Technical checks that need the footage catalog. A file_key the catalog does not know, or a shot that ends past the
+ * end of its source clip, would make the Agent fail (for example "pecah frame kurang: 537 dari 538") and retry for nothing.
+ */
+export async function footageFindings(spec: RenderSpecV1, lookup: FootageLookup): Promise<Finding[]> {
+  const out: Finding[] = [];
+  const durations = new Map<string, number | null>();
+  for (const key of new Set(spec.shots.map((s) => s.file_key))) {
+    const clip = await lookup(key);
+    if (!clip) {
+      out.push({
+        code: "footage_unknown",
+        kind: "teknis",
+        level: "error",
+        message: `file_key ${key} tidak ada di katalog footage org ini. Ambil file_key dari footage.search / footage.get.`,
+      });
+      continue;
+    }
+    durations.set(key, clip.duration_seconds);
+  }
+  spec.shots.forEach((s, i) => {
+    const dur = durations.get(s.file_key);
+    if (dur != null && s.out > dur + 0.001) {
+      out.push({
+        code: "shot_past_clip_end",
+        kind: "teknis",
+        level: "error",
+        message: `Shot ${i + 1} (${s.file_key}) berhenti di ${s.out}s, padahal klipnya cuma ${dur}s. Set out paling banyak ${Math.max(0, dur - 0.05).toFixed(2)}s.`,
+      });
+    }
+  });
+  return out;
+}
+
 export function checkSpec(
   spec: RenderSpecV1,
   gaya: CatalogTextBlocks,
   overrides: Array<{ code: string; reason: string }> = [],
+  extraErrors: Finding[] = [],
 ): SpecCheckResult {
   const { preset, levels } = ruleLevels(gaya);
-  const result: SpecCheckResult = { preset, errors: teknisFindings(spec), required: [], suggestions: [], overridden: [] };
+  const result: SpecCheckResult = {
+    preset,
+    errors: [...teknisFindings(spec), ...extraErrors],
+    required: [],
+    suggestions: [],
+    overridden: [],
+  };
   for (const rule of GAYA_RULES) {
     const level = levels[rule.code]!;
     if (level === "mati") continue;

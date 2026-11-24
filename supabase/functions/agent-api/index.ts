@@ -44,7 +44,7 @@ import { AgentReleaseError, latestAgentRelease } from "../_shared/agentRelease.t
  *   POST /v1/jobs/<id>/progress     { claim_token, progress, stage, log } → { continue } (false = cancelled)
  *   POST /v1/jobs/<id>/upload-start { claim_token, file_name, size_bytes } → one-time upload URL for the plan
  *   POST /v1/jobs/<id>/usage        { claim_token, shots: [{ file_key, in, out }] } → footage usage for the plan
- *   POST /v1/jobs/<id>/finish       { claim_token, ok, result, error, log }
+ *   POST /v1/jobs/<id>/finish       { claim_token, ok, result, error, log, final? }  final: do not retry
  */
 
 const MCP_PUBLIC_URL = (Deno.env.get("MCP_PUBLIC_URL") ?? "https://mcp.synckerja.com").replace(/\/+$/, "");
@@ -234,6 +234,8 @@ Deno.serve(async (req) => {
         const { data, error } = await admin.rpc("agent_job_finish", {
           p_token_id: ctx.tokenId, p_job_id: jobId, p_claim_token: claimToken, p_ok: body.ok,
           p_result: result, p_error: text(body.error, 2000), p_log: text(body.log, 20000),
+          // Only sent when true, so an Agent that never sends final keeps working before and after the migration.
+          ...(body.final === true ? { p_final: true } : {}),
         });
         if (error) return rpcErr("agent_job_finish", error.message);
         return json({ ok: true, ...(data as Record<string, unknown>) });

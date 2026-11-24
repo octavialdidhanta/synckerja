@@ -10,7 +10,7 @@ import {
 } from "../footage/confirmation";
 import { renderSpecV1, specDuration } from "./renderSpec";
 import type { CatalogTextBlocks } from "../../db/catalog";
-import { checkSpec, specCheckPasses } from "./specChecks";
+import { checkSpec, footageFindings, specCheckPasses, type FootageLookup } from "./specChecks";
 
 export const renderJobCreatePreviewInput = z
   .object({
@@ -36,6 +36,7 @@ export async function previewRenderJobResult(
   preview: (ctx: McpAuthContext, input: { plan_id: string | null; title: string; spec: unknown }) => Promise<RenderJobPreview>,
   sign: Sign,
   getStyle?: (ctx: McpAuthContext) => Promise<CatalogTextBlocks>,
+  lookupFootage?: (ctx: McpAuthContext, fileKey: string) => Promise<Awaited<ReturnType<FootageLookup>>>,
 ): Promise<Record<string, unknown>> {
   const parsed = renderJobCreatePreviewInput.safeParse(args);
   if (!parsed.success) {
@@ -44,7 +45,8 @@ export async function previewRenderJobResult(
   }
   const { spec, title } = parsed.data;
   // Same checks as render.jobs.draft, enforced here: nothing is queued while a technical error or an unresolved "wajib" remains.
-  const checks = checkSpec(spec, getStyle ? await getStyle(ctx) : {}, parsed.data.overrides ?? []);
+  const footageErrors = lookupFootage ? await footageFindings(spec, (k) => lookupFootage(ctx, k)) : [];
+  const checks = checkSpec(spec, getStyle ? await getStyle(ctx) : {}, parsed.data.overrides ?? [], footageErrors);
   if (!specCheckPasses(checks)) {
     return {
       error: "spec_check_failed",

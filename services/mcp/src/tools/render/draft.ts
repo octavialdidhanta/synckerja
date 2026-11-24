@@ -7,7 +7,7 @@ import { z } from "zod";
 import type { McpAuthContext } from "../../authz/context";
 import type { CatalogTextBlocks } from "../../db/catalog";
 import { renderSpecV1, specDuration, type RenderSpecV1 } from "./renderSpec";
-import { checkSpec } from "./specChecks";
+import { checkSpec, footageFindings } from "./specChecks";
 
 const shotIn = z
   .object({
@@ -228,40 +228,7 @@ export function buildDraftSpec(
   return { spec: parsed.data, warnings };
 }
 
-export type FootageKeyInfo = { file_key: string; duration_seconds: number | null };
-
-/**
- * Optional catalog check: warn when file_key missing or out exceeds known duration.
- * Failures per key become warnings (draft stays read-only and useful offline of partial catalogs).
- */
-export async function warnUnknownFootage(
-  keys: string[],
-  lookup: (fileKey: string) => Promise<FootageKeyInfo | null>,
-  shots: Array<{ file_key: string; out: number }>,
-): Promise<string[]> {
-  const warnings: string[] = [];
-  const unique = [...new Set(keys)];
-  const durations = new Map<string, number | null>();
-  for (const k of unique) {
-    try {
-      const clip = await lookup(k);
-      if (!clip) {
-        warnings.push(`file_key belum ada di katalog org ini: ${k}`);
-        continue;
-      }
-      durations.set(k, clip.duration_seconds);
-    } catch {
-      warnings.push(`file_key belum ada di katalog org ini: ${k}`);
-    }
-  }
-  for (const s of shots) {
-    const dur = durations.get(s.file_key);
-    if (dur != null && s.out > dur + 0.05) {
-      warnings.push(`shot out ${s.out}s melewati durasi sumber ${dur}s (${s.file_key})`);
-    }
-  }
-  return warnings;
-}
+export type FootageKeyInfo = { duration_seconds: number | null };
 
 export type BriefLookup = (ctx: McpAuthContext, planId: string) => Promise<{
   title: string | null;
@@ -285,15 +252,7 @@ export async function draftRenderJobResult(
   const gaya = await getStyle(ctx);
   const { spec, warnings } = buildDraftSpec(input, gaya);
 
-  if (lookupFootage) {
-    warnings.push(
-      ...(await warnUnknownFootage(
-        spec.shots.map((s) => s.file_key),
-        (k) => lookupFootage(ctx, k),
-        spec.shots,
-      )),
-    );
-  }
+  const footageErrors = lookupFootage ? await footageFindings(spec, (k) => lookupFootage(ctx, k)) : [];
 
   let brief_hints: BriefDraftHint | null = null;
   if (input.plan_id && getBrief) {
@@ -321,7 +280,7 @@ export async function draftRenderJobResult(
     }
   }
 
-  const checks = checkSpec(spec, gaya);
+  const checks = checkSpec(spec, gaya, [], footageErrors);
 
   return {
     title: input.title,

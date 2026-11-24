@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { previewRenderJobResult } from "../src/tools/render/jobs";
 import { renderSpecV1 } from "../src/tools/render/renderSpec";
-import { bannedPhrases, checkSpec, hitsBannedPhrase, ruleLevels, specCheckPasses } from "../src/tools/render/specChecks";
+import {
+  bannedPhrases,
+  checkSpec,
+  footageFindings,
+  hitsBannedPhrase,
+  ruleLevels,
+  specCheckPasses,
+} from "../src/tools/render/specChecks";
 
 /** Gaya baku lines as Sate Sultan PIK has them (abridged). */
 const gaya = {
@@ -93,5 +100,55 @@ describe("spec checks catch last night's mistakes", () => {
     );
     expect(out.error).toBe("spec_check_failed");
     expect(out).not.toHaveProperty("confirm_token");
+  });
+});
+
+describe("footage checks stop a render the Agent cannot finish", () => {
+  /** Catalog as on 24 Nov 2026: AI clips are exactly 10.00 s long. */
+  const catalog: Record<string, number> = { "PIK1/sate kambing/a.mp4": 10, "PIK1/sop sumsum/b.mp4": 10, "PIK1/sop sumsum/c.mp4": 10 };
+  const lookup = async (k: string) => (k in catalog ? { duration_seconds: catalog[k]! } : null);
+  const sateV1 = renderSpecV1.parse({
+    version: 1,
+    production: "379e87fc Sate Kambing",
+    output_name: "379e87fc_Sate_Kambing_Full_Daging_VO_v1_9x16",
+    shots: [
+      { file_key: "PIK1/sate kambing/a.mp4", in: 8.2, out: 10.03 },
+      { file_key: "PIK1/sop sumsum/b.mp4", in: 1, out: 9.95 },
+    ],
+  });
+
+  it("flags a shot that ends past its clip (the 537 of 538 frames failure) as a technical error", async () => {
+    const found = await footageFindings(sateV1, lookup);
+    expect(codes(found)).toEqual(["shot_past_clip_end"]);
+    expect(found[0]!.message).toContain("9.95");
+    const r = checkSpec(sateV1, {}, [{ code: "shot_past_clip_end", reason: "coba lewati" }], found);
+    expect(specCheckPasses(r)).toBe(false);
+  });
+
+  it("flags a file_key the catalog does not have", async () => {
+    const typo = renderSpecV1.parse({ ...sateV1, shots: [{ file_key: "INBOX/tes.mp4", in: 0, out: 5 }] });
+    expect(codes(await footageFindings(typo, lookup))).toEqual(["footage_unknown"]);
+  });
+
+  it("passes when every shot stays inside its clip", async () => {
+    const ok = renderSpecV1.parse({ ...sateV1, shots: [{ file_key: "PIK1/sate kambing/a.mp4", in: 8.2, out: 9.95 }] });
+    expect(await footageFindings(ok, lookup)).toEqual([]);
+  });
+
+  it("render.jobs.create.preview refuses the 10.03 s spec before anything is queued", async () => {
+    const out = await previewRenderJobResult(
+      { userId: "u", organizationId: "o" } as never,
+      { title: "v1", spec: sateV1 },
+      async () => {
+        throw new Error("must not reach the database");
+      },
+      async () => {
+        throw new Error("must not sign");
+      },
+      async () => ({ "aturan": "preset: bebas" }),
+      async (_ctx, k) => lookup(k),
+    );
+    expect(out.error).toBe("spec_check_failed");
+    expect(codes((out.checks as { errors: Array<{ code: string }> }).errors)).toEqual(["shot_past_clip_end"]);
   });
 });

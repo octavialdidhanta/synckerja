@@ -964,6 +964,21 @@ const CONFIRM_NEXT_STEP =
   + "Call the create tool with this confirm_token only after they clearly say yes to this summary. "
   + "One yes confirms one write: do not save a second write (for example a purchase order) on the same yes; preview it and ask again.";
 
+/** Footage facts for render checks: null only when the catalog has no such file_key; other failures are thrown. */
+async function lookupRenderFootage(
+  deps: HandlerDeps,
+  ctx: McpAuthContext,
+  fileKey: string,
+): Promise<{ duration_seconds: number | null } | null> {
+  try {
+    const clip = await deps.getFootage(ctx, fileKey);
+    return { duration_seconds: clip.duration_seconds };
+  } catch (error) {
+    if (error instanceof Error && /not_found/.test(error.message)) return null;
+    throw error;
+  }
+}
+
 function forbidden() {
   return {
     isError: true as const,
@@ -1707,14 +1722,7 @@ async function runTool(
         ctx,
         args,
         deps.getCatalogStyle,
-        async (c, fileKey) => {
-          try {
-            const clip = await deps.getFootage(c, fileKey);
-            return { file_key: clip.file_key, duration_seconds: clip.duration_seconds };
-          } catch {
-            return null;
-          }
-        },
+        (c, fileKey) => lookupRenderFootage(deps, c, fileKey),
         async (c, planId) => {
           try {
             const brief = await deps.getContentBrief(c, planId);
@@ -1725,7 +1733,14 @@ async function runTool(
         },
       );
     case "render.jobs.create.preview":
-      return previewRenderJobResult(ctx, args, deps.previewRenderJob, deps.signFootageConfirmation, deps.getCatalogStyle);
+      return previewRenderJobResult(
+        ctx,
+        args,
+        deps.previewRenderJob,
+        deps.signFootageConfirmation,
+        deps.getCatalogStyle,
+        (c, fileKey) => lookupRenderFootage(deps, c, fileKey),
+      );
     case "render.jobs.create":
       return applyRenderJobResult(ctx, args, deps.verifyFootageConfirmation, deps.applyRenderJob);
     case "render.jobs.list":

@@ -178,7 +178,7 @@ describe("render.jobs.draft", () => {
     expect(defaultRenderStyles({ teks: "" }).hook?.color).toBe("#FFFFFF");
   });
 
-  it("warns when audio or gaya is missing and when file_key is unknown", async () => {
+  it("warns when audio or gaya is missing, and blocks an unknown file_key as a technical error", async () => {
     const out = await draftRenderJobResult(
       ctx,
       { ...draftArgs, vo_file: undefined, music_file: undefined },
@@ -189,9 +189,10 @@ describe("render.jobs.draft", () => {
       expect.arrayContaining([
         expect.stringMatching(/Tidak ada VO\/musik/),
         expect.stringMatching(/teks/),
-        expect.stringMatching(/file_key belum ada/),
       ]),
     );
+    const checks = out.checks as { errors: Array<{ code: string }> };
+    expect(checks.errors.map((e) => e.code)).toContain("footage_unknown");
     expect(out.next_step).toMatch(/create\.preview/);
     expect((out.summary as { duration_seconds: number }).duration_seconds).toBeCloseTo(3.7, 5);
   });
