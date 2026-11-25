@@ -74,6 +74,11 @@ export function industryKeysToDrop(orgKeys: string[], packKeys: string[], incomi
   return orgKeys.filter((key) => pack.has(key) && !incoming.has(key));
 }
 
+/** A real industry change drops every product column sentence. Applying the same template keeps them. */
+export function industrySwitchClearsProductText(previous: string | null, next: string): boolean {
+  return previous !== null && previous !== next;
+}
+
 /** Apply a template via RLS upserts (MCP apply RPC is service_role-only). */
 export function useApplyIndustryTemplate() {
   const { organizationId } = useOrgBootstrapPending();
@@ -107,9 +112,15 @@ export function useApplyIndustryTemplate() {
         supabase.from("catalog_menu_field_defs").select("field_key").eq("organization_id", org),
         supabase.from("footage_tag_defs").select("key").eq("organization_id", org),
       ]);
-      if (fErr || tErr || kErr || afErr || atErr || ofErr || otErr) {
-        throw fErr || tErr || kErr || afErr || atErr || ofErr || otErr;
+      const { data: currentRow, error: currentErr } = await supabase
+        .from("organization_catalog_settings")
+        .select("industry_template_code")
+        .eq("organization_id", org)
+        .maybeSingle();
+      if (fErr || tErr || kErr || afErr || atErr || ofErr || otErr || currentErr) {
+        throw fErr || tErr || kErr || afErr || atErr || ofErr || otErr || currentErr;
       }
+      const clearProductText = industrySwitchClearsProductText(currentRow?.industry_template_code ?? null, code);
       const fieldUpserts = (fields ?? []).map((f) => ({
         organization_id: org,
         field_key: f.field_key,
@@ -130,17 +141,12 @@ export function useApplyIndustryTemplate() {
         label: k.label,
         position: k.position,
       }));
-      const [u1, u2, u3, u4] = await Promise.all([
+      const [u1, u2, u3] = await Promise.all([
         supabase.from("catalog_menu_field_defs").upsert(fieldUpserts, { onConflict: "organization_id,field_key" }),
         supabase.from("footage_tag_defs").upsert(tagUpserts, { onConflict: "organization_id,key" }),
         supabase.from("footage_scene_kind_defs").upsert(kindUpserts, { onConflict: "organization_id,key" }),
-        supabase.from("organization_catalog_settings").upsert({
-          organization_id: org,
-          industry_template_code: code,
-          applied_at: new Date().toISOString(),
-        }),
       ]);
-      if (u1.error || u2.error || u3.error || u4.error) throw u1.error || u2.error || u3.error || u4.error;
+      if (u1.error || u2.error || u3.error) throw u1.error || u2.error || u3.error;
 
       const dropFields = industryKeysToDrop(
         (orgFields ?? []).map((row) => row.field_key),
@@ -161,6 +167,19 @@ export function useApplyIndustryTemplate() {
           : Promise.resolve({ error: null }),
       ]);
       if (d1.error || d2.error) throw d1.error || d2.error;
+      if (clearProductText) {
+        const [cleared, pilot] = await Promise.all([
+          supabase.from("catalog_menu_fields").delete().eq("organization_id", org),
+          supabase.from("catalog_menus").delete().eq("organization_id", org).eq("external_id", "powerbank-20000"),
+        ]);
+        if (cleared.error || pilot.error) throw cleared.error || pilot.error;
+      }
+      const saved = await supabase.from("organization_catalog_settings").upsert({
+        organization_id: org,
+        industry_template_code: code,
+        applied_at: new Date().toISOString(),
+      });
+      if (saved.error) throw saved.error;
       return { industry_template_code: code };
     },
     onSuccess: async () => {
