@@ -5,6 +5,7 @@ import {
   countLabel,
   filterOptions,
   optionCount,
+  orgBoolTags,
   visibleRows,
   type FootageSource,
 } from "./footageRows";
@@ -106,6 +107,24 @@ describe("filters", () => {
     expect(optionCount(rows, F, "", "scene", "lok", null)).toBe(4);
     expect(optionCount(rows, F, "", "scene", "jenis", "produk")).toBe(1);
     expect(optionCount(rows, F, "", "scene", "prod", "Sate Babi")).toBe(2);
+  });
+});
+
+describe("org tags in the player", () => {
+  it("shows only bool tags this organization defined", () => {
+    expect(
+      orgBoolTags(
+        [
+          { id: "2", key: "capacity_shown", label: "Kapasitas terlihat", value_type: "bool", position: 2 },
+          { id: "1", key: "watermark_ui", label: "Watermark/UI", value_type: "bool", position: 1 },
+          { id: "3", key: "catatan", label: "Catatan", value_type: "text", position: 3 },
+        ],
+        { watermark_ui: true },
+      ),
+    ).toEqual([
+      { key: "watermark_ui", label: "Watermark/UI", value: "ya" },
+      { key: "capacity_shown", label: "Kapasitas terlihat", value: "tidak" },
+    ]);
   });
 });
 

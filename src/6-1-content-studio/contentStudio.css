@@ -55,6 +55,13 @@
 .ck .top-r{margin-left:auto;display:flex;align-items:center;gap:10px}
 .ck .live{font-size:12.5px;display:flex;align-items:center;gap:6px}.ck .livok{color:var(--ok)}.ck .livno{color:var(--gold)}
 .ck .hb{background:none;border:1px solid var(--acc);color:var(--acc);border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer}
+.ck .hb.ghost{border-color:var(--line);color:var(--tx)}
+.ck .hb:disabled{opacity:.45;cursor:not-allowed}
+.ck .list-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.ck .lib-edit label{display:block;margin:10px 0 4px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--acc)}
+.ck .lib-edit input,.ck .lib-edit textarea,.ck .lib-edit select{width:100%;box-sizing:border-box;background:var(--input-bg);color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:8px;font:13px/1.5 system-ui,"Segoe UI",sans-serif}
+.ck .lib-edit textarea{min-height:72px;resize:vertical}
+.ck .lib-edit .row-actions{display:flex;gap:8px;margin-top:12px}
 .ck .q{background:var(--input-bg);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:7px 10px;width:320px;font-size:13px;outline:none}
 .ck .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .ck .chip{border:1px solid var(--line);background:none;color:var(--tx);border-radius:999px;padding:3px 11px;font-size:12.5px;cursor:pointer}
@@ -247,11 +254,12 @@
 .ck .ref .hist pre{margin-top:6px;opacity:.9}
 
 /* Agent tab */
-.ck .agent{flex:1;min-height:0;overflow:hidden;padding:10px 14px 12px;display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,360px);grid-template-rows:minmax(0,1fr);gap:8px;align-items:stretch}
+.ck .agent{flex:1;min-height:0;overflow:hidden;padding:10px 14px 12px;display:grid;grid-template-columns:minmax(0,1fr) minmax(440px,520px);grid-template-rows:minmax(0,1fr);gap:8px;align-items:stretch}
 .ck .agent-main{min-width:0;min-height:0;height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:2px}
 .ck .agent-side{min-width:0;min-height:0;height:100%;display:flex;flex-direction:column;overflow:hidden}
 .ck .agent .panel.fill{flex:1;min-height:0}
-.ck .agent-jobs{min-height:0;overflow-y:auto;margin-top:4px}
+.ck .agent-jobs{min-height:0;overflow-x:hidden;overflow-y:auto;margin-top:4px;scrollbar-width:none;-ms-overflow-style:none}
+.ck .agent-jobs::-webkit-scrollbar{display:none;width:0;height:0}
 @media(max-width:1100px){
   .ck .agent{grid-template-columns:1fr;overflow-y:auto}
   .ck .agent-main,.ck .agent-side,.ck .agent-jobs{overflow:visible}
@@ -264,6 +272,7 @@
 .ck .agent .bad{color:var(--red);font-size:12.5px;margin:8px 0 0}
 .ck .agent .note{color:var(--red);font-size:12.5px;margin:8px 0 0;line-height:1.4}
 .ck .agent code{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.ck .agent .job code{display:block;white-space:normal;overflow-wrap:anywhere}
 .ck .agent .empty{display:flex;flex-direction:column;align-items:flex-start;gap:10px;border:1px dashed var(--line);border-radius:10px;padding:14px;color:var(--mut);font-size:13px;margin-top:12px}
 .ck .agent .dev{padding:2px 0 8px}
 .ck .agent .dev+.dev{border-top:1px solid var(--line)}

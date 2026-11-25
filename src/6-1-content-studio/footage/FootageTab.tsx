@@ -7,6 +7,7 @@ import {
   filterOptions,
   label,
   optionCount,
+  orgBoolTags,
   usageCount,
   visibleRows,
   type FilterKey,
@@ -190,6 +191,7 @@ export function FootageTab({ headLeft }: Props) {
           rows={rows}
           initial={open}
           thumbs={data.thumbs}
+          tagDefs={tagDefs}
           organizationId={organizationId}
           agent={agent}
           onSetBan={setBan}
@@ -271,6 +273,7 @@ function PlayerModal({
   rows,
   initial,
   thumbs,
+  tagDefs,
   organizationId,
   agent,
   onSetBan,
@@ -280,6 +283,7 @@ function PlayerModal({
   rows: FootageRow[];
   initial: { row: FootageRow; onlySeg: boolean };
   thumbs: Record<string, string>;
+  tagDefs: TagDefRecord[];
   organizationId: string | null | undefined;
   agent: AgentLink;
   onSetBan: (sceneId: string, reason: string | null) => Promise<boolean>;
@@ -447,14 +451,12 @@ function PlayerModal({
             <b>Produk</b>
             <span>{d.prod.join(", ") || "—"}</span>
           </div>
-          <div className="row">
-            <b>Hijab</b>
-            <span>{d.hijab}</span>
-          </div>
-          <div className="row">
-            <b>Watermark/UI</b>
-            <span>{d.wm}</span>
-          </div>
+          {orgBoolTags(tagDefs, d.tags).map((t) => (
+            <div className="row" key={t.key}>
+              <b>{t.label}</b>
+              <span>{t.value}</span>
+            </div>
+          ))}
           <div className="row">
             <b>Scene ini</b>
             <span>{d.sp.length ? `dipakai ${d.sp.length}x: ${d.sp.join(", ")}` : "belum pernah dipakai"}</span>
@@ -491,7 +493,7 @@ function PlayerModal({
               <b>{d.tag === "belum" ? "Belum ditag" : "Tag dari AI"}</b>
               {d.tag === "belum"
                 ? "Agent baru memasukkan klip ini. Tag AI otomatis menyusul jika Agent punya API key Claude; bisa juga ditag lewat Claude chat / MCP."
-                : "Cek isi, lokasi, produk, hijab & watermark. Kalau ada yang salah, ubah lewat Claude; kalau sudah benar, klik tombol di bawah."}
+                : "Cek isi, lokasi, produk, dan tag organisasi ini. Kalau ada yang salah, ubah lewat Claude; kalau sudah benar, klik tombol di bawah."}
               {d.tag === "perlu_dicek" ? (
                 <button type="button" className="btn" onClick={() => void onCheckTags(d.assetId)}>
                   ✓ Tag sudah benar

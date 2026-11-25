@@ -349,6 +349,23 @@ export const NM: Record<string, Record<string, string>> = {
   },
 };
 
+/** Bool tags this organization actually defined, in catalog order. */
+export function orgBoolTags(
+  tagDefs: TagDefRecord[],
+  tags: Record<string, unknown>,
+): { key: string; label: string; value: YaTidak }[] {
+  const yes = (v: unknown): boolean => v === true || v === "ya" || v === "true";
+  return tagDefs
+    .filter((d) => (d.value_type ?? "bool") === "bool")
+    .slice()
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.key.localeCompare(b.key))
+    .map((d) => ({
+      key: d.key,
+      label: d.label?.trim() || d.key,
+      value: yes(tags[d.key]) ? "ya" : "tidak",
+    }));
+}
+
 export function label(k: FilterKey, o: string, tagDefs: TagDefRecord[] = []): string {
   if (NM[k]?.[o]) return NM[k][o];
   if (tagDefs.some((d) => d.key === k && (d.value_type ?? "bool") === "bool")) {
