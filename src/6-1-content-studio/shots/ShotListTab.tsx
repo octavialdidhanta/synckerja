@@ -7,6 +7,7 @@ import {
   defaultSelection,
   ftag,
   locationAreas,
+  productPhotos,
   type PromptFields,
   type RefPhoto,
   type Talk,
@@ -385,8 +386,12 @@ function Rakit({
     if (!picked) return update({ menuIds: id ? [id] : [], sel: null });
     const old = draft.menuIds;
     const next = id ? [id, ...old.slice(1).filter((x) => x !== id)] : old.slice(1);
-    const oldFiles = new Set(old.flatMap((m) => menus.find((x) => x.id === m)?.fotos.map((f) => f.file) ?? []));
-    const newFiles = next.flatMap((m) => menus.find((x) => x.id === m)?.fotos.map((f) => f.file) ?? []);
+    const filesOf = (id: string) => {
+      const menu = menus.find((x) => x.id === id);
+      return menu ? productPhotos(menu).map((f) => f.file) : [];
+    };
+    const oldFiles = new Set(old.flatMap(filesOf));
+    const newFiles = next.flatMap(filesOf);
     const keep = [...sel].filter((f) => !oldFiles.has(f));
     update({ menuIds: next, sel: new Set([...newFiles.slice(0, next.length > 1 ? 3 : 1), ...keep]) });
   };
@@ -395,7 +400,7 @@ function Rakit({
   const setLocation = (id: string) => {
     if (!picked) return update({ locId: id, curArea: "", sel: null });
     const l = locs.find((x) => x.id === id) ?? null;
-    const productFiles = new Set(menus.flatMap((m) => m.fotos.map((f) => f.file)));
+    const productFiles = new Set(menus.flatMap((m) => productPhotos(m).map((f) => f.file)));
     const keep = [...sel].filter((f) => productFiles.has(f));
     const add = (l?.fotos ?? []).filter((f) => draft.curArea && (f.area ?? []).includes(draft.curArea)).map((f) => f.file);
     const areasNext = locationAreas(l);
@@ -420,7 +425,7 @@ function Rakit({
   };
 
   const download = async (p: RefPhoto) => {
-    const url = p.storagePath ? photoUrls[p.storagePath] : undefined;
+    const url = p.url ?? (p.storagePath ? photoUrls[p.storagePath] : undefined);
     const name = (p.file || "foto.png").split("/").pop() as string;
     if (url) {
       try {
@@ -549,7 +554,7 @@ function Rakit({
             <div className="rfg">
               {all.map((p) => {
                 const on = sel.has(p.file);
-                const url = p.storagePath ? photoUrls[p.storagePath] : undefined;
+                const url = p.url ?? (p.storagePath ? photoUrls[p.storagePath] : undefined);
                 return (
                   <div key={p.tp + p.id} className={"rfc" + (on ? " on" : " off")}>
                     <button type="button" className="cb" title={on ? "Lepas" : "Pakai"} onClick={() => toggle(p)}>

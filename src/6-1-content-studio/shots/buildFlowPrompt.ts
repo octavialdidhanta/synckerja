@@ -17,14 +17,42 @@ export type PromptFields = Record<string, string>;
 
 export interface RefPhoto extends LibraryPhoto {
   tp: "Produk" | "Lokasi";
+  /** signed URL for a photo that is not in catalog-media (the product's Item Library or subcategory photo) */
+  url?: string;
 }
 
 /** "@file-name" without folder and extension, as katalog.html ftag(). */
 export const ftag = (p: { file: string }) => "@" + (p.file || "").split("/").pop()!.replace(/\.[^.]+$/, "");
 
+function sourcePhotoExtension(url: string): string {
+  const name = url.split("?")[0]!.split("/").pop() ?? "";
+  const ext = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase();
+  return ext && ["jpg", "jpeg", "png", "webp", "gif"].includes(ext) ? ext : "jpg";
+}
+
+/**
+ * A product's photos for Flow: its uploaded reference photos. A product without one uses its Item Library or
+ * subcategory photo (the one the Produk tab shows), named after the product so it gets its own @tag.
+ */
+export function productPhotos(m: MenuItem): RefPhoto[] {
+  const own: RefPhoto[] = m.fotos.map((f) => ({ ...f, tp: "Produk" as const }));
+  if (own.some((f) => f.storagePath) || !m.sourcePhotoUrl) return own;
+  return [
+    {
+      id: `source:${m.id}`,
+      file: `foto/${m.externalId}_tampilan.${sourcePhotoExtension(m.sourcePhotoUrl)}`,
+      label: m.nama,
+      storagePath: null,
+      position: 0,
+      tp: "Produk",
+      url: m.sourcePhotoUrl,
+    },
+  ];
+}
+
 /** All photos the shot can use: product photos first, then location photos (refPhotos ALL). */
 export function allPhotos(menus: MenuItem[], loc: LocationItem | null): RefPhoto[] {
-  const mp: RefPhoto[] = menus.flatMap((m) => m.fotos.map((f) => ({ ...f, tp: "Produk" as const })));
+  const mp: RefPhoto[] = menus.flatMap(productPhotos);
   const lp: RefPhoto[] = (loc?.fotos ?? []).map((f) => ({ ...f, tp: "Lokasi" as const }));
   return [...mp, ...lp];
 }
@@ -36,7 +64,7 @@ export function locationAreas(loc: LocationItem | null): string[] {
 
 /** Default selection when nothing is picked: every product photo plus location photos of the area (or all). */
 export function defaultSelection(menus: MenuItem[], loc: LocationItem | null, area: string): Set<string> {
-  const mp = menus.flatMap((m) => m.fotos.map((f) => f.file));
+  const mp = menus.flatMap((m) => productPhotos(m).map((f) => f.file));
   const lp = (loc?.fotos ?? []).filter((f) => !area || (f.area ?? []).includes(area)).map((f) => f.file);
   return new Set([...mp, ...lp]);
 }
@@ -152,7 +180,7 @@ export function buildFlowPrompt(p: PromptInput): PromptResult {
       "Use the attached reference images for the exact look of the food and the place (follow the ACTION for framing and layout):",
     );
     p.refs.forEach((r) => {
-      const owner = p.allMenus.find((m) => m.fotos.some((f) => f.file === r.file));
+      const owner = p.allMenus.find((m) => productPhotos(m).some((f) => f.file === r.file));
       const what =
         r.tp === "Produk"
           ? r.ref
