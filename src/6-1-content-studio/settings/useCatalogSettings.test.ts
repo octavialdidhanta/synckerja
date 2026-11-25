@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { industryKeysToDrop } from "./useCatalogSettings";
+import { industryKeysToDrop, industrySwitchClearsProductText } from "./useCatalogSettings";
 
 const pack = [
   "hijab",
@@ -32,5 +32,13 @@ describe("industryKeysToDrop", () => {
 
   it("keeps a key that is not in any industry pack", () => {
     expect(industryKeysToDrop(["catatan_sendiri"], pack, ["watermark_ui"])).toEqual([]);
+  });
+});
+
+describe("industrySwitchClearsProductText", () => {
+  it("clears product text only when the active template changes", () => {
+    expect(industrySwitchClearsProductText(null, "fnb")).toBe(false);
+    expect(industrySwitchClearsProductText("fnb", "fnb")).toBe(false);
+    expect(industrySwitchClearsProductText("fnb", "fashion")).toBe(true);
   });
 });
