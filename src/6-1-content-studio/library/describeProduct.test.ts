@@ -58,7 +58,7 @@ describe("catalog photo draft", () => {
     });
     expect(prompt).toContain("Do not invent a price");
     expect(prompt).toContain("Bahasa Indonesia");
-    expect(prompt).toContain("main: Main Subject");
+    expect(prompt).toContain("main: Hidangan utama");
   });
 
   it("does not write catalog rows from the edge function", () => {

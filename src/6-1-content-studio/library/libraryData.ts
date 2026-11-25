@@ -5,12 +5,12 @@
 
 /** F&B default — prefer org `catalog_menu_field_defs` via resolveMenuFields(). */
 export const MENU_FIELDS: [key: string, label: string][] = [
-  ["main", "Main Subject"],
-  ["topping", "Signature Topping"],
-  ["garnish", "Side Garnishes"],
-  ["presentation", "Presentation"],
-  ["sauce", "Dipping Sauce"],
-  ["larangan", "Larangan (must NOT)"],
+  ["main", "Hidangan utama"],
+  ["topping", "Topping khas"],
+  ["garnish", "Pelengkap"],
+  ["presentation", "Penyajian"],
+  ["sauce", "Saus"],
+  ["larangan", "Larangan"],
   ["khusus", "Aturan khusus"],
 ];
 

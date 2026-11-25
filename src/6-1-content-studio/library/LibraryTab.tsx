@@ -247,7 +247,7 @@ function Detail({
       {describeError ? <div className="empty">{describeError}</div> : null}
       <div className="sub">
         {kind === "menu"
-          ? "Deskripsi produk untuk bagian Main Subject di prompt Flow."
+          ? `Deskripsi produk untuk bagian ${menuFields.find(([key]) => key === "main")?.[1] ?? "Hidangan utama"} di prompt Flow.`
           : `Label untuk Anthropic: ${"label" in x ? x.label : x.nama}. Judul ini untuk prompt Flow.`}
       </div>
       {!isFilled(x) ? (
