@@ -9,6 +9,7 @@ import {
   parseMediaDone,
   routePath,
   sha256Hex,
+  versionOlderThan,
 } from "./logic.ts";
 
 const TOKEN = "sk_agent_d7e26bf5_d0f976f02de1da33970762164b0fab9a76976c1bc4872210";
@@ -63,4 +64,14 @@ Deno.test("footage request parsers", () => {
   assertEquals(parseMediaDone({ asset_id: DEVICE, scene_ids: ["x"] }), null);
   assertEquals(mapRpcError("ERROR: file_key_taken"), { status: 409, code: "file_key_taken" });
   assertEquals(mapRpcError("boom").status, 500);
+});
+
+Deno.test("version floor stays open until a self-updating release is installed", () => {
+  assertEquals(versionOlderThan("0.1.10", "0.0.0"), false);
+  assertEquals(versionOlderThan(null, "0.0.0"), false);
+  assertEquals(versionOlderThan("0.1.11", "0.1.12"), true);
+  assertEquals(versionOlderThan("v0.1.12", "0.1.12"), false);
+  assertEquals(versionOlderThan("0.2.0", "0.1.12"), false);
+  assertEquals(versionOlderThan(null, "0.1.12"), true);
+  assertEquals(versionOlderThan("bukan-versi", "0.1.12"), true);
 });

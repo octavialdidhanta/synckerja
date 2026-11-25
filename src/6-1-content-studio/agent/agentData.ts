@@ -20,6 +20,7 @@ export interface AgentDeviceRow {
     tools: Record<string, unknown> | null;
     last_error: string | null;
     last_seen_at: string;
+    update_required?: boolean | null;
   } | null;
 }
 
