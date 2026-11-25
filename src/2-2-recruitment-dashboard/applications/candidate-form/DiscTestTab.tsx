@@ -244,10 +244,10 @@ export function DiscTestTab({ candidateProfileId, recruitmentToken, onTestComple
   const renderDiscResultContent = () => {
     if (!scores) return null;
     const { description, jobMatch, level, caveats } = getDiscResultFromScores(scores);
-    const d = Number(scores.score_d) ?? 0;
-    const i = Number(scores.score_i) ?? 0;
-    const s = Number(scores.score_s) ?? 0;
-    const c = Number(scores.score_c) ?? 0;
+    const d = Number(scores.score_d) || 0;
+    const i = Number(scores.score_i) || 0;
+    const s = Number(scores.score_s) || 0;
+    const c = Number(scores.score_c) || 0;
     return (
       <>
         <div className="flex flex-wrap gap-3 text-sm">
@@ -281,10 +281,10 @@ export function DiscTestTab({ candidateProfileId, recruitmentToken, onTestComple
   if (existingStatus === 'submitted' && phase === 'submitted') {
     if (isHRView && scores) {
       const { description, jobMatch, level, caveats } = getDiscResultFromScores(scores);
-      const d = Number(scores.score_d) ?? 0;
-      const i = Number(scores.score_i) ?? 0;
-      const s = Number(scores.score_s) ?? 0;
-      const c = Number(scores.score_c) ?? 0;
+      const d = Number(scores.score_d) || 0;
+      const i = Number(scores.score_i) || 0;
+      const s = Number(scores.score_s) || 0;
+      const c = Number(scores.score_c) || 0;
       return (
         <Card>
           <CardHeader>
