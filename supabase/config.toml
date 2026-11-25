@@ -110,6 +110,9 @@ verify_jwt = false
 [functions.describe-catalog-product]
 verify_jwt = false
 
+[functions.describe-catalog-location]
+verify_jwt = false
+
 [functions.generate-brief-video]
 verify_jwt = false
 

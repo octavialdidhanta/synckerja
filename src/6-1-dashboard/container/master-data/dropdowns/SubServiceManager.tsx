@@ -1,12 +1,14 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 import { Button } from '@/shared/components/ui/button';
 import { EllipsisVertical, Plus, Edit, Trash2, Lock, Search, ImagePlus, X } from 'lucide-react';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 
+import { dropEmptyCatalogMenusForSubcategory } from '@/6-1-content-studio/library/dropEmptyLinkedMenu';
 import { useMasterData } from '../../../hook/useMasterData';
 import { SubService, Service } from '../../../types/social-media';
 import {
@@ -51,6 +53,7 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
   const [listPhotoUrls, setListPhotoUrls] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { organizationId } = useCurrentOrg();
+  const queryClient = useQueryClient();
   const { loading, fetchData, addData, updateData, deleteData } = useMasterData('sub_services');
   const pendingPreviewUrl = useMemo(
     () => (pendingFile ? URL.createObjectURL(pendingFile) : null),
@@ -136,6 +139,16 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
 
   const handleDelete = useCallback(async (item: SubService) => {
     if (window.confirm(`Are you sure you want to delete "${item.name}"?`)) {
+      if (organizationId) {
+        try {
+          await dropEmptyCatalogMenusForSubcategory(organizationId, item.id);
+        } catch (error) {
+          console.error('Failed to remove the empty Content Studio product', error);
+          toast.error('Gagal menghapus produk Content Studio yang masih kosong.');
+          setIsOpen(false);
+          return;
+        }
+      }
       const success = await deleteData(item.id, item.name);
       if (success) {
         if (item.image_path) {
@@ -147,10 +160,12 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
         }
         await loadSubServices();
         onDataChange();
+        await queryClient.invalidateQueries({ queryKey: ['content-studio', 'library'] });
+        await queryClient.invalidateQueries({ queryKey: ['content-studio', 'footage'] });
       }
     }
     setIsOpen(false);
-  }, [deleteData, loadSubServices, onDataChange]);
+  }, [deleteData, loadSubServices, onDataChange, organizationId, queryClient]);
 
   const handleSave = useCallback(async () => {
     const name = draftName.trim();
