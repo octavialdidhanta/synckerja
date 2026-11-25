@@ -10,6 +10,8 @@ import {
   parseMediaDone,
   routePath,
   sha256Hex,
+  AGENT_MIN_VERSION,
+  versionOlderThan,
 } from "./logic.ts";
 import { AgentReleaseError, latestAgentRelease } from "../_shared/agentRelease.ts";
 
@@ -23,6 +25,8 @@ import { AgentReleaseError, latestAgentRelease } from "../_shared/agentRelease.t
  *   GET  /v1/whoami      → organization, scopes, token expiry
  *   POST /v1/heartbeat   → { device_name, agent_version, platform, tools, last_error } + X-Agent-Device: <uuid>
  *   GET  /v1/release     → { version, zip_url } latest Agent release; zip_url is GitHub's pre-signed link (minutes)
+ *   Work routes answer 426 update_required when X-Agent-Version is below AGENT_MIN_VERSION.
+ *   The floor is 0.0.0 until a self-updating release is installed, so current laptops are not rejected.
  *
  * Footage (scope "catalog"), step 3: the Agent adds inbox clips, and moves a hidden clip out of the watched folder.
  *   POST /v1/footage/check         { file_keys }                    → which already exist
@@ -125,6 +129,7 @@ Deno.serve(async (req) => {
       const parsed = parseHeartbeat(body, req.headers.get("X-Agent-Device"));
       if (!parsed.ok) return fail(400, "invalid_input", parsed.error);
       const h = parsed.value;
+      const outdated = versionOlderThan(h.agentVersion, AGENT_MIN_VERSION);
       const { data, error } = await admin.rpc("agent_heartbeat", {
         p_token_id: ctx.tokenId,
         p_device_key: h.deviceKey,
@@ -140,7 +145,26 @@ Deno.serve(async (req) => {
         console.error("agent_heartbeat failed", error.message);
         return fail(500, "internal_error", "Gagal simpan heartbeat.");
       }
-      return json({ ok: true, ...(data as Record<string, unknown>) });
+      const marked = await admin.from("agent_devices").update({ update_required: outdated }).eq("device_key", h.deviceKey);
+      if (marked.error) console.error("update_required", marked.error.message);
+      return json({
+        ok: true,
+        ...(data as Record<string, unknown>),
+        update_required: outdated,
+        min_version: AGENT_MIN_VERSION,
+      });
+    }
+
+    if (versionOlderThan(req.headers.get("X-Agent-Version"), AGENT_MIN_VERSION)) {
+      return json(
+        {
+          ok: false,
+          code: "update_required",
+          message: "Agent ini perlu memasang rilis yang lebih baru.",
+          min_version: AGENT_MIN_VERSION,
+        },
+        426,
+      );
     }
 
     if (req.method === "GET" && path === "/v1/footage/file-tasks") {

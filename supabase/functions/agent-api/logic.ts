@@ -97,6 +97,33 @@ export function isUuid(v: unknown): v is string {
   return typeof v === "string" && UUID.test(v);
 }
 
+/**
+ * Oldest Agent allowed to scan footage and render.
+ * 0.0.0 accepts every version, including laptops that do not send X-Agent-Version.
+ * Raise this only after a release that installs the next one by itself is already on those laptops.
+ * Raising it sooner stops 0.1.10 and 0.1.11, and those builds do not install a newer release on their own.
+ */
+export const AGENT_MIN_VERSION = "0.0.0";
+
+export function versionParts(version: string | null | undefined): [number, number, number] | null {
+  if (typeof version !== "string") return null;
+  const match = /^v?(\d+)\.(\d+)\.(\d+)/i.exec(version.trim());
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+/** True when the laptop is older than the floor. A floor of 0.0.0 never rejects. A missing version is old only once a real floor is set. */
+export function versionOlderThan(version: string | null | undefined, minVersion: string): boolean {
+  const floor = versionParts(minVersion);
+  if (!floor || (floor[0] === 0 && floor[1] === 0 && floor[2] === 0)) return false;
+  const current = versionParts(version);
+  if (!current) return true;
+  for (let i = 0; i < 3; i++) {
+    if (current[i] !== floor[i]) return current[i]! < floor[i]!;
+  }
+  return false;
+}
+
 /** Postgres RAISE codes → HTTP status + code the Agent understands. */
 export function mapRpcError(message: string): { status: number; code: string } {
   for (const [needle, status] of [

@@ -224,6 +224,7 @@ export function AgentTab({ headLeft }: Props) {
                         <span className={online ? "pill-status" : "pill-status off"}>
                           {link === "online" ? "Online" : link === "terputus" ? "Terputus" : "Offline"}
                         </span>
+                        {d.update_required ? <span className="pill-status off">Perlu diperbarui</span> : null}
                       </div>
                       <div className="dev-side">
                         <span className="dev-meta" title={d.platform ?? undefined}>
@@ -245,6 +246,9 @@ export function AgentTab({ headLeft }: Props) {
                         ))}
                       </div>
                     )}
+                    {d.update_required ? (
+                      <p className="note">Pemindaian footage berhenti sampai laptop ini memasang rilis yang diminta.</p>
+                    ) : null}
                     {missing.length > 0 && (
                       <p className="note">Belum lengkap: {missing.map((t) => toolLabel(t.key)).join(", ")}.</p>
                     )}

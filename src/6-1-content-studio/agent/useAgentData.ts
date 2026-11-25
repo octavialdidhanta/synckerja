@@ -23,7 +23,7 @@ export function useAgentDevices() {
       const { data, error } = await db()
         .from("agent_device_orgs")
         .select(
-          "device_id,last_seen_at,token_id,agent_devices(id,name,agent_version,platform,tools,last_error,last_seen_at),agent_tokens!agent_device_orgs_token_id_fkey(revoked_at,expires_at)",
+          "device_id,last_seen_at,token_id,agent_devices(id,name,agent_version,platform,tools,last_error,last_seen_at,update_required),agent_tokens!agent_device_orgs_token_id_fkey(revoked_at,expires_at)",
         )
         .eq("organization_id", organizationId)
         .order("last_seen_at", { ascending: false });
