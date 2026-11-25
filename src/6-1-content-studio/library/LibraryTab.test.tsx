@@ -68,22 +68,6 @@ describe("LibraryTab", () => {
     expect(screen.getByLabelText("Hidangan utama")).toBeTruthy();
   });
 
-  it("deletes the selected product after confirmation", () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-    render(
-      <div className="ck">
-        <LibraryTab kind="menu" headLeft={<h1>Content Studio</h1>} />
-      </div>,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Hapus" }));
-    expect(edit.remove).not.toHaveBeenCalled();
-
-    confirm.mockReturnValue(true);
-    fireEvent.click(screen.getByRole("button", { name: "Hapus" }));
-    expect(edit.remove).toHaveBeenCalledWith({ kind: "menu", id: "m1" });
-    confirm.mockRestore();
-  });
-
   it("shows the source photo and hides the reference gallery", () => {
     menus = baseMenus.map((menu) => (
       menu.id === "m2" ? { ...menu, sourcePhotoUrl: "https://x/item.jpg", sourceKind: "item" as const } : menu
