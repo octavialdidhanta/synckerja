@@ -3,12 +3,12 @@
 export const FIELD_BODY_MAX = 4000;
 
 export const FALLBACK_MENU_FIELDS: { key: string; label: string; position: number }[] = [
-  { key: "main", label: "Main Subject", position: 1 },
-  { key: "topping", label: "Signature Topping", position: 2 },
-  { key: "garnish", label: "Side Garnishes", position: 3 },
-  { key: "presentation", label: "Presentation", position: 4 },
-  { key: "sauce", label: "Dipping Sauce", position: 5 },
-  { key: "larangan", label: "Larangan (must NOT)", position: 6 },
+  { key: "main", label: "Hidangan utama", position: 1 },
+  { key: "topping", label: "Topping khas", position: 2 },
+  { key: "garnish", label: "Pelengkap", position: 3 },
+  { key: "presentation", label: "Penyajian", position: 4 },
+  { key: "sauce", label: "Saus", position: 5 },
+  { key: "larangan", label: "Larangan", position: 6 },
   { key: "khusus", label: "Aturan khusus", position: 7 },
 ];
 

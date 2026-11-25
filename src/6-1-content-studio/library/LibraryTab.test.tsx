@@ -54,7 +54,7 @@ describe("LibraryTab", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Tambah produk" }));
     expect(screen.getByLabelText("Nama")).toBeTruthy();
-    expect(screen.getByLabelText("Main Subject")).toBeTruthy();
+    expect(screen.getByLabelText("Hidangan utama")).toBeTruthy();
   });
 
   it("shows location photo descriptions and always-on sections", () => {
