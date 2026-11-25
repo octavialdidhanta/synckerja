@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CatalogEditor } from "./catalogEditor";
 import { linkedProductName } from "./catalogEdit";
-import { isFilled, resolveMenuFields, type LibraryPhoto, type LocationItem, type MenuItem } from "./libraryData";
+import { isFilled, menuHasPhoto, resolveMenuFields, type LibraryPhoto, type LocationItem, type MenuItem } from "./libraryData";
 import { useCatalogEdit } from "./useCatalogEdit";
 import { useLibraryData } from "./useLibraryData";
 
@@ -23,6 +23,9 @@ export function LibraryTab({ kind, headLeft }: Props) {
   const [sel, setSel] = useState<string | null>(null);
   const [zoom, setZoom] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | "new" | null>(null);
+  const [draft, setDraft] = useState<Record<string, string> | null>(null);
+  const [describing, setDescribing] = useState(false);
+  const [describeError, setDescribeError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!items.length) return;
@@ -45,6 +48,22 @@ export function LibraryTab({ kind, headLeft }: Props) {
   const takenSlugs = [...(data?.menus ?? []), ...(data?.locations ?? [])].map((item) => item.externalId);
   const sources = data?.sources ?? [];
   const linkMode = data?.industryTemplateCode === "fnb" ? "item" : data?.industryTemplateCode === "software" ? "feature" : "manual";
+
+  const fillFromPhoto = async (menu: MenuItem) => {
+    if (!menuHasPhoto(menu) || describing) return;
+    setDescribeError(null);
+    setDescribing(true);
+    try {
+      const { describeCatalogProduct } = await import("./describeProduct");
+      const fields = await describeCatalogProduct(menu.id);
+      setDraft(fields);
+      setEditing(menu.id);
+    } catch (err) {
+      setDescribeError(err instanceof Error && err.message ? err.message : "Gagal membaca foto.");
+    } finally {
+      setDescribing(false);
+    }
+  };
 
   return (
     <>
@@ -79,7 +98,7 @@ export function LibraryTab({ kind, headLeft }: Props) {
         <div className="pmr">
           {editing ? (
             <CatalogEditor
-              key={editing}
+              key={`${editing}:${draft ? "draft" : "edit"}`}
               kind={kind}
               menu={editingMenu}
               location={editingLocation}
@@ -87,14 +106,17 @@ export function LibraryTab({ kind, headLeft }: Props) {
               linkMode={linkMode}
               sources={sources}
               menus={data?.menus ?? []}
+              draftFields={draft}
               saving={edit.saving}
               error={edit.error}
               onCancel={() => {
                 edit.reset();
+                setDraft(null);
                 setEditing(null);
               }}
               onSaved={(id) => {
                 setSel(id);
+                setDraft(null);
                 setEditing(null);
               }}
               onSaveMenu={(input) => edit.saveMenu({ ...input, takenSlugs })}
@@ -110,8 +132,13 @@ export function LibraryTab({ kind, headLeft }: Props) {
               menuFields={menuFields}
               onEdit={() => {
                 edit.reset();
+                setDraft(null);
+                setDescribeError(null);
                 setEditing(x.id);
               }}
+              describing={describing}
+              describeError={describeError}
+              onDescribe={"fields" in x ? () => void fillFromPhoto(x) : undefined}
             />
           ) : data && !items.length ? (
             <div className="sub">{kind === "menu" ? "Belum ada produk." : "Belum ada lokasi."}</div>
@@ -185,6 +212,9 @@ function Detail({
   onZoom,
   menuFields,
   onEdit,
+  describing,
+  describeError,
+  onDescribe,
 }: {
   kind: Kind;
   x: MenuItem | LocationItem;
@@ -193,16 +223,28 @@ function Detail({
   onZoom: (u: string) => void;
   menuFields: [string, string][];
   onEdit: () => void;
+  describing?: boolean;
+  describeError?: string | null;
+  onDescribe?: () => void;
 }) {
   const title = "fields" in x ? linkedProductName(x, sources) : x.nama;
+  const canDescribe = "fields" in x && menuHasPhoto(x);
   return (
     <>
       <div className="list-head">
         <h2 style={{ margin: 0 }}>{title}</h2>
-        <button type="button" className="hb ghost" onClick={onEdit}>
-          Ubah
-        </button>
+        <span>
+          {onDescribe ? (
+            <button type="button" className="hb ghost" disabled={!canDescribe || describing} onClick={onDescribe}>
+              {describing ? "Membaca foto…" : "Isi dari foto"}
+            </button>
+          ) : null}{" "}
+          <button type="button" className="hb ghost" onClick={onEdit}>
+            Ubah
+          </button>
+        </span>
       </div>
+      {describeError ? <div className="empty">{describeError}</div> : null}
       <div className="sub">
         {kind === "menu"
           ? "Deskripsi produk untuk bagian Main Subject di prompt Flow."
@@ -217,7 +259,7 @@ function Detail({
         <div className="ph">
           <figure>
             <img src={x.sourcePhotoUrl} alt="" />
-            <figcaption>Foto dari Item Library</figcaption>
+            <figcaption>{x.sourceKind === "subcategory" ? "Foto dari content plan" : "Foto dari Item Library"}</figcaption>
           </figure>
         </div>
       ) : null}

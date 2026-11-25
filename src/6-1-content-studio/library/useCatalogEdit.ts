@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
+import { isMissingRelationError } from "../shared/catalogQuery";
 import { catalogSlug, uniqueCatalogSlug } from "./catalogEdit";
 
 export interface MenuFieldInput {
@@ -17,6 +18,7 @@ interface SaveMenuInput {
   takenSlugs: string[];
   defaultPriceId?: string | null;
   featureId?: string | null;
+  subServiceId?: string | null;
   /** Attaching a source must not wipe a description that is already stored. */
   fillOnly?: boolean;
 }
@@ -100,25 +102,32 @@ export function useCatalogEdit() {
       const source = {
         ...(input.defaultPriceId ? { default_price_id: input.defaultPriceId } : {}),
         ...(input.featureId ? { feature_id: input.featureId } : {}),
+        ...(input.subServiceId ? { sub_service_id: input.subServiceId } : {}),
       };
-      let id = input.id;
-      if (!id) {
-        const slug = uniqueCatalogSlug(catalogSlug(name), input.takenSlugs);
-        const { data, error } = await supabase
+      const writeMenu = async (link: Record<string, string>) => {
+        if (!input.id) {
+          const slug = uniqueCatalogSlug(catalogSlug(name), input.takenSlugs);
+          return supabase
+            .from("catalog_menus")
+            .insert({ organization_id: org, external_id: slug, name, aliases: input.aliases, ...link })
+            .select("id")
+            .single();
+        }
+        const updated = await supabase
           .from("catalog_menus")
-          .insert({ organization_id: org, external_id: slug, name, aliases: input.aliases, ...source })
-          .select("id")
-          .single();
-        if (error) throw error;
-        id = data.id;
-      } else {
-        const { error } = await supabase
-          .from("catalog_menus")
-          .update({ name, aliases: input.aliases, ...source })
+          .update({ name, aliases: input.aliases, ...link })
           .eq("organization_id", org)
-          .eq("id", id);
-        if (error) throw error;
+          .eq("id", input.id);
+        return { data: { id: input.id }, error: updated.error };
+      };
+      let saved = await writeMenu(source);
+      if (saved.error && input.subServiceId && isMissingRelationError(saved.error)) {
+        const { sub_service_id: _subServiceId, ...withoutSub } = source;
+        void _subServiceId;
+        saved = await writeMenu(withoutSub);
       }
+      if (saved.error || !saved.data?.id) throw saved.error ?? new Error("Gagal menyimpan.");
+      const id = saved.data.id;
       await writeMenuFields(org, id, input.fields, Boolean(input.fillOnly));
       return id;
     },

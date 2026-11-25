@@ -47,14 +47,17 @@ export interface MenuItem {
   fields: Record<string, string>;
   defaultPriceId: string | null;
   featureId: string | null;
-  /** Signed Item Library photo. Not copied into the Flow prompt photos. */
+  subServiceId: string | null;
+  /** Signed source photo. Not copied into the Flow prompt photos. */
   sourcePhotoUrl: string | null;
+  sourceKind: "item" | "feature" | "subcategory" | null;
 }
 
 export interface CatalogSource {
   id: string;
   name: string;
   photoPath: string | null;
+  kind: "item" | "feature" | "subcategory";
 }
 
 export interface LocationSection {
@@ -81,6 +84,7 @@ export interface MenuRow {
   created_at: string;
   default_price_id?: string | null;
   feature_id?: string | null;
+  sub_service_id?: string | null;
 }
 export interface MenuFieldRow {
   menu_id: string;
@@ -142,7 +146,9 @@ export function buildMenus(menus: MenuRow[], fields: MenuFieldRow[], photos: Men
         fields: f,
         defaultPriceId: m.default_price_id ?? null,
         featureId: m.feature_id ?? null,
+        subServiceId: m.sub_service_id ?? null,
         sourcePhotoUrl: null,
+        sourceKind: null,
         fotos: photos
           .filter((p) => p.menu_id === m.id)
           .sort(byPos)
@@ -181,6 +187,11 @@ export function buildLocations(
         .sort(byPos)
         .map((s) => ({ judul: s.title, isi: s.body, area: s.areas ?? [] })),
     }));
+}
+
+/** A reference photo or a linked Item Library photo is enough to ask Gemini for a draft. */
+export function menuHasPhoto(menu: MenuItem): boolean {
+  return Boolean(menu.sourcePhotoUrl) || menu.fotos.some((photo) => Boolean(photo.storagePath));
 }
 
 /** katalog.html filled(): a menu needs one field; a location needs a section body or a photo description. */

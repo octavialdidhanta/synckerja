@@ -2,7 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { signCatalogProductPhotos } from "@/8-2-1-default-prices/lib/catalogProductPhoto";
+import { signSubServicePhotos } from "@/6-1-dashboard/lib/subServicePhoto";
 import { isMissingRelationError, readAll, readAllOptional, signCatalogMedia } from "../shared/catalogQuery";
+import { sourceForMenu, studioProductSources } from "./catalogEdit";
 import {
   buildLocations,
   buildMenus,
@@ -28,14 +30,20 @@ export interface LibraryData {
 }
 
 const MENU_COLUMNS = "id,external_id,name,aliases,created_at,default_price_id,feature_id";
+const MENU_COLUMNS_WITH_SUB = `${MENU_COLUMNS},sub_service_id`;
 
 /** Source columns arrive with the link migration. Until then every product is typed by hand. */
 async function readMenus(org: string): Promise<MenuRow[]> {
   try {
-    return await readAll<MenuRow>(supabase, "catalog_menus", MENU_COLUMNS, org);
+    return await readAll<MenuRow>(supabase, "catalog_menus", MENU_COLUMNS_WITH_SUB, org);
   } catch (error) {
     if (!isMissingRelationError(error)) throw error;
-    return readAll<MenuRow>(supabase, "catalog_menus", "id,external_id,name,aliases,created_at", org);
+    try {
+      return await readAll<MenuRow>(supabase, "catalog_menus", MENU_COLUMNS, org);
+    } catch (again) {
+      if (!isMissingRelationError(again)) throw again;
+      return readAll<MenuRow>(supabase, "catalog_menus", "id,external_id,name,aliases,created_at", org);
+    }
   }
 }
 
@@ -54,26 +62,36 @@ async function readTemplateCode(org: string): Promise<string | null> {
 
 async function readSources(org: string, template: string | null): Promise<CatalogSource[]> {
   if (template === "fnb") {
-    const { data, error } = await supabase
-      .from("default_prices")
-      .select("id,name,photo_path")
-      .eq("organization_id", org)
-      .eq("kind", "product");
-    if (error) {
-      if (isMissingRelationError(error)) return [];
-      throw error;
+    const [products, subcategories] = await Promise.all([
+      supabase.from("default_prices").select("id,name,photo_path").eq("organization_id", org).eq("kind", "product").order("name"),
+      supabase
+        .from("sub_services")
+        .select("id,name,image_path,catalog_product_id")
+        .eq("organization_id", org)
+        .eq("is_active", true)
+        .order("name"),
+    ]);
+    if (products.error) {
+      if (isMissingRelationError(products.error)) return [];
+      throw products.error;
     }
-    return (data ?? []).flatMap((row) => {
-      const name = (row.name ?? "").trim();
-      if (!name) return [];
-      return [{ id: row.id, name, photoPath: row.photo_path ?? null }];
-    });
+    if (subcategories.error && !isMissingRelationError(subcategories.error)) throw subcategories.error;
+    return studioProductSources(
+      (products.data ?? []).map((row) => ({ id: row.id, name: row.name ?? "", photoPath: row.photo_path ?? null })),
+      (subcategories.data ?? []).map((row) => ({
+        id: row.id,
+        name: row.name ?? "",
+        photoPath: row.image_path ?? null,
+        catalogProductId: row.catalog_product_id ?? null,
+      })),
+    );
   }
   if (template === "software") {
     const { data, error } = await supabase
       .from("product_knowledge_features")
       .select("id,feature_name")
-      .eq("organization_id", org);
+      .eq("organization_id", org)
+      .order("feature_name");
     if (error) {
       if (isMissingRelationError(error)) return [];
       throw error;
@@ -81,7 +99,7 @@ async function readSources(org: string, template: string | null): Promise<Catalo
     return (data ?? []).flatMap((row) => {
       const name = row.feature_name.trim();
       if (!name) return [];
-      return [{ id: row.id, name, photoPath: null }];
+      return [{ id: row.id, name, photoPath: null, kind: "feature" as const }];
     });
   }
   return [];
@@ -125,13 +143,19 @@ export function useLibraryData() {
         readSources(org, template),
       ]);
       const paths = [...menuPhotos, ...locPhotos].map((p) => p.storage_path).filter((p): p is string => Boolean(p));
-      const [photos, sourcePhotos] = await Promise.all([
+      const [photos, itemPhotos, subPhotos] = await Promise.all([
         signCatalogMedia(supabase, paths),
-        signCatalogProductPhotos(sources.map((source) => source.photoPath ?? "")),
+        signCatalogProductPhotos(sources.filter((source) => source.kind !== "subcategory").map((source) => source.photoPath ?? "")),
+        signSubServicePhotos(sources.filter((source) => source.kind === "subcategory").map((source) => source.photoPath ?? "")),
       ]);
+      const sourcePhotos = new Map<string, string>([...itemPhotos, ...subPhotos]);
       const menus = buildMenus(menuRows, fields, menuPhotos).map((menu) => {
-        const source = sources.find((item) => item.id === menu.defaultPriceId);
-        return { ...menu, sourcePhotoUrl: source?.photoPath ? (sourcePhotos.get(source.photoPath) ?? null) : null };
+        const source = sourceForMenu(menu, sources);
+        return {
+          ...menu,
+          sourceKind: source?.kind ?? null,
+          sourcePhotoUrl: source?.photoPath ? (sourcePhotos.get(source.photoPath) ?? null) : null,
+        };
       });
       return {
         menus,

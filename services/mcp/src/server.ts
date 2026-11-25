@@ -135,6 +135,9 @@ import {
   previewCatalogStyleUpdate,
   getCatalogLocation,
   getCatalogProduct,
+  withCatalogPhotoUrls,
+  loadProductFieldMenu,
+  applyCatalogProductFields,
   previewCatalogMediaDelete,
   previewCatalogMediaRestore,
   getCatalogPrompts,
@@ -149,6 +152,7 @@ import {
   listCatalogReferences,
   listCatalogShotJobs,
 } from "./db/catalog";
+import { defsFromSettings } from "./tools/catalog/productFields";
 import { checkHabit, listHabits } from "./db/habits";
 import { attachTaskStepImage } from "./db/stepImages";
 import { switchConnectorOrganization } from "./db/connectorSession";
@@ -290,7 +294,20 @@ const app = createApp({
   getFootageThumb: (ctx, storagePath) => downloadFootageThumb(admin, ctx, storagePath),
   listFootageBans: (ctx) => listFootageBans(admin, ctx),
   listCatalogProducts: (ctx) => listCatalogProducts(admin, ctx),
-  getCatalogProduct: (ctx, address) => getCatalogProduct(admin, ctx, address),
+  getCatalogProduct: async (ctx, address) => withCatalogPhotoUrls(admin, await getCatalogProduct(admin, ctx, address)),
+  loadProductFieldContext: async (ctx, address) => {
+    const loaded = await loadProductFieldMenu(admin, ctx, address);
+    return {
+      menuId: loaded.menuId,
+      name: loaded.name,
+      allowed: defsFromSettings(loaded.settings),
+      current: loaded.current.map((field) => ({ key: field.key, body: field.body })),
+    };
+  },
+  applyCatalogProductFields: async (ctx, write, confirmId) => {
+    const settings = await getCatalogSettings(admin, ctx);
+    return applyCatalogProductFields(admin, ctx, write, confirmId, defsFromSettings(settings));
+  },
   listCatalogLocations: (ctx) => listCatalogLocations(admin, ctx),
   getCatalogLocation: (ctx, address) => getCatalogLocation(admin, ctx, address),
   getCatalogStyle: (ctx) => getCatalogStyle(admin, ctx),

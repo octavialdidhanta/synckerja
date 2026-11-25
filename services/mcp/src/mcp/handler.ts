@@ -338,6 +338,9 @@ import {
   listCatalogProductsResult,
   getCatalogProductInput,
   getCatalogProductResult,
+  previewProductFieldsInput,
+  previewProductFieldsResult,
+  applyProductFieldsResult,
   listCatalogLocationsInput,
   listCatalogLocationsResult,
   getCatalogLocationInput,
@@ -818,6 +821,15 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     address: import("../db/catalog").CatalogAddress,
   ) => Promise<import("../db/catalog").CatalogProduct>;
+  loadProductFieldContext: (
+    ctx: McpAuthContext,
+    address: { id?: string; name?: string },
+  ) => Promise<import("../tools/catalog/productFields").ProductFieldContext>;
+  applyCatalogProductFields: (
+    ctx: McpAuthContext,
+    write: { menuId: string; fields: { key: string; body: string }[] },
+    confirmId: string,
+  ) => Promise<{ saved: boolean; id: string }>;
   listCatalogLocations: (ctx: McpAuthContext) => Promise<import("../db/catalog").CatalogLocationList>;
   getCatalogLocation: (
     ctx: McpAuthContext,
@@ -1056,6 +1068,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "footage.bans.list": listFootageBansInput,
   "catalog.products.list": listCatalogProductsInput,
   "catalog.product.get": getCatalogProductInput,
+  "catalog.product.fields.preview": previewProductFieldsInput,
+  "catalog.product.fields.update": confirmBriefInput,
   "catalog.locations.list": listCatalogLocationsInput,
   "catalog.location.get": getCatalogLocationInput,
   "catalog.style.get": getCatalogStyleInput,
@@ -1674,6 +1688,10 @@ async function runTool(
       return listCatalogProductsResult(ctx, args, deps.listCatalogProducts);
     case "catalog.product.get":
       return getCatalogProductResult(ctx, args, deps.getCatalogProduct);
+    case "catalog.product.fields.preview":
+      return previewProductFieldsResult(ctx, args, deps.loadProductFieldContext, deps.signContentConfirmation);
+    case "catalog.product.fields.update":
+      return applyProductFieldsResult(ctx, args, deps.verifyContentConfirmation, deps.applyCatalogProductFields);
     case "catalog.locations.list":
       return listCatalogLocationsResult(ctx, args, deps.listCatalogLocations);
     case "catalog.location.get":

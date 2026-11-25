@@ -8,7 +8,7 @@ import { SignJWT, jwtVerify } from "jose";
 export const CONTENT_CONFIRMATION_TTL_SECONDS = 15 * 60;
 const CONFIRMATION_TYPE = "mcp_content_confirmation";
 
-export type ContentConfirmableTool = "content.briefs.update";
+export type ContentConfirmableTool = "content.briefs.update" | "catalog.product.fields.update";
 
 export type ContentConfirmationIdentity = { userId: string; organizationId: string };
 

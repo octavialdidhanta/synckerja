@@ -151,6 +151,7 @@ export {
   listCatalogProductsInput,
   listCatalogProductsResult,
 } from "./catalog/products";
+export { previewProductFieldsInput, previewProductFieldsResult, applyProductFieldsResult } from "./catalog/productFields";
 export {
   getCatalogLocationInput,
   getCatalogLocationResult,
