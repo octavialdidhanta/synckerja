@@ -486,6 +486,15 @@ export type AppDeps = {
   listFootageBans: (ctx: McpAuthContext) => Promise<FootageBansResult>;
   listCatalogProducts: (ctx: McpAuthContext) => Promise<CatalogProductList>;
   getCatalogProduct: (ctx: McpAuthContext, address: CatalogAddress) => Promise<CatalogProduct>;
+  loadProductFieldContext: (
+    ctx: McpAuthContext,
+    address: { id?: string; name?: string },
+  ) => Promise<import("../tools/catalog/productFields").ProductFieldContext>;
+  applyCatalogProductFields: (
+    ctx: McpAuthContext,
+    write: { menuId: string; fields: { key: string; body: string }[] },
+    confirmId: string,
+  ) => Promise<{ saved: boolean; id: string }>;
   listCatalogLocations: (ctx: McpAuthContext) => Promise<CatalogLocationList>;
   getCatalogLocation: (ctx: McpAuthContext, address: CatalogAddress) => Promise<CatalogLocation>;
   getCatalogStyle: (ctx: McpAuthContext) => Promise<CatalogTextBlocks>;

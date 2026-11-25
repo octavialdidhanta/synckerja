@@ -10,6 +10,7 @@ interface Props {
   linkMode: "manual" | "item" | "feature";
   sources: CatalogSource[];
   menus: MenuItem[];
+  draftFields?: Record<string, string> | null;
   saving: boolean;
   error: unknown;
   onCancel: () => void;
@@ -20,6 +21,7 @@ interface Props {
     fields: { key: string; position: number; body: string }[];
     defaultPriceId?: string | null;
     featureId?: string | null;
+    subServiceId?: string | null;
     fillOnly?: boolean;
   }) => Promise<string>;
   onSaveLocation: (input: { id?: string; label: string; name: string }) => Promise<string>;
@@ -49,6 +51,7 @@ export function CatalogEditor({
   linkMode,
   sources,
   menus,
+  draftFields,
   saving,
   error,
   onCancel,
@@ -56,14 +59,14 @@ export function CatalogEditor({
   onSaveLocation,
   onSaved,
 }: Props) {
-  const linked = Boolean(menu?.defaultPriceId || menu?.featureId);
+  const linked = Boolean(menu?.defaultPriceId || menu?.featureId || menu?.subServiceId);
   const pickSource = kind === "menu" && !menu && linkMode !== "manual";
-  const choices = pickSource ? unlinkedSources(sources, menus, linkMode === "item" ? "item" : "feature") : [];
+  const choices = pickSource ? unlinkedSources(sources, menus) : [];
   const [sourceId, setSourceId] = useState("");
   const [name, setName] = useState(menu ? linkedProductName(menu, sources) : (location?.nama ?? ""));
   const [label, setLabel] = useState(location?.label ?? "");
   const [aliases, setAliases] = useState(menu?.aliases.join(", ") ?? "");
-  const [bodies, setBodies] = useState<Record<string, string>>(() => ({ ...(menu?.fields ?? {}) }));
+  const [bodies, setBodies] = useState<Record<string, string>>(() => ({ ...(menu?.fields ?? {}), ...(draftFields ?? {}) }));
   const [localError, setLocalError] = useState<string | null>(null);
 
   const save = async () => {
@@ -72,7 +75,7 @@ export function CatalogEditor({
       const picked = choices.find((item) => item.id === sourceId) ?? null;
       const productName = picked?.name ?? name;
       if (pickSource && !picked) {
-        setLocalError(linkMode === "item" ? "Pilih barang." : "Pilih feature.");
+        setLocalError(linkMode === "item" ? "Pilih produk." : "Pilih feature.");
         return;
       }
       const problem = productDraftError(productName);
@@ -85,7 +88,7 @@ export function CatalogEditor({
         setLocalError(parsed.error);
         return;
       }
-      const target = picked ? existingMenuForSource(picked.name, menus, linkMode === "item" ? "item" : "feature") : null;
+      const target = picked ? existingMenuForSource(picked.name, menus) : null;
       if (target && "error" in target) {
         setLocalError(target.error);
         return;
@@ -99,8 +102,9 @@ export function CatalogEditor({
           aliases: nextAliases,
           fillOnly: Boolean(attached),
           fields: fields.map(([key], index) => ({ key, position: index + 1, body: bodies[key] ?? "" })),
-          ...(picked && linkMode === "item" ? { defaultPriceId: picked.id } : {}),
-          ...(picked && linkMode === "feature" ? { featureId: picked.id } : {}),
+          ...(picked?.kind === "item" ? { defaultPriceId: picked.id } : {}),
+          ...(picked?.kind === "feature" ? { featureId: picked.id } : {}),
+          ...(picked?.kind === "subcategory" ? { subServiceId: picked.id } : {}),
         });
         onSaved(id);
       } catch (err) {
@@ -149,7 +153,7 @@ export function CatalogEditor({
         <>
           {pickSource ? (
             <>
-              <label htmlFor="catalog-source">{linkMode === "item" ? "Barang" : "Feature"}</label>
+              <label htmlFor="catalog-source">{linkMode === "item" ? "Produk" : "Feature"}</label>
               <select id="catalog-source" value={sourceId} onChange={(event) => setSourceId(event.target.value)}>
                 <option value="">{choices.length ? "Pilih…" : "Tidak ada yang bisa ditautkan"}</option>
                 {choices.map((item) => (
@@ -160,7 +164,7 @@ export function CatalogEditor({
               </select>
               <div className="sub">
                 {linkMode === "item"
-                  ? "Nama dan foto mengikuti Item Library. Harga dan stok tidak ikut."
+                  ? "Nama dan foto mengikuti Item Library atau subkategori di content plan. Harga dan stok tidak ikut."
                   : "Nama mengikuti feature di rencana konten."}
               </div>
             </>

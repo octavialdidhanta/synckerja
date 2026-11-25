@@ -46,34 +46,97 @@ export interface MenuLink {
   nama: string;
   defaultPriceId: string | null;
   featureId: string | null;
+  subServiceId?: string | null;
+}
+
+export interface StudioSourceInput {
+  id: string;
+  name: string;
+  photoPath: string | null;
+}
+
+export interface StudioSubcategoryInput extends StudioSourceInput {
+  catalogProductId: string | null;
+}
+
+export interface StudioSource extends StudioSourceInput {
+  kind: "item" | "feature" | "subcategory";
+}
+
+function namedSource(row: StudioSourceInput, kind: StudioSource["kind"]): StudioSource[] {
+  const name = row.name.trim();
+  if (!name) return [];
+  return [{ id: row.id, name, photoPath: row.photoPath, kind }];
+}
+
+/** Item Library products, plus content-plan subcategories that are not already a product. */
+export function studioProductSources(products: StudioSourceInput[], subcategories: StudioSubcategoryInput[]): StudioSource[] {
+  const items = products.flatMap((row) => namedSource(row, "item"));
+  const productKeys = new Set(items.map((row) => catalogNameKey(row.name)).filter(Boolean));
+  const subs = subcategories.flatMap((row) => {
+    if (row.catalogProductId) return [];
+    const source = namedSource(row, "subcategory");
+    const key = source[0] ? catalogNameKey(source[0].name) : "";
+    if (!key || productKeys.has(key)) return [];
+    return source;
+  });
+  return [...items, ...subs];
+}
+
+const TRAILING_PRICE_NOTE = /\s*\((?:rp\s*\d[\d.]*(?:[.,]\d+)?|\d[\d.]*(?:[.,]\d+)?\s*(?:k|rb))\s*\)\s*$/i;
+
+/** Compare catalog names without letter case or a trailing price note such as `(80K)`. */
+export function catalogNameKey(value: string): string {
+  return value.trim().toLowerCase().replace(TRAILING_PRICE_NOTE, "").trim();
 }
 
 /** Attach a source to the catalog row that already uses its name. A second row would give Anthropic two spellings. */
 export function existingMenuForSource(
   sourceName: string,
   menus: MenuLink[],
-  source: "item" | "feature",
 ): { menuId: string } | { create: true } | { error: string } {
-  const needle = sourceName.trim().toLowerCase();
-  const match = menus.find((menu) => menu.nama.trim().toLowerCase() === needle);
+  const needle = catalogNameKey(sourceName);
+  if (!needle) return { create: true };
+  const matches = menus.filter((menu) => catalogNameKey(menu.nama) === needle);
+  if (matches.length > 1) return { error: "Ada lebih dari satu produk dengan nama ini." };
+  const match = matches[0];
   if (!match) return { create: true };
-  const taken = source === "item" ? match.defaultPriceId || match.featureId : match.featureId || match.defaultPriceId;
-  if (taken) return { error: "Nama ini sudah tertaut." };
+  if (match.defaultPriceId || match.featureId || match.subServiceId) return { error: "Nama ini sudah tertaut." };
   return { menuId: match.id };
 }
 
-export function unlinkedSources<T extends { id: string }>(sources: T[], menus: MenuLink[], source: "item" | "feature"): T[] {
+export function unlinkedSources<T extends { id: string; name?: string; kind?: string }>(sources: T[], menus: MenuLink[]): T[] {
   const used = new Set(
-    menus.map((menu) => (source === "item" ? menu.defaultPriceId : menu.featureId)).filter((id): id is string => Boolean(id)),
+    menus.flatMap((menu) => [menu.defaultPriceId, menu.featureId, menu.subServiceId]).filter((id): id is string => Boolean(id)),
   );
-  return sources.filter((item) => !used.has(item.id));
+  const menuKeys = new Set(menus.map((menu) => catalogNameKey(menu.nama)).filter(Boolean));
+  return sources.filter((item) => {
+    if (used.has(item.id)) return false;
+    if (item.kind === "subcategory" && item.name && menuKeys.has(catalogNameKey(item.name))) return false;
+    return true;
+  });
+}
+
+export function sourceForMenu(
+  menu: { nama: string; defaultPriceId: string | null; featureId: string | null; subServiceId?: string | null },
+  sources: StudioSource[],
+): StudioSource | null {
+  const byId = sources.find((source) =>
+    (source.kind === "item" && source.id === menu.defaultPriceId)
+    || (source.kind === "feature" && source.id === menu.featureId)
+    || (source.kind === "subcategory" && source.id === menu.subServiceId));
+  if (byId) return byId;
+  if (menu.defaultPriceId || menu.featureId || menu.subServiceId) return null;
+  const key = catalogNameKey(menu.nama);
+  if (!key) return null;
+  return sources.find((source) => source.kind === "subcategory" && catalogNameKey(source.name) === key) ?? null;
 }
 
 export function linkedProductName(
-  menu: { nama: string; defaultPriceId: string | null; featureId: string | null },
+  menu: { nama: string; defaultPriceId: string | null; featureId: string | null; subServiceId?: string | null },
   sources: { id: string; name: string }[],
 ): string {
-  const id = menu.defaultPriceId ?? menu.featureId;
+  const id = menu.defaultPriceId ?? menu.featureId ?? menu.subServiceId;
   if (!id) return menu.nama;
   return sources.find((source) => source.id === id)?.name ?? menu.nama;
 }

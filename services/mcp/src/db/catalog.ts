@@ -28,7 +28,10 @@ export type CatalogProduct = {
     label: string;
     ref: string | null;
     position: number;
+    download_url?: string | null;
   }>;
+  /** False when no reference photo can be opened. Claude must not invent the plating. */
+  photo_visible?: boolean;
 };
 
 export type CatalogLocationSummary = {
@@ -83,6 +86,30 @@ export async function listCatalogProducts(admin: SupabaseClient, ctx: Session): 
     total: Number(row.total ?? 0),
     products: Array.isArray(row.products) ? row.products : [],
   };
+}
+
+const CATALOG_MEDIA_BUCKET = "catalog-media";
+const PHOTO_URL_SECONDS = 15 * 60;
+
+/** Signed read URLs for reference photos. A failure leaves the product text readable and photo_visible false. */
+export async function withCatalogPhotoUrls(admin: SupabaseClient, product: CatalogProduct): Promise<CatalogProduct> {
+  const paths = [...new Set(product.photos.map((photo) => photo.storage_path).filter((path): path is string => Boolean(path)))];
+  const urls = new Map<string, string>();
+  if (paths.length > 0) {
+    try {
+      const { data } = await admin.storage.from(CATALOG_MEDIA_BUCKET).createSignedUrls(paths, PHOTO_URL_SECONDS);
+      for (const row of data ?? []) {
+        if (row.path && row.signedUrl) urls.set(row.path, row.signedUrl);
+      }
+    } catch {
+      // The text is still useful when storage signing fails.
+    }
+  }
+  const photos = product.photos.map((photo) => ({
+    ...photo,
+    download_url: photo.storage_path ? (urls.get(photo.storage_path) ?? null) : null,
+  }));
+  return { ...product, photos, photo_visible: photos.some((photo) => Boolean(photo.download_url)) };
 }
 
 export async function getCatalogProduct(
@@ -456,4 +483,103 @@ export async function applyIndustryTemplate(
     ...sessionArgs(ctx),
     p_code: code,
   });
+}
+
+export async function loadProductFieldMenu(
+  admin: SupabaseClient,
+  ctx: Session,
+  address: CatalogAddress,
+): Promise<{ menuId: string; name: string; settings: unknown; current: CatalogProduct["fields"] }> {
+  const product = await getCatalogProduct(admin, ctx, address);
+  const settings = await getCatalogSettings(admin, ctx);
+  const { data, error } = await admin
+    .from("catalog_menus")
+    .select("id")
+    .eq("organization_id", ctx.organizationId)
+    .eq("external_id", product.id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data?.id) throw new Error("not_found");
+  return { menuId: data.id as string, name: product.name, settings, current: product.fields };
+}
+
+export async function applyCatalogProductFields(
+  admin: SupabaseClient,
+  ctx: Session,
+  write: { menuId: string; fields: { key: string; body: string }[] },
+  confirmId: string,
+  allowed: { key: string; position: number }[],
+): Promise<{ saved: boolean; id: string }> {
+  for (const field of write.fields) {
+    const body = field.body.trim();
+    if (!allowed.some((item) => item.key === field.key)) throw new Error("field_forbidden");
+    if (!body || body.length > 4000) throw new Error("confirmation_invalid");
+  }
+  const { data: menu, error: menuError } = await admin
+    .from("catalog_menus")
+    .select("id")
+    .eq("id", write.menuId)
+    .eq("organization_id", ctx.organizationId)
+    .maybeSingle();
+  if (menuError) throw new Error(menuError.message);
+  if (!menu) throw new Error("not_found");
+
+  const { data: existing, error: readError } = await admin
+    .from("catalog_menu_fields")
+    .select("field_key,position")
+    .eq("organization_id", ctx.organizationId)
+    .eq("menu_id", write.menuId);
+  if (readError) throw new Error(readError.message);
+  const rows = (existing ?? []) as { field_key: string; position: number }[];
+  const used = new Set(rows.map((row) => row.position));
+  let cursor = used.size ? Math.max(...rows.map((row) => row.position)) + 1 : 0;
+  const take = (preferred: number) => {
+    if (!used.has(preferred)) {
+      used.add(preferred);
+      return preferred;
+    }
+    while (used.has(cursor)) cursor += 1;
+    used.add(cursor);
+    const position = cursor;
+    cursor += 1;
+    return position;
+  };
+
+  for (const field of write.fields) {
+    const body = field.body.trim();
+    const current = rows.find((row) => row.field_key === field.key);
+    if (current) {
+      const { error } = await admin
+        .from("catalog_menu_fields")
+        .update({ body })
+        .eq("organization_id", ctx.organizationId)
+        .eq("menu_id", write.menuId)
+        .eq("field_key", field.key);
+      if (error) throw new Error(error.message);
+      continue;
+    }
+    const preferred = allowed.find((item) => item.key === field.key)?.position ?? cursor;
+    const { error } = await admin.from("catalog_menu_fields").insert({
+      organization_id: ctx.organizationId,
+      menu_id: write.menuId,
+      field_key: field.key,
+      body,
+      position: take(preferred),
+    });
+    if (error) throw new Error(error.message);
+  }
+
+  const { error: confirmError } = await admin.from("mcp_tool_confirmations").insert({
+    id: confirmId,
+    organization_id: ctx.organizationId,
+    user_id: ctx.userId,
+    tool: "catalog.product.fields.update",
+  });
+  if (confirmError) {
+    if (confirmError.code === "23505" || confirmError.message.includes("mcp_tool_confirmations_pkey")) {
+      throw new Error("confirmation_used");
+    }
+    throw new Error(confirmError.message);
+  }
+  return { saved: true, id: write.menuId };
 }

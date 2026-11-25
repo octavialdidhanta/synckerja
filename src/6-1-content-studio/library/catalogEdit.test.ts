@@ -3,6 +3,7 @@ import {
   catalogSlug,
   existingMenuForSource,
   linkedProductName,
+  studioProductSources,
   locationDraftError,
   parseAliases,
   productDraftError,
@@ -30,10 +31,46 @@ describe("catalog source link", () => {
   ];
 
   it("attaches a matching name and skips a source that is already linked", () => {
-    expect(existingMenuForSource("sate babi", menus, "item")).toEqual({ menuId: "m1" });
-    expect(existingMenuForSource("Teh", menus, "item")).toEqual({ create: true });
-    expect(existingMenuForSource("Kopi", menus, "item")).toEqual({ error: "Nama ini sudah tertaut." });
-    expect(unlinkedSources([{ id: "p1" }, { id: "p2" }], menus, "item").map((item) => item.id)).toEqual(["p2"]);
+    expect(existingMenuForSource("sate babi", menus)).toEqual({ menuId: "m1" });
+    expect(existingMenuForSource("Teh", menus)).toEqual({ create: true });
+    expect(existingMenuForSource("Kopi", menus)).toEqual({ error: "Nama ini sudah tertaut." });
+    expect(unlinkedSources([{ id: "p1", kind: "item" }, { id: "p2", kind: "item" }], menus).map((item) => item.id)).toEqual(["p2"]);
+  });
+
+  it("attaches a name that only adds a trailing price note", () => {
+    const priced = [
+      { id: "m3", nama: "Sop Kaki Kambing Kuah Susu (80K)", defaultPriceId: null, featureId: null },
+      { id: "m4", nama: "Gulai Kambing Mix", defaultPriceId: null, featureId: null },
+      { id: "m5", nama: "Sate Kambing Full Daging (74K)", defaultPriceId: null, featureId: null },
+    ];
+    expect(existingMenuForSource("Sop Kaki Kambing Kuah Susu", priced)).toEqual({ menuId: "m3" });
+    expect(existingMenuForSource("Gulai Kambing", priced)).toEqual({ create: true });
+    expect(existingMenuForSource("Sate Kambing Full Dading", priced)).toEqual({ create: true });
+  });
+
+  it("does not guess when two products collapse to the same name", () => {
+    const doubled = [
+      { id: "a", nama: "Sop (80K)", defaultPriceId: null, featureId: null },
+      { id: "b", nama: "Sop (90K)", defaultPriceId: null, featureId: null },
+    ];
+    expect(existingMenuForSource("Sop", doubled)).toEqual({ error: "Ada lebih dari satu produk dengan nama ini." });
+  });
+
+  it("shows a content-plan subcategory only when it is not already a product", () => {
+    const sources = studioProductSources(
+      [
+        { id: "p1", name: "Teh Kotak", photoPath: "item/teh.jpg" },
+        { id: "p2", name: "Nasi Putih (Lbs)", photoPath: null },
+      ],
+      [
+        { id: "s1", name: "Teh Kotak", photoPath: null, catalogProductId: "p1" },
+        { id: "s2", name: "test1", photoPath: "sub/test1.png", catalogProductId: null },
+        { id: "s3", name: "Nasi Putih", photoPath: null, catalogProductId: null },
+      ],
+    );
+    expect(sources.map((source) => source.name)).toEqual(["Teh Kotak", "Nasi Putih (Lbs)", "test1", "Nasi Putih"]);
+    const saved = [{ id: "m", nama: "test1", defaultPriceId: null, featureId: null, subServiceId: null }];
+    expect(unlinkedSources(sources, saved).map((source) => source.name)).toEqual(["Teh Kotak", "Nasi Putih (Lbs)", "Nasi Putih"]);
   });
 
   it("shows the live source name when a product is linked", () => {

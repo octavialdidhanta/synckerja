@@ -391,6 +391,8 @@ describe("phase 3 tool visibility", () => {
     expect(names).not.toContain("catalog.style.update");
     expect(names).not.toContain("catalog.reference.upsert");
     expect(names).not.toContain("catalog.shotlist.upsert");
+    expect(names).not.toContain("catalog.product.fields.preview");
+    expect(names).not.toContain("catalog.product.fields.update");
     expect(names).not.toContain("okr.objectives.create");
     expect(names).not.toContain("okr.objectives.update");
     expect(names).not.toContain("okr.objectives.department.create");
@@ -461,6 +463,8 @@ describe("phase 3 tool visibility", () => {
     expect(names).toContain("catalog.shotlist.upsert");
     expect(names).toContain("catalog.products.list");
     expect(names).toContain("catalog.product.get");
+    expect(names).toContain("catalog.product.fields.preview");
+    expect(names).toContain("catalog.product.fields.update");
     expect(names).toContain("catalog.locations.list");
     expect(names).toContain("catalog.location.get");
     expect(names).toContain("catalog.style.get");

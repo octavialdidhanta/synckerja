@@ -45,10 +45,12 @@ describe("LibraryTab", () => {
     expect(screen.getByText("siap")).toBeTruthy();
     expect(screen.getByText("menunggu deskripsi")).toBeTruthy();
     expect(screen.getByText("Sate babi bakar arang")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Isi dari foto" }) as HTMLButtonElement).disabled).toBe(true);
 
     fireEvent.click(screen.getByText("Iga bakar"));
     expect(screen.getByText("Foto referensi (1)")).toBeTruthy();
     expect(screen.getByText("Kolom visual masih kosong. Isi lewat tombol Ubah.")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Isi dari foto" }) as HTMLButtonElement).disabled).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: "Tambah produk" }));
     expect(screen.getByLabelText("Nama")).toBeTruthy();
