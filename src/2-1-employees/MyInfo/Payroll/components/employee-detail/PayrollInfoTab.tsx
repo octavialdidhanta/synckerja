@@ -52,15 +52,6 @@ interface PayrollInfoTabProps {
 export const PayrollInfoTab = ({ employee, isEditMode, onUpdate }: PayrollInfoTabProps) => {
   const employeeId = employee?.id;
   
-  if (!employeeId) {
-    return (
-      <Card>
-        <CardContent className="text-center py-12">
-          <p className="text-gray-600">No employee data available</p>
-        </CardContent>
-      </Card>
-    );
-  }
   
   const { data: profile } = useProfile();
   const { payrollPeriods } = usePayrollPeriods(profile?.active_organization_id);
@@ -157,6 +148,16 @@ export const PayrollInfoTab = ({ employee, isEditMode, onUpdate }: PayrollInfoTa
   const handleFormChange = useCallback((newFormData: Partial<EmployeePayrollInfo>) => {
     setFormData(newFormData);
   }, []);
+
+  if (!employeeId) {
+    return (
+      <Card>
+        <CardContent className="text-center py-12">
+          <p className="text-gray-600">No employee data available</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const handleInputChange = (field: keyof EmployeePayrollInfo, value: any) => {
     const newFormData = { ...formData, [field]: value };

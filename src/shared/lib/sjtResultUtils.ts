@@ -216,5 +216,5 @@ export function getDimensionDisplayValue(
     return Number((dimensionScores as Record<string, number>)?.[key]) || 0;
   }
   const d = (dimensionScores[key] as SjtDimensionDetail);
-  return Number(d?.weighted) ?? 0;
+  return Number(d?.weighted) || 0;
 }
