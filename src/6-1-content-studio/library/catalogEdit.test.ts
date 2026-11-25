@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { matchSubcategoryPhoto } from "../../../supabase/functions/_shared/describeCatalogProduct";
 import {
   catalogSlug,
   existingMenuForSource,
   linkedProductName,
+  sourceForMenu,
   studioProductSources,
   locationDraftError,
   parseAliases,
@@ -71,6 +73,42 @@ describe("catalog source link", () => {
     expect(sources.map((source) => source.name)).toEqual(["Teh Kotak", "Nasi Putih (Lbs)", "test1", "Nasi Putih"]);
     const saved = [{ id: "m", nama: "test1", defaultPriceId: null, featureId: null, subServiceId: null }];
     expect(unlinkedSources(sources, saved).map((source) => source.name)).toEqual(["Teh Kotak", "Nasi Putih (Lbs)", "Nasi Putih"]);
+  });
+
+  it("names the same subcategory photo the product page would", () => {
+    const items = [
+      { id: "p1", name: "Teh Kotak", photoPath: "item/teh.jpg" },
+      { id: "p2", name: "Nasi Putih (Lbs)", photoPath: null },
+    ];
+    const subcategories = [
+      { id: "s1", name: "Teh Kotak", photoPath: "sub/teh.jpg", catalogProductId: "p1" },
+      { id: "s2", name: "Sop Kaki Kambing Kuah Susu", photoPath: "sub/sop.jpg", catalogProductId: null },
+      { id: "s3", name: "Nasi Putih", photoPath: "sub/nasi.jpg", catalogProductId: null },
+      { id: "s4", name: "Sop (90K)", photoPath: "sub/sop-90.jpg", catalogProductId: null },
+      { id: "s5", name: "Sop (80K)", photoPath: "sub/sop-80.jpg", catalogProductId: null },
+    ];
+    const sources = studioProductSources(items, [...subcategories].sort((a, b) => a.name.localeCompare(b.name)));
+    const cases = [
+      { nama: "Sop Kaki Kambing Kuah Susu (80K)", defaultPriceId: null, featureId: null, subServiceId: null },
+      { nama: "Nasi Putih (Lbs)", defaultPriceId: null, featureId: null, subServiceId: null },
+      { nama: "Teh Kotak", defaultPriceId: null, featureId: null, subServiceId: null },
+      { nama: "Sop", defaultPriceId: null, featureId: null, subServiceId: null },
+      { nama: "Sop Kaki Kambing Kuah Susu (80K)", defaultPriceId: "p9", featureId: null, subServiceId: null },
+    ];
+    for (const menu of cases) {
+      const page = sourceForMenu(menu, sources);
+      const named = page?.kind === "subcategory" ? page : null;
+      expect(matchSubcategoryPhoto({
+        menuName: menu.nama,
+        linked: Boolean(menu.defaultPriceId || menu.featureId || menu.subServiceId),
+        items,
+        subcategories: subcategories.map((row) => ({
+          name: row.name,
+          imagePath: row.photoPath,
+          catalogProductId: row.catalogProductId,
+        })),
+      })).toEqual(named ? { name: named.name, imagePath: named.photoPath } : null);
+    }
   });
 
   it("shows the live source name when a product is linked", () => {

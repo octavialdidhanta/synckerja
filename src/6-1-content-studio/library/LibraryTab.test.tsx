@@ -1,9 +1,20 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildLocations, buildMenus } from "./libraryData";
 import { LibraryTab } from "./LibraryTab";
 
-const menus = buildMenus(
+const edit = vi.hoisted(() => ({
+  saveMenu: vi.fn(),
+  saveLocation: vi.fn(),
+  remove: vi.fn().mockResolvedValue(undefined),
+  saving: false,
+  removing: false,
+  error: null,
+  removeError: null,
+  reset: vi.fn(),
+}));
+
+const baseMenus = buildMenus(
   [
     { id: "m1", external_id: "sate-babi", name: "Sate Babi", aliases: [], created_at: "a" },
     { id: "m2", external_id: "iga-bakar", name: "Iga bakar", aliases: [], created_at: "b" },
@@ -17,6 +28,8 @@ const locations = buildLocations(
   [{ location_id: "l1", title: "Scene", body: "Food court terbuka", areas: [], position: 0 }],
 );
 
+let menus = baseMenus;
+
 vi.mock("./useLibraryData", () => ({
   useLibraryData: () => ({
     data: { menus, locations, photos: { "o/photos/p1.png": "https://x/p1.png" } },
@@ -26,16 +39,14 @@ vi.mock("./useLibraryData", () => ({
 }));
 
 vi.mock("./useCatalogEdit", () => ({
-  useCatalogEdit: () => ({
-    saveMenu: vi.fn(),
-    saveLocation: vi.fn(),
-    saving: false,
-    error: null,
-    reset: vi.fn(),
-  }),
+  useCatalogEdit: () => edit,
 }));
 
 describe("LibraryTab", () => {
+  afterEach(() => {
+    menus = baseMenus;
+  });
+
   it("lists products with status and shows the selected one", () => {
     render(
       <div className="ck">
@@ -55,6 +66,20 @@ describe("LibraryTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tambah produk" }));
     expect(screen.getByLabelText("Nama")).toBeTruthy();
     expect(screen.getByLabelText("Hidangan utama")).toBeTruthy();
+  });
+
+  it("shows the source photo and hides the reference gallery", () => {
+    menus = baseMenus.map((menu) => (
+      menu.id === "m2" ? { ...menu, sourcePhotoUrl: "https://x/item.jpg", sourceKind: "item" as const } : menu
+    ));
+    render(
+      <div className="ck">
+        <LibraryTab kind="menu" headLeft={<h1>Content Studio</h1>} />
+      </div>,
+    );
+    fireEvent.click(screen.getByText("Iga bakar"));
+    expect(screen.getByText("Foto dari Item Library")).toBeTruthy();
+    expect(screen.queryByText("Foto referensi (1)")).toBeNull();
   });
 
   it("shows location photo descriptions and always-on sections", () => {

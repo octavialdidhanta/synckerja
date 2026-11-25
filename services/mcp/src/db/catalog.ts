@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveProductLook, type LookSubcategory } from "../../../../supabase/functions/_shared/describeCatalogProduct";
 
 type Session = { userId: string; organizationId: string };
 
@@ -30,7 +31,12 @@ export type CatalogProduct = {
     position: number;
     download_url?: string | null;
   }>;
-  /** False when no reference photo can be opened. Claude must not invent the plating. */
+  /**
+   * The one appearance photo. Null when the product has no Item Library or subcategory photo;
+   * the reference download_url is the appearance photo in that case.
+   */
+  look?: { source: "item" | "subcategory"; download_url: string | null } | null;
+  /** False when the appearance photo cannot be opened. Claude must not invent the plating. */
   photo_visible?: boolean;
 };
 
@@ -89,10 +95,43 @@ export async function listCatalogProducts(admin: SupabaseClient, ctx: Session): 
 }
 
 const CATALOG_MEDIA_BUCKET = "catalog-media";
+const ITEM_PHOTO_BUCKET = "catalog-product-photos";
+const SUBCATEGORY_PHOTO_BUCKET = "sub-service-photos";
 const PHOTO_URL_SECONDS = 15 * 60;
 
-/** Signed read URLs for reference photos. A failure leaves the product text readable and photo_visible false. */
-export async function withCatalogPhotoUrls(admin: SupabaseClient, product: CatalogProduct): Promise<CatalogProduct> {
+export type CatalogLookSign = {
+  source: "item" | "subcategory";
+  bucket: typeof ITEM_PHOTO_BUCKET | typeof SUBCATEGORY_PHOTO_BUCKET;
+  path: string;
+};
+
+async function signPath(admin: SupabaseClient, bucket: string, path: string): Promise<string | null> {
+  const { data } = await admin.storage.from(bucket).createSignedUrls([path], PHOTO_URL_SECONDS);
+  const row = (data ?? []).find((item) => item.path === path && item.signedUrl);
+  return row?.signedUrl ?? null;
+}
+
+/** Signed read URL for the one appearance photo. A source photo that cannot be opened does not fall back to the reference copy. */
+export async function withCatalogPhotoUrls(
+  admin: SupabaseClient,
+  product: CatalogProduct,
+  look: CatalogLookSign | null = null,
+): Promise<CatalogProduct> {
+  if (look) {
+    let downloadUrl: string | null = null;
+    try {
+      downloadUrl = await signPath(admin, look.bucket, look.path);
+    } catch {
+      downloadUrl = null;
+    }
+    return {
+      ...product,
+      photos: product.photos.map((photo) => ({ ...photo, download_url: null })),
+      look: { source: look.source, download_url: downloadUrl },
+      photo_visible: Boolean(downloadUrl),
+    };
+  }
+
   const paths = [...new Set(product.photos.map((photo) => photo.storage_path).filter((path): path is string => Boolean(path)))];
   const urls = new Map<string, string>();
   if (paths.length > 0) {
@@ -109,7 +148,98 @@ export async function withCatalogPhotoUrls(admin: SupabaseClient, product: Catal
     ...photo,
     download_url: photo.storage_path ? (urls.get(photo.storage_path) ?? null) : null,
   }));
-  return { ...product, photos, photo_visible: photos.some((photo) => Boolean(photo.download_url)) };
+  return { ...product, photos, look: null, photo_visible: photos.some((photo) => Boolean(photo.download_url)) };
+}
+
+type MenuLookRow = {
+  name: string;
+  default_price_id: string | null;
+  feature_id: string | null;
+  sub_service_id: string | null;
+};
+
+/** The appearance photo for this product, or null when Claude should open the reference photos. */
+export async function readCatalogLook(
+  admin: SupabaseClient,
+  ctx: Session,
+  product: CatalogProduct,
+): Promise<CatalogLookSign | null> {
+  const { data: menu, error } = await admin
+    .from("catalog_menus")
+    .select("name,default_price_id,feature_id,sub_service_id")
+    .eq("organization_id", ctx.organizationId)
+    .eq("external_id", product.id)
+    .maybeSingle();
+  if (error || !menu) return null;
+  const row = menu as MenuLookRow;
+
+  let itemPath: string | null = null;
+  let linkedSubcategoryPath: string | null = null;
+  let items: Array<{ name: string }> = [];
+  let subcategories: LookSubcategory[] = [];
+  if (row.default_price_id) {
+    const price = await admin
+      .from("default_prices")
+      .select("photo_path")
+      .eq("id", row.default_price_id)
+      .eq("organization_id", ctx.organizationId)
+      .eq("kind", "product")
+      .maybeSingle();
+    if (!price.error) itemPath = (price.data?.photo_path as string | null) ?? null;
+  } else if (row.sub_service_id) {
+    const sub = await admin
+      .from("sub_services")
+      .select("image_path")
+      .eq("id", row.sub_service_id)
+      .eq("organization_id", ctx.organizationId)
+      .maybeSingle();
+    if (!sub.error) linkedSubcategoryPath = (sub.data?.image_path as string | null) ?? null;
+  } else if (!row.feature_id) {
+    const [prices, subs] = await Promise.all([
+      admin.from("default_prices").select("name").eq("organization_id", ctx.organizationId).eq("kind", "product"),
+      admin
+        .from("sub_services")
+        .select("name,image_path,catalog_product_id")
+        .eq("organization_id", ctx.organizationId)
+        .eq("is_active", true)
+        .order("name"),
+    ]);
+    if (!prices.error && !subs.error) {
+      items = ((prices.data ?? []) as Array<{ name: string | null }>).map((item) => ({ name: item.name ?? "" }));
+      subcategories = ((subs.data ?? []) as Array<{ name: string | null; image_path: string | null; catalog_product_id: string | null }>).map((item) => ({
+        name: item.name ?? "",
+        imagePath: item.image_path,
+        catalogProductId: item.catalog_product_id,
+      }));
+    }
+  }
+
+  const choice = resolveProductLook({
+    menuName: row.name,
+    defaultPriceId: row.default_price_id,
+    featureId: row.feature_id,
+    subServiceId: row.sub_service_id,
+    itemPath,
+    linkedSubcategoryPath,
+    items,
+    subcategories,
+    catalogPaths: product.photos.map((photo) => photo.storage_path),
+  });
+  if (!choice || choice.bucket === CATALOG_MEDIA_BUCKET) return null;
+  return {
+    source: choice.bucket === ITEM_PHOTO_BUCKET ? "item" : "subcategory",
+    bucket: choice.bucket,
+    path: choice.path,
+  };
+}
+
+export async function presentCatalogProduct(
+  admin: SupabaseClient,
+  ctx: Session,
+  product: CatalogProduct,
+): Promise<CatalogProduct> {
+  const look = await readCatalogLook(admin, ctx, product);
+  return withCatalogPhotoUrls(admin, product, look);
 }
 
 export async function getCatalogProduct(

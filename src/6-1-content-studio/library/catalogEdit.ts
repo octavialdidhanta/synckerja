@@ -1,3 +1,5 @@
+import { catalogNameKey } from "../../../supabase/functions/_shared/describeCatalogProduct";
+
 /** Slug for catalog_menus.external_id and catalog_locations.external_id. */
 export function catalogSlug(value: string): string {
   return value
@@ -83,12 +85,7 @@ export function studioProductSources(products: StudioSourceInput[], subcategorie
   return [...items, ...subs];
 }
 
-const TRAILING_PRICE_NOTE = /\s*\((?:rp\s*\d[\d.]*(?:[.,]\d+)?|\d[\d.]*(?:[.,]\d+)?\s*(?:k|rb))\s*\)\s*$/i;
-
-/** Compare catalog names without letter case or a trailing price note such as `(80K)`. */
-export function catalogNameKey(value: string): string {
-  return value.trim().toLowerCase().replace(TRAILING_PRICE_NOTE, "").trim();
-}
+export { catalogNameKey };
 
 /** Attach a source to the catalog row that already uses its name. A second row would give Anthropic two spellings. */
 export function existingMenuForSource(

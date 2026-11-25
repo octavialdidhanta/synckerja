@@ -44,19 +44,95 @@ export function draftLanguage(bodies: string[]): "id" | "en" {
 
 export type PhotoChoice = { bucket: "catalog-media" | "catalog-product-photos" | "sub-service-photos"; path: string };
 
-/** Reference photo first, then the Item Library photo, then the content-plan subcategory photo. */
+const TRAILING_PRICE_NOTE = /\s*\((?:rp\s*\d[\d.]*(?:[.,]\d+)?|\d[\d.]*(?:[.,]\d+)?\s*(?:k|rb))\s*\)\s*$/i;
+
+/** Compare catalog names without letter case or a trailing price note such as `(80K)`. `(Lbs)` stays. */
+export function catalogNameKey(value: string): string {
+  return value.trim().toLowerCase().replace(TRAILING_PRICE_NOTE, "").trim();
+}
+
+export type LookSubcategory = {
+  name: string;
+  imagePath: string | null;
+  catalogProductId: string | null;
+};
+
+/**
+ * The subcategory the product page would use by name.
+ * A linked menu does not match by name. A subcategory already tied to an item,
+ * or whose name matches an Item Library product, does not count.
+ * Several matches use the first name, the same order as the page query.
+ */
+export function matchSubcategoryPhoto(input: {
+  menuName: string;
+  linked: boolean;
+  items: Array<{ name: string }>;
+  subcategories: LookSubcategory[];
+}): { name: string; imagePath: string | null } | null {
+  if (input.linked) return null;
+  const key = catalogNameKey(input.menuName);
+  if (!key) return null;
+  const productKeys = new Set(input.items.map((row) => catalogNameKey(row.name)).filter(Boolean));
+  const match = input.subcategories
+    .filter((row) => !row.catalogProductId)
+    .filter((row) => {
+      const nameKey = catalogNameKey(row.name);
+      return Boolean(nameKey) && !productKeys.has(nameKey) && nameKey === key;
+    })
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))[0];
+  if (!match) return null;
+  const imagePath = (match.imagePath ?? "").trim();
+  return { name: match.name, imagePath: imagePath || null };
+}
+
+/** Item Library photo, then the subcategory photo, then the first uploaded reference photo. */
 export function pickPhoto(
   catalogPaths: Array<string | null | undefined>,
   itemPath: string | null | undefined,
   subcategoryPath?: string | null,
 ): PhotoChoice | null {
-  const catalog = catalogPaths.map((path) => (path ?? "").trim()).find(Boolean);
-  if (catalog) return { bucket: "catalog-media", path: catalog };
   const item = (itemPath ?? "").trim();
   if (item) return { bucket: "catalog-product-photos", path: item };
   const subcategory = (subcategoryPath ?? "").trim();
   if (subcategory) return { bucket: "sub-service-photos", path: subcategory };
+  const catalog = catalogPaths.map((path) => (path ?? "").trim()).find(Boolean);
+  if (catalog) return { bucket: "catalog-media", path: catalog };
   return null;
+}
+
+export type ProductLookInput = {
+  menuName: string;
+  defaultPriceId: string | null;
+  featureId: string | null;
+  subServiceId: string | null;
+  /** Ignored unless this menu is linked to that Item Library row. */
+  itemPath: string | null;
+  /** Ignored unless this menu is linked to that subcategory. */
+  linkedSubcategoryPath: string | null;
+  items: Array<{ name: string }>;
+  subcategories: LookSubcategory[];
+  catalogPaths: Array<string | null | undefined>;
+};
+
+/** One appearance photo. A set id blocks name matching. An empty linked file falls through to the reference photo. */
+export function resolveProductLook(input: ProductLookInput): PhotoChoice | null {
+  const linked = Boolean(input.defaultPriceId || input.featureId || input.subServiceId);
+  let itemPath: string | null = null;
+  let subcategoryPath: string | null = null;
+  if (input.defaultPriceId) {
+    itemPath = input.itemPath;
+  } else if (input.subServiceId) {
+    subcategoryPath = input.linkedSubcategoryPath;
+  } else if (!linked) {
+    subcategoryPath = matchSubcategoryPhoto({
+      menuName: input.menuName,
+      linked: false,
+      items: input.items,
+      subcategories: input.subcategories,
+    })?.imagePath ?? null;
+  }
+  return pickPhoto(input.catalogPaths, itemPath, subcategoryPath);
 }
 
 export function buildDescribePrompt(input: { name: string; fields: TemplateField[]; language: "id" | "en" }): string {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCatalogProductFields, withCatalogPhotoUrls, type CatalogProduct } from "../src/db/catalog";
+import { applyCatalogProductFields, presentCatalogProduct, withCatalogPhotoUrls, type CatalogProduct } from "../src/db/catalog";
 import { signContentConfirmation, verifyContentConfirmation } from "../src/tools/content/contentConfirmation";
 import { fieldChanges, productFieldsFromConfirmation } from "../src/tools/catalog/productFields";
 import { FALLBACK_MENU_FIELDS } from "../../../supabase/functions/_shared/describeCatalogProduct";
@@ -88,6 +88,7 @@ describe("catalog photo urls", () => {
       },
     };
     const signed = await withCatalogPhotoUrls(admin as never, product);
+    expect(signed.look).toBeNull();
     expect(signed.photo_visible).toBe(true);
     expect(signed.photos[0].download_url).toBe("https://example/a");
     expect(signed.photos[1].download_url).toBeNull();
@@ -95,7 +96,77 @@ describe("catalog photo urls", () => {
     const empty = await withCatalogPhotoUrls({
       storage: { from: () => ({ createSignedUrls: async () => { throw new Error("down"); } }) },
     } as never, { ...product, photos: [{ ...product.photos[0], storage_path: "org/a.jpg" }] });
+    expect(empty.look).toBeNull();
     expect(empty.photo_visible).toBe(false);
     expect(empty.photos[0].download_url).toBeNull();
+  });
+
+  it("signs the Item Library photo and leaves the reference url empty", async () => {
+    const buckets: string[] = [];
+    const admin = {
+      from(table: string) {
+        const query = {
+          select() { return query; },
+          eq() { return query; },
+          order() { return query; },
+          maybeSingle: async () => {
+            if (table === "catalog_menus") {
+              return { data: { name: "Sup Sum Sum Kambing", default_price_id: "price-1", feature_id: null, sub_service_id: null }, error: null };
+            }
+            if (table === "default_prices") return { data: { photo_path: "org/item.jpg" }, error: null };
+            return { data: null, error: null };
+          },
+        };
+        return query;
+      },
+      storage: {
+        from: (bucket: string) => ({
+          createSignedUrls: async (paths: string[], seconds: number) => {
+            buckets.push(bucket);
+            expect(paths).toEqual(["org/item.jpg"]);
+            expect(seconds).toBe(15 * 60);
+            return { data: [{ path: "org/item.jpg", signedUrl: "https://example/item" }] };
+          },
+        }),
+      },
+    };
+    const signed = await presentCatalogProduct(admin as never, { userId: "user-1", organizationId: "org-1" }, product);
+    expect(buckets).toEqual(["catalog-product-photos"]);
+    expect(signed.look).toEqual({ source: "item", download_url: "https://example/item" });
+    expect(signed.photo_visible).toBe(true);
+    expect(signed.photos.every((photo) => photo.download_url == null)).toBe(true);
+  });
+
+  it("does not open the reference photo when the Item Library file cannot be signed", async () => {
+    const buckets: string[] = [];
+    const admin = {
+      from(table: string) {
+        const query = {
+          select() { return query; },
+          eq() { return query; },
+          order() { return query; },
+          maybeSingle: async () => {
+            if (table === "catalog_menus") {
+              return { data: { name: "Sup Sum Sum Kambing", default_price_id: "price-1", feature_id: null, sub_service_id: null }, error: null };
+            }
+            return { data: { photo_path: "org/item.jpg" }, error: null };
+          },
+        };
+        return query;
+      },
+      storage: {
+        from: (bucket: string) => ({
+          createSignedUrls: async () => {
+            buckets.push(bucket);
+            throw new Error("down");
+          },
+        }),
+      },
+    };
+    const signed = await presentCatalogProduct(admin as never, { userId: "user-1", organizationId: "org-1" }, product);
+    expect(buckets).toEqual(["catalog-product-photos"]);
+    expect(signed.look).toEqual({ source: "item", download_url: null });
+    expect(signed.photo_visible).toBe(false);
+    expect(signed.photos[0].download_url).toBeNull();
   });
 });
