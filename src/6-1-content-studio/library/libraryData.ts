@@ -31,6 +31,7 @@ export interface LibraryPhoto {
   file: string;
   label: string;
   storagePath: string | null;
+  position: number;
   /** how the prompt names this photo in Reference Photos */
   ref?: string;
   /** location photos only */
@@ -152,7 +153,7 @@ export function buildMenus(menus: MenuRow[], fields: MenuFieldRow[], photos: Men
         fotos: photos
           .filter((p) => p.menu_id === m.id)
           .sort(byPos)
-          .map((p) => ({ id: p.id, file: p.file_path, label: p.label, storagePath: p.storage_path, ref: p.ref ?? "" })),
+          .map((p) => ({ id: p.id, file: p.file_path, label: p.label, storagePath: p.storage_path, ref: p.ref ?? "", position: p.position })),
       };
     });
 }
@@ -179,6 +180,7 @@ export function buildLocations(
           label: p.label,
           storagePath: p.storage_path,
           ref: p.ref ?? "",
+          position: p.position,
           desc: p.description ?? "",
           area: p.areas ?? [],
         })),

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CatalogEditor } from "./catalogEditor";
 import { linkedProductName } from "./catalogEdit";
 import { isFilled, menuHasPhoto, resolveMenuFields, type LibraryPhoto, type LocationItem, type MenuItem } from "./libraryData";
+import { nextPhotoPosition } from "./locationPhoto";
 import { useCatalogEdit } from "./useCatalogEdit";
 import { useLibraryData } from "./useLibraryData";
 
@@ -12,7 +13,7 @@ interface Props {
   headLeft: React.ReactNode;
 }
 
-/** Produk and Lokasi tabs. Photos stay as they are; name, alias, label, and template columns can be edited. */
+/** Produk and Lokasi tabs. A location photo is uploaded on this page. A product photo comes from its own source. */
 export function LibraryTab({ kind, headLeft }: Props) {
   const { data, isPending, error } = useLibraryData();
   const edit = useCatalogEdit();
@@ -24,8 +25,12 @@ export function LibraryTab({ kind, headLeft }: Props) {
   const [zoom, setZoom] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [draft, setDraft] = useState<Record<string, string> | null>(null);
+  const [draftPhotoId, setDraftPhotoId] = useState<string | null>(null);
   const [describing, setDescribing] = useState(false);
+  const [describingPhotoId, setDescribingPhotoId] = useState<string | null>(null);
   const [describeError, setDescribeError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!items.length) return;
@@ -57,11 +62,50 @@ export function LibraryTab({ kind, headLeft }: Props) {
       const { describeCatalogProduct } = await import("./describeProduct");
       const fields = await describeCatalogProduct(menu.id);
       setDraft(fields);
+      setDraftPhotoId(null);
       setEditing(menu.id);
     } catch (err) {
       setDescribeError(err instanceof Error && err.message ? err.message : "Gagal membaca foto.");
     } finally {
       setDescribing(false);
+      setDescribingPhotoId(null);
+    }
+  };
+
+  const fillFromLocationPhoto = async (location: LocationItem, photo: LibraryPhoto) => {
+    if (!photo.storagePath || describing) return;
+    setDescribeError(null);
+    setDescribing(true);
+    setDescribingPhotoId(photo.id);
+    try {
+      const { describeCatalogLocation } = await import("./describeLocation");
+      const fields = await describeCatalogLocation(photo.id);
+      setDraft(fields);
+      setDraftPhotoId(photo.id);
+      setEditing(location.id);
+    } catch (err) {
+      setDescribeError(err instanceof Error && err.message ? err.message : "Gagal membaca foto.");
+    } finally {
+      setDescribing(false);
+      setDescribingPhotoId(null);
+    }
+  };
+
+  const addLocationPhotoFile = async (location: LocationItem, file: File) => {
+    if (uploading) return;
+    setUploadError(null);
+    setUploading(true);
+    try {
+      await edit.addPhoto({
+        locationId: location.id,
+        label: location.nama,
+        position: nextPhotoPosition(location.fotos),
+        file,
+      });
+    } catch (err) {
+      setUploadError(err instanceof Error && err.message ? err.message : "Gagal mengunggah foto.");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -98,7 +142,7 @@ export function LibraryTab({ kind, headLeft }: Props) {
         <div className="pmr">
           {editing ? (
             <CatalogEditor
-              key={`${editing}:${draft ? "draft" : "edit"}`}
+              key={`${editing}:${draftPhotoId ?? ""}:${draft ? "draft" : "edit"}`}
               kind={kind}
               menu={editingMenu}
               location={editingLocation}
@@ -107,16 +151,19 @@ export function LibraryTab({ kind, headLeft }: Props) {
               sources={sources}
               menus={data?.menus ?? []}
               draftFields={draft}
+              draftPhotoId={draftPhotoId}
               saving={edit.saving}
               error={edit.error}
               onCancel={() => {
                 edit.reset();
                 setDraft(null);
+                setDraftPhotoId(null);
                 setEditing(null);
               }}
               onSaved={(id) => {
                 setSel(id);
                 setDraft(null);
+                setDraftPhotoId(null);
                 setEditing(null);
               }}
               onSaveMenu={(input) => edit.saveMenu({ ...input, takenSlugs })}
@@ -133,12 +180,19 @@ export function LibraryTab({ kind, headLeft }: Props) {
               onEdit={() => {
                 edit.reset();
                 setDraft(null);
+                setDraftPhotoId(null);
                 setDescribeError(null);
+                setUploadError(null);
                 setEditing(x.id);
               }}
               describing={describing}
+              describingPhotoId={describingPhotoId}
               describeError={describeError}
+              uploading={uploading}
+              uploadError={uploadError}
               onDescribe={"fields" in x ? () => void fillFromPhoto(x) : undefined}
+              onDescribePhoto={"fields" in x ? undefined : (photo) => void fillFromLocationPhoto(x, photo)}
+              onAddPhoto={"fields" in x ? undefined : (file) => void addLocationPhotoFile(x, file)}
             />
           ) : data && !items.length ? (
             <div className="sub">{kind === "menu" ? "Belum ada produk." : "Belum ada lokasi."}</div>
@@ -159,11 +213,17 @@ function Photos({
   x,
   url,
   onZoom,
+  describing,
+  describingPhotoId,
+  onDescribePhoto,
 }: {
   kind: Kind;
   x: MenuItem | LocationItem;
   url: (p: LibraryPhoto) => string | undefined;
   onZoom: (u: string) => void;
+  describing?: boolean;
+  describingPhotoId?: string | null;
+  onDescribePhoto?: (photo: LibraryPhoto) => void;
 }) {
   return (
     <>
@@ -183,6 +243,16 @@ function Photos({
                   </>
                 ) : null}
               </figcaption>
+              {onDescribePhoto ? (
+                <button
+                  type="button"
+                  className="hb ghost"
+                  disabled={!f.storagePath || describing}
+                  onClick={() => onDescribePhoto(f)}
+                >
+                  {describing && describingPhotoId === f.id ? "Membaca foto…" : "Isi dari foto"}
+                </button>
+              ) : null}
             </figure>
           );
         })}
@@ -213,8 +283,13 @@ function Detail({
   menuFields,
   onEdit,
   describing,
+  describingPhotoId,
   describeError,
+  uploading,
+  uploadError,
   onDescribe,
+  onDescribePhoto,
+  onAddPhoto,
 }: {
   kind: Kind;
   x: MenuItem | LocationItem;
@@ -224,9 +299,15 @@ function Detail({
   menuFields: [string, string][];
   onEdit: () => void;
   describing?: boolean;
+  describingPhotoId?: string | null;
   describeError?: string | null;
+  uploading?: boolean;
+  uploadError?: string | null;
   onDescribe?: () => void;
+  onDescribePhoto?: (photo: LibraryPhoto) => void;
+  onAddPhoto?: (file: File) => void;
 }) {
+  const fileRef = useRef<HTMLInputElement>(null);
   const title = "fields" in x ? linkedProductName(x, sources) : x.nama;
   const canDescribe = "fields" in x && menuHasPhoto(x);
   return (
@@ -234,6 +315,24 @@ function Detail({
       <div className="list-head">
         <h2 style={{ margin: 0 }}>{title}</h2>
         <span>
+          {onAddPhoto ? (
+            <>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) onAddPhoto(file);
+                }}
+              />
+              <button type="button" className="hb ghost" disabled={uploading || describing} onClick={() => fileRef.current?.click()}>
+                {uploading ? "Mengunggah…" : "Tambah foto"}
+              </button>{" "}
+            </>
+          ) : null}
           {onDescribe ? (
             <button type="button" className="hb ghost" disabled={!canDescribe || describing} onClick={onDescribe}>
               {describing ? "Membaca foto…" : "Isi dari foto"}
@@ -245,6 +344,7 @@ function Detail({
         </span>
       </div>
       {describeError ? <div className="empty">{describeError}</div> : null}
+      {uploadError ? <div className="empty">{uploadError}</div> : null}
       <div className="sub">
         {kind === "menu"
           ? `Deskripsi produk untuk bagian ${menuFields.find(([key]) => key === "main")?.[1] ?? "Hidangan utama"} di prompt Flow.`
@@ -263,7 +363,15 @@ function Detail({
           </figure>
         </div>
       ) : (
-        <Photos kind={kind} x={x} url={url} onZoom={onZoom} />
+        <Photos
+          kind={kind}
+          x={x}
+          url={url}
+          onZoom={onZoom}
+          describing={describing}
+          describingPhotoId={describingPhotoId}
+          onDescribePhoto={onDescribePhoto}
+        />
       )}
       {"fields" in x ? (
         menuFields.map(([k, l]) => <Block key={k} label={l} val={x.fields[k]} />)

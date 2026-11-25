@@ -3,6 +3,7 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { isMissingRelationError } from "../shared/catalogQuery";
 import { catalogSlug, uniqueCatalogSlug } from "./catalogEdit";
+import { addLocationPhoto, writeLocationCopy } from "./locationPhoto";
 
 export interface MenuFieldInput {
   key: string;
@@ -28,6 +29,15 @@ interface SaveLocationInput {
   label: string;
   name: string;
   takenSlugs: string[];
+  photos?: { id: string; description: string }[];
+  sections?: { title: string; body: string }[];
+}
+
+interface AddLocationPhotoInput {
+  locationId: string;
+  label: string;
+  position: number;
+  file: File;
 }
 
 async function writeMenuFields(org: string, menuId: string, fields: MenuFieldInput[], fillOnly: boolean) {
@@ -90,8 +100,12 @@ async function writeMenuFields(org: string, menuId: string, fields: MenuFieldInp
 export function useCatalogEdit() {
   const { organizationId } = useOrgBootstrapPending();
   const qc = useQueryClient();
+  const libraryKey = ["content-studio", "library", organizationId] as const;
   const refresh = async () => {
-    await qc.invalidateQueries({ queryKey: ["content-studio", "library", organizationId] });
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: libraryKey }),
+      qc.invalidateQueries({ queryKey: ["content-studio", "footage", organizationId] }),
+    ]);
   };
 
   const menu = useMutation({
@@ -140,23 +154,37 @@ export function useCatalogEdit() {
       if (!org) throw new Error("Organisasi belum siap.");
       const label = input.label.trim();
       const name = input.name.trim() || label;
-      if (input.id) {
+      let id = input.id;
+      if (id) {
         const { error } = await supabase
           .from("catalog_locations")
           .update({ label, name })
           .eq("organization_id", org)
-          .eq("id", input.id);
+          .eq("id", id);
         if (error) throw error;
-        return input.id;
+      } else {
+        const slug = uniqueCatalogSlug(catalogSlug(label), input.takenSlugs);
+        const { data, error } = await supabase
+          .from("catalog_locations")
+          .insert({ organization_id: org, external_id: slug, name, label })
+          .select("id")
+          .single();
+        if (error) throw error;
+        id = data.id as string;
       }
-      const slug = uniqueCatalogSlug(catalogSlug(label), input.takenSlugs);
-      const { data, error } = await supabase
-        .from("catalog_locations")
-        .insert({ organization_id: org, external_id: slug, name, label })
-        .select("id")
-        .single();
-      if (error) throw error;
-      return data.id as string;
+      if (input.photos?.length || input.sections?.length) {
+        await writeLocationCopy(org, id, input.photos ?? [], input.sections ?? []);
+      }
+      return id;
+    },
+    onSuccess: refresh,
+  });
+
+  const addPhoto = useMutation({
+    mutationFn: async (input: AddLocationPhotoInput) => {
+      const org = organizationId;
+      if (!org) throw new Error("Organisasi belum siap.");
+      return addLocationPhoto({ organizationId: org, ...input });
     },
     onSuccess: refresh,
   });
@@ -164,11 +192,13 @@ export function useCatalogEdit() {
   return {
     saveMenu: menu.mutateAsync,
     saveLocation: location.mutateAsync,
+    addPhoto: addPhoto.mutateAsync,
     saving: menu.isPending || location.isPending,
     error: menu.error ?? location.error,
     reset: () => {
       menu.reset();
       location.reset();
+      addPhoto.reset();
     },
   };
 }

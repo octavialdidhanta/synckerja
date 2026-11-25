@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { LOCATION_ALWAYS_ON } from "../../../supabase/functions/_shared/describeCatalogLocation";
 import { existingMenuForSource, linkedProductName, locationDraftError, parseAliases, productDraftError, unlinkedSources } from "./catalogEdit";
 import type { CatalogSource, LocationItem, MenuItem } from "./libraryData";
 
@@ -11,6 +12,8 @@ interface Props {
   sources: CatalogSource[];
   menus: MenuItem[];
   draftFields?: Record<string, string> | null;
+  /** Location photo the draft describes. Product drafts leave this empty. */
+  draftPhotoId?: string | null;
   saving: boolean;
   error: unknown;
   onCancel: () => void;
@@ -24,7 +27,13 @@ interface Props {
     subServiceId?: string | null;
     fillOnly?: boolean;
   }) => Promise<string>;
-  onSaveLocation: (input: { id?: string; label: string; name: string }) => Promise<string>;
+  onSaveLocation: (input: {
+    id?: string;
+    label: string;
+    name: string;
+    photos?: { id: string; description: string }[];
+    sections?: { title: string; body: string }[];
+  }) => Promise<string>;
   onSaved: (id: string) => void;
 }
 
@@ -52,6 +61,7 @@ export function CatalogEditor({
   sources,
   menus,
   draftFields,
+  draftPhotoId,
   saving,
   error,
   onCancel,
@@ -67,6 +77,20 @@ export function CatalogEditor({
   const [label, setLabel] = useState(location?.label ?? "");
   const [aliases, setAliases] = useState(menu?.aliases.join(", ") ?? "");
   const [bodies, setBodies] = useState<Record<string, string>>(() => ({ ...(menu?.fields ?? {}), ...(draftFields ?? {}) }));
+  const [photoText, setPhotoText] = useState<Record<string, string>>(() => {
+    const next: Record<string, string> = {};
+    for (const photo of location?.fotos ?? []) next[photo.id] = photo.desc ?? "";
+    if (draftPhotoId && draftFields?.desc) next[draftPhotoId] = draftFields.desc;
+    return next;
+  });
+  const [sectionText, setSectionText] = useState<Record<string, string>>(() => {
+    const next: Record<string, string> = {};
+    for (const section of LOCATION_ALWAYS_ON) {
+      const current = location?.bagian.find((item) => item.judul === section.title)?.isi ?? "";
+      next[section.key] = draftFields?.[section.key] ?? current;
+    }
+    return next;
+  });
   const [localError, setLocalError] = useState<string | null>(null);
 
   const save = async () => {
@@ -122,6 +146,12 @@ export function CatalogEditor({
         id: location?.id,
         label: label.trim(),
         name: name.trim() || label.trim(),
+        ...(location
+          ? {
+              photos: location.fotos.map((photo) => ({ id: photo.id, description: photoText[photo.id] ?? "" })),
+              sections: LOCATION_ALWAYS_ON.map((section) => ({ title: section.title, body: sectionText[section.key] ?? "" })),
+            }
+          : {}),
       });
       onSaved(id);
     } catch (err) {
@@ -148,6 +178,32 @@ export function CatalogEditor({
           <label htmlFor="catalog-name">Judul</label>
           <input id="catalog-name" value={name} maxLength={200} onChange={(event) => setName(event.target.value)} />
           <div className="sub">Judul boleh lebih panjang. Kosongkan kalau sama dengan label.</div>
+          {location ? (
+            <>
+              {location.fotos.map((photo) => (
+                <div key={photo.id}>
+                  <label htmlFor={`catalog-photo-${photo.id}`}>Deskripsi foto — {photo.label || "tanpa label"}</label>
+                  <textarea
+                    id={`catalog-photo-${photo.id}`}
+                    value={photoText[photo.id] ?? ""}
+                    onChange={(event) => setPhotoText((prev) => ({ ...prev, [photo.id]: event.target.value }))}
+                  />
+                  <div className="sub">Kalimat ini yang dipakai untuk foto ini di prompt.</div>
+                </div>
+              ))}
+              {LOCATION_ALWAYS_ON.map((section) => (
+                <div key={section.key}>
+                  <label htmlFor={`catalog-section-${section.key}`}>{section.title}</label>
+                  <textarea
+                    id={`catalog-section-${section.key}`}
+                    value={sectionText[section.key] ?? ""}
+                    onChange={(event) => setSectionText((prev) => ({ ...prev, [section.key]: event.target.value }))}
+                  />
+                </div>
+              ))}
+              <div className="sub">Scene, Atmosphere, dan Must NOT selalu ikut di prompt lokasi.</div>
+            </>
+          ) : null}
         </>
       ) : (
         <>
