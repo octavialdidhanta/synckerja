@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildLocations, buildMenus } from "../library/libraryData";
-import { allPhotos, buildFlowPrompt, defaultSelection, ftag } from "./buildFlowPrompt";
+import { allPhotos, buildFlowPrompt, defaultSelection, ftag, productPhotos } from "./buildFlowPrompt";
 import { missingMenus, parseShotJob, splitJobs } from "./shotData";
 
 const fields = {
@@ -164,5 +164,44 @@ describe("shot list data", () => {
     expect(splitJobs([job]).archived).toHaveLength(1);
     expect(missingMenus(job.shots[0], menus)).toEqual([]);
     expect(missingMenus(job.shots[1], menus)).toEqual(["Iga Bakar"]);
+  });
+});
+
+describe("product photos from Item Library", () => {
+  const [gulai] = buildMenus(
+    [{ id: "m9", external_id: "gulai-kambing-mix", name: "Gulai Kambing Mix", aliases: [], created_at: "c" }],
+    [{ menu_id: "m9", field_key: "main", body: "Goat curry", position: 0 }],
+    [],
+  ).map((m) => ({
+    ...m,
+    sourceKind: "item" as const,
+    sourcePhotoUrl: "https://x.supabase.co/storage/v1/object/sign/catalog-product-photos/org/1/Gulai_Kambing_mix_-_48K.JPG?token=t",
+  }));
+
+  it("uses the Item Library photo when the product has no uploaded reference photo", () => {
+    const photos = productPhotos(gulai);
+    expect(photos).toEqual([
+      expect.objectContaining({ tp: "Produk", file: "foto/gulai-kambing-mix_tampilan.jpg", label: "Gulai Kambing Mix", url: gulai.sourcePhotoUrl }),
+    ]);
+    expect(ftag(photos[0])).toBe("@gulai-kambing-mix_tampilan");
+    expect([...defaultSelection([gulai], loc, "")]).toContain("foto/gulai-kambing-mix_tampilan.jpg");
+    expect(allPhotos([gulai], loc).map((p) => p.tp)).toEqual(["Produk", "Lokasi", "Lokasi"]);
+
+    const refs = allPhotos([gulai], loc);
+    const r = buildFlowPrompt({
+      fields, menus: [gulai], loc, refs, action: "Lift a spoon.", talk: "diam", angles: 1, curArea: "", allMenus: [gulai],
+    });
+    expect(r.text).toContain("- @gulai-kambing-mix_tampilan — the exact look of Gulai Kambing Mix (size, color, plating)");
+  });
+
+  it("keeps uploaded reference photos when the product has them", () => {
+    const [withRef] = buildMenus(
+      [{ id: "m8", external_id: "iga-bakar", name: "Iga Bakar", aliases: [], created_at: "d" }],
+      [],
+      [{ id: "p8", menu_id: "m8", file_path: "foto/iga-bakar_foto1.png", label: "Iga", storage_path: "org/photos/a.png", ref: null, position: 0 }],
+    ).map((m) => ({ ...m, sourceKind: "item" as const, sourcePhotoUrl: "https://x/iga.jpg" }));
+    expect(productPhotos(withRef).map((p) => p.file)).toEqual(["foto/iga-bakar_foto1.png"]);
+    expect(productPhotos(withRef)[0].url).toBeUndefined();
+    expect(productPhotos(menus[0]).map((p) => p.file)).toEqual(["foto/sup_foto1.png"]);
   });
 });

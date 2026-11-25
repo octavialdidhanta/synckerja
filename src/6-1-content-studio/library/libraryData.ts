@@ -49,7 +49,7 @@ export interface MenuItem {
   defaultPriceId: string | null;
   featureId: string | null;
   subServiceId: string | null;
-  /** Signed source photo. Not copied into the Flow prompt photos. */
+  /** Signed source photo. The Flow prompt uses it only when the product has no uploaded reference photo. */
   sourcePhotoUrl: string | null;
   sourceKind: "item" | "feature" | "subcategory" | null;
 }
