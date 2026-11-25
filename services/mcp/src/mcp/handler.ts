@@ -338,6 +338,10 @@ import {
   listCatalogProductsResult,
   getCatalogProductInput,
   getCatalogProductResult,
+  viewCatalogProductPhotoInput,
+  viewCatalogProductPhotoResult,
+  viewCatalogLocationPhotosInput,
+  viewCatalogLocationPhotosResult,
   previewProductFieldsInput,
   previewProductFieldsResult,
   applyProductFieldsResult,
@@ -821,6 +825,15 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     address: import("../db/catalog").CatalogAddress,
   ) => Promise<import("../db/catalog").CatalogProduct>;
+  getCatalogProductPhotos: (
+    ctx: McpAuthContext,
+    address: import("../db/catalog").CatalogAddress,
+  ) => Promise<import("../db/catalog").CatalogPhotoSet>;
+  getCatalogLocationPhotos: (
+    ctx: McpAuthContext,
+    address: import("../db/catalog").CatalogAddress,
+  ) => Promise<import("../db/catalog").CatalogPhotoSet>;
+  getCatalogPhoto: (ctx: McpAuthContext, bucket: string, path: string) => Promise<Uint8Array>;
   loadProductFieldContext: (
     ctx: McpAuthContext,
     address: { id?: string; name?: string },
@@ -1068,10 +1081,12 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "footage.bans.list": listFootageBansInput,
   "catalog.products.list": listCatalogProductsInput,
   "catalog.product.get": getCatalogProductInput,
+  "catalog.product.photo.view": viewCatalogProductPhotoInput,
   "catalog.product.fields.preview": previewProductFieldsInput,
   "catalog.product.fields.update": confirmBriefInput,
   "catalog.locations.list": listCatalogLocationsInput,
   "catalog.location.get": getCatalogLocationInput,
+  "catalog.location.photos.view": viewCatalogLocationPhotosInput,
   "catalog.style.get": getCatalogStyleInput,
   "playbook.get": playbookGetInput,
   "catalog.prompts.get": getCatalogPromptsInput,
@@ -1688,6 +1703,8 @@ async function runTool(
       return listCatalogProductsResult(ctx, args, deps.listCatalogProducts);
     case "catalog.product.get":
       return getCatalogProductResult(ctx, args, deps.getCatalogProduct);
+    case "catalog.product.photo.view":
+      return viewCatalogProductPhotoResult(ctx, args, deps.getCatalogProductPhotos, deps.getCatalogPhoto);
     case "catalog.product.fields.preview":
       return previewProductFieldsResult(ctx, args, deps.loadProductFieldContext, deps.signContentConfirmation);
     case "catalog.product.fields.update":
@@ -1696,6 +1713,8 @@ async function runTool(
       return listCatalogLocationsResult(ctx, args, deps.listCatalogLocations);
     case "catalog.location.get":
       return getCatalogLocationResult(ctx, args, deps.getCatalogLocation);
+    case "catalog.location.photos.view":
+      return viewCatalogLocationPhotosResult(ctx, args, deps.getCatalogLocationPhotos, deps.getCatalogPhoto);
     case "playbook.get":
       return playbookGetResult(args);
     case "catalog.style.get":
@@ -2205,7 +2224,7 @@ export async function handleMcpRequest(
           const body = await runTool(tool.name, fresh, (args ?? {}) as ToolArgs, deps, claims);
           const stamped = tool.mutates ? stampOrganization(body, fresh) : body;
           await noteCall(deps, fresh, tool.name, "ok");
-          // A tool that returns pictures (footage.scenes.view) sends its content blocks as they are.
+          // A tool that returns pictures (footage.scenes.view, catalog photo views) sends its content blocks as they are.
           if (isMcpContentResult(stamped)) return { content: stamped.mcpContent };
           return { content: [{ type: "text" as const, text: JSON.stringify(stamped) }] };
         } catch (error) {

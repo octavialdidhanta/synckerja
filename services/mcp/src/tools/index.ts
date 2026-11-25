@@ -153,6 +153,12 @@ export {
 } from "./catalog/products";
 export { previewProductFieldsInput, previewProductFieldsResult, applyProductFieldsResult } from "./catalog/productFields";
 export {
+  viewCatalogProductPhotoInput,
+  viewCatalogProductPhotoResult,
+  viewCatalogLocationPhotosInput,
+  viewCatalogLocationPhotosResult,
+} from "./catalog/photos";
+export {
   getCatalogLocationInput,
   getCatalogLocationResult,
   listCatalogLocationsInput,

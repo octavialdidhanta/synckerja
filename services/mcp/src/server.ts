@@ -136,6 +136,9 @@ import {
   getCatalogLocation,
   getCatalogProduct,
   presentCatalogProduct,
+  catalogProductPhotoSources,
+  catalogLocationPhotoSources,
+  downloadCatalogPhoto,
   loadProductFieldMenu,
   applyCatalogProductFields,
   previewCatalogMediaDelete,
@@ -295,6 +298,9 @@ const app = createApp({
   listFootageBans: (ctx) => listFootageBans(admin, ctx),
   listCatalogProducts: (ctx) => listCatalogProducts(admin, ctx),
   getCatalogProduct: async (ctx, address) => presentCatalogProduct(admin, ctx, await getCatalogProduct(admin, ctx, address)),
+  getCatalogProductPhotos: (ctx, address) => catalogProductPhotoSources(admin, ctx, address),
+  getCatalogLocationPhotos: (ctx, address) => catalogLocationPhotoSources(admin, ctx, address),
+  getCatalogPhoto: (ctx, bucket, path) => downloadCatalogPhoto(admin, ctx, bucket, path),
   loadProductFieldContext: async (ctx, address) => {
     const loaded = await loadProductFieldMenu(admin, ctx, address);
     return {

@@ -138,8 +138,10 @@ describe("catalog read tools", () => {
     for (const name of [
       "catalog.products.list",
       "catalog.product.get",
+      "catalog.product.photo.view",
       "catalog.locations.list",
       "catalog.location.get",
+      "catalog.location.photos.view",
     ] as const) {
       const tool = MCP_TOOLS.find((item) => item.name === name);
       expect(tool?.scopes).toEqual(["content:read"]);

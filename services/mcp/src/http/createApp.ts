@@ -133,6 +133,7 @@ import type {
   CatalogAddress,
   CatalogLocation,
   CatalogLocationList,
+  CatalogPhotoSet,
   CatalogProduct,
   CatalogProductList,
   CatalogReferenceList,
@@ -486,6 +487,9 @@ export type AppDeps = {
   listFootageBans: (ctx: McpAuthContext) => Promise<FootageBansResult>;
   listCatalogProducts: (ctx: McpAuthContext) => Promise<CatalogProductList>;
   getCatalogProduct: (ctx: McpAuthContext, address: CatalogAddress) => Promise<CatalogProduct>;
+  getCatalogProductPhotos: (ctx: McpAuthContext, address: CatalogAddress) => Promise<CatalogPhotoSet>;
+  getCatalogLocationPhotos: (ctx: McpAuthContext, address: CatalogAddress) => Promise<CatalogPhotoSet>;
+  getCatalogPhoto: (ctx: McpAuthContext, bucket: string, path: string) => Promise<Uint8Array>;
   loadProductFieldContext: (
     ctx: McpAuthContext,
     address: { id?: string; name?: string },

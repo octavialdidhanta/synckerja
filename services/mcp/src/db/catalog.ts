@@ -286,6 +286,113 @@ export async function getCatalogLocation(
   };
 }
 
+/** One stored photo the AI may look at: where it lives and how to label it. */
+export type CatalogPhotoSource = {
+  bucket: string;
+  path: string;
+  label: string;
+  file_path: string | null;
+  kind: "look_item" | "look_subcategory" | "reference" | "location";
+  areas?: string[];
+  description?: string | null;
+};
+
+export type CatalogPhotoSet = { id: string; name: string; sources: CatalogPhotoSource[]; without_file: string[] };
+
+/** The product's appearance photo (the same one catalog.product.get signs), or its reference photos when it has no look photo. */
+export async function catalogProductPhotoSources(
+  admin: SupabaseClient,
+  ctx: Session,
+  address: CatalogAddress,
+): Promise<CatalogPhotoSet> {
+  const product = await getCatalogProduct(admin, ctx, address);
+  const look = await readCatalogLook(admin, ctx, product);
+  if (look) {
+    return {
+      id: product.id,
+      name: product.name,
+      sources: [
+        {
+          bucket: look.bucket,
+          path: look.path,
+          label: product.name,
+          file_path: null,
+          kind: look.source === "item" ? "look_item" : "look_subcategory",
+        },
+      ],
+      without_file: [],
+    };
+  }
+  return {
+    id: product.id,
+    name: product.name,
+    sources: product.photos
+      .filter((photo) => Boolean(photo.storage_path))
+      .map((photo) => ({
+        bucket: CATALOG_MEDIA_BUCKET,
+        path: photo.storage_path!,
+        label: photo.label,
+        file_path: photo.file_path,
+        kind: "reference" as const,
+      })),
+    without_file: product.photos.filter((photo) => !photo.storage_path).map((photo) => photo.label || photo.file_path),
+  };
+}
+
+export async function catalogLocationPhotoSources(
+  admin: SupabaseClient,
+  ctx: Session,
+  address: CatalogAddress,
+): Promise<CatalogPhotoSet> {
+  const location = await getCatalogLocation(admin, ctx, address);
+  return {
+    id: location.id,
+    name: location.name,
+    sources: location.photos
+      .filter((photo) => Boolean(photo.storage_path))
+      .map((photo) => ({
+        bucket: CATALOG_MEDIA_BUCKET,
+        path: photo.storage_path!,
+        label: photo.label,
+        file_path: photo.file_path,
+        kind: "location" as const,
+        areas: photo.areas ?? [],
+        description: photo.description,
+      })),
+    without_file: location.photos.filter((photo) => !photo.storage_path).map((photo) => photo.label || photo.file_path),
+  };
+}
+
+const PHOTO_BUCKETS = new Set<string>([CATALOG_MEDIA_BUCKET, ITEM_PHOTO_BUCKET, SUBCATEGORY_PHOTO_BUCKET]);
+/** Larger files are fetched again through Storage image resizing so the picture stays within MCP client limits. */
+export const CATALOG_PHOTO_MAX_BYTES = 4_000_000;
+
+/**
+ * Bytes of one catalog photo. Only the three catalog photo buckets and paths under the active organization's folder
+ * are served; anything else is refused before storage is touched.
+ */
+export async function downloadCatalogPhoto(
+  admin: SupabaseClient,
+  ctx: Session,
+  bucket: string,
+  path: string,
+): Promise<Uint8Array> {
+  if (!PHOTO_BUCKETS.has(bucket) || !path.startsWith(`${ctx.organizationId}/`) || path.includes("..") || !/\.(png|jpe?g|webp|gif)$/i.test(path)) {
+    throw new Error("forbidden");
+  }
+  const original = await admin.storage.from(bucket).download(path);
+  if (original.error || !original.data) throw new Error("not_found");
+  const bytes = new Uint8Array(await original.data.arrayBuffer());
+  if (bytes.byteLength <= CATALOG_PHOTO_MAX_BYTES) return bytes;
+  const smaller = await admin.storage
+    .from(bucket)
+    .download(path, { transform: { width: 1600, height: 1600, resize: "contain", quality: 75 } });
+  if (smaller.error || !smaller.data) throw new Error("too_large");
+  const resized = new Uint8Array(await smaller.data.arrayBuffer());
+  if (resized.byteLength > CATALOG_PHOTO_MAX_BYTES) throw new Error("too_large");
+  return resized;
+}
+
 export type CatalogTextBlocks = Record<string, string>;
 
 export type CatalogReferenceSummary = {
