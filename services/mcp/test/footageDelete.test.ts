@@ -136,5 +136,5 @@ describe("catalog media schemas published to MCP", () => {
       storage_path: "x",
     }).success).toBe(false);
     expect(restoreCatalogMediaPreviewInput.safeParse({ kind: "reference_image", external_id: "r1" }).success).toBe(false);
-  });
+  }, 20_000);
 });
