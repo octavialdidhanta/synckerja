@@ -55,9 +55,17 @@ const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
 
 const setBan = vi.fn(async () => true);
 const checkTags = vi.fn(async () => true);
+const hideClip = vi.fn(async () => ({ saved: true as const }));
 vi.mock("./useFootageBan", () => ({
   useFootageBan: () => ({ setBan: (...args: unknown[]) => setBan(...(args as Parameters<typeof setBan>)) }),
   useFootageTagCheck: () => (...args: unknown[]) => checkTags(...(args as Parameters<typeof checkTags>)),
+}));
+vi.mock("./useFootageHide", () => ({
+  useFootageHide: () => ({
+    hide: (...args: unknown[]) => hideClip(...(args as Parameters<typeof hideClip>)),
+    restore: vi.fn(async () => true),
+    listHidden: vi.fn(async () => []),
+  }),
 }));
 
 describe("FootageTab", () => {
@@ -167,6 +175,23 @@ describe("FootageTab", () => {
     });
     expect(setBan).toHaveBeenCalledWith("s1", null);
     promptSpy.mockRestore();
+  });
+
+  it("hides the whole clip after confirm", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(
+      <div className="ck">
+        <FootageTab headLeft={<h1>Content Studio</h1>} />
+      </div>,
+    );
+    fireEvent.click(screen.getByText("Sate dibakar"));
+    const panel = document.querySelector(".m") as HTMLElement;
+    await act(async () => {
+      fireEvent.click(within(panel).getByRole("button", { name: "Hapus klip" }));
+    });
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(hideClip).toHaveBeenCalledWith("a1", false);
+    confirmSpy.mockRestore();
   });
 
   it("marks AI-tagged clips and lets a person confirm the tags", async () => {
