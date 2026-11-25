@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   emptyFilters,
   filterGroups,
@@ -18,6 +19,7 @@ import {
 } from "./footageRows";
 import { useFootageData } from "./useFootageData";
 import { useFootageBan, useFootageTagCheck } from "./useFootageBan";
+import { useFootageHide, type HiddenClip } from "./useFootageHide";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { footagePlayUrl, probeAgent, probeFootage, type AgentLink } from "./localPlay";
 
@@ -32,6 +34,7 @@ export function FootageTab({ headLeft }: Props) {
   const { data, isPending, error } = useFootageData();
   const { setBan } = useFootageBan();
   const checkTags = useFootageTagCheck();
+  const { hide, restore, listHidden } = useFootageHide();
   const { organizationId } = useOrgBootstrapPending();
   const [F, setF] = useState<Filters>(() => emptyFilters());
   const [view, setView] = useState<ViewMode>("scene");
@@ -39,6 +42,7 @@ export function FootageTab({ headLeft }: Props) {
   const [showFilters, setShowFilters] = useState(false);
   const [agent, setAgent] = useState<AgentLink>("checking");
   const [open, setOpen] = useState<{ row: FootageRow; onlySeg: boolean } | null>(null);
+  const [hidden, setHidden] = useState<HiddenClip[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,6 +81,15 @@ export function FootageTab({ headLeft }: Props) {
         <span className="live">{laptopLive}</span>
         <button type="button" className="fb" onClick={() => setShowFilters((v) => !v)}>
           Filter
+        </button>
+        <button
+          type="button"
+          className="fb"
+          onClick={() => {
+            void listHidden().then(setHidden);
+          }}
+        >
+          Dihapus
         </button>
         <input
           className="q"
@@ -196,8 +209,50 @@ export function FootageTab({ headLeft }: Props) {
           agent={agent}
           onSetBan={setBan}
           onCheckTags={checkTags}
+          onHide={hide}
+          onHidden={(assetId) => {
+            setOpen(null);
+            toast("Klip disembunyikan. Agent memindahkan filenya keluar folder.", {
+              action: {
+                label: "Kembalikan",
+                onClick: () => {
+                  void restore(assetId);
+                },
+              },
+            });
+          }}
           onClose={() => setOpen(null)}
         />
+      ) : null}
+      {hidden ? (
+        <div className="m" onClick={(e) => e.target === e.currentTarget && setHidden(null)}>
+          <button type="button" className="x" onClick={() => setHidden(null)}>
+            ×
+          </button>
+          <div className="mb">
+            <div className="mi">
+              <p className="lead">Klip yang dihapus</p>
+              <div className="sub">Bisa dikembalikan selama 30 hari. Agent mengembalikan file ke folder semula.</div>
+              {hidden.length === 0 ? <div className="empty">Tidak ada klip yang dihapus.</div> : null}
+              {hidden.map((clip) => (
+                <div className="row" key={clip.asset_id}>
+                  <b>{clip.summary || clip.file_key}</b>
+                  <button
+                    type="button"
+                    className="btn g"
+                    onClick={() => {
+                      void restore(clip.asset_id).then((ok) => {
+                        if (ok) setHidden((prev) => prev?.filter((item) => item.asset_id !== clip.asset_id) ?? null);
+                      });
+                    }}
+                  >
+                    Kembalikan
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
     </>
@@ -278,6 +333,8 @@ function PlayerModal({
   agent,
   onSetBan,
   onCheckTags,
+  onHide,
+  onHidden,
   onClose,
 }: {
   rows: FootageRow[];
@@ -288,6 +345,8 @@ function PlayerModal({
   agent: AgentLink;
   onSetBan: (sceneId: string, reason: string | null) => Promise<boolean>;
   onCheckTags: (assetId: string) => Promise<boolean>;
+  onHide: (assetId: string, acknowledge: boolean) => Promise<{ saved: true } | { needsAck: true; usageCount: number } | { error: string }>;
+  onHidden: (assetId: string) => void;
   onClose: () => void;
 }) {
   const [d, setD] = useState(initial.row);
@@ -295,6 +354,7 @@ function PlayerModal({
   const [src, setSrc] = useState<{ f: string; url: string } | null>(null);
   const [fileErr, setFileErr] = useState<string | null>(null);
   const [banBusy, setBanBusy] = useState(false);
+  const [hideBusy, setHideBusy] = useState(false);
   const vref = useRef<HTMLVideoElement>(null);
   const sc = useMemo(() => rows.filter((x) => x.f === d.f), [rows, d.f]);
 
@@ -396,6 +456,31 @@ function PlayerModal({
         if (ok) setD((prev) => ({ ...prev, ban: null }));
       })
       .finally(() => setBanBusy(false));
+  };
+
+  const hideClip = () => {
+    const sceneCount = sc.length;
+    const ok = window.confirm(
+      `Hapus seluruh klip ini? ${sceneCount} scene ikut hilang dari daftar. Agent memindahkan file keluar dari folder yang dipantau. Bisa dikembalikan selama 30 hari.`,
+    );
+    if (!ok) return;
+    setHideBusy(true);
+    void onHide(d.assetId, false)
+      .then(async (result) => {
+        if ("needsAck" in result) {
+          const again = window.confirm(
+            `Klip ini sudah dipakai ${result.usageCount} kali di konten. Tetap hapus dari daftar?`,
+          );
+          if (!again) return;
+          const second = await onHide(d.assetId, true);
+          if ("saved" in second) onHidden(d.assetId);
+          else if ("error" in second) toast.error(second.error);
+          return;
+        }
+        if ("saved" in result) onHidden(d.assetId);
+        else toast.error(result.error);
+      })
+      .finally(() => setHideBusy(false));
   };
 
   return (
@@ -517,6 +602,13 @@ function PlayerModal({
                 🚫 Tandai jangan dipakai
               </button>
             )}
+            <button type="button" className="btn" disabled={hideBusy} onClick={hideClip}>
+              Hapus klip
+            </button>
+          </div>
+          <div className="sub">
+            Hapus klip mengeluarkan semua scene dari daftar. Agent memindahkan file keluar dari folder yang dipantau. Kalau
+            Agent sedang mati, file pindah saat Agent jalan lagi. Bisa dikembalikan selama 30 hari.
           </div>
           <div style={{ marginTop: 12 }}>
             <code>{d.f}</code>

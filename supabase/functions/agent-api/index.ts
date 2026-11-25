@@ -24,7 +24,7 @@ import { AgentReleaseError, latestAgentRelease } from "../_shared/agentRelease.t
  *   POST /v1/heartbeat   → { device_name, agent_version, platform, tools, last_error } + X-Agent-Device: <uuid>
  *   GET  /v1/release     → { version, zip_url } latest Agent release; zip_url is GitHub's pre-signed link (minutes)
  *
- * Footage (scope "catalog"), step 3: the Agent can only ADD new inbox clips and their media.
+ * Footage (scope "catalog"), step 3: the Agent adds inbox clips, and moves a hidden clip out of the watched folder.
  *   POST /v1/footage/check         { file_keys }                    → which already exist
  *   POST /v1/footage/register      { clip }  (footage.clips.create)  → asset_id + scene ids
  *   POST /v1/footage/media-upload  { asset_id }                      → signed upload URLs (preview + thumbs)
@@ -38,6 +38,8 @@ import { AgentReleaseError, latestAgentRelease } from "../_shared/agentRelease.t
  * Inbox → bank (scope "catalog"), step 5: only after the video using the clip is final.
  *   GET  /v1/footage/movable       inbox clips whose content is final
  *   POST /v1/footage/moved         { asset_id, new_file_key }        → after the laptop moved the file
+ *   GET  /v1/footage/file-tasks    hide / restore / purge for laptop files
+ *   POST /v1/footage/file-task     { asset_id, result, hold_key? }   → after the file moved or was missing
  *
  * Render queue (scope "render"), step 6. claim_token proves the Agent still owns the job.
  *   POST /v1/jobs/claim                                              → oldest queued job (or a stale one), or null
@@ -137,6 +139,17 @@ Deno.serve(async (req) => {
         if (error.message.includes("invalid_input")) return fail(400, "invalid_input", "Data heartbeat tidak valid.");
         console.error("agent_heartbeat failed", error.message);
         return fail(500, "internal_error", "Gagal simpan heartbeat.");
+      }
+      return json({ ok: true, ...(data as Record<string, unknown>) });
+    }
+
+    if (req.method === "GET" && path === "/v1/footage/file-tasks") {
+      if (!ctx.scopes.includes("catalog")) return fail(403, "forbidden", "Token ini tidak punya akses katalog.");
+      const { data, error } = await admin.rpc("agent_footage_file_tasks", { p_token_id: ctx.tokenId });
+      if (error) {
+        const m = mapRpcError(error.message);
+        if (m.status === 500) console.error("agent_footage_file_tasks", error.message);
+        return fail(m.status, m.code, "Gagal baca tugas file.");
       }
       return json({ ok: true, ...(data as Record<string, unknown>) });
     }
@@ -357,6 +370,24 @@ Deno.serve(async (req) => {
           return fail(400, "invalid_input", "asset_id (UUID) dan tags (object) wajib.");
         }
         const r = await rpc("agent_footage_tags", { p_asset_id: b.asset_id, p_input: b.tags });
+        return r.error ?? json({ ok: true, ...r.data });
+      }
+
+      if (path === "/v1/footage/file-task") {
+        const b = body as Record<string, unknown> | null;
+        const result = b?.result;
+        const allowed = result === "held" || result === "missing" || result === "back" || result === "purged";
+        if (!isUuid(b?.asset_id) || !allowed) {
+          return fail(400, "invalid_input", "asset_id (UUID) dan result (held|missing|back|purged) wajib.");
+        }
+        if (b.hold_key != null && (typeof b.hold_key !== "string" || b.hold_key.length > 250)) {
+          return fail(400, "invalid_input", "hold_key tidak valid.");
+        }
+        const r = await rpc("agent_footage_file_task_done", {
+          p_asset_id: b.asset_id,
+          p_result: result,
+          p_hold_key: typeof b.hold_key === "string" ? b.hold_key : null,
+        });
         return r.error ?? json({ ok: true, ...r.data });
       }
 
