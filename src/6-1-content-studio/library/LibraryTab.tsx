@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { CatalogEditor } from "./catalogEditor";
+import { linkedProductName } from "./catalogEdit";
 import { isFilled, resolveMenuFields, type LibraryPhoto, type LocationItem, type MenuItem } from "./libraryData";
+import { useCatalogEdit } from "./useCatalogEdit";
 import { useLibraryData } from "./useLibraryData";
 
 type Kind = "menu" | "lokasi";
@@ -9,15 +12,17 @@ interface Props {
   headLeft: React.ReactNode;
 }
 
-/** Read-only port of katalog.html list() + detail() for the Produk and Lokasi tabs. */
+/** Produk and Lokasi tabs. Photos stay as they are; name, alias, label, and template columns can be edited. */
 export function LibraryTab({ kind, headLeft }: Props) {
   const { data, isPending, error } = useLibraryData();
+  const edit = useCatalogEdit();
   const items = useMemo<(MenuItem | LocationItem)[]>(
     () => (kind === "menu" ? data?.menus : data?.locations) ?? [],
     [data, kind],
   );
   const [sel, setSel] = useState<string | null>(null);
   const [zoom, setZoom] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | "new" | null>(null);
 
   useEffect(() => {
     if (!items.length) return;
@@ -34,14 +39,30 @@ export function LibraryTab({ kind, headLeft }: Props) {
   const x = items.find((i) => i.id === sel) ?? null;
   const url = (p: LibraryPhoto) => (p.storagePath ? data?.photos[p.storagePath] : undefined);
   const menuFields = resolveMenuFields(data?.menuFieldDefs);
+  const editingMenu = kind === "menu" && editing && editing !== "new" ? (data?.menus.find((item) => item.id === editing) ?? null) : null;
+  const editingLocation =
+    kind === "lokasi" && editing && editing !== "new" ? (data?.locations.find((item) => item.id === editing) ?? null) : null;
+  const takenSlugs = [...(data?.menus ?? []), ...(data?.locations ?? [])].map((item) => item.externalId);
+  const sources = data?.sources ?? [];
+  const linkMode = data?.industryTemplateCode === "fnb" ? "item" : data?.industryTemplateCode === "software" ? "feature" : "manual";
 
   return (
     <>
       <header className="ck-head">{headLeft}</header>
       <div className="pmw">
         <div className="pml">
-          <div className="gt" style={{ marginBottom: 8 }}>
-            {kind === "menu" ? "Daftar produk" : "Daftar lokasi"}
+          <div className="list-head">
+            <div className="gt">{kind === "menu" ? "Daftar produk" : "Daftar lokasi"}</div>
+            <button
+              type="button"
+              className="hb"
+              onClick={() => {
+                edit.reset();
+                setEditing("new");
+              }}
+            >
+              {kind === "menu" ? "Tambah produk" : "Tambah lokasi"}
+            </button>
           </div>
           {isPending ? <div className="loading">Memuat…</div> : null}
           {error ? <div className="empty">Gagal memuat. Coba muat ulang halaman.</div> : null}
@@ -49,15 +70,49 @@ export function LibraryTab({ kind, headLeft }: Props) {
             const ok = isFilled(i);
             return (
               <div key={i.id} className={"it" + (i.id === sel ? " on" : "")} onClick={() => setSel(i.id)}>
-                <span>{i.nama}</span>
+                <span>{"fields" in i ? linkedProductName(i, sources) : i.nama}</span>
                 <span className={"st " + (ok ? "ok" : "w")}>{ok ? "siap" : "menunggu deskripsi"}</span>
               </div>
             );
           })}
         </div>
         <div className="pmr">
-          {x ? (
-            <Detail kind={kind} x={x} url={url} onZoom={setZoom} menuFields={menuFields} />
+          {editing ? (
+            <CatalogEditor
+              key={editing}
+              kind={kind}
+              menu={editingMenu}
+              location={editingLocation}
+              fields={menuFields}
+              linkMode={linkMode}
+              sources={sources}
+              menus={data?.menus ?? []}
+              saving={edit.saving}
+              error={edit.error}
+              onCancel={() => {
+                edit.reset();
+                setEditing(null);
+              }}
+              onSaved={(id) => {
+                setSel(id);
+                setEditing(null);
+              }}
+              onSaveMenu={(input) => edit.saveMenu({ ...input, takenSlugs })}
+              onSaveLocation={(input) => edit.saveLocation({ ...input, takenSlugs })}
+            />
+          ) : x ? (
+            <Detail
+              kind={kind}
+              x={x}
+              sources={sources}
+              url={url}
+              onZoom={setZoom}
+              menuFields={menuFields}
+              onEdit={() => {
+                edit.reset();
+                setEditing(x.id);
+              }}
+            />
           ) : data && !items.length ? (
             <div className="sub">{kind === "menu" ? "Belum ada produk." : "Belum ada lokasi."}</div>
           ) : null}
@@ -125,31 +180,45 @@ function Block({ label, val, thumb, onZoom }: { label: string; val?: string; thu
 function Detail({
   kind,
   x,
+  sources,
   url,
   onZoom,
   menuFields,
+  onEdit,
 }: {
   kind: Kind;
   x: MenuItem | LocationItem;
+  sources: { id: string; name: string }[];
   url: (p: LibraryPhoto) => string | undefined;
   onZoom: (u: string) => void;
   menuFields: [string, string][];
+  onEdit: () => void;
 }) {
+  const title = "fields" in x ? linkedProductName(x, sources) : x.nama;
   return (
     <>
-      <h2>{x.nama}</h2>
+      <div className="list-head">
+        <h2 style={{ margin: 0 }}>{title}</h2>
+        <button type="button" className="hb ghost" onClick={onEdit}>
+          Ubah
+        </button>
+      </div>
       <div className="sub">
         {kind === "menu"
           ? "Deskripsi produk untuk bagian Main Subject di prompt Flow."
-          : "Deskripsi lokasi untuk bagian Location di prompt Flow."}
+          : `Label untuk Anthropic: ${"label" in x ? x.label : x.nama}. Judul ini untuk prompt Flow.`}
       </div>
       {!isFilled(x) ? (
         <div className="wait">
-          Deskripsi belum ada. Tambahin foto referensinya, terus bilang ke Claude:{" "}
-          <b>
-            "isi deskripsi {kind} {x.nama}"
-          </b>
-          .
+          {kind === "menu" ? "Kolom visual masih kosong. Isi lewat tombol Ubah." : "Deskripsi lokasi masih kosong."}
+        </div>
+      ) : null}
+      {"fields" in x && x.sourcePhotoUrl ? (
+        <div className="ph">
+          <figure>
+            <img src={x.sourcePhotoUrl} alt="" />
+            <figcaption>Foto dari Item Library</figcaption>
+          </figure>
         </div>
       ) : null}
       <Photos kind={kind} x={x} url={url} onZoom={onZoom} />

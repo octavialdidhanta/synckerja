@@ -45,6 +45,16 @@ export interface MenuItem {
   aliases: string[];
   fotos: LibraryPhoto[];
   fields: Record<string, string>;
+  defaultPriceId: string | null;
+  featureId: string | null;
+  /** Signed Item Library photo. Not copied into the Flow prompt photos. */
+  sourcePhotoUrl: string | null;
+}
+
+export interface CatalogSource {
+  id: string;
+  name: string;
+  photoPath: string | null;
 }
 
 export interface LocationSection {
@@ -56,6 +66,8 @@ export interface LocationSection {
 export interface LocationItem {
   id: string;
   externalId: string;
+  /** Short label Anthropic may write on a clip. */
+  label: string;
   nama: string;
   fotos: LibraryPhoto[];
   bagian: LocationSection[];
@@ -67,6 +79,8 @@ export interface MenuRow {
   name: string;
   aliases: string[] | null;
   created_at: string;
+  default_price_id?: string | null;
+  feature_id?: string | null;
 }
 export interface MenuFieldRow {
   menu_id: string;
@@ -87,6 +101,7 @@ export interface LocationRow {
   id: string;
   external_id: string;
   name: string;
+  label?: string | null;
   created_at: string;
 }
 export interface LocationPhotoRow {
@@ -125,6 +140,9 @@ export function buildMenus(menus: MenuRow[], fields: MenuFieldRow[], photos: Men
         nama: m.name,
         aliases: m.aliases ?? [],
         fields: f,
+        defaultPriceId: m.default_price_id ?? null,
+        featureId: m.feature_id ?? null,
+        sourcePhotoUrl: null,
         fotos: photos
           .filter((p) => p.menu_id === m.id)
           .sort(byPos)
@@ -144,6 +162,7 @@ export function buildLocations(
     .map((l) => ({
       id: l.id,
       externalId: l.external_id,
+      label: l.label?.trim() || l.name,
       nama: l.name,
       fotos: photos
         .filter((p) => p.location_id === l.id)

@@ -64,6 +64,16 @@ function invalidateCatalog(qc: ReturnType<typeof useQueryClient>, orgId: string 
   ]);
 }
 
+/**
+ * Keys that belong to some industry pack but not the pack being applied.
+ * A key the organization added by hand (absent from every pack) is kept.
+ */
+export function industryKeysToDrop(orgKeys: string[], packKeys: string[], incomingKeys: string[]): string[] {
+  const incoming = new Set(incomingKeys);
+  const pack = new Set(packKeys);
+  return orgKeys.filter((key) => pack.has(key) && !incoming.has(key));
+}
+
 /** Apply a template via RLS upserts (MCP apply RPC is service_role-only). */
 export function useApplyIndustryTemplate() {
   const { organizationId } = useOrgBootstrapPending();
@@ -71,22 +81,35 @@ export function useApplyIndustryTemplate() {
   return useMutation({
     mutationFn: async (code: string) => {
       const org = organizationId as string;
-      const [{ data: fields, error: fErr }, { data: tags, error: tErr }, { data: kinds, error: kErr }] =
-        await Promise.all([
-          supabase
-            .from("catalog_industry_template_menu_fields")
-            .select("field_key,label,position")
-            .eq("template_code", code),
-          supabase
-            .from("catalog_industry_template_tags")
-            .select("key,label,applies_to,value_type,position")
-            .eq("template_code", code),
-          supabase
-            .from("catalog_industry_template_scene_kinds")
-            .select("key,label,position")
-            .eq("template_code", code),
-        ]);
-      if (fErr || tErr || kErr) throw fErr || tErr || kErr;
+      const [
+        { data: fields, error: fErr },
+        { data: tags, error: tErr },
+        { data: kinds, error: kErr },
+        { data: allFields, error: afErr },
+        { data: allTags, error: atErr },
+        { data: orgFields, error: ofErr },
+        { data: orgTags, error: otErr },
+      ] = await Promise.all([
+        supabase
+          .from("catalog_industry_template_menu_fields")
+          .select("field_key,label,position")
+          .eq("template_code", code),
+        supabase
+          .from("catalog_industry_template_tags")
+          .select("key,label,applies_to,value_type,position")
+          .eq("template_code", code),
+        supabase
+          .from("catalog_industry_template_scene_kinds")
+          .select("key,label,position")
+          .eq("template_code", code),
+        supabase.from("catalog_industry_template_menu_fields").select("field_key"),
+        supabase.from("catalog_industry_template_tags").select("key"),
+        supabase.from("catalog_menu_field_defs").select("field_key").eq("organization_id", org),
+        supabase.from("footage_tag_defs").select("key").eq("organization_id", org),
+      ]);
+      if (fErr || tErr || kErr || afErr || atErr || ofErr || otErr) {
+        throw fErr || tErr || kErr || afErr || atErr || ofErr || otErr;
+      }
       const fieldUpserts = (fields ?? []).map((f) => ({
         organization_id: org,
         field_key: f.field_key,
@@ -118,6 +141,26 @@ export function useApplyIndustryTemplate() {
         }),
       ]);
       if (u1.error || u2.error || u3.error || u4.error) throw u1.error || u2.error || u3.error || u4.error;
+
+      const dropFields = industryKeysToDrop(
+        (orgFields ?? []).map((row) => row.field_key),
+        (allFields ?? []).map((row) => row.field_key),
+        (fields ?? []).map((row) => row.field_key),
+      );
+      const dropTags = industryKeysToDrop(
+        (orgTags ?? []).map((row) => row.key),
+        (allTags ?? []).map((row) => row.key),
+        (tags ?? []).map((row) => row.key),
+      );
+      const [d1, d2] = await Promise.all([
+        dropFields.length
+          ? supabase.from("catalog_menu_field_defs").delete().eq("organization_id", org).in("field_key", dropFields)
+          : Promise.resolve({ error: null }),
+        dropTags.length
+          ? supabase.from("footage_tag_defs").delete().eq("organization_id", org).in("key", dropTags)
+          : Promise.resolve({ error: null }),
+      ]);
+      if (d1.error || d2.error) throw d1.error || d2.error;
       return { industry_template_code: code };
     },
     onSuccess: async () => {

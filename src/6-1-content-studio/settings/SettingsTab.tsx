@@ -60,8 +60,8 @@ export function SettingsTab({ headLeft }: Props) {
             <>
               <h2>Pengaturan katalog</h2>
               <div className="sub">
-                Template menentukan kolom Produk, tag filter Footage, dan jenis scene. Apply tidak menghapus tag atau
-                field yang sudah ada — hanya menambah/memperbarui dari paket.
+                Template menentukan kolom Produk, tag filter Footage, dan jenis scene. Menerapkan satu template
+                mengganti tag dan kolom dari template lain. Tag yang kamu tambah sendiri tetap.
               </div>
               <div className="blk">
                 <div className="hd">
@@ -88,7 +88,7 @@ export function SettingsTab({ headLeft }: Props) {
                     if (!selected) return;
                     if (current && current !== selected) {
                       const ok = window.confirm(
-                        `Ganti template dari ${current} ke ${selected}? Tag/field lama tetap; yang baru ditambahkan.`,
+                        `Ganti template dari ${current} ke ${selected}? Tag dan kolom dari template lama dihapus. Tag yang kamu tambah sendiri tetap.`,
                       );
                       if (!ok) return;
                     }

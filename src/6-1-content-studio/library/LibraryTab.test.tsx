@@ -25,6 +25,16 @@ vi.mock("./useLibraryData", () => ({
   }),
 }));
 
+vi.mock("./useCatalogEdit", () => ({
+  useCatalogEdit: () => ({
+    saveMenu: vi.fn(),
+    saveLocation: vi.fn(),
+    saving: false,
+    error: null,
+    reset: vi.fn(),
+  }),
+}));
+
 describe("LibraryTab", () => {
   it("lists products with status and shows the selected one", () => {
     render(
@@ -38,7 +48,11 @@ describe("LibraryTab", () => {
 
     fireEvent.click(screen.getByText("Iga bakar"));
     expect(screen.getByText("Foto referensi (1)")).toBeTruthy();
-    expect(screen.getByText(/isi deskripsi menu Iga bakar/)).toBeTruthy();
+    expect(screen.getByText("Kolom visual masih kosong. Isi lewat tombol Ubah.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tambah produk" }));
+    expect(screen.getByLabelText("Nama")).toBeTruthy();
+    expect(screen.getByLabelText("Main Subject")).toBeTruthy();
   });
 
   it("shows location photo descriptions and always-on sections", () => {
