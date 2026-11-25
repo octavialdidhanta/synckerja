@@ -262,8 +262,9 @@ function Detail({
             <figcaption>{x.sourceKind === "subcategory" ? "Foto dari content plan" : "Foto dari Item Library"}</figcaption>
           </figure>
         </div>
-      ) : null}
-      <Photos kind={kind} x={x} url={url} onZoom={onZoom} />
+      ) : (
+        <Photos kind={kind} x={x} url={url} onZoom={onZoom} />
+      )}
       {"fields" in x ? (
         menuFields.map(([k, l]) => <Block key={k} label={l} val={x.fields[k]} />)
       ) : (

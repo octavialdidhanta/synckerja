@@ -5,8 +5,9 @@ import {
   draftLanguage,
   geminiModel,
   parseDraftFields,
-  pickPhoto,
+  resolveProductLook,
   templateFields,
+  type LookSubcategory,
   type TemplateField,
 } from "../_shared/describeCatalogProduct.ts";
 
@@ -85,12 +86,12 @@ Deno.serve(async (req) => {
 
   const { data: menu, error: menuError } = await admin
     .from("catalog_menus")
-    .select("id,name,default_price_id")
+    .select("id,name,default_price_id,feature_id,sub_service_id")
     .eq("id", menuId)
     .eq("organization_id", orgId)
     .maybeSingle();
   let product = menu;
-  if (menuError && /default_price_id|does not exist/i.test(menuError.message)) {
+  if (menuError && /default_price_id|feature_id|sub_service_id|does not exist/i.test(menuError.message)) {
     const again = await admin
       .from("catalog_menus")
       .select("id,name")
@@ -98,7 +99,9 @@ Deno.serve(async (req) => {
       .eq("organization_id", orgId)
       .maybeSingle();
     if (again.error) return json({ error: again.error.message }, 500);
-    product = again.data ? { ...again.data, default_price_id: null } : null;
+    product = again.data
+      ? { ...again.data, default_price_id: null, feature_id: null, sub_service_id: null }
+      : null;
   } else if (menuError) {
     return json({ error: menuError.message }, 500);
   }
@@ -121,8 +124,13 @@ Deno.serve(async (req) => {
     admin.from("organization_script_ai_config").select("google_ai_api_key,model").eq("organization_id", orgId).maybeSingle(),
   ]);
 
+  const priceId = product.default_price_id ?? null;
+  const featureId = product.feature_id ?? null;
+  const subId = product.sub_service_id ?? null;
   let itemPath: string | null = null;
-  const priceId = (product as { default_price_id?: string | null }).default_price_id ?? null;
+  let linkedSubcategoryPath: string | null = null;
+  let items: Array<{ name: string }> = [];
+  let subcategories: LookSubcategory[] = [];
   if (priceId) {
     const { data: price } = await admin
       .from("default_prices")
@@ -132,36 +140,45 @@ Deno.serve(async (req) => {
       .eq("kind", "product")
       .maybeSingle();
     itemPath = price?.photo_path ?? null;
-  }
-
-  let subcategoryPath: string | null = null;
-  const linkedSub = await admin
-    .from("catalog_menus")
-    .select("sub_service_id")
-    .eq("id", menuId)
-    .eq("organization_id", orgId)
-    .maybeSingle();
-  const subId = !linkedSub.error ? ((linkedSub.data?.sub_service_id as string | null) ?? null) : null;
-  if (subId) {
+  } else if (subId) {
     const { data: sub } = await admin
       .from("sub_services")
       .select("image_path")
       .eq("id", subId)
       .eq("organization_id", orgId)
       .maybeSingle();
-    subcategoryPath = sub?.image_path ?? null;
-  } else if (!priceId) {
-    const { data: named } = await admin
-      .from("sub_services")
-      .select("image_path")
-      .eq("organization_id", orgId)
-      .eq("is_active", true)
-      .eq("name", product.name);
-    const photos = (named ?? []).map((row) => row.image_path).filter((path): path is string => Boolean(path));
-    if (photos.length === 1) subcategoryPath = photos[0];
+    linkedSubcategoryPath = sub?.image_path ?? null;
+  } else if (!featureId) {
+    const [prices, subs] = await Promise.all([
+      admin.from("default_prices").select("name").eq("organization_id", orgId).eq("kind", "product"),
+      admin
+        .from("sub_services")
+        .select("name,image_path,catalog_product_id")
+        .eq("organization_id", orgId)
+        .eq("is_active", true)
+        .order("name"),
+    ]);
+    if (!prices.error && !subs.error) {
+      items = (prices.data ?? []).map((row) => ({ name: row.name ?? "" }));
+      subcategories = (subs.data ?? []).map((row) => ({
+        name: row.name ?? "",
+        imagePath: row.image_path ?? null,
+        catalogProductId: row.catalog_product_id ?? null,
+      }));
+    }
   }
 
-  const photo = pickPhoto((photoRows ?? []).map((row) => row.storage_path), itemPath, subcategoryPath);
+  const photo = resolveProductLook({
+    menuName: product.name,
+    defaultPriceId: priceId,
+    featureId,
+    subServiceId: subId,
+    itemPath,
+    linkedSubcategoryPath,
+    items,
+    subcategories,
+    catalogPaths: (photoRows ?? []).map((row) => row.storage_path),
+  });
   if (!photo) return json({ error: "no_photo" }, 400);
 
   const apiKey = String(config?.google_ai_api_key ?? "").trim();

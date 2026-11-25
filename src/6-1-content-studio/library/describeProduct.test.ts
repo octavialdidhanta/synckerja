@@ -9,6 +9,7 @@ import {
   geminiModel,
   parseDraftFields,
   pickPhoto,
+  resolveProductLook,
   templateFields,
 } from "../../../supabase/functions/_shared/describeCatalogProduct";
 
@@ -19,11 +20,49 @@ describe("catalog photo draft", () => {
     expect(templateFields([{ key: "screen", label: "Layar", position: 2 }, { key: "main", label: "Apa yang ditawarkan", position: 1 }]).map((field) => field.key)).toEqual(["main", "screen"]);
   });
 
-  it("reads the reference photo before the Item Library photo", () => {
-    expect(pickPhoto(["", "org/photo.jpg"], "org/item.jpg")).toEqual({ bucket: "catalog-media", path: "org/photo.jpg" });
+  it("reads the Item Library photo before the subcategory photo and the reference photo", () => {
+    expect(pickPhoto(["", "org/photo.jpg"], "org/item.jpg")).toEqual({ bucket: "catalog-product-photos", path: "org/item.jpg" });
+    expect(pickPhoto(["org/photo.jpg"], null, "org/test1.png")).toEqual({ bucket: "sub-service-photos", path: "org/test1.png" });
+    expect(pickPhoto(["org/photo.jpg"], "  ", "  ")).toEqual({ bucket: "catalog-media", path: "org/photo.jpg" });
     expect(pickPhoto([null], "org/item.jpg")).toEqual({ bucket: "catalog-product-photos", path: "org/item.jpg" });
     expect(pickPhoto([], null, "org/test1.png")).toEqual({ bucket: "sub-service-photos", path: "org/test1.png" });
     expect(pickPhoto([], "  ")).toBeNull();
+  });
+
+  it("uses the reference photo when a linked item has no file, and skips a subcategory name", () => {
+    const shared = {
+      menuName: "Sate Kambing",
+      items: [{ name: "Sate Kambing" }],
+      subcategories: [{ name: "Sate Kambing", imagePath: "org/sub.png", catalogProductId: null }],
+      catalogPaths: ["org/ref.jpg"],
+    };
+    expect(resolveProductLook({
+      ...shared,
+      defaultPriceId: "price-1",
+      featureId: null,
+      subServiceId: null,
+      itemPath: "  ",
+      linkedSubcategoryPath: "org/ignored.png",
+    })).toEqual({ bucket: "catalog-media", path: "org/ref.jpg" });
+    expect(resolveProductLook({
+      ...shared,
+      defaultPriceId: null,
+      featureId: "feature-1",
+      subServiceId: null,
+      itemPath: null,
+      linkedSubcategoryPath: null,
+    })).toEqual({ bucket: "catalog-media", path: "org/ref.jpg" });
+    expect(resolveProductLook({
+      ...shared,
+      menuName: "test1",
+      defaultPriceId: null,
+      featureId: null,
+      subServiceId: null,
+      itemPath: null,
+      linkedSubcategoryPath: null,
+      items: [],
+      subcategories: [{ name: "test1", imagePath: "org/test1.png", catalogProductId: null }],
+    })).toEqual({ bucket: "sub-service-photos", path: "org/test1.png" });
   });
 
   it("keeps a Gemini model id and replaces any other provider", () => {

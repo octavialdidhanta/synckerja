@@ -135,7 +135,7 @@ import {
   previewCatalogStyleUpdate,
   getCatalogLocation,
   getCatalogProduct,
-  withCatalogPhotoUrls,
+  presentCatalogProduct,
   loadProductFieldMenu,
   applyCatalogProductFields,
   previewCatalogMediaDelete,
@@ -294,7 +294,7 @@ const app = createApp({
   getFootageThumb: (ctx, storagePath) => downloadFootageThumb(admin, ctx, storagePath),
   listFootageBans: (ctx) => listFootageBans(admin, ctx),
   listCatalogProducts: (ctx) => listCatalogProducts(admin, ctx),
-  getCatalogProduct: async (ctx, address) => withCatalogPhotoUrls(admin, await getCatalogProduct(admin, ctx, address)),
+  getCatalogProduct: async (ctx, address) => presentCatalogProduct(admin, ctx, await getCatalogProduct(admin, ctx, address)),
   loadProductFieldContext: async (ctx, address) => {
     const loaded = await loadProductFieldMenu(admin, ctx, address);
     return {
