@@ -285,12 +285,15 @@ describe('carousel image HTTP response', () => {
 describe('vercel rewrite', () => {
   it('leaves /api routes out of the SPA fallback', () => {
     const vercel = JSON.parse(readFileSync(resolve(process.cwd(), 'vercel.json'), 'utf8')) as {
-      rewrites: Array<{ source: string; destination: string }>;
+      routes: Array<{ src?: string; dest?: string; handle?: string }>;
     };
-    const proxy = vercel.rewrites.find((rule) => rule.source === '/api/tiktok-carousel/:org/:plan/:file');
-    expect(proxy?.destination).toContain('/storage/v1/object/public/social-media-carousel/:org/:plan/:file');
-    const spa = vercel.rewrites.find((rule) => rule.destination === '/index.html');
-    expect(spa?.source).toContain('(?!api/)');
-    expect(vercel.rewrites[0]?.source).toBe('/api/tiktok-carousel/:org/:plan/:file');
+    const proxyAt = vercel.routes.findIndex((rule) => rule.src === '/api/tiktok-carousel/([^/]+)/([^/]+)/([^/]+)');
+    const proxy = vercel.routes[proxyAt];
+    expect(proxy?.dest).toContain('/storage/v1/object/public/social-media-carousel/$1/$2/$3');
+    const spaAt = vercel.routes.findIndex((rule) => rule.dest === '/index.html');
+    expect(vercel.routes[spaAt]?.src).toContain('(?!api/)');
+    // The carousel proxy is tried before the SPA fallback.
+    expect(proxyAt).toBeGreaterThanOrEqual(0);
+    expect(proxyAt).toBeLessThan(spaAt);
   });
 });
