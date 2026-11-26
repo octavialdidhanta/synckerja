@@ -102,6 +102,15 @@ describe("buildFlowPrompt", () => {
     expect(r.text).not.toContain("What The Camera Sees");
   });
 
+  it("puts the shot heading on top instead of the standing title", () => {
+    const refs = allPhotos([menus[0]], loc);
+    const base = { fields, menus: [menus[0]], loc, refs, action: "x", talk: "diam" as const, angles: 1 as const, curArea: "", allMenus: menus };
+    expect(buildFlowPrompt({ ...base, shotTitle: "P01 — Hook — sumsum masih nyangkut" }).text.split("\n")[0]).toBe(
+      "# P01 — Hook — sumsum masih nyangkut",
+    );
+    expect(buildFlowPrompt(base).text.split("\n")[0]).toBe("# MASTER PROMPT");
+  });
+
   it("names files like katalog.html ftag", () => {
     expect(ftag({ file: "foto/pik1-foodcourt_teras.jpg" })).toBe("@pik1-foodcourt_teras");
   });
