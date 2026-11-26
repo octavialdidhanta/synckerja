@@ -204,6 +204,7 @@ export {
   applyRenderJobResult,
   listRenderJobsResult,
 } from "./render/jobs";
+export { renderStillsGetInput, getStillsResult } from "./render/stillsView";
 export {
   renderJobDraftInput,
   draftRenderJobResult,

@@ -533,6 +533,7 @@ export type AppDeps = {
     input: { title: string; plan_id: string | null; spec: unknown },
   ) => Promise<RenderDraftSaved>;
   getRenderDraft?: (ctx: McpAuthContext, draftId: string) => Promise<RenderDraftRow>;
+  downloadRenderStill?: (ctx: McpAuthContext, storagePath: string) => Promise<Uint8Array>;
   updateRenderDraft?: (
     ctx: McpAuthContext,
     draftId: string,
