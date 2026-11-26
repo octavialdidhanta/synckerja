@@ -4,6 +4,7 @@
  * Claude can tweak then call render.jobs.create.preview.
  */
 import { z } from "zod";
+import { isNoVoMarker, timingSeconds } from "../content/voMarker";
 import type { McpAuthContext } from "../../authz/context";
 import type { CatalogTextBlocks } from "../../db/catalog";
 import { renderSpecV1, specDuration, type RenderSpecV1 } from "./renderSpec";
@@ -394,7 +395,12 @@ export type BriefLookup = (ctx: McpAuthContext, planId: string) => Promise<{
   title: string | null;
   caption: string | null;
   voice_over: string | null;
+  /** Storyboard rows in order (vo cell and timing), used to turn "(suara asli)" rows into silence. */
+  rows?: Array<{ vo: string | null; timing: string | null }>;
 } | null>;
+
+/** Pause used for a no-VO row whose storyboard timing is not a readable range. */
+const NO_VO_ROW_SECONDS = 1.5;
 
 /** Newest VO clip of one storyboard row: null when the row has no clip. */
 export type VoRowLookup = (
@@ -403,12 +409,28 @@ export type VoRowLookup = (
   rowIndex: number,
 ) => Promise<{ duration_seconds: number | null; words: VoWord[] | null; file_name: string } | null>;
 
-async function resolveVoRows(ctx: McpAuthContext, input: RenderJobDraftInput, lookupVoice: VoRowLookup): Promise<VoRowIn[]> {
+async function resolveVoRows(
+  ctx: McpAuthContext,
+  input: RenderJobDraftInput,
+  lookupVoice: VoRowLookup,
+  briefRows: Array<{ vo: string | null; timing: string | null }> | null,
+  warnings: string[],
+): Promise<VoRowIn[]> {
   if (!input.plan_id) throw new Error("invalid_input: vo_rows needs plan_id (the content plan whose VO clips are used)");
   const out: VoRowIn[] = [];
   for (const r of input.vo_rows ?? []) {
     if ("silence" in r) {
       out.push({ kind: "silence", row_index: r.row_index ?? null, seconds: r.silence });
+      continue;
+    }
+    const cell = briefRows?.[r.row_index];
+    if (cell && !r.file && isNoVoMarker(cell.vo)) {
+      // "(suara asli)", "-", empty: a pause, never a clip (a clip made by mistake would read the marker aloud).
+      const seconds = timingSeconds(cell.timing) ?? NO_VO_ROW_SECONDS;
+      out.push({ kind: "silence", row_index: r.row_index, seconds });
+      warnings.push(
+        `baris ${r.row_index}: vo "${(cell.vo ?? "").trim().slice(0, 40) || "(kosong)"}" tanpa VO, dijadikan jeda ${seconds} s tanpa klip (shot tetap dipakai). Pakai {silence, row_index} untuk durasi lain.`,
+      );
       continue;
     }
     const clip = await lookupVoice(ctx, input.plan_id, r.row_index);
@@ -446,9 +468,21 @@ export async function draftRenderJobResult(
   let input = parsed.data;
   if (input.vo_rows && input.vo_file) throw new Error("invalid_input: use vo_file or vo_rows, not both");
   let voTimeline: ReturnType<typeof buildVoTimeline> | null = null;
+  const rowWarnings: string[] = [];
   if (input.vo_rows) {
     if (!lookupVoice) throw new Error("invalid_input: vo_rows is not available here");
-    voTimeline = buildVoTimeline(await resolveVoRows(ctx, input, lookupVoice), { gap: input.vo_gap, start: input.vo_start });
+    let briefRows: Array<{ vo: string | null; timing: string | null }> | null = null;
+    if (input.plan_id && getBrief) {
+      try {
+        briefRows = (await getBrief(ctx, input.plan_id))?.rows ?? null;
+      } catch {
+        briefRows = null;
+      }
+    }
+    voTimeline = buildVoTimeline(await resolveVoRows(ctx, input, lookupVoice, briefRows, rowWarnings), {
+      gap: input.vo_gap,
+      start: input.vo_start,
+    });
     // Subtitles from the VO words, unless the caller already wrote its own subtitle texts.
     if (!(input.texts ?? []).some((t) => (t.style ?? "sub") === "sub")) {
       input = {
@@ -460,7 +494,7 @@ export async function draftRenderJobResult(
       };
     }
   }
-  const autoWarnings: string[] = [];
+  const autoWarnings: string[] = [...rowWarnings];
   if (voTimeline && (input.vo_rows ?? []).some((r) => r.shots?.length)) {
     // Shots from the rows: one draft, cut on the VO, every cut inside one catalog scene.
     const keys = [...new Set((input.vo_rows ?? []).flatMap((r) => (r.shots ?? []).map((c) => c.file_key)))];
