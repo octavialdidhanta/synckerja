@@ -42,3 +42,22 @@ describe("still sheet as a picture", () => {
     expect(res.reason).toMatch(/0\.1\.20/);
   });
 });
+
+describe("default still seconds", () => {
+  it("takes the middle of every text window and the closer", async () => {
+    const { defaultStills } = await import("../src/tools/render/jobs");
+    const spec = {
+      version: 1,
+      production: "P",
+      output_name: "o",
+      shots: [{ file_key: "a.mp4", in: 0, out: 10 }],
+      audio: {},
+      styles: {},
+      texts: [
+        { text: "Hook", start: 0, end: 2, style: "hook" },
+        { text: "Sub", start: 3, end: 5, style: "sub" },
+      ],
+    } as never;
+    expect(defaultStills(spec)).toEqual([1, 4, 9.8]);
+  });
+});
