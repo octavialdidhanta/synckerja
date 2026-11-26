@@ -98,7 +98,8 @@ export const renderSpecV1 = z
             end: sec,
             style: z.string().regex(/^[a-z][a-z0-9_]{0,31}$/),
             layer: z.number().int().min(0).max(9).optional(),
-            anim: z.enum(["none", "fade", "pop", "typewriter", "menu_label", "highlight", "pop_shake", "slide"]).optional(),
+            /** wa_button (CTWA closer button) and rise (label rising from below) need Agent 0.1.23+. */
+            anim: z.enum(["none", "fade", "pop", "typewriter", "menu_label", "highlight", "pop_shake", "slide", "wa_button", "rise"]).optional(),
             /**
              * anim "highlight": when each word is spoken, in seconds on the final video (from the VO word timings).
              * Without it the words light up one after another, timed by their length.

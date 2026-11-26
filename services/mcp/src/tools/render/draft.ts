@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { isNoVoMarker, timingSeconds } from "../content/voMarker";
+import { CTA_AGENT_VERSION, ctaStyles, ctaTexts, ctaWaInput } from "./ctaWa";
 import type { McpAuthContext } from "../../authz/context";
 import type { CatalogTextBlocks } from "../../db/catalog";
 import { renderSpecV1, specDuration, type RenderSpecV1 } from "./renderSpec";
@@ -97,6 +98,11 @@ export const renderJobDraftInput = z
     texts: z.array(textIn).max(40).optional(),
     /** End card. "halftone" plays the locked 1s print-dot closer. */
     outro: z.enum(["halftone"]).optional(),
+    /**
+     * Click-to-WhatsApp ad closer: chat button (pops, then pulses), optional location label rising from below and
+     * brand name, styled from Gaya baku. Default timing: the last voice over row. Needs Agent 0.1.23+.
+     */
+    cta_wa: z.lazy(() => ctaWaInput).optional(),
     /** Still preview: seconds on the final video to render as one contact sheet instead of the whole video (max 12). */
     stills: z.array(z.number().finite().min(0).max(3600)).min(1).max(12).optional(),
     /** Production-folder image used as the halftone emblem, for example brand/emblem.png. */
@@ -136,7 +142,7 @@ export function extractHexColors(text: string): string[] {
 }
 
 /** Relative luminance 0..1 of a #RRGGBB colour. */
-function luminance(hex: string): number {
+export function luminance(hex: string): number {
   const n = Number.parseInt(hex.slice(1), 16);
   const r = (n >> 16) & 255;
   const g = (n >> 8) & 255;
@@ -523,6 +529,23 @@ export async function draftRenderJobResult(
     warnings.push(`VO per baris (vo_parts, ${voTimeline.parts.length} klip) butuh Agent v0.1.15 atau lebih baru. Agent v0.1.22+ mengunduh sendiri klip terbaru tiap baris ke folder vo saat render (butuh plan_id); Agent lebih lama: unduh tiap klip ke file di vo_parts dulu.`);
   }
 
+  if (input.cta_wa) {
+    // Closer window: given, else the last voice over row, else the last 3 s; always before the halftone closer.
+    const dur = specDuration(spec);
+    const closerAt = spec.outro ? dur - (spec.outro.seconds ?? 1) : dur;
+    const lastRow = voTimeline?.timeline.filter((r) => r.file).at(-1);
+    let end = Math.min(input.cta_wa.end ?? (lastRow ? lastRow.end : closerAt), closerAt);
+    let start = input.cta_wa.start ?? (lastRow ? lastRow.start : end - 3);
+    start = Math.max(0, Math.min(start, end - 1));
+    end = Math.max(end, start + 1);
+    const styles = ctaStyles(gaya);
+    spec.styles = { ...spec.styles, ...styles };
+    spec.texts = [...spec.texts, ...ctaTexts(input.cta_wa, Math.round(start * 100) / 100, Math.round(end * 100) / 100)];
+    warnings.push(
+      `Penutup CTWA (cta_wa) ${start.toFixed(2)}–${end.toFixed(2)} s: tombol ${styles.cta_wa.bg}${input.cta_wa.location_text ? ", label lokasi" : ""}${input.cta_wa.brand_text ? ", nama brand" : ""}. Butuh Agent v${CTA_AGENT_VERSION} atau lebih baru; cek di still preview.`,
+    );
+  }
+
   const footageErrors = lookupFootage ? await footageFindings(spec, (k) => lookupFootage(ctx, k)) : [];
 
   let brief_hints: BriefDraftHint | null = null;
@@ -594,6 +617,6 @@ export async function draftRenderJobResult(
     ...(voTimeline ? { vo_timeline: voTimeline.timeline, vo_end_seconds: voTimeline.end } : {}),
     warnings,
     next_step:
-      "Fix every item in checks.errors and checks.required (or keep a required one only with overrides [{code, reason}] in render.jobs.create.preview); mention checks.suggestions to the user if you keep them. Review the draft spec (edit shots/texts/audio if needed). Then call render.stills.create and render.jobs.create.preview with draft_id (plus a patch of only the keys you changed: shots, texts, styles per name, audio, outro, stills) instead of resending the spec; without draft_id use the same title, plan_id and this spec. After the user clearly says yes, call render.jobs.create with that confirm_token. Music defaults follow Gaya musik (usually -18 dB under VO); the Agent applies sidechain ducking and loudnorm -14 LUFS. texts[].style=menu draws the yellow typewriter menu label. outro=halftone adds the 1s dotted closer (optional logo_file inside the production folder). behind_person=true places that text under the person (Agent SAM2+RVM). A top-level effects array is still refused.",
+      "Fix every item in checks.errors and checks.required (or keep a required one only with overrides [{code, reason}] in render.jobs.create.preview); mention checks.suggestions to the user if you keep them. Review the draft spec (edit shots/texts/audio if needed). Then call render.stills.create and render.jobs.create.preview with draft_id (plus a patch of only the keys you changed: shots, texts, styles per name, audio, outro, stills) instead of resending the spec; without draft_id use the same title, plan_id and this spec. After the user clearly says yes, call render.jobs.create with that confirm_token. Music defaults follow Gaya musik (usually -18 dB under VO); the Agent applies sidechain ducking and loudnorm -14 LUFS. texts[].style=menu draws the yellow typewriter menu label. cta_wa adds the click-to-WhatsApp closer (Agent 0.1.23+). outro=halftone adds the 1s dotted closer (optional logo_file inside the production folder). behind_person=true places that text under the person (Agent SAM2+RVM). A top-level effects array is still refused.",
   };
 }

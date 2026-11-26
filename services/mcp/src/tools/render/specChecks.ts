@@ -13,6 +13,7 @@
  */
 import type { CatalogTextBlocks } from "../../db/catalog";
 import { specDuration, type RenderSpecV1 } from "./renderSpec";
+import { boxEdges, boxRect, FRAME_W, menuLines, menuTypingSeconds } from "./textLayout";
 
 export type RuleLevel = "mati" | "saran" | "wajib";
 export type Preset = "ketat" | "seimbang" | "bebas";
@@ -188,10 +189,47 @@ const GAYA_RULES: GayaRule[] = [
       if (!wantsWhatsappCta(gaya)) return [];
       const dur = specDuration(spec);
       const tail = spec.texts.filter((t) => t.end > dur * 0.6);
-      return tail.some((t) => /whats\s?app|\bwa\b/i.test(t.text))
+      return tail.some((t) => t.anim === "wa_button" || /whats\s?app|\bwa\b/i.test(t.text))
         ? []
-        : ["Kalau ini iklan CTWA: Gaya baku minta penutup ajakan chat WhatsApp, tapi tidak ada teks WhatsApp/WA di bagian akhir video."];
+        : ["Kalau ini iklan CTWA: Gaya baku minta penutup ajakan chat WhatsApp, tapi tidak ada teks WhatsApp/WA di bagian akhir video. Pakai cta_wa di render.jobs.draft untuk tombol WhatsApp."];
     },
+  },
+  {
+    // Two texts on screen at the same time whose boxes surely overlap (estimated on the low side). Subtitle under the
+    // menu label has its own rule (sub_overlaps_menu). Only suggests: some layouts stack on purpose.
+    code: "texts_overlap",
+    levels: { ketat: "saran", seimbang: "saran", bebas: "mati" },
+    check: (spec) => {
+      const out: string[] = [];
+      const items = spec.texts.filter((t) => spec.styles[t.style]).map((t) => ({ t, r: boxRect(t, spec.styles[t.style]!) }));
+      for (let i = 0; i < items.length; i++) {
+        for (let j = i + 1; j < items.length; j++) {
+          const a = items[i]!, b = items[j]!;
+          if (Math.min(a.t.end, b.t.end) - Math.max(a.t.start, b.t.start) < 0.1) continue;
+          const pair = [a.t.style, b.t.style].sort().join("+");
+          if (pair === "menu+sub") continue;
+          const w = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
+          const h = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
+          if (w > 4 && h > 4) {
+            out.push(
+              `"${a.t.text}" (${a.t.style}) dan "${b.t.text}" (${b.t.style}) tampil bersamaan di ${Math.max(a.t.start, b.t.start).toFixed(2)}–${Math.min(a.t.end, b.t.end).toFixed(2)} s dan saling menumpuk; geser y salah satunya atau atur waktunya.`,
+            );
+          }
+        }
+      }
+      return out;
+    },
+  },
+  {
+    // Gaya baku asks numbered points and titles to stay short; the line count is an estimate, so it only suggests.
+    code: "label_too_long",
+    levels: { ketat: "saran", seimbang: "saran", bebas: "mati" },
+    check: (spec) =>
+      spec.texts
+        .filter((t) => t.anim === "menu_label" && spec.styles[t.style])
+        .map((t) => ({ t, lines: menuLines(t, spec.styles[t.style]!) }))
+        .filter((x) => x.lines > 2)
+        .map((x) => `Label "${x.t.text}" kira-kira ${x.lines} baris; pendekkan teksnya supaya muat maksimal 2 baris.`),
   },
   {
     code: "no_vo_original_sound",
@@ -283,6 +321,25 @@ function teknisFindings(spec: RenderSpecV1): Finding[] {
       out.push({ code: "text_outside_video", kind: "teknis", level: "error", message: `"${t.text}" mulai di ${t.start}s, setelah video selesai (${dur.toFixed(2)}s).` });
     } else if (t.end - t.start < 0.4) {
       out.push({ code: "text_too_short", kind: "teknis", level: "error", message: `"${t.text}" cuma tampil ${(t.end - t.start).toFixed(2)}s, tidak terbaca.` });
+    } else if (t.anim === "menu_label" && menuTypingSeconds(t.text) > t.end - t.start - 0.05) {
+      out.push({
+        code: "label_typing_unfinished",
+        kind: "teknis",
+        level: "error",
+        message: `"${t.text}" diketik ±${menuTypingSeconds(t.text).toFixed(1)} s tapi cuma tampil ${(t.end - t.start).toFixed(2)} s, jadi hilang sebelum selesai diketik. Panjangkan waktunya atau pendekkan teksnya.`,
+      });
+    }
+    const style = spec.styles[t.style];
+    if (style) {
+      const { left, right } = boxEdges(t, style);
+      if (left < -2 || right > FRAME_W + 2) {
+        out.push({
+          code: "text_off_screen",
+          kind: "teknis",
+          level: "error",
+          message: `"${t.text}" (style ${t.style}${t.anim ? `, anim ${t.anim}` : ""}) keluar dari layar ${left < -2 ? "di kiri" : "di kanan"}. Geser x, kecilkan size/max_width, atau pendekkan teksnya${t.style === "judul" || t.style === "menu" ? `; style ${t.style} pakai anim menu_label (nempel kiri)` : ""}.`,
+        });
+      }
     }
   }
   return out;
