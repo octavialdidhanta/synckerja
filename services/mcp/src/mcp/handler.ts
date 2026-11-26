@@ -882,6 +882,11 @@ export type McpReadDeps = {
     input: { title: string; plan_id: string | null; spec: unknown },
   ) => Promise<RenderDraftSaved>;
   getRenderDraft?: (ctx: McpAuthContext, draftId: string) => Promise<RenderDraftRow>;
+  updateRenderDraft?: (
+    ctx: McpAuthContext,
+    draftId: string,
+    input: { title: string; plan_id: string | null; spec: unknown },
+  ) => Promise<RenderDraftSaved>;
   previewFootageDelete: (ctx: McpAuthContext, input: FootageDeleteInput) => Promise<FootageDeletePreview>;
   applyFootageDelete: (ctx: McpAuthContext, previewId: string) => Promise<FootageDeleteSaved>;
   previewFootageRestore: (ctx: McpAuthContext, input: FootageRestoreInput) => Promise<FootageRestorePreview>;
@@ -1806,7 +1811,7 @@ async function runTool(
         deps.signFootageConfirmation,
         deps.getCatalogStyle,
         (c, fileKey) => lookupRenderFootage(deps, c, fileKey),
-        { save: deps.saveRenderDraft, get: deps.getRenderDraft },
+        { get: deps.getRenderDraft, update: deps.updateRenderDraft },
       );
     case "render.jobs.create":
       return applyRenderJobResult(ctx, args, deps.verifyFootageConfirmation, deps.applyRenderJob);
@@ -1818,7 +1823,7 @@ async function runTool(
         deps.applyRenderJob,
         deps.getCatalogStyle,
         (c, fileKey) => lookupRenderFootage(deps, c, fileKey),
-        { save: deps.saveRenderDraft, get: deps.getRenderDraft },
+        { get: deps.getRenderDraft, update: deps.updateRenderDraft },
       );
     case "render.jobs.list":
       return listRenderJobsResult(ctx, args, deps.listRenderJobs);

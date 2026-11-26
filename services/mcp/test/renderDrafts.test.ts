@@ -21,9 +21,9 @@ describe("render drafts (draft_id + patch)", () => {
     expect("stills" in out).toBe(false);
   });
 
-  it("still preview from draft_id + patch saves the patched spec as a new draft", async () => {
+  it("still preview from draft_id + patch writes the patch back into the same draft", async () => {
     const get = vi.fn(async () => ({ draft_id: draftId, title: "Coba", plan_id: null, spec, expires_at: "x" }));
-    const save = vi.fn(async () => ({ draft_id: "new-draft", expires_at: "x" }));
+    const update = vi.fn(async () => ({ draft_id: draftId, expires_at: "x" }));
     const preview = vi.fn(async (_c, input: { title: string; spec: { stills: number[]; styles: { sub: { size: number } } } }) => {
       expect(input.title).toBe("Still – Coba");
       expect(input.spec.styles.sub.size).toBe(11);
@@ -38,10 +38,10 @@ describe("render drafts (draft_id + patch)", () => {
       apply,
       undefined,
       undefined,
-      { get, save },
+      { get, update },
     );
-    expect(res.draft_id).toBe("new-draft");
-    expect(save).toHaveBeenCalledOnce();
+    expect(res.draft_id).toBe(draftId);
+    expect(update).toHaveBeenCalledWith(ctx, draftId, expect.objectContaining({ title: "Coba" }));
   });
 
   it("refuses spec and draft_id together, and a patch without draft_id", async () => {

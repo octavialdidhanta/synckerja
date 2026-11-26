@@ -101,7 +101,7 @@ import {
   updateTaskStep,
   setTaskStepCompleted,
 } from "./db/dailyTasks";
-import { applyRenderJob, getRenderDraft, listRenderJobs, previewRenderJob, saveRenderDraft } from "./db/render";
+import { applyRenderJob, getRenderDraft, listRenderJobs, previewRenderJob, saveRenderDraft, updateRenderDraft } from "./db/render";
 import {
   applyFootageBan,
   applyFootageClip,
@@ -362,6 +362,7 @@ const app = createApp({
   listRenderJobs: (ctx, limit) => listRenderJobs(admin, ctx, limit),
   saveRenderDraft: (ctx, input) => saveRenderDraft(admin, ctx, input),
   getRenderDraft: (ctx, draftId) => getRenderDraft(admin, ctx, draftId),
+  updateRenderDraft: (ctx, draftId, input) => updateRenderDraft(admin, ctx, draftId, input),
   previewFootageDelete: (ctx, input) => previewFootageDelete(admin, ctx, input),
   applyFootageDelete: (ctx, previewId) => applyFootageDelete(admin, ctx, previewId),
   previewFootageRestore: (ctx, input) => previewFootageRestore(admin, ctx, input),

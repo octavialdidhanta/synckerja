@@ -61,8 +61,12 @@ export const renderStillsCreateInput = z
   .refine(oneSpecSource, oneSpecSourceMessage);
 
 export type DraftStore = {
-  save?: (ctx: McpAuthContext, input: { title: string; plan_id: string | null; spec: unknown }) => Promise<RenderDraftSaved>;
   get?: (ctx: McpAuthContext, draftId: string) => Promise<RenderDraftRow>;
+  update?: (
+    ctx: McpAuthContext,
+    draftId: string,
+    input: { title: string; plan_id: string | null; spec: unknown },
+  ) => Promise<RenderDraftSaved>;
 };
 
 type SpecV1 = z.infer<typeof renderSpecV1>;
@@ -93,7 +97,7 @@ export function applyDraftPatch(spec: Record<string, unknown>, patch: Record<str
   return out;
 }
 
-/** The spec to use: given inline, or a saved draft with its patch (saved again as a new draft so the next call can patch it). */
+/** The spec to use: given inline, or a saved draft with its patch (the patch is written back to the same draft_id). */
 async function resolveSpec(
   ctx: McpAuthContext,
   input: { title?: string; plan_id?: string | null; spec?: SpecV1; draft_id?: string; patch?: Record<string, unknown> },
@@ -113,9 +117,8 @@ async function resolveSpec(
   }
   const title = input.title ?? row.title;
   const plan_id = input.plan_id !== undefined ? input.plan_id : row.plan_id;
-  let draft_id = row.draft_id;
-  if (input.patch && drafts.save) draft_id = (await drafts.save(ctx, { title, plan_id, spec: parsed.data })).draft_id;
-  return { title, plan_id, spec: parsed.data, draft_id };
+  if (input.patch && drafts.update) await drafts.update(ctx, row.draft_id, { title, plan_id, spec: parsed.data });
+  return { title, plan_id, spec: parsed.data, draft_id: row.draft_id };
 }
 
 export const renderJobsListInput = z.object({ limit: z.number().int().min(1).max(50).optional() }).strict();

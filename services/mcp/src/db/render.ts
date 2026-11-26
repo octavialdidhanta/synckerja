@@ -86,3 +86,19 @@ export function getRenderDraft(admin: SupabaseClient, ctx: Session, draftId: str
     p_draft_id: draftId,
   });
 }
+
+export function updateRenderDraft(
+  admin: SupabaseClient,
+  ctx: Session,
+  draftId: string,
+  input: { title: string; plan_id: string | null; spec: unknown },
+): Promise<RenderDraftSaved> {
+  return callJson<RenderDraftSaved>(admin, "mcp_update_render_draft", {
+    p_user_id: ctx.userId,
+    p_organization_id: ctx.organizationId,
+    p_draft_id: draftId,
+    p_title: input.title,
+    p_plan_id: input.plan_id,
+    p_spec: input.spec,
+  });
+}
