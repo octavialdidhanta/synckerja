@@ -6,41 +6,36 @@ import { RouteSkeletonBootShell } from "@/shared/components/route-loading/create
 import { shouldMountOrderStoreApp, publicOrderHostname } from "@/synckerja-order/shared/lib/orderUrls";
 import "./index.css";
 import { initSentry, markAssetReloadPending } from "@/shared/lib/sentry";
+import { ASSET_RELOADS_KEY, canReloadAt, failedChunkUrl, parseReloads, refreshChunkCache } from "@/shared/lib/assetRecovery";
 
 initSentry();
 
-const ASSET_RELOAD_KEY = "sj-asset-reload";
-
-const App = lazy(() =>
-  import("./App.tsx").then((m) => {
-    sessionStorage.removeItem(ASSET_RELOAD_KEY);
-    return m;
-  }),
-);
+const App = lazy(() => import("./App.tsx"));
 
 const SurveyPublicApp = lazy(() =>
-  import("@/features/customer-survey/public/SurveyPublicApp.tsx").then((m) => {
-    sessionStorage.removeItem(ASSET_RELOAD_KEY);
-    return { default: m.SurveyPublicApp };
-  }),
+  import("@/features/customer-survey/public/SurveyPublicApp.tsx").then((m) => ({ default: m.SurveyPublicApp })),
 );
 
 const OrderStoreApp = lazy(() =>
-  import("@/synckerja-order/0-storefront/OrderStoreApp.tsx").then((m) => {
-    sessionStorage.removeItem(ASSET_RELOAD_KEY);
-    return { default: m.OrderStoreApp };
-  }),
+  import("@/synckerja-order/0-storefront/OrderStoreApp.tsx").then((m) => ({ default: m.OrderStoreApp })),
 );
 
-/** Setelah deploy, chunk hash lama bisa 404/HTML — satu kali clear SW/cache lalu reload. */
+/**
+ * Setelah deploy, chunk bisa gagal dimuat (404 lama tersimpan di HTTP cache, atau HTML). Ambil ulang chunk itu
+ * melewati cache, bersihkan SW/cache, lalu reload — paling banyak 2x per 5 menit (lihat assetRecovery.ts).
+ */
 function setupAssetLoadRecovery() {
-  const canReload = () => sessionStorage.getItem(ASSET_RELOAD_KEY) !== "1";
-  const reloadOnce = async () => {
-    if (!canReload()) return;
-    sessionStorage.setItem(ASSET_RELOAD_KEY, "1");
+  let recovering = false;
+  const canReload = () => canReloadAt(parseReloads(sessionStorage.getItem(ASSET_RELOADS_KEY)), Date.now());
+  const recover = async (failedUrl: string | null) => {
+    if (recovering || !canReload()) return;
+    recovering = true;
+    const times = parseReloads(sessionStorage.getItem(ASSET_RELOADS_KEY));
+    sessionStorage.setItem(ASSET_RELOADS_KEY, JSON.stringify([...times, Date.now()].slice(-5)));
     // The prevented preload makes the lazy import resolve to undefined, so React throws
     // "reading 'default'" until the reload below lands: don't report that to Sentry.
     markAssetReloadPending();
+    if (failedUrl) await refreshChunkCache(failedUrl);
     try {
       if ("serviceWorker" in navigator) {
         const regs = await navigator.serviceWorker.getRegistrations();
@@ -57,11 +52,13 @@ function setupAssetLoadRecovery() {
   };
 
   window.addEventListener("vite:preloadError", (event) => {
-    // Already reloaded once in this boot and still failing: let the real chunk-load
-    // error surface (error boundary + Sentry) instead of an undefined module.
+    // Reload budget used up and still failing: let the real chunk-load error surface
+    // (error boundary + Sentry) instead of reloading again.
     if (!canReload()) return;
     event.preventDefault();
-    void reloadOnce();
+    const payload = (event as Event & { payload?: unknown }).payload;
+    const message = payload instanceof Error ? payload.message : String(payload ?? "");
+    void recover(failedChunkUrl(message));
   });
 
   // Script tag di index.html (bukan dynamic import) — MIME text/html setelah deploy.
@@ -72,7 +69,7 @@ function setupAssetLoadRecovery() {
       if (!(el instanceof HTMLScriptElement)) return;
       const src = el.src || "";
       if (!src.includes("/assets/")) return;
-      void reloadOnce();
+      void recover(src);
     },
     true,
   );
