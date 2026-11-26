@@ -11,6 +11,8 @@ import {
 import { renderSpecV1, specDuration } from "./renderSpec";
 import type { CatalogTextBlocks } from "../../db/catalog";
 import { checkSpec, footageFindings, specCheckPasses, type FootageLookup } from "./specChecks";
+import { STILLS_WAIT_DEFAULT, stillsSheetResult, type StillsDeps } from "./stillsView";
+import type { McpContentResult } from "../footage/view";
 
 /**
  * A saved draft (render.jobs.draft returns draft_id) plus the changed top-level spec keys. styles merge per style
@@ -56,6 +58,8 @@ export const renderStillsCreateInput = z
     draft_id: z.string().uuid().optional(),
     patch: draftPatch.optional(),
     stills: z.array(z.number().finite().min(0).max(3600)).min(1).max(12).optional(),
+    /** Wait for the Agent and return the contact sheet as a picture (default true; up to 75 s). */
+    wait: z.boolean().optional(),
   })
   .strict()
   .refine(oneSpecSource, oneSpecSourceMessage);
@@ -211,7 +215,8 @@ export async function createStillsResult(
   getStyle?: (ctx: McpAuthContext) => Promise<CatalogTextBlocks>,
   lookupFootage?: (ctx: McpAuthContext, fileKey: string) => Promise<Awaited<ReturnType<FootageLookup>>>,
   drafts?: DraftStore,
-): Promise<Record<string, unknown>> {
+  stillsDeps?: StillsDeps,
+): Promise<Record<string, unknown> | McpContentResult> {
   const parsed = renderStillsCreateInput.safeParse(args);
   if (!parsed.success) {
     const where = parsed.error.issues.slice(0, 5).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
@@ -234,6 +239,12 @@ export async function createStillsResult(
   const title = resolved.title.startsWith("Still") ? resolved.title : `Still – ${resolved.title}`;
   const row = await preview(ctx, { plan_id: null, title, spec });
   const saved = await apply(ctx, row.preview_id);
+  if (parsed.data.wait !== false && stillsDeps) {
+    return stillsSheetResult(ctx, saved.job_id, STILLS_WAIT_DEFAULT, stillsDeps, {
+      ...(resolved.draft_id ? { draft_id: resolved.draft_id } : {}),
+      checks,
+    });
+  }
   return {
     ...saved,
     stills,

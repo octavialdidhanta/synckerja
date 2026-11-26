@@ -393,6 +393,8 @@ import {
   previewRenderJobResult,
   renderStillsCreateInput,
   createStillsResult,
+  renderStillsGetInput,
+  getStillsResult,
   applyRenderJobResult,
   listRenderJobsResult,
   renderJobDraftInput,
@@ -882,6 +884,7 @@ export type McpReadDeps = {
     input: { title: string; plan_id: string | null; spec: unknown },
   ) => Promise<RenderDraftSaved>;
   getRenderDraft?: (ctx: McpAuthContext, draftId: string) => Promise<RenderDraftRow>;
+  downloadRenderStill?: (ctx: McpAuthContext, storagePath: string) => Promise<Uint8Array>;
   updateRenderDraft?: (
     ctx: McpAuthContext,
     draftId: string,
@@ -1129,6 +1132,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "render.jobs.create.preview": renderJobCreatePreviewInput,
   "render.jobs.create": confirmFootageInput,
   "render.stills.create": renderStillsCreateInput,
+  "render.stills.get": renderStillsGetInput,
   "render.jobs.list": renderJobsListInput,
   "footage.delete.preview": deleteFootagePreviewInput,
   "footage.delete": confirmFootageInput,
@@ -1824,7 +1828,10 @@ async function runTool(
         deps.getCatalogStyle,
         (c, fileKey) => lookupRenderFootage(deps, c, fileKey),
         { get: deps.getRenderDraft, update: deps.updateRenderDraft },
+        { listRenderJobs: deps.listRenderJobs, downloadRenderStill: deps.downloadRenderStill },
       );
+    case "render.stills.get":
+      return getStillsResult(ctx, args, { listRenderJobs: deps.listRenderJobs, downloadRenderStill: deps.downloadRenderStill });
     case "render.jobs.list":
       return listRenderJobsResult(ctx, args, deps.listRenderJobs);
     case "footage.delete.preview":

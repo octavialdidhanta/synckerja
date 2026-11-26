@@ -49,6 +49,7 @@ import { AgentReleaseError, latestAgentRelease } from "../_shared/agentRelease.t
  *   POST /v1/jobs/claim                                              → oldest queued job (or a stale one), or null
  *   POST /v1/jobs/<id>/progress     { claim_token, progress, stage, log } → { continue } (false = cancelled)
  *   POST /v1/jobs/<id>/upload-start { claim_token, file_name, size_bytes } → one-time upload URL for the plan
+ *   POST /v1/jobs/<id>/stills-upload { claim_token }                 → signed upload URL for the still-preview sheet
  *   POST /v1/jobs/<id>/usage        { claim_token, shots: [{ file_key, in, out }] } → footage usage for the plan
  *   POST /v1/jobs/<id>/finish       { claim_token, ok, result, error, log, final? }  final: do not retry
  */
@@ -217,7 +218,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const jobRoute = /^\/v1\/jobs\/(claim|([0-9a-f-]{36})\/(progress|finish|upload-start|usage))$/i.exec(path);
+    const jobRoute = /^\/v1\/jobs\/(claim|([0-9a-f-]{36})\/(progress|finish|upload-start|usage|stills-upload))$/i.exec(path);
     if (req.method === "POST" && jobRoute) {
       if (!ctx.scopes.includes("render")) return fail(403, "forbidden", "Token ini tidak punya akses render.");
       let body: Record<string, unknown> = {};
@@ -276,6 +277,22 @@ Deno.serve(async (req) => {
         });
         if (error) return rpcErr("agent_job_finish", error.message);
         return json({ ok: true, ...(data as Record<string, unknown>) });
+      }
+
+      if (action === "stills-upload") {
+        // Still-preview sheet: one JPEG per job, so Claude and Office can see it without the laptop.
+        const { data: target, error: tErr } = await admin.rpc("agent_job_stills_target", {
+          p_token_id: ctx.tokenId, p_job_id: jobId, p_claim_token: claimToken,
+        });
+        if (tErr) return rpcErr("agent_job_stills_target", tErr.message);
+        const t = target as { path: string | null; reason?: string };
+        if (!t.path) return json({ ok: true, upload: null, reason: t.reason ?? "not_stills" });
+        const { data: signed, error: sErr } = await admin.storage.from(BUCKET).createSignedUploadUrl(t.path, { upsert: true });
+        if (sErr || !signed) {
+          console.error("stills-upload sign", sErr?.message);
+          return fail(500, "internal_error", "Gagal siapkan unggahan still.");
+        }
+        return json({ ok: true, upload: { path: t.path, upload_url: signed.signedUrl, max_bytes: 8 * 1024 * 1024 } });
       }
 
       // upload-start: a new version on the job's content plan, uploaded in the name of whoever confirmed the job.

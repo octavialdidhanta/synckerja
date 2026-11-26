@@ -102,3 +102,14 @@ export function updateRenderDraft(
     p_spec: input.spec,
   });
 }
+
+/** The still-preview sheet the Agent uploaded for one job (only this organization's render-stills folder). */
+export async function downloadRenderStill(admin: SupabaseClient, ctx: Session, storagePath: string): Promise<Uint8Array> {
+  const prefix = `${ctx.organizationId}/render-stills/`;
+  if (!storagePath.startsWith(prefix) || storagePath.includes("..") || !/\.jpe?g$/i.test(storagePath)) {
+    throw new Error("forbidden");
+  }
+  const { data, error } = await admin.storage.from("catalog-media").download(storagePath);
+  if (error || !data) throw new Error("not_found");
+  return new Uint8Array(await data.arrayBuffer());
+}
