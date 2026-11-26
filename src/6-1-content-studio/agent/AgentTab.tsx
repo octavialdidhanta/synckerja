@@ -2,15 +2,17 @@
 import { useState } from "react";
 import { useCurrentUserRole } from "@/shared/hooks/useCurrentUserRole";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { ago, deviceLink, JOB_STATUS, sortJobs, tokenState, toolList, visibleDevices } from "./agentData";
+import { ago, deviceLink, JOB_STATUS, sortJobs, stillsPath, tokenState, toolList, visibleDevices } from "./agentData";
 import {
   useAgentDevices,
   useAgentJobActions,
   useAgentJobs,
   useAgentTokenActions,
   useAgentTokens,
+  useStillUrls,
   type CreatedToken,
 } from "./useAgentData";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import type { AgentTokenRow } from "./agentData";
 
 interface Props {
@@ -140,6 +142,8 @@ export function AgentTab({ headLeft }: Props) {
   const tokens = useAgentTokens();
   const { create, revoke } = useAgentTokenActions();
   const jobs = useAgentJobs();
+  const { organizationId } = useOrgBootstrapPending();
+  const stillUrls = useStillUrls(jobs.data);
   const jobActions = useAgentJobActions();
   const role = useCurrentUserRole();
   const canManage = role.data === "owner" || role.data === "admin";
@@ -435,6 +439,16 @@ export function AgentTab({ headLeft }: Props) {
                       ) : null}
                     </p>
                   ) : null}
+                  {(() => {
+                    const path = stillsPath(j, organizationId);
+                    const url = path ? stillUrls.data?.[path] : undefined;
+                    if (!url) return null;
+                    return (
+                      <a className="job-still" href={url} target="_blank" rel="noreferrer" title="Buka lembar still ukuran penuh">
+                        <img src={url} alt={`Still preview ${j.title}`} loading="lazy" />
+                      </a>
+                    );
+                  })()}
                   {j.log && (j.status === "failed" || j.status === "done" || j.status === "cancelled") ? (
                     <details className="log">
                       <summary>Log</summary>
