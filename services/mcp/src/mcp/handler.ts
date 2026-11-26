@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z, type ZodRawShape, type ZodTypeAny } from "zod";
 import { AuthzError } from "../authz/errors";
+import { briefTextParts, checkBriefClaims, type BriefTextPart } from "../tools/content/claimCheck";
 import type { RenderDraftRow, RenderDraftSaved, RenderJobPreview, RenderJobSaved, RenderJobsList } from "../db/render";
 import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
@@ -1009,6 +1010,20 @@ const CONFIRM_NEXT_STEP =
   + "One yes confirms one write: do not save a second write (for example a purchase order) on the same yes; preview it and ask again.";
 
 /** Footage facts for render checks: null only when the catalog has no such file_key; other failures are thrown. */
+/** Claim check for a brief write: a warning list, never a reason for the write to fail. */
+async function safeClaimCheck(ctx: McpAuthContext, parts: BriefTextPart[], deps: HandlerDeps) {
+  if (!parts.length) return null;
+  try {
+    return await checkBriefClaims(ctx, parts, {
+      listCatalogProducts: deps.listCatalogProducts,
+      getCatalogProduct: deps.getCatalogProduct,
+      listProductKnowledge: deps.listProductKnowledge,
+    });
+  } catch {
+    return null;
+  }
+}
+
 async function lookupRenderFootage(
   deps: HandlerDeps,
   ctx: McpAuthContext,
@@ -1664,7 +1679,18 @@ async function runTool(
           })),
         },
         deps.createContentBrief,
-      );
+      ).then(async (saved) => ({
+        ...saved,
+        claim_check: await safeClaimCheck(
+          ctx,
+          briefTextParts({
+            rows: data.sequences.flatMap((sq) => sq.shots).map((shot) => ({ vo: shot.vo, element: shot.element })),
+            voiceOver: data.voice_over,
+            caption: data.caption,
+          }),
+          deps,
+        ),
+      }));
     }
     case "content.briefs.get":
       return getBriefResult(ctx, requiredString(args.id), deps.getContentBrief);
@@ -1677,9 +1703,26 @@ async function runTool(
       const signed = preview.write
         ? await deps.signContentConfirmation(ctx, "content.briefs.update", { ...preview.write })
         : null;
+      const rowOf = new Map(state.shots.map((shot) => [shot.id, shot.rowIndex]));
+      const claimCheck = preview.write
+        ? await safeClaimCheck(
+            ctx,
+            briefTextParts({
+              rows: (input.shots ?? []).map((shot) => ({
+                vo: shot.vo,
+                element: shot.element,
+                label: `baris ${(rowOf.get(shot.shotId) ?? -1) + 1}`,
+              })),
+              voiceOver: input.voiceOver,
+              caption: input.caption,
+            }),
+            deps,
+          )
+        : null;
       return {
         changes: preview.changes,
         will_return_to_need_review: preview.willReturnToNeedReview,
+        ...(claimCheck ? { claim_check: claimCheck } : {}),
         ...(signed ?? {}),
         how_to_read: BRIEF_UPDATE_HOW_TO_READ,
         next_step: signed
