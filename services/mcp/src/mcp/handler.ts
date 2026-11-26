@@ -854,6 +854,7 @@ export type McpReadDeps = {
     address: import("../db/catalog").CatalogAddress,
   ) => Promise<import("../db/catalog").CatalogLocation>;
   getCatalogStyle: (ctx: McpAuthContext) => Promise<import("../db/catalog").CatalogTextBlocks>;
+  getClaimWords?: (ctx: McpAuthContext) => Promise<{ industry: string | null; claim_words: string[] }>;
   getCatalogPrompts: (ctx: McpAuthContext) => Promise<import("../db/catalog").CatalogTextBlocks>;
   listCatalogReferences: (ctx: McpAuthContext) => Promise<import("../db/catalog").CatalogReferenceList>;
   getCatalogReference: (ctx: McpAuthContext, id: string) => Promise<Record<string, unknown>>;
@@ -1018,6 +1019,8 @@ async function safeClaimCheck(ctx: McpAuthContext, parts: BriefTextPart[], deps:
       listCatalogProducts: deps.listCatalogProducts,
       getCatalogProduct: deps.getCatalogProduct,
       listProductKnowledge: deps.listProductKnowledge,
+      getClaimWords: deps.getClaimWords,
+      getCatalogStyle: async (c) => (await deps.getCatalogStyle(c)) as Record<string, string | null | undefined>,
     });
   } catch {
     return null;

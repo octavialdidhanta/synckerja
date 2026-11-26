@@ -502,6 +502,7 @@ export type AppDeps = {
   listCatalogLocations: (ctx: McpAuthContext) => Promise<CatalogLocationList>;
   getCatalogLocation: (ctx: McpAuthContext, address: CatalogAddress) => Promise<CatalogLocation>;
   getCatalogStyle: (ctx: McpAuthContext) => Promise<CatalogTextBlocks>;
+  getClaimWords?: (ctx: McpAuthContext) => Promise<{ industry: string | null; claim_words: string[] }>;
   getCatalogPrompts: (ctx: McpAuthContext) => Promise<CatalogTextBlocks>;
   listCatalogReferences: (ctx: McpAuthContext) => Promise<CatalogReferenceList>;
   getCatalogReference: (ctx: McpAuthContext, id: string) => Promise<Record<string, unknown>>;
