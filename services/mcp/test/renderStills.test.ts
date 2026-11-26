@@ -28,11 +28,12 @@ describe("render.stills.create", () => {
     expect((seen[0]!.spec as { stills: number[] }).stills).toEqual([1, 7.5]);
   });
 
-  it("refuses without seconds and does not queue on a technical error", async () => {
+  it("picks default seconds when none are given, and does not queue on a technical error", async () => {
     const never = async () => {
       throw new Error("must not be called");
     };
-    await expect(createStillsResult(ctx, { title: "x", spec }, never, never)).rejects.toThrow(/stills/);
+    const noStills = await createStillsResult(ctx, { title: "x", spec }, never, never, undefined, async () => null);
+    expect((noStills as { checks: unknown }).checks).toBeDefined();
     const out = await createStillsResult(ctx, { title: "x", spec, stills: [1] }, never, never, undefined, async () => null);
     expect(out).toMatchObject({ error: "spec_check_failed" });
   });

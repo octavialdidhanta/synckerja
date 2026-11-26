@@ -75,6 +75,20 @@ export type DraftStore = {
 
 type SpecV1 = z.infer<typeof renderSpecV1>;
 
+/**
+ * Seconds to check when none are given: the middle of every text window (at most 11, spread over the video) and
+ * the closer (the last moment of the video), so every text and the outro are seen once.
+ */
+export function defaultStills(spec: SpecV1): number[] {
+  const dur = specDuration(spec);
+  const mids = [...new Set(spec.texts.map((t) => Math.round(((t.start + Math.min(t.end, dur)) / 2) * 100) / 100))]
+    .filter((s) => s >= 0 && s < dur)
+    .sort((a, b) => a - b);
+  const pick = mids.length <= 11 ? mids : Array.from({ length: 11 }, (_, i) => mids[Math.round((i * (mids.length - 1)) / 10)]!);
+  const closer = Math.max(0, Math.round((dur - 0.2) * 100) / 100);
+  return [...new Set([...pick, closer])].sort((a, b) => a - b).slice(0, 12);
+}
+
 /** Merge a patch into a draft spec: styles per style name, other keys replace. */
 export function applyDraftPatch(spec: Record<string, unknown>, patch: Record<string, unknown> | undefined): Record<string, unknown> {
   if (!patch) return spec;
@@ -223,8 +237,8 @@ export async function createStillsResult(
     throw new Error(`invalid_input: ${where}`);
   }
   const resolved = await resolveSpec(ctx, parsed.data as Parameters<typeof resolveSpec>[1], drafts);
-  const stills = parsed.data.stills ?? resolved.spec.stills;
-  if (!stills?.length) throw new Error("invalid_input: stills: give the seconds to render (in stills or spec.stills)");
+  const stills = parsed.data.stills ?? resolved.spec.stills ?? defaultStills(resolved.spec);
+  if (!stills.length) throw new Error("invalid_input: stills: give the seconds to render (in stills or spec.stills)");
   const spec = { ...resolved.spec, stills };
   const footageErrors = lookupFootage ? await footageFindings(spec, (k) => lookupFootage(ctx, k)) : [];
   const checks = checkSpec(spec, getStyle ? await getStyle(ctx) : {}, [], footageErrors);
