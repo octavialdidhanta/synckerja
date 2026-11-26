@@ -10,7 +10,7 @@
  * Every tool named here must exist (test/playbook.test.ts).
  */
 
-export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-24.3";
+export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-26.1";
 
 export const VIDEO_EDIT_PLAYBOOK = `
 # Synckerja video edit playbook
@@ -43,6 +43,7 @@ Never work around a refused tool, a blocked download or a sandbox limit. Say wha
 
 ## 3. Voice over
 - content.briefs.voice.list shows existing clips; content.briefs.voice.generate makes a missing one; content.briefs.voice.get gives a short-lived download link. Save it in the production folder's vo folder.
+- Music and the logo come straight from the organization's libraries: name them as @musik/<path> and @brand/<path> in the spec. Do not copy them into the production folder.
 
 ## 4. Edit decisions (judgment)
 - Follow Gaya baku editing for the order of shots, cut pace and the hook. The most tempting visual comes first.
@@ -54,10 +55,11 @@ Never work around a refused tool, a blocked download or a sandbox limit. Say wha
 ## 5. Render through the Synckerja Agent
 1. render.jobs.draft with the shots (file_key, in, out), texts and music, plus references (the reference ids you borrowed from) or no_reference_reason. Styles come from Gaya baku.
 2. Fix every error the draft returns. For each warning: fix it, or keep it only with a short reason the user can read.
-3. render.jobs.create.preview, show the summary, and wait for a clear yes. Then render.jobs.create.
-4. Follow it with render.jobs.list until it is done or failed. If it stays queued, the Agent on the laptop is offline: tell the user; do not render somewhere else unless they ask.
-5. With a plan_id the Agent uploads the result to the plan as the next version. Do not upload it again (content.plans.media.upload.start is only for a video that did not come from the Agent).
-6. The Agent also logs footage usage and moves used inbox footage into the bank. Do not do these by hand.
+3. Still preview before the full render: the same spec with stills (one second inside every text window, the hook and the closer) through render.jobs.create.preview, a clear yes, then render.jobs.create. When the job is done, look at the contact sheet whose path is in the job result as stills_file (or ask the user to) and check every text: readable, not cut off at the edge, not covering food, a face or the logo, no doubled logo in the closer. Fix the spec and make a new still preview until it is clean. A still preview uploads nothing and leaves the footage where it is.
+4. render.jobs.create.preview for the full video (the same spec without stills), show the summary with the clean still sheet, and wait for a clear yes. Then render.jobs.create.
+5. Follow it with render.jobs.list until it is done or failed. If it stays queued, the Agent on the laptop is offline: tell the user; do not render somewhere else unless they ask.
+6. With a plan_id the Agent uploads the result to the plan as the next version. Do not upload it again (content.plans.media.upload.start is only for a video that did not come from the Agent).
+7. The Agent also logs footage usage and moves used inbox footage into the bank. Do not do these by hand.
 
 ## 6. Check before you send
 - Read the job result's qc. Any problem: fix the spec and render again.
