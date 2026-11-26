@@ -115,6 +115,11 @@ export const renderSpecV1 = z
       )
       .max(200)
       .default([]),
+    /**
+     * Still preview (Agent 0.1.18+): render only these seconds of the final video (texts, motion and outro drawn) as one
+     * contact sheet in <production>/_build/still/. No audio, QC, upload or footage usage.
+     */
+    stills: z.array(z.number().finite().min(0).max(3600)).min(1).max(12).optional(),
     /** End card. Halftone covers the last `seconds` (default 1) then fades to white. */
     outro: z
       .object({

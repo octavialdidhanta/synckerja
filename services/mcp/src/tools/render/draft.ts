@@ -79,6 +79,8 @@ export const renderJobDraftInput = z
     texts: z.array(textIn).max(40).optional(),
     /** End card. "halftone" plays the locked 1s print-dot closer. */
     outro: z.enum(["halftone"]).optional(),
+    /** Still preview: seconds on the final video to render as one contact sheet instead of the whole video (max 12). */
+    stills: z.array(z.number().finite().min(0).max(3600)).min(1).max(12).optional(),
     /** Production-folder image used as the halftone emblem, for example brand/emblem.png. */
     logo_file: relAudio.optional(),
     /** Ids of the catalog reference videos this edit borrows structure or motion from (catalog.reference.get). */
@@ -353,6 +355,7 @@ export function buildDraftSpec(
     styles,
     texts,
     ...(outro ? { outro } : {}),
+    ...(input.stills ? { stills: input.stills } : {}),
   };
   const parsed = renderSpecV1.safeParse(raw);
   if (!parsed.success) {
