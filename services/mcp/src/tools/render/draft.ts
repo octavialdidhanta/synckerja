@@ -24,7 +24,7 @@ const textIn = z
     text: z.string().min(1).max(300),
     start: z.number().finite().min(0).max(3600),
     end: z.number().finite().min(0).max(3600),
-    style: z.enum(["hook", "sub", "menu", "info"]).optional(),
+    style: z.enum(["hook", "sub", "menu", "info", "judul"]).optional(),
     anim: z.enum(["none", "fade", "pop", "typewriter", "highlight", "pop_shake", "slide"]).optional(),
     /** VO word timings for a highlighted subtitle, in seconds on the final video. */
     words: z
@@ -92,40 +92,94 @@ export function extractHexColors(text: string): string[] {
   return out;
 }
 
-/** CapCut-like defaults; refine from Gaya baku teks (hex + posisi aman) when present. */
+/** Relative luminance 0..1 of a #RRGGBB colour. */
+function luminance(hex: string): number {
+  const n = Number.parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+
+/** Font size written on a Gaya baku line: "(±17)", "ukuran minimal 15", "ukuran 12". */
+export function gayaSize(line: string): number | null {
+  const m = /(?:ukuran(?:\s+(?:besar|minimal|min\.?))?\s*\(?\s*±?|±)\s*(\d{1,2})\b/i.exec(line);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return n >= 4 && n <= 40 ? n : null;
+}
+
+/** The standard subtitle line of Gaya baku teks: the first "Subtitle" line that is not marked as a variant. */
+function subtitleLine(teks: string): string {
+  const lines = teks.split(/\r?\n/).filter((l) => /^\s*-?\s*subtitle/i.test(l));
+  return lines.find((l) => !/varian/i.test(l)) ?? lines[0] ?? "";
+}
+
+/** CapCut-like defaults; refine from Gaya baku teks (per-element lines: hex, font, size, posisi aman) when present. */
 export function defaultRenderStyles(gaya: CatalogTextBlocks): RenderSpecV1["styles"] {
   const teks = gaya.teks ?? "";
   const hexes = extractHexColors(teks);
-  const hookYellow = hexes.find((h) => h === "#FFD640");
-  const hookColor = hookYellow ?? hexes.find((h) => !BRAND_SKIP.has(h) && h !== "#FFFFFF") ?? "#FFFFFF";
-  const subColor = /subtitle|Poppins/i.test(teks) ? "#FFFFFF" : "#FFFFFF";
-  const stroke = hexes.includes("#000000") || /garis tepi hitam/i.test(teks) ? "#000000" : "#000000";
-  const font: "poppins" | "instrument-serif" = /Instrument Serif/i.test(teks) ? "instrument-serif" : "poppins";
+  const hookLine = gayaLine(teks, /^\s*-?\s*hook/i);
+  const hookHexes = extractHexColors(hookLine);
+  const hookYellow = [...hookHexes, ...hexes].find((h) => h === "#FFD640");
+  const hookColor = hookYellow ?? hookHexes.find((h) => !BRAND_SKIP.has(h) && h !== "#FFFFFF") ?? hexes.find((h) => !BRAND_SKIP.has(h) && h !== "#FFFFFF") ?? "#FFFFFF";
+  const hookFont: "poppins" | "instrument-serif" = /Instrument Serif/i.test(hookLine) && !/Poppins/i.test(hookLine)
+    ? "instrument-serif"
+    : hookLine
+      ? "poppins"
+      : /Instrument Serif/i.test(teks) ? "instrument-serif" : "poppins";
+  const subLine = subtitleLine(teks);
+  const subHexes = extractHexColors(subLine).filter((h) => h !== "#FFD640");
+  const subColor = subHexes.find((h) => luminance(h) > 0.6) ?? "#FFFFFF";
+  const subStroke = subHexes.find((h) => luminance(h) < 0.3) ?? "#000000";
   // Safe area: 14% top → CapCut y ≈ 0.72; 20% bottom → y ≈ -0.6 (AgentReel: y up).
   const hookY = /14%\s*atas/i.test(teks) ? 0.72 : 0.32;
   const subY = /20%\s*bawah/i.test(teks) ? -0.6 : -0.54;
 
   return {
     hook: {
-      size: 11,
+      size: gayaSize(hookLine) ?? 11,
       color: hookColor,
-      stroke,
+      stroke: "#000000",
       stroke_width: 0.14,
       bold: true,
-      font,
+      font: hookFont,
       y: hookY,
       max_width: 0.88,
     },
     sub: {
-      size: 9,
+      size: gayaSize(subLine) ?? 9,
       color: subColor,
-      stroke,
-      stroke_width: 0.12,
+      stroke: subStroke,
+      stroke_width: subStroke === "#000000" ? 0.12 : 0.16,
       bold: true,
       font: "poppins",
       y: subY,
       max_width: 0.9,
     },
+  };
+}
+
+/**
+ * Title / step label ("Judul / langkah" line, e.g. Rocky's yellow typed box): box colour = light hex, text = dark hex,
+ * Instrument Serif when the line says so, size from "ukuran minimal N". Typed in with the growing box (menu_label).
+ */
+export function judulLabelStyle(gaya: CatalogTextBlocks): RenderSpecV1["styles"][string] {
+  const line = gayaLine(gaya.teks ?? "", /^\s*-?\s*judul/i);
+  const hx = extractHexColors(line);
+  const bg = hx.find((h) => luminance(h) > 0.6) ?? "#FAFD96";
+  const color = hx.find((h) => luminance(h) < 0.3) ?? "#111111";
+  const serif = !line || /Instrument Serif/i.test(line);
+  return {
+    size: gayaSize(line) ?? 15,
+    color,
+    bg,
+    bg_alpha: 1,
+    bold: !serif,
+    font: serif ? "instrument-serif" : "poppins",
+    x: -0.42,
+    y: 0.62,
+    max_width: 0.8,
   };
 }
 
@@ -138,14 +192,19 @@ function gayaLine(teks: string, label: RegExp): string {
  * What the Gaya baku teks box asks the Agent to animate: the spoken word lit in the subtitle ("kata yang lagi
  * diucapkan ... kuning") and a small shake on the hook ("getar").
  */
-export function gayaAnimations(gaya: CatalogTextBlocks): { hook: "pop" | "pop_shake"; sub: "pop" | "highlight"; highlight: string | null } {
+export function gayaAnimations(gaya: CatalogTextBlocks): {
+  hook: "pop" | "pop_shake";
+  sub: "pop" | "highlight" | "none";
+  highlight: string | null;
+} {
   const teks = gaya.teks ?? "";
-  const subLine = gayaLine(teks, /subtitle/i);
+  const subLine = subtitleLine(teks);
   const spoken = /(diucapkan|diucapin|diomongin|spoken)/i.test(subLine);
+  const cut = /tanpa animasi|langsung ganti/i.test(subLine);
   const lit = extractHexColors(subLine).find((h) => h !== "#FFFFFF" && h !== "#000000") ?? null;
   return {
-    hook: /getar|shake/i.test(gayaLine(teks, /hook/i)) ? "pop_shake" : "pop",
-    sub: spoken ? "highlight" : "pop",
+    hook: /getar|shake/i.test(gayaLine(teks, /^\s*-?\s*hook/i)) ? "pop_shake" : "pop",
+    sub: spoken ? "highlight" : cut ? "none" : "pop",
     highlight: spoken ? (lit ?? "#FFD640") : null,
   };
 }
@@ -205,14 +264,15 @@ export function buildDraftSpec(
   const wantsMenu = (input.texts ?? []).some((t) => t.style === "menu");
   if (wantsMenu) styles.menu = menuLabelStyle(gaya);
   if ((input.texts ?? []).some((t) => t.style === "info")) styles.info = infoLabelStyle(gaya);
+  if ((input.texts ?? []).some((t) => t.style === "judul")) styles.judul = judulLabelStyle(gaya);
   const anims = gayaAnimations(gaya);
   if (anims.highlight && styles.sub) styles.sub.highlight = anims.highlight;
   const defaultAnim = (style: string) =>
     style === "hook" ? anims.hook : style === "sub" ? anims.sub : style === "info" ? ("slide" as const) : ("pop" as const);
   const texts = (input.texts ?? []).map((t) => {
     const style = (t.style ?? "sub") as string;
-    const menu = style === "menu";
-    if (menu && t.anim) warnings.push('style "menu" mengunci animasi menu_label; anim yang dikirim diabaikan.');
+    const menu = style === "menu" || style === "judul";
+    if (menu && t.anim) warnings.push(`style "${style}" mengunci animasi menu_label; anim yang dikirim diabaikan.`);
     return {
       text: t.text,
       start: t.start,
