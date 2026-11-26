@@ -67,6 +67,12 @@ export const renderSpecV1 = z
     audio: z
       .object({
         vo: z.object({ file: relPath, at: sec.optional(), db: z.number().min(-60).max(12).optional() }).strict().optional(),
+        /** VO per storyboard row at its own second (Agent 0.1.15+); instead of one vo file. */
+        vo_parts: z
+          .array(z.object({ file: relPath, at: sec, db: z.number().min(-60).max(12).optional() }).strict())
+          .min(1)
+          .max(60)
+          .optional(),
         music: z
           .object({
             file: relPath,
@@ -80,6 +86,7 @@ export const renderSpecV1 = z
           .optional(),
       })
       .strict()
+      .refine((a) => !(a.vo && a.vo_parts), { message: "use vo or vo_parts, not both" })
       .default({}),
     styles: z.record(z.string().regex(/^[a-z][a-z0-9_]{0,31}$/), renderStyle).default({}),
     texts: z

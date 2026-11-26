@@ -8,6 +8,7 @@ import type { McpAuthContext } from "../../authz/context";
 import type { CatalogTextBlocks } from "../../db/catalog";
 import { renderSpecV1, specDuration, type RenderSpecV1 } from "./renderSpec";
 import { checkSpec, footageFindings, referenceFindings } from "./specChecks";
+import { buildVoTimeline, type VoRowIn, type VoWord } from "./voTimeline";
 
 const shotIn = z
   .object({
@@ -58,6 +59,22 @@ export const renderJobDraftInput = z
     output_name: z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9 _.()-]+$/),
     shots: z.array(shotIn).min(1).max(80),
     vo_file: relAudio.optional(),
+    /**
+     * VO per storyboard row, in order (needs plan_id): each row's newest clip is placed after the previous one,
+     * and subtitles are cut from its word timings. silence rows keep a pause with no VO (for example a tasting shot).
+     */
+    vo_rows: z
+      .array(
+        z.union([
+          z.object({ row_index: z.number().int().min(0).max(59), file: relAudio.optional(), gap_after: z.number().min(0).max(3).optional() }).strict(),
+          z.object({ silence: z.number().min(0.1).max(30), row_index: z.number().int().min(0).max(59).optional() }).strict(),
+        ]),
+      )
+      .min(1)
+      .max(60)
+      .optional(),
+    vo_gap: z.number().min(0).max(2).optional(),
+    vo_start: z.number().min(0).max(10).optional(),
     music_file: relAudio.optional(),
     texts: z.array(textIn).max(40).optional(),
     /** End card. "halftone" plays the locked 1s print-dot closer. */
@@ -353,6 +370,38 @@ export type BriefLookup = (ctx: McpAuthContext, planId: string) => Promise<{
   voice_over: string | null;
 } | null>;
 
+/** Newest VO clip of one storyboard row: null when the row has no clip. */
+export type VoRowLookup = (
+  ctx: McpAuthContext,
+  planId: string,
+  rowIndex: number,
+) => Promise<{ duration_seconds: number | null; words: VoWord[] | null; file_name: string } | null>;
+
+async function resolveVoRows(ctx: McpAuthContext, input: RenderJobDraftInput, lookupVoice: VoRowLookup): Promise<VoRowIn[]> {
+  if (!input.plan_id) throw new Error("invalid_input: vo_rows needs plan_id (the content plan whose VO clips are used)");
+  const out: VoRowIn[] = [];
+  for (const r of input.vo_rows ?? []) {
+    if ("silence" in r) {
+      out.push({ kind: "silence", row_index: r.row_index ?? null, seconds: r.silence });
+      continue;
+    }
+    const clip = await lookupVoice(ctx, input.plan_id, r.row_index);
+    if (!clip) throw new Error(`invalid_input: storyboard row ${r.row_index} (row_index, 0-based) has no VO clip yet; generate it with content.briefs.voice.generate`);
+    const lastWord = clip.words?.length ? clip.words[clip.words.length - 1]!.end + 0.05 : 0;
+    const duration = Math.max(clip.duration_seconds ?? 0, lastWord);
+    if (!(duration > 0)) throw new Error(`invalid_input: VO clip of row ${r.row_index} has no readable duration`);
+    out.push({
+      kind: "clip",
+      row_index: r.row_index,
+      file: r.file ?? `vo/${clip.file_name || `vo-${r.row_index + 1}.mp3`}`,
+      duration,
+      words: clip.words,
+      ...(r.gap_after != null ? { gap_after: r.gap_after } : {}),
+    });
+  }
+  return out;
+}
+
 export async function draftRenderJobResult(
   ctx: McpAuthContext,
   args: unknown,
@@ -360,15 +409,45 @@ export async function draftRenderJobResult(
   lookupFootage?: (ctx: McpAuthContext, fileKey: string) => Promise<FootageKeyInfo | null>,
   getBrief?: BriefLookup,
   listReferences?: (ctx: McpAuthContext) => Promise<Array<{ id: string; title: string | null }>>,
+  lookupVoice?: VoRowLookup,
 ): Promise<Record<string, unknown>> {
   const parsed = renderJobDraftInput.safeParse(args);
   if (!parsed.success) {
     const where = parsed.error.issues.slice(0, 5).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
     throw new Error(`invalid_input: ${where}`);
   }
-  const input = parsed.data;
+  let input = parsed.data;
+  if (input.vo_rows && input.vo_file) throw new Error("invalid_input: use vo_file or vo_rows, not both");
+  let voTimeline: ReturnType<typeof buildVoTimeline> | null = null;
+  if (input.vo_rows) {
+    if (!lookupVoice) throw new Error("invalid_input: vo_rows is not available here");
+    voTimeline = buildVoTimeline(await resolveVoRows(ctx, input, lookupVoice), { gap: input.vo_gap, start: input.vo_start });
+    // Subtitles from the VO words, unless the caller already wrote its own subtitle texts.
+    if (!(input.texts ?? []).some((t) => (t.style ?? "sub") === "sub")) {
+      input = {
+        ...input,
+        texts: [
+          ...(input.texts ?? []),
+          ...voTimeline.subtitles.map((s) => ({ text: s.text, start: s.start, end: s.end, style: "sub" as const, words: s.words })),
+        ],
+      };
+    }
+  }
   const gaya = await getStyle(ctx);
-  const { spec, warnings } = buildDraftSpec(input, gaya);
+  const built = buildDraftSpec(input, gaya);
+  const spec = built.spec;
+  let warnings = built.warnings;
+  if (voTimeline) {
+    spec.audio.vo_parts = voTimeline.parts.map((p) => ({ file: p.file, at: p.at, db: 0 }));
+    warnings = warnings.filter((w) => !w.startsWith("Tidak ada VO/musik"));
+    const dur = specDuration(spec);
+    if (voTimeline.end > dur + 0.01) {
+      warnings.push(
+        `VO berakhir di ${voTimeline.end.toFixed(2)} s tapi shot cuma ${dur.toFixed(2)} s: tambah/panjangkan shot (pakai vo_timeline untuk memotong shot per baris).`,
+      );
+    }
+    warnings.push(`VO per baris (vo_parts, ${voTimeline.parts.length} klip) butuh Agent v0.1.15 atau lebih baru. Unduh tiap klip ke file di vo_parts sebelum render.`);
+  }
 
   const footageErrors = lookupFootage ? await footageFindings(spec, (k) => lookupFootage(ctx, k)) : [];
 
@@ -377,7 +456,7 @@ export async function draftRenderJobResult(
     try {
       const brief = await getBrief(ctx, input.plan_id);
       if (brief) {
-        const hasVoText = Boolean(brief.voice_over?.trim());
+        const hasVoText = Boolean(brief.voice_over?.trim()) && !input.vo_rows;
         brief_hints = {
           title: brief.title,
           caption: brief.caption,
@@ -421,13 +500,14 @@ export async function draftRenderJobResult(
       duration_seconds: Math.round(specDuration(spec) * 100) / 100,
       shots: spec.shots.length,
       texts: spec.texts.length,
-      vo: spec.audio.vo?.file ?? null,
+      vo: spec.audio.vo?.file ?? (spec.audio.vo_parts ? `${spec.audio.vo_parts.length} klip (vo_parts)` : null),
       music: spec.audio.music?.file ?? null,
       music_db: spec.audio.music?.db ?? null,
       style_keys: Object.keys(spec.styles),
       hook_color: spec.styles.hook?.color ?? null,
     },
     brief_hints,
+    ...(voTimeline ? { vo_timeline: voTimeline.timeline, vo_end_seconds: voTimeline.end } : {}),
     warnings,
     next_step:
       "Fix every item in checks.errors and checks.required (or keep a required one only with overrides [{code, reason}] in render.jobs.create.preview); mention checks.suggestions to the user if you keep them. Review the draft spec (edit shots/texts/audio if needed). Then call render.jobs.create.preview with the same title, plan_id, and this spec. After the user clearly says yes, call render.jobs.create with that confirm_token. Music defaults follow Gaya musik (usually -18 dB under VO); the Agent applies sidechain ducking and loudnorm -14 LUFS. texts[].style=menu draws the yellow typewriter menu label. outro=halftone adds the 1s dotted closer (optional logo_file inside the production folder). behind_person=true places that text under the person (Agent SAM2+RVM). A top-level effects array is still refused.",

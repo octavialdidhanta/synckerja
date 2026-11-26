@@ -215,7 +215,9 @@ const GAYA_RULES: GayaRule[] = [
     code: "production_subfolder",
     levels: { ketat: "wajib", seimbang: "mati", bebas: "mati" },
     check: (spec) => {
-      const files = [spec.audio.vo?.file, spec.audio.music?.file, spec.outro?.logo].filter((f): f is string => Boolean(f));
+      const files = [spec.audio.vo?.file, ...(spec.audio.vo_parts ?? []).map((v) => v.file), spec.audio.music?.file, spec.outro?.logo].filter(
+        (f): f is string => Boolean(f),
+      );
       return files
         .filter((f) => !/^(vo|_build)[\\/]/i.test(f))
         .map((f) => `${f} ada di luar vo/ atau _build/; folder produksi hanya vo, _build, _capcut, output.`);
