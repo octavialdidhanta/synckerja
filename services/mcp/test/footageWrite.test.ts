@@ -180,7 +180,7 @@ describe("footage write tools", () => {
     expect(result.confirm_token).toBe("signed-token-value-123456");
     expect(result).not.toHaveProperty("preview_id");
     expect(result.changes).toEqual([{ scene_index: 2, before: { hijab: false }, after: { hijab: true } }]);
-    expect(String(result.next_step)).toContain("One yes confirms one write");
+    expect(String(result.next_step)).toContain("One yes confirms the writes shown together in that one message");
   });
 
   it("previews one clip through the session organization and leaves the preview id out", async () => {

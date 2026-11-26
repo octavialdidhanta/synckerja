@@ -10,7 +10,7 @@ import { z } from "zod";
 export const FOOTAGE_CONFIRM_NEXT_STEP =
   "Nothing is saved yet. Show every before and after field in this summary to the user and ask them to confirm this one write. "
   + "Call the matching save tool with this confirm_token only after they clearly say yes to this summary. "
-  + "One yes confirms one write: do not save a second write on the same yes; preview it and ask again.";
+  + "One yes confirms the writes shown together in that one message; a write that was not shown needs its own preview and yes.";
 
 export const FOOTAGE_ALREADY_LOGGED_NEXT_STEP =
   "This use is already logged. Nothing was saved and no confirm_token was issued. Do not call footage.usage.log.";
