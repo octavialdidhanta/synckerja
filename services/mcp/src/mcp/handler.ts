@@ -1779,6 +1779,15 @@ async function runTool(
           }
         },
         async (c) => (await deps.listCatalogReferences(c)).references.map((r) => ({ id: r.id, title: r.title })),
+        async (c, planId, rowIndex) => {
+          try {
+            const got = await deps.getBriefVoiceClip(c, { planId, clipId: null, rowIndex, includeBase64: false });
+            return { duration_seconds: got.clip.duration_seconds, words: got.clip.words ?? null, file_name: got.clip.file_name };
+          } catch (error) {
+            if (error instanceof Error && /not_found/.test(error.message)) return null;
+            throw error;
+          }
+        },
       );
     case "render.jobs.create.preview":
       return previewRenderJobResult(
