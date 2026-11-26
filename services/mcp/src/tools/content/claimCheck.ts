@@ -17,6 +17,7 @@ export type ClaimFinding = {
 };
 
 export type ClaimCheck = {
+  industry: string | null;
   checked: number;
   without_source: number;
   sources: string[];
@@ -31,6 +32,10 @@ export type ClaimCorpusDeps = {
     ctx: McpAuthContext,
     address: { id?: string; name?: string },
   ) => Promise<{ name: string; aliases: string[]; fields: Array<{ key: string; body: string }> }>;
+  /** The organization's industry template and its claim words. */
+  getClaimWords?: (ctx: McpAuthContext) => Promise<{ industry: string | null; claim_words: string[] }>;
+  /** Gaya baku boxes; "Kata klaim: ..." lines add the organization's own words. */
+  getCatalogStyle?: (ctx: McpAuthContext) => Promise<Record<string, string | null | undefined>>;
   listProductKnowledge?: (
     ctx: McpAuthContext,
     input: { serviceId: string | null; subServiceId: string | null; search: string | null; limit: number | null },
@@ -38,6 +43,8 @@ export type ClaimCorpusDeps = {
 };
 
 export const CLAIM_CHECK_HOW_TO_READ =
+  "claim_check lists the factual claims it can spot by pattern (numbers with a unit, prices, rank and guarantee words, the organization's industry and Gaya baku claim words). " +
+  "It matches words, not meaning: read the brief yourself as a second layer and treat any other factual statement the same way (check it with catalog.product.get / product_knowledge.list). " +
   "claim_check lists the factual claims in the voice over, on-screen text and caption. tanpa_sumber means the claim is not in the catalog product fields or Product Knowledge: " +
   "before the user says yes, show each one as a warning with where it is, then either rewrite it to what the catalog says, drop it, or ask the user whether it is true — " +
   "a fact the user confirms belongs in Product Knowledge (Office) so the next brief passes. This never blocks saving.";
@@ -52,36 +59,59 @@ const norm = (s: string) =>
     .trim();
 
 const UNIT =
-  "jam|menit|detik|hari|minggu|bulan|tahun|kg|kilo|gram|gr|g|ons|porsi|orang|pax|potong|tusuk|biji|buah|mangkuk|piring|ml|liter|l|%|persen|derajat|x|kali";
+  "jam|menit|detik|hari|minggu|bulan|tahun|kg|kilo|gram|gr|ons|porsi|orang|pax|potong|tusuk|biji|buah|pcs|unit|mangkuk|piring|ml|liter|%|persen|derajat|x|kali|mah|watt|gb|tb|inch|inci|hz|m2|meter|km|cm|mm|lantai|kamar|sesi|treatment|pengguna|user|pelanggan|customer";
 const NUMBER_CLAIM = new RegExp(
   `(\\d+(?:[.,]\\d+)?(?:\\s*(?:-|sampai|s/d|hingga)\\s*\\d+(?:[.,]\\d+)?)?)\\s*(${UNIT})(?![a-z])`,
   "gi",
 );
-const PRICE_CLAIM = /(rp\.?\s*\d[\d.,]*(?:\s*(?:rb|ribu|k)\b)?|\d+(?:[.,]\d+)?\s*(?:rb|ribu|k)\b)/gi;
-/** Words that state a fact about the product (quality, origin, process, rank). */
-const CLAIM_WORDS = [
-  "terenak", "terbaik", "terlaris", "paling", "nomor 1", "no 1", "no. 1", "#1", "satu-satunya", "pertama", "best seller",
-  "bestseller", "favorit", "legendaris", "legend", "juara", "asli", "original", "premium", "pilihan", "muda", "segar",
-  "fresh", "empuk", "juicy", "halal", "organik", "impor", "import", "lokal", "homemade", "rumahan", "resep rahasia",
-  "turun-temurun", "turun temurun", "tanpa msg", "tanpa pengawet", "tanpa bau", "nggak bau", "tidak bau", "tidak amis",
-  "nggak amis", "dimasak", "direbus", "dibakar", "dipanggang", "dimarinasi", "diungkep", "diasap", "disangrai", "rempah",
-  "habis", "sold out", "laris", "antre", "antri", "viral",
+const PRICE_CLAIM = /(rp\.?\s*\d[\d.,]*(?:\s*(?:rb|ribu|k|jt|juta)\b)?|\d+(?:[.,]\d+)?\s*(?:rb|ribu|k|jt|juta)\b)/gi;
+
+/**
+ * Universal claim words: rank, superlative and guarantee language that states a fact in any industry.
+ * Industry words come from the organization's catalog industry template, extra words from Gaya baku ("Kata klaim: ...").
+ */
+export const UNIVERSAL_CLAIM_WORDS = [
+  "paling", "nomor 1", "no 1", "no. 1", "#1", "satu-satunya", "pertama", "best seller", "bestseller", "terlaris",
+  "terbaik", "termurah", "tercepat", "terlengkap", "terpercaya", "teraman", "terawet", "terkuat", "terbesar", "terenak",
+  "termewah", "terbaru", "terpopuler", "terdekat", "terhemat", "terfavorit", "favorit", "legendaris", "juara", "rating",
+  "bintang 5", "dijamin", "jaminan", "garansi", "terbukti", "pasti", "permanen", "selamanya", "tanpa efek samping",
+  "aman", "asli", "original", "resmi", "bersertifikat", "sertifikat", "halal", "sni", "izin", "premium", "berkualitas",
+  "kualitas", "gratis",
 ];
+
 /** Calls to action and everyday words that look like claims but are not about the product. */
 const NOT_A_CLAIM = /(klik|chat|whatsapp|\bwa\b|pesan duluan|datang|mampir|cobain|yuk|ayo)/i;
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const CLAIM_WORD_RE = new RegExp(
-  `(?:^|[^a-z0-9])(?:([a-z]+) )?(${CLAIM_WORDS.map(escapeRe).join("|")})(?: ([a-z]+))?(?![a-z])`,
-  "gi",
-);
-/** Claim words that describe the word after them ("paling enak", "tanpa msg" is already whole). */
-const FORWARD = new Set(["paling", "satu-satunya", "pertama", "nomor 1", "no 1", "no. 1", "#1", "dimasak", "direbus", "dibakar",
-  "dipanggang", "dimarinasi", "diungkep", "diasap", "disangrai", "resep rahasia"]);
+
+/** Claim words that describe the word after them ("paling enak"); the others take the word before ("kambing muda"). */
+const FORWARD = new Set(["paling", "satu-satunya", "pertama", "nomor 1", "no 1", "no. 1", "#1", "dijamin", "garansi",
+  "jaminan", "terbukti", "dimasak", "direbus", "dibakar", "dipanggang", "dimarinasi", "diungkep", "diasap", "disangrai",
+  "resep rahasia", "menghilangkan", "memutihkan", "mencerahkan", "dekat"]);
 const STOP = new Set(["yang", "di", "dan", "ini", "itu", "udah", "sudah", "lebih", "pakai", "pake", "dengan", "nya", "kita", "kami",
   "sangat", "banget", "super", "jadi", "karena", "dari", "ke", "juga", "masih", "tetap", "tetep", "bener", "benar", "emang",
   "memang", "the", "a", "dulu", "lagi", "aja", "saja", "sih", "kok", "dong", "deh", "loh", "nih", "tuh", "biar", "supaya", "untuk",
-  "buat", "atau", "tapi", "pasti", "selalu", "semua"]);
+  "buat", "atau", "tapi", "pasti", "selalu", "semua", "bisa", "dapat", "akan", "cuma", "hanya", "lho"]);
+
+/** Claim-word matcher for one organization: universal + industry + Gaya baku words, longest first. */
+export function claimWordMatcher(extra: string[] = []): RegExp {
+  const words = [...new Set([...UNIVERSAL_CLAIM_WORDS, ...extra].map((w) => norm(w)).filter((w) => w.length >= 2))].sort(
+    (a, b) => b.length - a.length,
+  );
+  return new RegExp(`(?:^|[^a-z0-9])(?:([a-z]+) )?(${words.map(escapeRe).join("|")})(?: ([a-z]+))?(?![a-z0-9])`, "gi");
+}
+
+/** "Kata klaim: a, b, c" lines in any Gaya baku box (an organization's own claim words). */
+export function gayaClaimWords(blocks: Record<string, string | null | undefined> | null | undefined): string[] {
+  const out: string[] = [];
+  for (const text of Object.values(blocks ?? {})) {
+    for (const line of String(text ?? "").split("\n")) {
+      const m = /kata\s+klaim\s*[:=-]\s*(.+)$/i.exec(line);
+      if (m) out.push(...m[1]!.split(/[,;]/).map((w) => w.trim().replace(/^["'“”]+|["'“”.]+$/g, "")).filter(Boolean));
+    }
+  }
+  return out;
+}
 
 function sentences(text: string): string[] {
   return text
@@ -91,12 +121,12 @@ function sentences(text: string): string[] {
 }
 
 /** The claims of one sentence (deduplicated), each as the short phrase that carries it. */
-export function claimsIn(sentence: string): string[] {
+export function claimsIn(sentence: string, matcher: RegExp = claimWordMatcher()): string[] {
   const s = norm(sentence);
   const out = new Set<string>();
   for (const m of s.matchAll(NUMBER_CLAIM)) out.add(`${m[1]!.replace(/\s+/g, "")} ${m[2]}`);
   for (const m of s.matchAll(PRICE_CLAIM)) out.add(m[1]!.trim());
-  for (const m of s.matchAll(CLAIM_WORD_RE)) {
+  for (const m of s.matchAll(new RegExp(matcher.source, "gi"))) {
     const [, before, word, after] = m;
     const w = word!.toLowerCase();
     const pair = FORWARD.has(w) ? (after && !STOP.has(after) ? `${w} ${after}` : w) : before && !STOP.has(before) ? `${before} ${w}` : w;
@@ -175,11 +205,30 @@ export async function checkBriefClaims(
   deps: ClaimCorpusDeps,
 ): Promise<ClaimCheck> {
   const { corpus, sources, note } = await claimCorpus(ctx, parts.map((p) => p.text).join("\n"), deps);
+  let industry: string | null = null;
+  const extra: string[] = [];
+  if (deps.getClaimWords) {
+    try {
+      const got = await deps.getClaimWords(ctx);
+      industry = got.industry;
+      extra.push(...(got.claim_words ?? []));
+    } catch {
+      /* universal patterns still run */
+    }
+  }
+  if (deps.getCatalogStyle) {
+    try {
+      extra.push(...gayaClaimWords(await deps.getCatalogStyle(ctx)));
+    } catch {
+      /* no Gaya baku words */
+    }
+  }
+  const matcher = claimWordMatcher(extra);
   const findings: ClaimFinding[] = [];
   const seen = new Set<string>();
   for (const part of parts) {
     for (const sentence of sentences(part.text)) {
-      for (const claim of claimsIn(sentence)) {
+      for (const claim of claimsIn(sentence, matcher)) {
         const key = `${part.where}|${claim}`;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -195,6 +244,7 @@ export async function checkBriefClaims(
     }
   }
   return {
+    industry,
     checked: findings.length,
     without_source: findings.filter((f) => f.status === "tanpa_sumber").length,
     sources,
