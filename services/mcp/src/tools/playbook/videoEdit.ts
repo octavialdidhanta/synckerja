@@ -10,7 +10,7 @@
  * Every tool named here must exist (test/playbook.test.ts).
  */
 
-export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-26.1";
+export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-26.2";
 
 export const VIDEO_EDIT_PLAYBOOK = `
 # Synckerja video edit playbook
@@ -24,6 +24,13 @@ chat, or to fix a render. Reply to the user in their language.
 3. This playbook.
 4. Your habits.
 Never work around a refused tool, a blocked download or a sandbox limit. Say what is blocked and continue with what works.
+
+## Three gates
+The user decides three times; everything between the gates runs without asking.
+- Gate 1, concept: two or three concepts that go in different directions, each as a short storyboard table, after reading step 1. The user picks or reshapes one. Nothing is saved before this.
+- Gate 2, brief: the brief (content.briefs.create, or content.briefs.update.preview), the shot list (catalog.shotlist.upsert.preview) and the voice over text, shown together in one message. One clear yes saves them all; then generate the voice over rows.
+- Gate 3, render: after a clean still preview (step 5), render.jobs.create.preview for the full video with the still sheet. One clear yes queues it; render, QC and upload to the plan then run on their own.
+Approve and publish stay with the user in Office.
 
 ## 1. Start (always, in this order)
 1. session.whoami: make sure the active organization is the one the video is for.
@@ -55,8 +62,8 @@ Never work around a refused tool, a blocked download or a sandbox limit. Say wha
 ## 5. Render through the Synckerja Agent
 1. render.jobs.draft with the shots (file_key, in, out), texts and music, plus references (the reference ids you borrowed from) or no_reference_reason. Styles come from Gaya baku.
 2. Fix every error the draft returns. For each warning: fix it, or keep it only with a short reason the user can read.
-3. Still preview before the full render: the same spec with stills (one second inside every text window, the hook and the closer) through render.jobs.create.preview, a clear yes, then render.jobs.create. When the job is done, look at the contact sheet whose path is in the job result as stills_file (or ask the user to) and check every text: readable, not cut off at the edge, not covering food, a face or the logo, no doubled logo in the closer. Fix the spec and make a new still preview until it is clean. A still preview uploads nothing and leaves the footage where it is.
-4. render.jobs.create.preview for the full video (the same spec without stills), show the summary with the clean still sheet, and wait for a clear yes. Then render.jobs.create.
+3. Still preview before the full render: render.stills.create with the same spec and stills (one second inside every text window, the hook and the closer). It needs no yes: it publishes nothing and leaves the footage where it is. When the job is done, look at the contact sheet whose path is in the job result as stills_file (or ask the user to) and check every text: readable, not cut off at the edge, not covering food, a face or the logo, no doubled logo in the closer. Fix the spec and make a new still preview until it is clean.
+4. Gate 3: render.jobs.create.preview for the full video (the same spec without stills), show the summary with the clean still sheet, and wait for a clear yes. Then render.jobs.create.
 5. Follow it with render.jobs.list until it is done or failed. If it stays queued, the Agent on the laptop is offline: tell the user; do not render somewhere else unless they ask.
 6. With a plan_id the Agent uploads the result to the plan as the next version. Do not upload it again (content.plans.media.upload.start is only for a video that did not come from the Agent).
 7. The Agent also logs footage usage and moves used inbox footage into the bank. Do not do these by hand.
@@ -70,5 +77,5 @@ Never work around a refused tool, a blocked download or a sandbox limit. Say wha
 - Collect remaining catalog writes (wrong tags, new bans) into one list, preview them, and ask once.
 
 ## 8. Writes
-Every Synckerja write is preview, then the user's clear yes, then save. One yes confirms the writes shown in that one preview.
+Every Synckerja write is preview, then the user's clear yes, then save. One yes confirms every preview shown in that one message (gate 2 shows the brief and the shot list together). render.stills.create and content.briefs.voice.generate need no yes: they publish nothing.
 `.trim();

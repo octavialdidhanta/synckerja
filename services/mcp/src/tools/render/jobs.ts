@@ -25,6 +25,15 @@ export const renderJobCreatePreviewInput = z
   })
   .strict();
 
+export const renderStillsCreateInput = z
+  .object({
+    title: z.string().trim().min(1).max(200),
+    /** The spec of the video to check; its stills field (or the stills here) picks the seconds. */
+    spec: renderSpecV1,
+    stills: z.array(z.number().finite().min(0).max(3600)).min(1).max(12).optional(),
+  })
+  .strict();
+
 export const renderJobsListInput = z.object({ limit: z.number().int().min(1).max(50).optional() }).strict();
 
 type Sign = (ctx: McpAuthContext, tool: FootageConfirmableTool, previewId: string, expiresAt: string) => Promise<SignedFootageConfirmation>;
@@ -97,4 +106,41 @@ export async function listRenderJobsResult(
   const parsed = renderJobsListInput.safeParse(args ?? {});
   if (!parsed.success) throw new Error("invalid_input");
   return list(ctx, parsed.data.limit ?? 20);
+}
+
+/**
+ * Gate 3 helper: queue a still preview straight away. A still preview publishes nothing (no upload, no footage usage,
+ * footage stays in the inbox), so it needs no confirmation; technical errors still block, style rules only report.
+ */
+export async function createStillsResult(
+  ctx: McpAuthContext,
+  args: unknown,
+  preview: (ctx: McpAuthContext, input: { plan_id: string | null; title: string; spec: unknown }) => Promise<RenderJobPreview>,
+  apply: (ctx: McpAuthContext, previewId: string) => Promise<RenderJobSaved>,
+  getStyle?: (ctx: McpAuthContext) => Promise<CatalogTextBlocks>,
+  lookupFootage?: (ctx: McpAuthContext, fileKey: string) => Promise<Awaited<ReturnType<FootageLookup>>>,
+): Promise<Record<string, unknown>> {
+  const parsed = renderStillsCreateInput.safeParse(args);
+  if (!parsed.success) {
+    const where = parsed.error.issues.slice(0, 5).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    throw new Error(`invalid_input: ${where}`);
+  }
+  const stills = parsed.data.stills ?? parsed.data.spec.stills;
+  if (!stills?.length) throw new Error("invalid_input: stills: give the seconds to render (in stills or spec.stills)");
+  const spec = { ...parsed.data.spec, stills };
+  const footageErrors = lookupFootage ? await footageFindings(spec, (k) => lookupFootage(ctx, k)) : [];
+  const checks = checkSpec(spec, getStyle ? await getStyle(ctx) : {}, [], footageErrors);
+  if (checks.errors.length) {
+    return { error: "spec_check_failed", checks, next_step: "Nothing is queued. Fix every checks.errors item, then call render.stills.create again." };
+  }
+  const title = parsed.data.title.startsWith("Still") ? parsed.data.title : `Still – ${parsed.data.title}`;
+  const row = await preview(ctx, { plan_id: null, title, spec });
+  const saved = await apply(ctx, row.preview_id);
+  return {
+    ...saved,
+    stills,
+    checks,
+    next_step:
+      "Follow it with render.jobs.list. When it is done, look at the contact sheet (result.stills_file in the production folder) or ask the user to, fix the spec until every text is clean, then render.jobs.create.preview for the full video without stills (gate 3).",
+  };
 }

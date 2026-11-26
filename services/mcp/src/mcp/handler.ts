@@ -391,6 +391,8 @@ import {
   renderJobCreatePreviewInput,
   renderJobsListInput,
   previewRenderJobResult,
+  renderStillsCreateInput,
+  createStillsResult,
   applyRenderJobResult,
   listRenderJobsResult,
   renderJobDraftInput,
@@ -1116,6 +1118,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "render.jobs.draft": renderJobDraftInput,
   "render.jobs.create.preview": renderJobCreatePreviewInput,
   "render.jobs.create": confirmFootageInput,
+  "render.stills.create": renderStillsCreateInput,
   "render.jobs.list": renderJobsListInput,
   "footage.delete.preview": deleteFootagePreviewInput,
   "footage.delete": confirmFootageInput,
@@ -1800,6 +1803,15 @@ async function runTool(
       );
     case "render.jobs.create":
       return applyRenderJobResult(ctx, args, deps.verifyFootageConfirmation, deps.applyRenderJob);
+    case "render.stills.create":
+      return createStillsResult(
+        ctx,
+        args,
+        deps.previewRenderJob,
+        deps.applyRenderJob,
+        deps.getCatalogStyle,
+        (c, fileKey) => lookupRenderFootage(deps, c, fileKey),
+      );
     case "render.jobs.list":
       return listRenderJobsResult(ctx, args, deps.listRenderJobs);
     case "footage.delete.preview":

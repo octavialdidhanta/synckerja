@@ -199,6 +199,8 @@ export {
   renderJobCreatePreviewInput,
   renderJobsListInput,
   previewRenderJobResult,
+  renderStillsCreateInput,
+  createStillsResult,
   applyRenderJobResult,
   listRenderJobsResult,
 } from "./render/jobs";
