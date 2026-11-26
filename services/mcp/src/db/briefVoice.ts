@@ -285,6 +285,32 @@ async function readClipBytes(admin: SupabaseClient, storagePath: string, maxByte
   return bytes;
 }
 
+/** Stored word timings of one clip (org-checked); null when the clip has none or the column is not there yet. */
+export function parseWordTimings(value: unknown): Array<{ text: string; start: number; end: number }> | null {
+  if (!Array.isArray(value)) return null;
+  const out = value
+    .map((w) => w as { text?: unknown; start?: unknown; end?: unknown })
+    .filter((w) => typeof w.text === "string" && Number.isFinite(Number(w.start)) && Number.isFinite(Number(w.end)))
+    .map((w) => ({ text: String(w.text), start: Number(w.start), end: Number(w.end) }));
+  return out.length ? out : null;
+}
+
+async function readWordTimings(admin: SupabaseClient, ctx: Session, clipId: string) {
+  try {
+    const { data, error } = await admin
+      .from("brief_voice_clips")
+      .select("word_timings")
+      .eq("id", clipId)
+      .eq("organization_id", ctx.organizationId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return parseWordTimings((data as { word_timings?: unknown }).word_timings);
+  } catch {
+    // Timings are extra: a missing column or a failed read must not break the download link.
+    return null;
+  }
+}
+
 /**
  * One VO clip: metadata plus a 15-minute download link on the MCP host (the file never passes
  * through the model). audio_base64 only when the caller asks for it and the clip is at most 1 MB.
@@ -307,6 +333,7 @@ export async function getBriefVoiceClip(
   const mp3 = readMp3(bytes, VOICE_DOWNLOAD_MAX_BYTES);
   if (!mp3) throw new Error("clip_not_mp3");
 
+  const words = await readWordTimings(admin, ctx, row.id);
   const { token, expiresAt } = mintVoiceDownloadToken(
     signer.key,
     { userId: ctx.userId, organizationId: ctx.organizationId, planId: input.planId, clipId: row.id },
@@ -326,6 +353,7 @@ export async function getBriefVoiceClip(
       download_url: voiceDownloadUrl(signer.publicUrl, token),
       download_expires_at: new Date(expiresAt * 1000).toISOString(),
       ...(input.includeBase64 ? { audio_base64: Buffer.from(bytes).toString("base64") } : {}),
+      words,
     },
     how_to_read: BRIEF_VOICE_GET_HOW_TO_READ,
   };

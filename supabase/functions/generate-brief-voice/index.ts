@@ -5,6 +5,7 @@ import { extractMp4Audio } from "../_shared/mp4Audio.ts";
 import { historyChargeFromItem, isUsageUuid, matchHistoryCharges, officialTokenCount, promptExcerpt, recordContentUsage, type HistoryCharge } from "../_shared/contentUsage.ts";
 import { exactCreditCostFromHeader } from "../_shared/elevenLabsCredit.ts";
 import { acceptTaggedNarration, narrationWithoutTags, resolveTaggedNarration, voiceModelSupportsAudioTags, withLanguageAccent } from "../_shared/voiceAudioTags.ts";
+import { alignmentToWords, base64ToBytes, type ElevenAlignment, type WordTiming } from "./words.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -370,14 +371,34 @@ async function speakText(supabaseAdmin: Admin, orgId: string, userId: string, bo
   }
   const usage = await reserveUsage(supabaseAdmin, orgId, settings.limit, json);
   if (usage.error) return usage.error;
-  const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(settings.voiceId)}?output_format=mp3_44100_128`, {
-    method: "POST",
-    headers: { "xi-api-key": settings.key, "Content-Type": "application/json", Accept: "audio/mpeg" },
-    body: JSON.stringify(narrationBody(settings, withLanguageAccent(settings.model, settings.language, narration))),
-  });
-  if (!response.ok) return json({ error: await elevenError(response) }, response.status);
+  const ttsBody = JSON.stringify(narrationBody(settings, withLanguageAccent(settings.model, settings.language, narration)));
+  // with-timestamps returns the MP3 plus per-character timing, turned into word timings for subtitles and cuts.
+  let response = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(settings.voiceId)}/with-timestamps?output_format=mp3_44100_128`,
+    { method: "POST", headers: { "xi-api-key": settings.key, "Content-Type": "application/json" }, body: ttsBody },
+  );
+  let bytes: Uint8Array;
+  let wordTimings: WordTiming[] | null = null;
+  if (response.ok) {
+    const payload = await response.json().catch(() => null) as
+      | { audio_base64?: string; alignment?: ElevenAlignment; normalized_alignment?: ElevenAlignment }
+      | null;
+    if (!payload?.audio_base64) return json({ error: "ElevenLabs tidak mengirim audio." }, 502);
+    bytes = base64ToBytes(payload.audio_base64);
+    const words = alignmentToWords(payload.alignment ?? payload.normalized_alignment);
+    wordTimings = words.length ? words : null;
+  } else {
+    // A model without timestamp support: fall back to plain audio (an error response costs no credits).
+    console.error("generate-brief-voice with-timestamps refused", response.status);
+    response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(settings.voiceId)}?output_format=mp3_44100_128`, {
+      method: "POST",
+      headers: { "xi-api-key": settings.key, "Content-Type": "application/json", Accept: "audio/mpeg" },
+      body: ttsBody,
+    });
+    if (!response.ok) return json({ error: await elevenError(response) }, response.status);
+    bytes = new Uint8Array(await response.arrayBuffer());
+  }
   const creditCost = exactCreditCostFromHeader(response.headers.get("character-cost"));
-  const bytes = new Uint8Array(await response.arrayBuffer());
   const clip = await storeClip(supabaseAdmin, orgId, planId, {
     kind: "vo",
     rowIndex,
@@ -386,6 +407,7 @@ async function speakText(supabaseAdmin: Admin, orgId: string, userId: string, bo
     spokenText: narration,
     creditCost,
     audioFormat: TTS_AUDIO,
+    wordTimings,
   });
   if (clip.error) return json({ error: clip.error }, 500);
   await recordContentUsage(supabaseAdmin, {
@@ -669,6 +691,7 @@ async function storeClip(
     spokenText?: string | null;
     creditCost?: number | null;
     audioFormat?: StoredAudioFormat;
+    wordTimings?: WordTiming[] | null;
   },
 ) {
   const id = crypto.randomUUID();
@@ -691,6 +714,7 @@ async function storeClip(
     file_name: fileName,
     spoken_text: input.spokenText ?? null,
     credit_cost: input.creditCost ?? null,
+    ...(input.wordTimings?.length ? { word_timings: input.wordTimings } : {}),
   }).select("id, kind, row_index, shot_id, video_id, storage_path, file_name, spoken_text, credit_cost, created_at").single();
   if (error) return { error: error.message, row: null };
   return { error: null, row: data };
