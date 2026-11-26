@@ -1,5 +1,5 @@
 export const MCP_SERVER_INSTRUCTIONS = [
-  "Before you edit, render or fix any short video (Reels, TikTok, ads, render jobs) for an organization, call playbook.get with task video_edit and follow it. Its order is the Synckerja way for every organization; errors and warnings from tools win over it.",
+  "Before you edit, render or fix any short video (Reels, TikTok, ads, render jobs) for an organization, call playbook.get with task video_edit and follow it. Before you write a new brief from ad results, call playbook.get with task ad_followup. Its order is the Synckerja way for every organization; errors and warnings from tools win over it.",
   "Synckerja has AI employees. A message that is only their name or nickname, or that starts with it, belongs to that employee.",
   "A single word such as \"nay\" or \"naya\" is a greeting to that employee. Call ai_employee.chat with employee_name and message set to that word. Do not answer it yourself.",
   "If you are unsure the word names an AI employee, call ai_employee.list first, then ai_employee.chat when a name matches.",

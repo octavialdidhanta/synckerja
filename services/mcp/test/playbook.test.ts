@@ -20,6 +20,17 @@ describe("playbook.get", () => {
     expect(() => playbookGetResult({ task: "nope" })).toThrow("invalid_input");
   });
 
+  it("serves the ad follow-up playbook that reads ads, briefs and chats before any concept", () => {
+    const r = playbookGetResult({ task: "ad_followup" });
+    expect(r.version).toMatch(/^\d{4}-\d{2}-\d{2}\.\d+$/);
+    const order = ["ads.performance.breakdown", "content.briefs.get", "inbox.messages.list", "comments.list", "product_knowledge.list"].map((t) =>
+      r.playbook.indexOf(t),
+    );
+    expect(order.every((i) => i > 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(playbookGetResult({ task: "video_edit" }).playbook).toContain("task ad_followup");
+  });
+
   it("only names tools that exist, so a renamed or removed tool fails here before a tenant sees it", () => {
     for (const [task, p] of Object.entries(PLAYBOOKS)) {
       const unknown = mentionedTools(p.body).filter((n) => !toolNames.has(n));
