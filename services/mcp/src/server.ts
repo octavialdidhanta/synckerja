@@ -232,7 +232,26 @@ const app = createApp({
   listBriefVoiceClips: (ctx, planId) => listBriefVoiceClips(admin, config.supabaseUrl, ctx, planId),
   getBriefVoiceClip: (ctx, input) =>
     getBriefVoiceClip(admin, ctx, input, { key: voiceKey, publicUrl: config.publicUrl }),
-  generateBriefVoiceClip: (ctx, input) => generateBriefVoiceClip(admin, config, ctx, input),
+  generateBriefVoiceClip: async (ctx, input) => {
+    const made = await generateBriefVoiceClip(admin, config, ctx, input);
+    // Hand back the MCP download link right away (the Supabase public URL is blocked on many computers).
+    try {
+      const got = await getBriefVoiceClip(admin, ctx, { planId: input.planId, clipId: made.clip.id, rowIndex: null, includeBase64: false }, { key: voiceKey, publicUrl: config.publicUrl });
+      made.clip = {
+        ...made.clip,
+        phone_url: made.clip.download_url,
+        download_url: got.clip.download_url,
+        download_expires_at: got.clip.download_expires_at,
+        file_name: got.clip.file_name,
+        duration_seconds: got.clip.duration_seconds,
+        mime_type: got.clip.mime_type,
+        byte_length: got.clip.byte_length,
+      };
+    } catch (error) {
+      console.error("voice.generate: MCP download link not ready", error instanceof Error ? error.message : error);
+    }
+    return made;
+  },
   listLeadMagnetDrafts: (ctx, campaignId) => listLeadMagnetDrafts(admin, ctx, campaignId),
   attachLeadMagnetDelivery: (ctx, input) => attachLeadMagnetDelivery(admin, config.supabaseUrl, ctx, input),
   listThinkingMasters: (ctx) => listThinkingMasters(admin, ctx),

@@ -19,7 +19,14 @@ export type GenerateBriefVoiceInput = {
 
 export type GenerateBriefVoiceResult = {
   plan_id: string;
-  clip: BriefVoiceClipPublic;
+  clip: BriefVoiceClipPublic & {
+    /** Public storage link, kept for a phone tap; blocked on many computers. */
+    phone_url?: string;
+    download_expires_at?: string;
+    duration_seconds?: number | null;
+    mime_type?: string;
+    byte_length?: number;
+  };
   tagged_text: string | null;
   how_to_read: string;
 };
@@ -27,7 +34,7 @@ export type GenerateBriefVoiceResult = {
 export const BRIEF_VOICE_GENERATE_HOW_TO_READ =
   "Generates one ElevenLabs VO clip for a storyboard row using the organization's Voice AI settings. " +
   "Only the plan PIC can generate. If text is omitted, the vo cell for that row_index is used (or voice_over when the row has no vo). " +
-  "download_url is a public HTTPS link for a phone tap. A desktop agent calls content.briefs.voice.get for the MP3 bytes. One row per call. Existing clips for other rows are unchanged; call content.briefs.voice.list to see all.";
+  "download_url is a link on mcp.synckerja.com that serves this MP3 for 15 minutes without an auth header (same as content.briefs.voice.get): save it with a plain HTTP GET as file_name in the production vo folder. duration_seconds is estimated from the MP3; confirm with ffprobe before cutting. phone_url is the public storage link for a phone tap only (often blocked on computers). If download_url is missing, call content.briefs.voice.get with the clip id. One row per call. Existing clips for other rows are unchanged; call content.briefs.voice.list to see all.";
 
 export type GenerateBriefVoice = (
   ctx: McpAuthContext,
