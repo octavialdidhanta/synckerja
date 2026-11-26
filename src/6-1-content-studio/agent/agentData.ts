@@ -127,7 +127,15 @@ export interface AgentJobRow {
   error: string | null;
   /** Tail of the Agent laptop log for this job (failed/done debugging). */
   log: string | null;
-  result: { google_drive_link?: string; version_no?: number; output_file?: string } | null;
+  result: {
+    google_drive_link?: string;
+    version_no?: number;
+    output_file?: string;
+    /** Still preview: sheet in the production folder on the laptop, and (Agent 0.1.20+) its upload in catalog-media. */
+    stills_file?: string;
+    stills_path?: string;
+    stills?: number[];
+  } | null;
   social_media_plan_id: string | null;
   created_at: string;
   finished_at: string | null;
@@ -149,4 +157,12 @@ export function sortJobs(jobs: AgentJobRow[]): AgentJobRow[] {
   active.sort((a, b) => a.created_at.localeCompare(b.created_at));
   rest.sort((a, b) => b.created_at.localeCompare(a.created_at));
   return [...active, ...rest];
+}
+
+/** Storage path of a done still preview's sheet, when the Agent uploaded it into this organization's folder. */
+export function stillsPath(job: Pick<AgentJobRow, "status" | "result">, organizationId: string | null | undefined): string | null {
+  const path = job.status === "done" ? job.result?.stills_path : undefined;
+  if (!organizationId || typeof path !== "string") return null;
+  if (!path.startsWith(`${organizationId}/render-stills/`) || path.includes("..") || !/\.jpe?g$/i.test(path)) return null;
+  return path;
 }

@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
-import type { AgentDeviceRow, AgentJobRow, AgentTokenRow } from "./agentData";
+import { signCatalogMedia } from "../shared/catalogQuery";
+import { stillsPath, type AgentDeviceRow, type AgentJobRow, type AgentTokenRow } from "./agentData";
 
 // agent_* tables are newer than the generated Supabase types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -104,6 +105,18 @@ export function useAgentJobs() {
       if (error) throw error;
       return (data ?? []) as AgentJobRow[];
     },
+  });
+}
+
+/** Signed links for the still-preview sheets in the job list (path → URL). Signed for 6 h; re-signed hourly. */
+export function useStillUrls(jobs: AgentJobRow[] | undefined) {
+  const { organizationId } = useOrgBootstrapPending();
+  const paths = (jobs ?? []).map((j) => stillsPath(j, organizationId)).filter((p): p is string => Boolean(p)).sort();
+  return useQuery<Record<string, string>>({
+    queryKey: ["content-studio", "agent-stills", organizationId, paths.join("|")],
+    enabled: paths.length > 0,
+    staleTime: 60 * 60_000,
+    queryFn: () => signCatalogMedia(supabase, paths),
   });
 }
 

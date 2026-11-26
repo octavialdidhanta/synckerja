@@ -71,3 +71,16 @@ describe("render queue order", () => {
     expect(out.map((j) => j.id)).toEqual(["run", "q2", "new-fail", "old-done"]);
   });
 });
+
+describe("stillsPath", () => {
+  const org = "5fa70166-0a35-4f0d-94b3-54f19b3f8c30";
+  it("returns the uploaded sheet of a done still job in this organization only", async () => {
+    const { stillsPath } = await import("./agentData");
+    const ok = `${org}/render-stills/j1.jpg`;
+    expect(stillsPath({ status: "done", result: { stills_path: ok } }, org)).toBe(ok);
+    expect(stillsPath({ status: "running", result: { stills_path: ok } }, org)).toBeNull();
+    expect(stillsPath({ status: "done", result: { stills_path: "other/render-stills/j1.jpg" } }, org)).toBeNull();
+    expect(stillsPath({ status: "done", result: { stills_file: "P/_build/still/a.jpg" } }, org)).toBeNull();
+    expect(stillsPath({ status: "done", result: { stills_path: `${org}/render-stills/../x.jpg` } }, org)).toBeNull();
+  });
+});
