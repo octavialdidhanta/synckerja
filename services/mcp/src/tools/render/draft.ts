@@ -413,6 +413,7 @@ export async function draftRenderJobResult(
   getBrief?: BriefLookup,
   listReferences?: (ctx: McpAuthContext) => Promise<Array<{ id: string; title: string | null }>>,
   lookupVoice?: VoRowLookup,
+  saveDraft?: (ctx: McpAuthContext, input: { title: string; plan_id: string | null; spec: unknown }) => Promise<{ draft_id: string; expires_at: string }>,
 ): Promise<Record<string, unknown>> {
   const parsed = renderJobDraftInput.safeParse(args);
   if (!parsed.success) {
@@ -491,9 +492,19 @@ export async function draftRenderJobResult(
     checks.suggestions.push(...referenceFindings(gaya, input, available));
   }
 
+  let draft_id: string | null = null;
+  if (saveDraft) {
+    try {
+      draft_id = (await saveDraft(ctx, { title: input.title, plan_id: input.plan_id ?? null, spec })).draft_id;
+    } catch {
+      warnings.push("Draft tidak tersimpan di server; kirim spec lengkap ke render.stills.create / render.jobs.create.preview.");
+    }
+  }
+
   return {
     title: input.title,
     plan_id: input.plan_id ?? null,
+    ...(draft_id ? { draft_id } : {}),
     references: input.references ?? [],
     spec,
     checks,
@@ -513,6 +524,6 @@ export async function draftRenderJobResult(
     ...(voTimeline ? { vo_timeline: voTimeline.timeline, vo_end_seconds: voTimeline.end } : {}),
     warnings,
     next_step:
-      "Fix every item in checks.errors and checks.required (or keep a required one only with overrides [{code, reason}] in render.jobs.create.preview); mention checks.suggestions to the user if you keep them. Review the draft spec (edit shots/texts/audio if needed). Then call render.jobs.create.preview with the same title, plan_id, and this spec. After the user clearly says yes, call render.jobs.create with that confirm_token. Music defaults follow Gaya musik (usually -18 dB under VO); the Agent applies sidechain ducking and loudnorm -14 LUFS. texts[].style=menu draws the yellow typewriter menu label. outro=halftone adds the 1s dotted closer (optional logo_file inside the production folder). behind_person=true places that text under the person (Agent SAM2+RVM). A top-level effects array is still refused.",
+      "Fix every item in checks.errors and checks.required (or keep a required one only with overrides [{code, reason}] in render.jobs.create.preview); mention checks.suggestions to the user if you keep them. Review the draft spec (edit shots/texts/audio if needed). Then call render.stills.create and render.jobs.create.preview with draft_id (plus a patch of only the keys you changed: shots, texts, styles per name, audio, outro, stills) instead of resending the spec; without draft_id use the same title, plan_id and this spec. After the user clearly says yes, call render.jobs.create with that confirm_token. Music defaults follow Gaya musik (usually -18 dB under VO); the Agent applies sidechain ducking and loudnorm -14 LUFS. texts[].style=menu draws the yellow typewriter menu label. outro=halftone adds the 1s dotted closer (optional logo_file inside the production folder). behind_person=true places that text under the person (Agent SAM2+RVM). A top-level effects array is still refused.",
   };
 }

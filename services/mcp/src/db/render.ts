@@ -61,3 +61,28 @@ export function listRenderJobs(admin: SupabaseClient, ctx: Session, limit: numbe
     p_limit: limit,
   });
 }
+
+export type RenderDraftSaved = { draft_id: string; expires_at: string };
+export type RenderDraftRow = { draft_id: string; title: string; plan_id: string | null; spec: unknown; expires_at: string };
+
+export function saveRenderDraft(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: { title: string; plan_id: string | null; spec: unknown },
+): Promise<RenderDraftSaved> {
+  return callJson<RenderDraftSaved>(admin, "mcp_save_render_draft", {
+    p_user_id: ctx.userId,
+    p_organization_id: ctx.organizationId,
+    p_title: input.title,
+    p_plan_id: input.plan_id,
+    p_spec: input.spec,
+  });
+}
+
+export function getRenderDraft(admin: SupabaseClient, ctx: Session, draftId: string): Promise<RenderDraftRow> {
+  return callJson<RenderDraftRow>(admin, "mcp_get_render_draft", {
+    p_user_id: ctx.userId,
+    p_organization_id: ctx.organizationId,
+    p_draft_id: draftId,
+  });
+}
