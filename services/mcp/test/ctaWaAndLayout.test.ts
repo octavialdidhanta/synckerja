@@ -128,3 +128,30 @@ describe("cta_wa closer", () => {
     expect(r.warnings.some((w) => /Agent v0\.1\.23/.test(w))).toBe(true);
   });
 });
+
+describe("texts_overlap", () => {
+  const styles = {
+    ...ctaStyles(GAYA),
+    sub: { size: 9, color: "#FAF8B2", stroke: "#282000", stroke_width: 0.16, bold: true, font: "poppins", y: -0.6, max_width: 0.9 },
+    judul: { size: 15, color: "#111111", bg: "#FAFD96", bg_alpha: 1, font: "instrument-serif", x: -0.42, y: 0.62, max_width: 0.8 },
+  };
+  it("the CTWA closer stack with its subtitle does not overlap", () => {
+    const s = spec(styles, [
+      { text: "Sate Sultan PIK", start: 3, end: 5, style: "cta_brand", anim: "pop" },
+      { text: "Chat WhatsApp", start: 3.15, end: 5, style: "cta_wa", anim: "wa_button" },
+      { text: "Gate sebelah Bank DBS PIK", start: 3.35, end: 5, style: "cta_lokasi", anim: "rise" },
+      { text: "Klik WhatsApp, pesan duluan.", start: 3, end: 5, style: "sub", anim: "none" },
+    ]);
+    expect(checkSpec(s, {}).suggestions.map((f) => f.code)).not.toContain("texts_overlap");
+  });
+
+  it("flags two texts in the same place at the same time, not the same place at different times", () => {
+    const at = (start: number) => [
+      { text: "Langkah 2: Ketuk pelan, sumsum keluar", start: 0, end: 3, style: "judul", anim: "menu_label" },
+      { text: "Brand Kita", start, end: start + 2, style: "cta_brand", anim: "pop" },
+    ];
+    const moved = { ...styles, cta_brand: { ...styles.cta_brand, y: 0.6 } };
+    expect(checkSpec(spec(moved, at(1)), {}).suggestions.map((f) => f.code)).toContain("texts_overlap");
+    expect(checkSpec(spec(moved, at(3.2)), {}).suggestions.map((f) => f.code)).not.toContain("texts_overlap");
+  });
+});

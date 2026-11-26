@@ -61,7 +61,9 @@ export function ctaStyles(gaya: CatalogTextBlocks): Record<(typeof CTA_STYLE_KEY
       stroke_width: 0.14,
       bold: true,
       font: "poppins",
-      y: 0.4,
+      // Just above the button, so the whole closer sits in the lower third and never covers a sign or emblem
+      // that storefront footage usually shows higher up.
+      y: -0.04,
       max_width: 0.9,
     },
   };

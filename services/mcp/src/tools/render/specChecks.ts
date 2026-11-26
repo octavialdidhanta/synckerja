@@ -13,7 +13,7 @@
  */
 import type { CatalogTextBlocks } from "../../db/catalog";
 import { specDuration, type RenderSpecV1 } from "./renderSpec";
-import { boxEdges, FRAME_W, menuLines, menuTypingSeconds } from "./textLayout";
+import { boxEdges, boxRect, FRAME_W, menuLines, menuTypingSeconds } from "./textLayout";
 
 export type RuleLevel = "mati" | "saran" | "wajib";
 export type Preset = "ketat" | "seimbang" | "bebas";
@@ -192,6 +192,32 @@ const GAYA_RULES: GayaRule[] = [
       return tail.some((t) => t.anim === "wa_button" || /whats\s?app|\bwa\b/i.test(t.text))
         ? []
         : ["Kalau ini iklan CTWA: Gaya baku minta penutup ajakan chat WhatsApp, tapi tidak ada teks WhatsApp/WA di bagian akhir video. Pakai cta_wa di render.jobs.draft untuk tombol WhatsApp."];
+    },
+  },
+  {
+    // Two texts on screen at the same time whose boxes surely overlap (estimated on the low side). Subtitle under the
+    // menu label has its own rule (sub_overlaps_menu). Only suggests: some layouts stack on purpose.
+    code: "texts_overlap",
+    levels: { ketat: "saran", seimbang: "saran", bebas: "mati" },
+    check: (spec) => {
+      const out: string[] = [];
+      const items = spec.texts.filter((t) => spec.styles[t.style]).map((t) => ({ t, r: boxRect(t, spec.styles[t.style]!) }));
+      for (let i = 0; i < items.length; i++) {
+        for (let j = i + 1; j < items.length; j++) {
+          const a = items[i]!, b = items[j]!;
+          if (Math.min(a.t.end, b.t.end) - Math.max(a.t.start, b.t.start) < 0.1) continue;
+          const pair = [a.t.style, b.t.style].sort().join("+");
+          if (pair === "menu+sub") continue;
+          const w = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
+          const h = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
+          if (w > 4 && h > 4) {
+            out.push(
+              `"${a.t.text}" (${a.t.style}) dan "${b.t.text}" (${b.t.style}) tampil bersamaan di ${Math.max(a.t.start, b.t.start).toFixed(2)}–${Math.min(a.t.end, b.t.end).toFixed(2)} s dan saling menumpuk; geser y salah satunya atau atur waktunya.`,
+            );
+          }
+        }
+      }
+      return out;
     },
   },
   {

@@ -78,3 +78,20 @@ export function menuLines(text: Text, style: Style): number {
 export function menuTypingSeconds(text: string): number {
   return Math.max(0, Array.from(text).length - 1) / MENU_CHARS_PER_SECOND;
 }
+
+/**
+ * Smallest rectangle the box surely covers (px, y down): width and line count estimated on the low side, so an
+ * overlap between two of these is certain.
+ */
+export function boxRect(text: Text, style: Style): { left: number; right: number; top: number; bottom: number } {
+  const { left, right } = boxEdges(text, style);
+  const px = fontPx(style);
+  const pad = boxPad(style);
+  const inner = Math.max(1, right - left - 2 * pad);
+  const lines = text.text
+    .split(/\r?\n/)
+    .reduce((n, l) => n + Math.max(1, Math.ceil((Array.from(l).length * px * MIN_EM_PER_CHAR) / inner - 1e-9)), 0);
+  const height = lines * px * 1.15 + 2 * pad;
+  const cy = 960 - (style.y ?? 0) * 960;
+  return { left, right, top: cy - height / 2, bottom: cy + height / 2 };
+}
