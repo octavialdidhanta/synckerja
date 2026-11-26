@@ -345,7 +345,7 @@ export function buildDraftSpec(
   return { spec: parsed.data, warnings };
 }
 
-export type FootageKeyInfo = { duration_seconds: number | null };
+export type FootageKeyInfo = { duration_seconds: number | null; scene_starts?: number[] };
 
 export type BriefLookup = (ctx: McpAuthContext, planId: string) => Promise<{
   title: string | null;
