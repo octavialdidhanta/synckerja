@@ -3,40 +3,56 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "headers": [
+  "routes": [
     {
-      "source": "/index.html",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-      ]
+      "src": "/index.html",
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate"
+      },
+      "continue": true
     },
     {
-      "source": "/assets/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
-      ]
+      "src": "/sw.js",
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate"
+      },
+      "continue": true
     },
     {
-      "source": "/sw.js",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-      ]
+      "src": "/workbox-(.*)\\.js",
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate"
+      },
+      "continue": true
     },
     {
-      "source": "/workbox-(.*).js",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-      ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/tiktok-carousel/:org/:plan/:file",
-      "destination": "https://wqdzqqshoifwyrltzgvx.supabase.co/storage/v1/object/public/social-media-carousel/:org/:plan/:file"
+      "src": "/assets/(.*)",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
     },
     {
-      "source": "/((?!api/)(?!assets/)(?!.*\\..*).*)",
-      "destination": "/index.html"
+      "handle": "filesystem"
+    },
+    {
+      "src": "/api/tiktok-carousel/([^/]+)/([^/]+)/([^/]+)",
+      "dest": "https://wqdzqqshoifwyrltzgvx.supabase.co/storage/v1/object/public/social-media-carousel/$1/$2/$3"
+    },
+    {
+      "src": "/assets/(.*)",
+      "status": 404,
+      "headers": {
+        "Cache-Control": "no-store"
+      },
+      "dest": "/404-asset.txt"
+    },
+    {
+      "src": "/((?!api/)(?!assets/)(?!.*\\..*).*)",
+      "dest": "/index.html",
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate"
+      }
     }
   ]
 }
