@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z, type ZodRawShape, type ZodTypeAny } from "zod";
 import { AuthzError } from "../authz/errors";
-import type { RenderJobPreview, RenderJobSaved, RenderJobsList } from "../db/render";
+import type { RenderDraftRow, RenderDraftSaved, RenderJobPreview, RenderJobSaved, RenderJobsList } from "../db/render";
 import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
 import type { ContentBriefDetail, ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
@@ -877,6 +877,16 @@ export type McpReadDeps = {
   previewRenderJob: (ctx: McpAuthContext, input: { plan_id: string | null; title: string; spec: unknown }) => Promise<RenderJobPreview>;
   applyRenderJob: (ctx: McpAuthContext, previewId: string) => Promise<RenderJobSaved>;
   listRenderJobs: (ctx: McpAuthContext, limit: number) => Promise<RenderJobsList>;
+  saveRenderDraft?: (
+    ctx: McpAuthContext,
+    input: { title: string; plan_id: string | null; spec: unknown },
+  ) => Promise<RenderDraftSaved>;
+  getRenderDraft?: (ctx: McpAuthContext, draftId: string) => Promise<RenderDraftRow>;
+  updateRenderDraft?: (
+    ctx: McpAuthContext,
+    draftId: string,
+    input: { title: string; plan_id: string | null; spec: unknown },
+  ) => Promise<RenderDraftSaved>;
   previewFootageDelete: (ctx: McpAuthContext, input: FootageDeleteInput) => Promise<FootageDeletePreview>;
   applyFootageDelete: (ctx: McpAuthContext, previewId: string) => Promise<FootageDeleteSaved>;
   previewFootageRestore: (ctx: McpAuthContext, input: FootageRestoreInput) => Promise<FootageRestorePreview>;
@@ -1791,6 +1801,7 @@ async function runTool(
             throw error;
           }
         },
+        deps.saveRenderDraft,
       );
     case "render.jobs.create.preview":
       return previewRenderJobResult(
@@ -1800,6 +1811,7 @@ async function runTool(
         deps.signFootageConfirmation,
         deps.getCatalogStyle,
         (c, fileKey) => lookupRenderFootage(deps, c, fileKey),
+        { get: deps.getRenderDraft, update: deps.updateRenderDraft },
       );
     case "render.jobs.create":
       return applyRenderJobResult(ctx, args, deps.verifyFootageConfirmation, deps.applyRenderJob);
@@ -1811,6 +1823,7 @@ async function runTool(
         deps.applyRenderJob,
         deps.getCatalogStyle,
         (c, fileKey) => lookupRenderFootage(deps, c, fileKey),
+        { get: deps.getRenderDraft, update: deps.updateRenderDraft },
       );
     case "render.jobs.list":
       return listRenderJobsResult(ctx, args, deps.listRenderJobs);

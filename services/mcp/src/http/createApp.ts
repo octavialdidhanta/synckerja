@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import type { RenderJobPreview, RenderJobSaved, RenderJobsList } from "../db/render";
+import type { RenderDraftRow, RenderDraftSaved, RenderJobPreview, RenderJobSaved, RenderJobsList } from "../db/render";
 import type { McpServiceConfig } from "../config";
 import { MEDIA_UPLOAD_CHUNK_BYTES, uploadNextStep } from "../tools/content/mediaUpload";
 import type { VoiceDownloadResponse } from "../db/briefVoice";
@@ -528,6 +528,16 @@ export type AppDeps = {
   previewRenderJob: (ctx: McpAuthContext, input: { plan_id: string | null; title: string; spec: unknown }) => Promise<RenderJobPreview>;
   applyRenderJob: (ctx: McpAuthContext, previewId: string) => Promise<RenderJobSaved>;
   listRenderJobs: (ctx: McpAuthContext, limit: number) => Promise<RenderJobsList>;
+  saveRenderDraft?: (
+    ctx: McpAuthContext,
+    input: { title: string; plan_id: string | null; spec: unknown },
+  ) => Promise<RenderDraftSaved>;
+  getRenderDraft?: (ctx: McpAuthContext, draftId: string) => Promise<RenderDraftRow>;
+  updateRenderDraft?: (
+    ctx: McpAuthContext,
+    draftId: string,
+    input: { title: string; plan_id: string | null; spec: unknown },
+  ) => Promise<RenderDraftSaved>;
   previewFootageDelete: (ctx: McpAuthContext, input: FootageDeleteInput) => Promise<FootageDeletePreview>;
   applyFootageDelete: (ctx: McpAuthContext, previewId: string) => Promise<FootageDeleteSaved>;
   previewFootageRestore: (ctx: McpAuthContext, input: FootageRestoreInput) => Promise<FootageRestorePreview>;
