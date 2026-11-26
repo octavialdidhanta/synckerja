@@ -29,6 +29,18 @@ import {
 import { useShotData } from "./useShotData";
 import { useShotSave, type ShotSaveStatus } from "./useShotSave";
 
+/** Supabase signed URL that answers as an attachment (Content-Disposition), so the browser downloads instead of opening a tab. */
+function attachmentUrl(url: string, name: string): string | null {
+  try {
+    const u = new URL(url);
+    if (!u.pathname.includes("/storage/v1/object/sign/")) return null;
+    u.searchParams.set("download", name);
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 interface Props {
   headLeft: React.ReactNode;
 }
@@ -429,15 +441,25 @@ function Rakit({
     const url = p.url ?? (p.storagePath ? photoUrls[p.storagePath] : undefined);
     const name = (p.file || "foto.png").split("/").pop() as string;
     if (url) {
-      try {
-        const blob = await (await fetch(url)).blob();
+      const save = (href: string) => {
         const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
+        a.href = href;
         a.download = name;
+        document.body.appendChild(a);
         a.click();
-        window.setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        a.remove();
+      };
+      try {
+        // no-store: the thumbnail <img> may have cached this URL without CORS headers, which makes fetch fail.
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error(String(res.status));
+        const href = URL.createObjectURL(await res.blob());
+        save(href);
+        window.setTimeout(() => URL.revokeObjectURL(href), 2000);
       } catch {
-        window.open(url, "_blank", "noopener");
+        const direct = attachmentUrl(url, name);
+        if (direct) save(direct);
+        else window.open(url, "_blank", "noopener");
       }
     }
     await copyText(ftag(p), `${ftag(p)} ke-copy. Paste di kolom prompt Flow.`);
