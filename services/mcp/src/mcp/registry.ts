@@ -377,7 +377,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "playbook.get",
     description:
-      "Read a Synckerja platform playbook: the step-by-step way to do a task for any organization. task video_edit covers every short video (Reels, TikTok, ads) from brief to render to delivery. Call it before you start that task and follow it. It is the same for every organization; style comes from catalog.style.get and facts from the catalog. Returns task, version and playbook (markdown). Read only.",
+      "Read a Synckerja platform playbook: the step-by-step way to do a task for any organization. task video_edit covers every short video (Reels, TikTok, ads) from brief to render to delivery; task ad_followup covers writing a new brief from ad results (ads, the briefs behind them, customer chats and comments, before any concept). Call it before you start that task and follow it. It is the same for every organization; style comes from catalog.style.get and facts from the catalog. Returns task, version and playbook (markdown). Read only.",
     scopes: ["content:read"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,

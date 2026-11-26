@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { AD_FOLLOWUP_PLAYBOOK, AD_FOLLOWUP_PLAYBOOK_VERSION } from "./adFollowup";
 import { VIDEO_EDIT_PLAYBOOK, VIDEO_EDIT_PLAYBOOK_VERSION } from "./videoEdit";
 
 /** Platform playbooks: the same for every organization. Organization facts and style live in the catalog and Gaya baku. */
 export const PLAYBOOKS = {
   video_edit: { version: VIDEO_EDIT_PLAYBOOK_VERSION, body: VIDEO_EDIT_PLAYBOOK },
+  ad_followup: { version: AD_FOLLOWUP_PLAYBOOK_VERSION, body: AD_FOLLOWUP_PLAYBOOK },
 } as const;
 
 export type PlaybookTask = keyof typeof PLAYBOOKS;
