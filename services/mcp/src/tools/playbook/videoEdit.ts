@@ -10,7 +10,7 @@
  * Every tool named here must exist (test/playbook.test.ts).
  */
 
-export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-27.2";
+export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-27.3";
 
 export const VIDEO_EDIT_PLAYBOOK = `
 # Synckerja video edit playbook
@@ -63,6 +63,7 @@ Only after these steps write concepts for gate 1.
 - Cut on the voice over, or on the music beat when there is no voice over.
 - On-screen text: short phrases built from the facts in step 1.4; avoid every phrase Gaya baku forbids.
 - Music: follow Gaya baku musik. Name the song you picked and two or three alternatives.
+- A click-to-WhatsApp ad closes with cta_wa in render.jobs.draft (button, location and brand styled from Gaya baku), not only a subtitle that names WhatsApp.
 - When Gaya baku asks for something the render cannot do yet, say so before rendering.
 
 ## 5. Render through the Synckerja Agent
