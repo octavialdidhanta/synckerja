@@ -219,7 +219,8 @@ const GAYA_RULES: GayaRule[] = [
         (f): f is string => Boolean(f),
       );
       return files
-        .filter((f) => !/^(vo|_build)[\\/]/i.test(f))
+        // "@musik/…", "@brand/…": org libraries the Agent reads in place (0.1.17+), never copied into the production folder.
+        .filter((f) => !/^(vo|_build)[\\/]/i.test(f) && !/^@[a-z][a-z0-9_-]{0,31}[\\/]/.test(f))
         .map((f) => `${f} ada di luar vo/ atau _build/; folder produksi hanya vo, _build, _capcut, output.`);
     },
   },

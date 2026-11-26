@@ -178,3 +178,28 @@ describe("reference check (creativity): a suggestion, never a block", () => {
     expect(referenceFindings({ aturan: "preset: bebas" }, {}, refs)).toEqual([]);
   });
 });
+
+describe("org libraries and still preview", () => {
+  const spec = renderSpecV1.parse({
+    version: 1,
+    production: "769b1513 4 Green Flag Sop Sumsum",
+    output_name: "769b1513_Green_Flag_VO_v4_9x16",
+    shots: [{ file_key: "PIK1/a.mp4", in: 0, out: 2 }],
+    audio: { vo_parts: [{ file: "vo/vo-9.mp3", at: 0 }], music: { file: "@musik/capcut/Food - Guz Aleksei Igorevich.mp3", in: 3 } },
+    outro: { kind: "halftone", logo: "@brand/logo.png" },
+    stills: [1, 5.5],
+  });
+
+  it("accepts stills (max 12) and @library paths", () => {
+    expect(spec.stills).toEqual([1, 5.5]);
+    expect(() => renderSpecV1.parse({ ...spec, stills: Array.from({ length: 13 }, (_, i) => i) })).toThrow();
+    expect(() => renderSpecV1.parse({ ...spec, stills: [] })).toThrow();
+  });
+
+  it("production_subfolder lets @musik/ and @brand/ through, still flags other folders", () => {
+    const r = checkSpec(spec, { aturan: "preset: ketat" });
+    expect(r.required.filter((c) => c.code === "production_subfolder")).toEqual([]);
+    const loose = renderSpecV1.parse({ ...spec, audio: { music: { file: "musik/food.mp3" } } });
+    expect(checkSpec(loose, { aturan: "preset: ketat" }).required.map((c) => c.code)).toContain("production_subfolder");
+  });
+});
