@@ -3,7 +3,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { z, type ZodRawShape, type ZodTypeAny } from "zod";
 import { AuthzError } from "../authz/errors";
 import { briefTextParts, checkBriefClaims, type BriefTextPart } from "../tools/content/claimCheck";
-import type { RenderDraftRow, RenderDraftSaved, RenderJobPreview, RenderJobSaved, RenderJobsList } from "../db/render";
+import type { RenderDraftRow, RenderDraftSaved, RenderJobDetail, RenderJobPreview, RenderJobSaved, RenderJobsList } from "../db/render";
 import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
 import type { ContentBriefDetail, ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
@@ -510,6 +510,7 @@ import {
   aiEmployeeScheduleUpdateInput,
 } from "../tools";
 import { playbookGetInput, playbookGetResult } from "../tools/playbook/playbookGet";
+import { getRenderJobResult, renderJobsGetInput } from "../tools/render/jobGet";
 import type { ToolCallOutcome } from "../db/toolGate";
 import { filterTools, isToolVisible } from "./filterTools";
 import { MCP_SERVER_INSTRUCTIONS } from "./instructions";
@@ -881,6 +882,7 @@ export type McpReadDeps = {
   previewRenderJob: (ctx: McpAuthContext, input: { plan_id: string | null; title: string; spec: unknown }) => Promise<RenderJobPreview>;
   applyRenderJob: (ctx: McpAuthContext, previewId: string) => Promise<RenderJobSaved>;
   listRenderJobs: (ctx: McpAuthContext, limit: number) => Promise<RenderJobsList>;
+  getRenderJob?: (ctx: McpAuthContext, input: { job_id: string | null; plan_id: string | null }) => Promise<RenderJobDetail>;
   saveRenderDraft?: (
     ctx: McpAuthContext,
     input: { title: string; plan_id: string | null; spec: unknown },
@@ -1152,6 +1154,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "render.stills.create": renderStillsCreateInput,
   "render.stills.get": renderStillsGetInput,
   "render.jobs.list": renderJobsListInput,
+  "render.jobs.get": renderJobsGetInput,
   "footage.delete.preview": deleteFootagePreviewInput,
   "footage.delete": confirmFootageInput,
   "footage.restore.preview": restoreFootagePreviewInput,
@@ -1886,6 +1889,9 @@ async function runTool(
       return getStillsResult(ctx, args, { listRenderJobs: deps.listRenderJobs, downloadRenderStill: deps.downloadRenderStill });
     case "render.jobs.list":
       return listRenderJobsResult(ctx, args, deps.listRenderJobs);
+    case "render.jobs.get":
+      if (!deps.getRenderJob) throw new Error("invalid_input: render.jobs.get is not available here");
+      return getRenderJobResult(ctx, args, deps.getRenderJob, deps.saveRenderDraft);
     case "footage.delete.preview":
       return previewDeleteFootageResult(ctx, args, deps.previewFootageDelete, deps.signFootageConfirmation);
     case "footage.delete":

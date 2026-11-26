@@ -171,6 +171,7 @@ describe("buildAuthContext", () => {
       "render.jobs.draft",
       "render.stills.get",
       "render.jobs.list",
+      "render.jobs.get",
       "product_knowledge.list",
       "content.briefs.get",
       "content.briefs.voice.list",

@@ -10,7 +10,7 @@
  * Every tool named here must exist (test/playbook.test.ts).
  */
 
-export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-26.6";
+export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-26.7";
 
 export const VIDEO_EDIT_PLAYBOOK = `
 # Synckerja video edit playbook
@@ -60,7 +60,8 @@ Approve and publish stay with the user in Office.
 - When Gaya baku asks for something the render cannot do yet, say so before rendering.
 
 ## 5. Render through the Synckerja Agent
-1. render.jobs.draft once: vo_rows with each row's clips (vo_rows[i].shots [{file_key, in?}]) so the draft cuts the shots on the voice over inside the catalog scenes, plus texts, music and references (the reference ids you borrowed from) or no_reference_reason. Styles come from Gaya baku. Keep the returned draft_id: every later still and the full-render preview take draft_id plus a patch of only what changed, not the whole spec.
+0. A revision of a video that was already rendered: start from render.jobs.get (plan_id of the content, or the job_id) instead of a new draft. It returns the exact spec of the last version and a draft_id; keep every shot, text and style the feedback does not mention, change only what it asks with a patch (and a new output_name, for example _v5), then go to step 3.
+1. render.jobs.draft once (new video): vo_rows with each row's clips (vo_rows[i].shots [{file_key, in?}]) so the draft cuts the shots on the voice over inside the catalog scenes, plus texts, music and references (the reference ids you borrowed from) or no_reference_reason. Styles come from Gaya baku. Keep the returned draft_id: every later still and the full-render preview take draft_id plus a patch of only what changed, not the whole spec.
 2. Fix every error the draft returns. For each warning: fix it, or keep it only with a short reason the user can read.
 3. Still preview before the full render: render.stills.create with draft_id and stills (one second inside every text window, the hook and the closer). It needs no yes: it publishes nothing and leaves the footage where it is. It waits for the Agent and returns the contact sheet as a picture (render.stills.get with the job_id if it was not done yet; with an older Agent open stills_file in the production folder, or ask the user to). Check every text: readable, not cut off at the edge, not covering food, a face or the logo, no doubled logo in the closer. Fix it with a patch on the same draft_id and make a new still preview until it is clean.
 4. Gate 3: render.jobs.create.preview for the full video (draft_id with patch stills: null), show the summary with the clean still sheet, and wait for a clear yes. Then render.jobs.create.

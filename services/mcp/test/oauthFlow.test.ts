@@ -627,6 +627,7 @@ describe("oauth and mcp http flow", () => {
       "render.jobs.draft",
       "render.stills.get",
       "render.jobs.list",
+      "render.jobs.get",
       "product_knowledge.list",
       "content.briefs.get",
       "content.briefs.voice.list",

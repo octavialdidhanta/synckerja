@@ -113,3 +113,30 @@ export async function downloadRenderStill(admin: SupabaseClient, ctx: Session, s
   if (error || !data) throw new Error("not_found");
   return new Uint8Array(await data.arrayBuffer());
 }
+
+export type RenderJobDetail = {
+  job_id: string;
+  title: string;
+  plan_id: string | null;
+  status: string;
+  stage: string | null;
+  error: string | null;
+  result: Record<string, unknown> | null;
+  spec: unknown;
+  created_at: string;
+  finished_at: string | null;
+};
+
+/** One earlier render job with its spec: by job_id, or the newest finished full render of a content plan. */
+export function getRenderJob(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: { job_id: string | null; plan_id: string | null },
+): Promise<RenderJobDetail> {
+  return callJson<RenderJobDetail>(admin, "mcp_get_render_job", {
+    p_user_id: ctx.userId,
+    p_organization_id: ctx.organizationId,
+    p_job_id: input.job_id,
+    p_plan_id: input.plan_id,
+  });
+}
