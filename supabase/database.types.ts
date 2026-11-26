@@ -3950,6 +3950,7 @@ export type Database = {
           spoken_text: string | null
           storage_path: string
           video_id: string | null
+          word_timings: Json | null
         }
         Insert: {
           created_at?: string
@@ -3964,6 +3965,7 @@ export type Database = {
           spoken_text?: string | null
           storage_path: string
           video_id?: string | null
+          word_timings?: Json | null
         }
         Update: {
           created_at?: string
@@ -3978,6 +3980,7 @@ export type Database = {
           spoken_text?: string | null
           storage_path?: string
           video_id?: string | null
+          word_timings?: Json | null
         }
         Relationships: [
           {
