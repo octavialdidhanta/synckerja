@@ -820,3 +820,12 @@ export async function applyCatalogProductFields(
   }
   return { saved: true, id: write.menuId };
 }
+
+/** Industry template of the organization and that template's claim words (brief claim check). */
+export async function getClaimWords(admin: SupabaseClient, ctx: Session): Promise<{ industry: string | null; claim_words: string[] }> {
+  const row = await callJson<{ industry: string | null; claim_words: unknown }>(admin, "mcp_get_claim_words", sessionArgs(ctx));
+  return {
+    industry: row.industry ?? null,
+    claim_words: Array.isArray(row.claim_words) ? row.claim_words.filter((w): w is string => typeof w === "string") : [],
+  };
+}
