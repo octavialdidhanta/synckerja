@@ -301,7 +301,44 @@ export function ruleLevels(gaya: CatalogTextBlocks): { preset: Preset; levels: R
 }
 
 /** Catalog facts about one footage file: null when the organization's catalog has no such file_key. */
-export type FootageLookup = (fileKey: string) => Promise<{ duration_seconds: number | null } | null>;
+export type FootageLookup = (fileKey: string) => Promise<{ duration_seconds: number | null; scene_starts?: number[] } | null>;
+
+/** A shot that keeps less than this much of another scene is a stray-frame glitch, not a deliberate cut. */
+const STRAY_SCENE_SECONDS = 0.5;
+
+/**
+ * Scene changes inside one shot (from the catalog scenes of the clip). AI clips often hold 2–4 scenes in 10 seconds:
+ * an in/out a few frames before a scene change shows a flash of the other scene, a longer overlap is a jump cut.
+ */
+export function sceneCutFinding(shotIndex: number, fileKey: string, inS: number, outS: number, starts: number[]): Finding | null {
+  const inside = starts.filter((b) => b > inS + 0.02 && b < outS - 0.02);
+  if (!inside.length) return null;
+  const first = inside[0]!;
+  const last = inside[inside.length - 1]!;
+  const label = `Shot ${shotIndex + 1} (${fileKey}, ${inS}–${outS}s)`;
+  if (inside.length === 1 && first - inS < STRAY_SCENE_SECONDS) {
+    return {
+      code: "shot_near_scene_cut",
+      kind: "teknis",
+      level: "error",
+      message: `${label} mulai ${(first - inS).toFixed(2)}s sebelum pergantian scene di ${first}s: frame scene sebelumnya ikut kelihatan (glitch). Set in ke ${(first + 0.05).toFixed(2)}s atau lebih.`,
+    };
+  }
+  if (inside.length === 1 && outS - last < STRAY_SCENE_SECONDS) {
+    return {
+      code: "shot_near_scene_cut",
+      kind: "teknis",
+      level: "error",
+      message: `${label} berakhir ${(outS - last).toFixed(2)}s setelah pergantian scene di ${last}s: frame scene berikutnya ikut kelihatan (glitch). Set out ke ${Math.max(inS, last - 0.05).toFixed(2)}s atau kurang.`,
+    };
+  }
+  return {
+    code: "shot_crosses_scene",
+    kind: "teknis",
+    level: "error",
+    message: `${label} melewati pergantian scene di ${inside.join(", ")}s (lompatan gambar di tengah shot). Pecah jadi shot terpisah di batas scene, atau pilih rentang dalam satu scene.`,
+  };
+}
 
 /**
  * Technical checks that need the footage catalog. A file_key the catalog does not know, or a shot that ends past the
@@ -310,6 +347,7 @@ export type FootageLookup = (fileKey: string) => Promise<{ duration_seconds: num
 export async function footageFindings(spec: RenderSpecV1, lookup: FootageLookup): Promise<Finding[]> {
   const out: Finding[] = [];
   const durations = new Map<string, number | null>();
+  const sceneStarts = new Map<string, number[]>();
   for (const key of new Set(spec.shots.map((s) => s.file_key))) {
     const clip = await lookup(key);
     if (!clip) {
@@ -322,6 +360,7 @@ export async function footageFindings(spec: RenderSpecV1, lookup: FootageLookup)
       continue;
     }
     durations.set(key, clip.duration_seconds);
+    sceneStarts.set(key, clip.scene_starts ?? []);
   }
   spec.shots.forEach((s, i) => {
     const dur = durations.get(s.file_key);
@@ -333,6 +372,8 @@ export async function footageFindings(spec: RenderSpecV1, lookup: FootageLookup)
         message: `Shot ${i + 1} (${s.file_key}) berhenti di ${s.out}s, padahal klipnya cuma ${dur}s. Set out paling banyak ${Math.max(0, dur - 0.05).toFixed(2)}s.`,
       });
     }
+    const cut = sceneCutFinding(i, s.file_key, s.in, s.out, sceneStarts.get(s.file_key) ?? []);
+    if (cut) out.push(cut);
   });
   return out;
 }

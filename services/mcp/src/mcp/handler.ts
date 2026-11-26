@@ -998,10 +998,13 @@ async function lookupRenderFootage(
   deps: HandlerDeps,
   ctx: McpAuthContext,
   fileKey: string,
-): Promise<{ duration_seconds: number | null } | null> {
+): Promise<{ duration_seconds: number | null; scene_starts: number[] } | null> {
   try {
     const clip = await deps.getFootage(ctx, fileKey);
-    return { duration_seconds: clip.duration_seconds };
+    const starts = (clip.scenes ?? [])
+      .map((sc) => Number(sc.start_seconds))
+      .filter((t) => Number.isFinite(t) && t > 0);
+    return { duration_seconds: clip.duration_seconds, scene_starts: [...new Set(starts)].sort((a, b) => a - b) };
   } catch (error) {
     if (error instanceof Error && /not_found/.test(error.message)) return null;
     throw error;
