@@ -79,6 +79,47 @@ export function hitsBannedPhrase(text: string, phrase: string): boolean {
   return false;
 }
 
+/** Gaya baku asks not to show prices ("Jangan sebut harga", "jangan tulis harga"). */
+export function forbidsPrice(gaya: CatalogTextBlocks): boolean {
+  return Object.values(gaya).some((b) => typeof b === "string" && /jangan\s+(?:sebut|menyebut|tulis|menulis|tampilkan|cantumkan)\s+harga/i.test(b));
+}
+
+/** "Rp 45.000", "45 ribu", "45rb", "45k", "1,5 juta", "harga cuma 45". */
+export function mentionsPrice(text: string): boolean {
+  return /\brp\.?\s?\d|\b\d+(?:[.,]\d+)?\s?(?:rb|ribu|k|jt|juta)\b|\bharga(?:nya)?\s+(?:cuma|hanya|mulai|seharga)?\s*\d/i.test(text);
+}
+
+/**
+ * Brand / place spellings from Gaya baku: the written form ('ditulis "Sate Sultan PIK"') and the forms to avoid
+ * ('bukan "P.I.K"', 'bukan cuma "Sate Sultan"').
+ */
+export function brandSpellings(gaya: CatalogTextBlocks): { preferred: string[]; avoid: string[] } {
+  const preferred: string[] = [];
+  const avoid: string[] = [];
+  for (const box of Object.values(gaya)) {
+    if (typeof box !== "string") continue;
+    for (const m of box.matchAll(/ditulis\s+["“]([^"”]{2,60})["”]/gi)) preferred.push(m[1]!.trim());
+    for (const m of box.matchAll(/bukan(?:\s+(?:cuma|hanya))?\s+["“]([^"”]{2,40})["”]/gi)) avoid.push(m[1]!.trim());
+  }
+  return { preferred: [...new Set(preferred)], avoid: [...new Set(avoid)] };
+}
+
+/** A spelling to avoid, ignoring places where it is only part of the preferred written name. */
+export function hitsAvoidedSpelling(text: string, avoid: string, preferred: string[]): boolean {
+  let t = ` ${norm(text)} `;
+  for (const p of preferred) {
+    const np = norm(p);
+    if (np) t = t.split(` ${np} `).join(" ");
+  }
+  const a = norm(avoid);
+  return Boolean(a) && t.includes(` ${a} `);
+}
+
+/** Gaya baku asks every CTWA ad to close with a WhatsApp call to action. */
+export function wantsWhatsappCta(gaya: CatalogTextBlocks): boolean {
+  return Object.values(gaya).some((b) => typeof b === "string" && /ctwa/i.test(b) && /(ditutup|penutup|tutup)[^\n]*whats\s?app/i.test(b));
+}
+
 const GAYA_RULES: GayaRule[] = [
   {
     code: "menu_covers_food",
@@ -115,6 +156,40 @@ const GAYA_RULES: GayaRule[] = [
         if (p) out.push(`"${t.text}" mirip kalimat yang dilarang Gaya baku ("${p}"). Pakai fakta (proses, bahan, porsi).`);
       }
       return out;
+    },
+  },
+  {
+    code: "price_mentioned",
+    levels: { ketat: "wajib", seimbang: "saran", bebas: "mati" },
+    check: (spec, gaya) =>
+      forbidsPrice(gaya)
+        ? spec.texts.filter((t) => mentionsPrice(t.text)).map((t) => `"${t.text}" menyebut harga, padahal Gaya baku melarang menyebut harga. Hapus harganya.`)
+        : [],
+  },
+  {
+    code: "brand_spelling",
+    levels: { ketat: "wajib", seimbang: "saran", bebas: "mati" },
+    check: (spec, gaya) => {
+      const { preferred, avoid } = brandSpellings(gaya);
+      const out: string[] = [];
+      for (const t of spec.texts) {
+        const hit = avoid.find((a) => hitsAvoidedSpelling(t.text, a, preferred));
+        if (hit) out.push(`"${t.text}" memakai "${hit}"; Gaya baku minta ${preferred.length ? `"${preferred.join('" / "')}"` : "ejaan lain"}.`);
+      }
+      return out;
+    },
+  },
+  {
+    // A render spec does not say whether the video is an ad, so this only suggests (organic posts end without WhatsApp).
+    code: "cta_wa_missing",
+    levels: { ketat: "saran", seimbang: "saran", bebas: "mati" },
+    check: (spec, gaya) => {
+      if (!wantsWhatsappCta(gaya)) return [];
+      const dur = specDuration(spec);
+      const tail = spec.texts.filter((t) => t.end > dur * 0.6);
+      return tail.some((t) => /whats\s?app|\bwa\b/i.test(t.text))
+        ? []
+        : ["Kalau ini iklan CTWA: Gaya baku minta penutup ajakan chat WhatsApp, tapi tidak ada teks WhatsApp/WA di bagian akhir video."];
     },
   },
   {
