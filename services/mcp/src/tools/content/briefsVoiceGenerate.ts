@@ -6,10 +6,20 @@ import type { BriefVoiceClipPublic } from "./briefsVoiceList";
 export const generateBriefVoiceInput = z
   .object({
     plan_id: z.string().uuid(),
-    row_index: z.number().int().min(0).max(59),
+    row_index: z.number().int().min(0).max(59).optional(),
+    /** Batch: these rows in one call (each from its own vo cell). */
+    row_indexes: z.array(z.number().int().min(0).max(59)).min(1).max(60).optional(),
+    /** Batch: every storyboard row that has its own vo text. */
+    all_rows: z.boolean().optional(),
+    /** Batch with all_rows: skip rows whose newest clip still matches the vo text. */
+    only_missing: z.boolean().optional(),
     text: z.string().max(5000).optional(),
   })
-  .strict();
+  .strict()
+  .refine((v) => [v.row_index !== undefined, v.row_indexes !== undefined, v.all_rows === true].filter(Boolean).length === 1, {
+    message: "pass exactly one of row_index, row_indexes, all_rows",
+  })
+  .refine((v) => v.text === undefined || v.row_index !== undefined, { message: "text only with row_index" });
 
 export type GenerateBriefVoiceInput = {
   planId: string;
@@ -35,7 +45,23 @@ export type GenerateBriefVoiceResult = {
 export const BRIEF_VOICE_GENERATE_HOW_TO_READ =
   "Generates one ElevenLabs VO clip for a storyboard row using the organization's Voice AI settings. " +
   "Only the plan PIC can generate. If text is omitted, the vo cell for that row_index is used (or voice_over when the row has no vo). " +
-  "download_url is a link on mcp.synckerja.com that serves this MP3 for 15 minutes without an auth header (same as content.briefs.voice.get): save it with a plain HTTP GET as file_name in the production vo folder. duration_seconds is estimated from the MP3; confirm with ffprobe before cutting. words are the spoken words with start/end seconds inside this clip (null when ElevenLabs gave no timings). phone_url is the public storage link for a phone tap only (often blocked on computers). If download_url is missing, call content.briefs.voice.get with the clip id. One row per call. Existing clips for other rows are unchanged; call content.briefs.voice.list to see all.";
+  "download_url is a link on mcp.synckerja.com that serves this MP3 for 15 minutes without an auth header (same as content.briefs.voice.get): save it with a plain HTTP GET as file_name in the production vo folder. duration_seconds is estimated from the MP3; confirm with ffprobe before cutting. words are the spoken words with start/end seconds inside this clip (null when ElevenLabs gave no timings). phone_url is the public storage link for a phone tap only (often blocked on computers). If download_url is missing, call content.briefs.voice.get with the clip id. For several rows in one call use row_indexes or all_rows. Existing clips for other rows are unchanged; call content.briefs.voice.list to see all.";
+
+export type GenerateBriefVoiceBatchResult = {
+  plan_id: string;
+  clips: Array<GenerateBriefVoiceResult["clip"] & { row_index: number }>;
+  failed: Array<{ row_index: number; error: string }>;
+  skipped: Array<{ row_index: number; reason: string }>;
+  how_to_read: string;
+};
+
+export const BRIEF_VOICE_BATCH_HOW_TO_READ =
+  "Batch VO: one clip per row in clips (row_index, download_url valid 15 minutes, words). Each failed row was retried once automatically; rows still in failed need a single-row call. " +
+  "skipped lists rows without their own vo text (batch never falls back to the whole voice_over) or, with only_missing, rows whose clip is still current. " +
+  "Save every clip with a plain HTTP GET as the file render.jobs.draft vo_rows expects (default vo/vo-<row+1>.mp3).";
+
+/** Rows generated at the same time; ElevenLabs and the edge function take a few seconds each. */
+const BATCH_CONCURRENCY = 3;
 
 export type GenerateBriefVoice = (
   ctx: McpAuthContext,
@@ -49,23 +75,80 @@ function resolveNarration(brief: ContentBriefDetail, rowIndex: number): string |
   return brief.voice_over?.trim() || null;
 }
 
+function rowTexts(brief: ContentBriefDetail): Array<{ row: number; text: string; hasVoice: boolean; stale: boolean }> {
+  const shots = brief.storyboard?.sequences.flatMap((sequence) => sequence.shots) ?? [];
+  return shots.map((shot, row) => {
+    const s = shot as { vo?: string | null; has_voice?: boolean; voice_stale?: boolean };
+    return { row, text: s.vo?.trim() || "", hasVoice: Boolean(s.has_voice), stale: Boolean(s.voice_stale) };
+  });
+}
+
+async function generateBatch(
+  ctx: McpAuthContext,
+  planId: string,
+  rows: number[],
+  texts: Map<number, string>,
+  generate: GenerateBriefVoice,
+): Promise<{ clips: GenerateBriefVoiceBatchResult["clips"]; failed: GenerateBriefVoiceBatchResult["failed"] }> {
+  const clips: GenerateBriefVoiceBatchResult["clips"] = [];
+  const failed: GenerateBriefVoiceBatchResult["failed"] = [];
+  const queue = [...rows];
+  const one = async (row: number): Promise<void> => {
+    const text = texts.get(row)!;
+    let last = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await generate(ctx, { planId, rowIndex: row, text });
+        clips.push({ ...res.clip, row_index: row });
+        return;
+      } catch (e) {
+        last = e instanceof Error ? e.message : String(e);
+      }
+    }
+    failed.push({ row_index: row, error: last });
+  };
+  const workers = Array.from({ length: Math.min(BATCH_CONCURRENCY, queue.length) }, async () => {
+    for (let row = queue.shift(); row !== undefined; row = queue.shift()) await one(row);
+  });
+  await Promise.all(workers);
+  clips.sort((a, b) => a.row_index - b.row_index);
+  failed.sort((a, b) => a.row_index - b.row_index);
+  return { clips, failed };
+}
+
 export async function generateBriefVoiceResult(
   ctx: McpAuthContext,
   args: unknown,
   generate: GenerateBriefVoice,
   getBrief: (ctx: McpAuthContext, id: string) => Promise<ContentBriefDetail>,
-): Promise<GenerateBriefVoiceResult> {
+): Promise<GenerateBriefVoiceResult | GenerateBriefVoiceBatchResult> {
   const parsed = generateBriefVoiceInput.safeParse(args ?? {});
   if (!parsed.success) throw new Error("invalid_input");
+  if (parsed.data.row_index === undefined) {
+    const brief = await getBrief(ctx, parsed.data.plan_id);
+    const all = rowTexts(brief);
+    const wanted = parsed.data.all_rows ? all.map((r) => r.row) : [...new Set(parsed.data.row_indexes!)];
+    const skipped: GenerateBriefVoiceBatchResult["skipped"] = [];
+    const texts = new Map<number, string>();
+    for (const row of wanted) {
+      const r = all[row];
+      if (!r || !r.text) skipped.push({ row_index: row, reason: "no_vo_text" });
+      else if (parsed.data.only_missing && r.hasVoice && !r.stale) skipped.push({ row_index: row, reason: "clip_current" });
+      else texts.set(row, r.text);
+    }
+    const { clips, failed } = await generateBatch(ctx, parsed.data.plan_id, [...texts.keys()], texts, generate);
+    return { plan_id: parsed.data.plan_id, clips, failed, skipped, how_to_read: BRIEF_VOICE_BATCH_HOW_TO_READ };
+  }
+  const rowIndex = parsed.data.row_index;
   let text = parsed.data.text?.trim() || "";
   if (!text) {
     const brief = await getBrief(ctx, parsed.data.plan_id);
-    text = resolveNarration(brief, parsed.data.row_index) ?? "";
+    text = resolveNarration(brief, rowIndex) ?? "";
   }
   if (!text) throw new Error("invalid_input");
   return generate(ctx, {
     planId: parsed.data.plan_id,
-    rowIndex: parsed.data.row_index,
+    rowIndex,
     text,
   });
 }

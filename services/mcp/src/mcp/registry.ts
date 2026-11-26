@@ -1103,7 +1103,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "content.briefs.voice.generate",
     description:
-      "Generate one ElevenLabs VO clip for a storyboard row of a content plan in the organization locked in this session, using the organization's Voice AI settings. Requires plan_id and row_index (0-based shot index). Optional text overrides the vo cell; when omitted, uses that row's vo or the plan voice_over. Only the plan PIC can generate. Returns the new clip with download_url. One row per call. Follow how_to_read.",
+      "Generate one ElevenLabs VO clip for a storyboard row of a content plan in the organization locked in this session, using the organization's Voice AI settings. Requires plan_id and one of: row_index (0-based shot index; optional text overrides the vo cell, else that row's vo or the plan voice_over), row_indexes [rows] or all_rows true (batch: every listed row from its own vo cell in one call, 3 at a time, each failed row retried once; only_missing true skips rows whose clip is still current). Only the plan PIC can generate. A single row returns clip; a batch returns clips, failed and skipped, each clip with download_url and words. Prefer all_rows before render.jobs.draft vo_rows. Follow how_to_read.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
