@@ -98,7 +98,8 @@ export function brandSpellings(gaya: CatalogTextBlocks): { preferred: string[]; 
   const avoid: string[] = [];
   for (const box of Object.values(gaya)) {
     if (typeof box !== "string") continue;
-    for (const m of box.matchAll(/ditulis\s+["“]([^"”]{2,60})["”]/gi)) preferred.push(m[1]!.trim());
+    // Only a name line ("Nama brand ditulis "X""), not phrases like 'yang ditulis "varian"'.
+    for (const m of box.matchAll(/(?:nama|brand|merek|lokasi)[^\n"“]{0,30}ditulis\s+["“]([^"”]{2,60})["”]/gi)) preferred.push(m[1]!.trim());
     for (const m of box.matchAll(/bukan(?:\s+(?:cuma|hanya))?\s+["“]([^"”]{2,40})["”]/gi)) avoid.push(m[1]!.trim());
   }
   return { preferred: [...new Set(preferred)], avoid: [...new Set(avoid)] };

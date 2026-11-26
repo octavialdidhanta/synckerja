@@ -43,6 +43,7 @@ describe("CTWA rules from Gaya baku", () => {
   });
 
   it("reads written and avoided brand spellings", () => {
+    expect(brandSpellings({ teks: 'yang ditulis "varian" hanya dipakai bila diminta' }).preferred).toEqual([]);
     const b = brandSpellings(gaya);
     expect(b.preferred).toEqual(["Sate Sultan PIK"]);
     expect(b.avoid).toEqual(expect.arrayContaining(["P.I.K", "Sate Sultan"]));
