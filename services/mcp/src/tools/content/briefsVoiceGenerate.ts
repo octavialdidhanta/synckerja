@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpAuthContext } from "../../authz/context";
 import type { ContentBriefDetail } from "../../db/contentBriefs";
 import type { BriefVoiceClipPublic } from "./briefsVoiceList";
+import { isNoVoMarker } from "./voMarker";
 
 export const generateBriefVoiceInput = z
   .object({
@@ -57,7 +58,7 @@ export type GenerateBriefVoiceBatchResult = {
 
 export const BRIEF_VOICE_BATCH_HOW_TO_READ =
   "Batch VO: one clip per row in clips (row_index, download_url valid 15 minutes, words). Each failed row was retried once automatically; rows still in failed need a single-row call. " +
-  "skipped lists rows without their own vo text (batch never falls back to the whole voice_over) or, with only_missing, rows whose clip is still current. " +
+  "skipped lists rows without their own vo text (no_vo_text; batch never falls back to the whole voice_over), rows whose vo only marks natural sound or a pause such as (suara asli) or - (no_vo_marker; never read aloud, render.jobs.draft turns them into silence), or, with only_missing, rows whose clip is still current (clip_current). " +
   "No download is needed for a render with plan_id: the Agent (0.1.22+) fetches each row's newest clip into the production vo folder itself. Only for an older Agent save every clip with a plain HTTP GET as the file render.jobs.draft vo_rows expects (default vo/vo-<row+1>.mp3).";
 
 /** Rows generated at the same time; ElevenLabs and the edge function take a few seconds each. */
@@ -133,6 +134,7 @@ export async function generateBriefVoiceResult(
     for (const row of wanted) {
       const r = all[row];
       if (!r || !r.text) skipped.push({ row_index: row, reason: "no_vo_text" });
+      else if (isNoVoMarker(r.text)) skipped.push({ row_index: row, reason: "no_vo_marker" });
       else if (parsed.data.only_missing && r.hasVoice && !r.stale) skipped.push({ row_index: row, reason: "clip_current" });
       else texts.set(row, r.text);
     }
@@ -146,6 +148,11 @@ export async function generateBriefVoiceResult(
     text = resolveNarration(brief, rowIndex) ?? "";
   }
   if (!text) throw new Error("invalid_input");
+  if (isNoVoMarker(text)) {
+    throw new Error(
+      `invalid_input: row ${rowIndex} vo "${text.slice(0, 60)}" only marks natural sound or a pause; no clip is made (it would be read aloud). Use {silence: seconds, row_index: ${rowIndex}} in render.jobs.draft vo_rows, or pass text with the words to speak.`,
+    );
+  }
   return generate(ctx, {
     planId: parsed.data.plan_id,
     rowIndex,

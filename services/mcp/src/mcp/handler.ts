@@ -1836,7 +1836,13 @@ async function runTool(
         async (c, planId) => {
           try {
             const brief = await deps.getContentBrief(c, planId);
-            return { title: brief.title, caption: brief.caption, voice_over: brief.voice_over };
+            const rows = (brief.storyboard?.sequences ?? []).flatMap((q) =>
+              q.shots.map((shot) => {
+                const cell = shot as { vo?: string | null; timing?: string | null };
+                return { vo: cell.vo ?? null, timing: cell.timing ?? null };
+              }),
+            );
+            return { title: brief.title, caption: brief.caption, voice_over: brief.voice_over, rows };
           } catch {
             return null;
           }
