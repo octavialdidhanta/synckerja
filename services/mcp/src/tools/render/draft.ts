@@ -8,6 +8,7 @@ import type { McpAuthContext } from "../../authz/context";
 import type { CatalogTextBlocks } from "../../db/catalog";
 import { renderSpecV1, specDuration, type RenderSpecV1 } from "./renderSpec";
 import { checkSpec, footageFindings, referenceFindings } from "./specChecks";
+import { autoShots } from "./autoShots";
 import { buildVoTimeline, type VoRowIn, type VoWord } from "./voTimeline";
 
 const shotIn = z
@@ -46,6 +47,22 @@ const relAudio = z
     message: "path must stay inside the production folder",
   });
 
+/** Clips for one VO row: the draft shares the row's time between them and keeps each cut inside one scene. */
+const rowShotsIn = z
+  .array(
+    z
+      .object({
+        file_key: z.string().trim().min(1).max(2000),
+        /** Where in the source to start (seconds); picks the scene. Default the clip start. */
+        in: z.number().min(0).max(3600).optional(),
+        label: z.string().trim().max(80).optional(),
+      })
+      .strict(),
+  )
+  .min(1)
+  .max(6)
+  .optional();
+
 export const renderJobDraftInput = z
   .object({
     plan_id: z.string().uuid().nullable().optional(),
@@ -57,7 +74,7 @@ export const renderJobDraftInput = z
       .max(200)
       .refine((p) => !/[\\/]/.test(p) && p !== "." && p !== "..", { message: "one folder name, no slashes" }),
     output_name: z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9 _.()-]+$/),
-    shots: z.array(shotIn).min(1).max(80),
+    shots: z.array(shotIn).min(1).max(80).optional(),
     vo_file: relAudio.optional(),
     /**
      * VO per storyboard row, in order (needs plan_id): each row's newest clip is placed after the previous one,
@@ -66,8 +83,8 @@ export const renderJobDraftInput = z
     vo_rows: z
       .array(
         z.union([
-          z.object({ row_index: z.number().int().min(0).max(59), file: relAudio.optional(), gap_after: z.number().min(0).max(3).optional() }).strict(),
-          z.object({ silence: z.number().min(0.1).max(30), row_index: z.number().int().min(0).max(59).optional() }).strict(),
+          z.object({ row_index: z.number().int().min(0).max(59), file: relAudio.optional(), gap_after: z.number().min(0).max(3).optional(), shots: rowShotsIn }).strict(),
+          z.object({ silence: z.number().min(0.1).max(30), row_index: z.number().int().min(0).max(59).optional(), shots: rowShotsIn }).strict(),
         ]),
       )
       .min(1)
@@ -88,7 +105,13 @@ export const renderJobDraftInput = z
     /** Why no reference fits this edit, when references is empty. */
     no_reference_reason: z.string().trim().min(5).max(300).optional(),
   })
-  .strict();
+  .strict()
+  .refine((v) => v.shots !== undefined || (v.vo_rows ?? []).some((r) => r.shots?.length), {
+    message: "give shots, or shots per row inside vo_rows",
+  })
+  .refine((v) => !(v.shots && (v.vo_rows ?? []).some((r) => r.shots?.length)), {
+    message: "use shots or vo_rows[].shots, not both",
+  });
 
 export type RenderJobDraftInput = z.infer<typeof renderJobDraftInput>;
 
@@ -345,7 +368,7 @@ export function buildDraftSpec(
     version: 1 as const,
     production: input.production,
     output_name: input.output_name,
-    shots: input.shots.map((s) => ({
+    shots: (input.shots ?? []).map((s) => ({
       file_key: s.file_key,
       in: s.in,
       out: s.out,
@@ -437,10 +460,23 @@ export async function draftRenderJobResult(
       };
     }
   }
+  const autoWarnings: string[] = [];
+  if (voTimeline && (input.vo_rows ?? []).some((r) => r.shots?.length)) {
+    // Shots from the rows: one draft, cut on the VO, every cut inside one catalog scene.
+    const keys = [...new Set((input.vo_rows ?? []).flatMap((r) => (r.shots ?? []).map((c) => c.file_key)))];
+    const lookup = new Map<string, FootageKeyInfo | null>();
+    for (const k of keys) lookup.set(k, lookupFootage ? await lookupFootage(ctx, k) : null);
+    const missing = keys.filter((k) => lookupFootage && !lookup.get(k));
+    if (missing.length) throw new Error(`invalid_input: footage not found: ${missing.slice(0, 5).join(", ")}`);
+    const auto = autoShots(voTimeline.timeline, (input.vo_rows ?? []).map((r) => r.shots), lookup);
+    if (!auto.shots.length) throw new Error("invalid_input: vo_rows[].shots made no shots");
+    input = { ...input, shots: auto.shots };
+    autoWarnings.push(...auto.warnings);
+  }
   const gaya = await getStyle(ctx);
   const built = buildDraftSpec(input, gaya);
   const spec = built.spec;
-  let warnings = built.warnings;
+  let warnings = [...built.warnings, ...autoWarnings];
   if (voTimeline) {
     spec.audio.vo_parts = voTimeline.parts.map((p) => ({ file: p.file, at: p.at, db: 0 }));
     warnings = warnings.filter((w) => !w.startsWith("Tidak ada VO/musik"));
