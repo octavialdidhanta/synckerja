@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import type { RenderDraftRow, RenderDraftSaved, RenderJobPreview, RenderJobSaved, RenderJobsList } from "../db/render";
+import type { RenderDraftRow, RenderDraftSaved, RenderJobDetail, RenderJobPreview, RenderJobSaved, RenderJobsList } from "../db/render";
 import type { McpServiceConfig } from "../config";
 import { MEDIA_UPLOAD_CHUNK_BYTES, uploadNextStep } from "../tools/content/mediaUpload";
 import type { VoiceDownloadResponse } from "../db/briefVoice";
@@ -529,6 +529,7 @@ export type AppDeps = {
   previewRenderJob: (ctx: McpAuthContext, input: { plan_id: string | null; title: string; spec: unknown }) => Promise<RenderJobPreview>;
   applyRenderJob: (ctx: McpAuthContext, previewId: string) => Promise<RenderJobSaved>;
   listRenderJobs: (ctx: McpAuthContext, limit: number) => Promise<RenderJobsList>;
+  getRenderJob?: (ctx: McpAuthContext, input: { job_id: string | null; plan_id: string | null }) => Promise<RenderJobDetail>;
   saveRenderDraft?: (
     ctx: McpAuthContext,
     input: { title: string; plan_id: string | null; spec: unknown },
@@ -725,6 +726,7 @@ export function createApp(deps: AppDeps) {
         "render.jobs.create.preview",
         "render.jobs.create",
         "render.jobs.list",
+        "render.jobs.get",
         "footage.delete.preview",
         "footage.delete",
         "footage.restore.preview",

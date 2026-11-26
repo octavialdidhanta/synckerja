@@ -152,6 +152,7 @@ describe("mcp http gate", () => {
         "render.jobs.create.preview",
         "render.jobs.create",
         "render.jobs.list",
+        "render.jobs.get",
         "footage.delete.preview",
         "footage.delete",
         "footage.restore.preview",
