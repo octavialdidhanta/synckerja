@@ -10,7 +10,7 @@
  * Every tool named here must exist (test/playbook.test.ts).
  */
 
-export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-26.3";
+export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-26.4";
 
 export const VIDEO_EDIT_PLAYBOOK = `
 # Synckerja video edit playbook
@@ -49,7 +49,7 @@ Approve and publish stay with the user in Office.
 - New inbox footage is registered and AI-tagged by the Synckerja Agent on its own. Fix a wrong tag with footage.scenes.upsert_batch.preview; do not register or tag the same file again.
 
 ## 3. Voice over
-- content.briefs.voice.list shows existing clips; content.briefs.voice.generate with all_rows true (only_missing true when some exist) makes every row's clip in one call, retrying a failed row once; content.briefs.voice.get gives a short-lived download link. Save it in the production folder's vo folder.
+- content.briefs.voice.list shows existing clips; content.briefs.voice.generate with all_rows true (only_missing true when some exist) makes every row's clip in one call, retrying a failed row once; the Agent (0.1.22+) downloads each row's newest clip into the production vo folder itself when the render has a plan_id, so do not download clips by hand (content.briefs.voice.get only for an older Agent or to listen).
 - Music and the logo come straight from the organization's libraries: name them as @musik/<path> and @brand/<path> in the spec. Do not copy them into the production folder.
 
 ## 4. Edit decisions (judgment)

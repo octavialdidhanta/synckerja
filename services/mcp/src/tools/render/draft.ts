@@ -486,7 +486,7 @@ export async function draftRenderJobResult(
         `VO berakhir di ${voTimeline.end.toFixed(2)} s tapi shot cuma ${dur.toFixed(2)} s: tambah/panjangkan shot (pakai vo_timeline untuk memotong shot per baris).`,
       );
     }
-    warnings.push(`VO per baris (vo_parts, ${voTimeline.parts.length} klip) butuh Agent v0.1.15 atau lebih baru. Unduh tiap klip ke file di vo_parts sebelum render.`);
+    warnings.push(`VO per baris (vo_parts, ${voTimeline.parts.length} klip) butuh Agent v0.1.15 atau lebih baru. Agent v0.1.22+ mengunduh sendiri klip terbaru tiap baris ke folder vo saat render (butuh plan_id); Agent lebih lama: unduh tiap klip ke file di vo_parts dulu.`);
   }
 
   const footageErrors = lookupFootage ? await footageFindings(spec, (k) => lookupFootage(ctx, k)) : [];
