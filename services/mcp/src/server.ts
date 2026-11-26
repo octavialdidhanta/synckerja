@@ -246,6 +246,7 @@ const app = createApp({
         duration_seconds: got.clip.duration_seconds,
         mime_type: got.clip.mime_type,
         byte_length: got.clip.byte_length,
+        words: got.clip.words,
       };
     } catch (error) {
       console.error("voice.generate: MCP download link not ready", error instanceof Error ? error.message : error);

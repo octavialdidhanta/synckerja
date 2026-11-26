@@ -37,6 +37,8 @@ export type BriefVoiceGetClip = {
   download_expires_at: string;
   /** Only when include_base64 is true and the clip is at most 1 MB. */
   audio_base64?: string;
+  /** Word timings from ElevenLabs (seconds inside this clip); null for clips made before timings were stored. */
+  words: Array<{ text: string; start: number; end: number }> | null;
 };
 
 export type BriefVoiceGetResult = {
@@ -52,6 +54,7 @@ export const BRIEF_VOICE_GET_HOW_TO_READ =
   "To save the file, GET download_url within 15 minutes and write it to file_name in the content's vo folder, " +
   "for example: curl -fsSL -o \"vo/<file_name>\" \"<download_url>\". No auth header is needed: the link only opens this one clip and expires. " +
   "If the link expired, call this tool again. Error responses are JSON with error and next_step. " +
+  "words are the spoken words with start and end seconds inside this clip (null for older clips): add the clip's start on the final video to time subtitles and cuts. " +
   "Do not use download_url from content.briefs.voice.list on a computer; its host is often blocked. " +
   "mime_type is audio/mpeg. duration_seconds is estimated from the MP3 bitrate; confirm with ffprobe before cutting. " +
   "Set include_base64 true only if you cannot make HTTP requests: audio_base64 then carries the file (at most 1 MB, otherwise clip_too_large). " +
