@@ -50,6 +50,7 @@ import { AgentReleaseError, latestAgentRelease } from "../_shared/agentRelease.t
  *   POST /v1/jobs/<id>/progress     { claim_token, progress, stage, log } → { continue } (false = cancelled)
  *   POST /v1/jobs/<id>/upload-start { claim_token, file_name, size_bytes } → one-time upload URL for the plan
  *   POST /v1/jobs/<id>/stills-upload { claim_token }                 → signed upload URL for the still-preview sheet
+ *   POST /v1/jobs/<id>/vo-clips      { claim_token }                 → newest VO clip per row of the job's plan (download URLs)
  *   POST /v1/jobs/<id>/usage        { claim_token, shots: [{ file_key, in, out }] } → footage usage for the plan
  *   POST /v1/jobs/<id>/finish       { claim_token, ok, result, error, log, final? }  final: do not retry
  */
@@ -218,7 +219,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const jobRoute = /^\/v1\/jobs\/(claim|([0-9a-f-]{36})\/(progress|finish|upload-start|usage|stills-upload))$/i.exec(path);
+    const jobRoute = /^\/v1\/jobs\/(claim|([0-9a-f-]{36})\/(progress|finish|upload-start|usage|stills-upload|vo-clips))$/i.exec(path);
     if (req.method === "POST" && jobRoute) {
       if (!ctx.scopes.includes("render")) return fail(403, "forbidden", "Token ini tidak punya akses render.");
       let body: Record<string, unknown> = {};
@@ -277,6 +278,40 @@ Deno.serve(async (req) => {
         });
         if (error) return rpcErr("agent_job_finish", error.message);
         return json({ ok: true, ...(data as Record<string, unknown>) });
+      }
+
+      if (action === "vo-clips") {
+        // Newest VO clip per storyboard row of the job's plan, with a short-lived download link each.
+        const { data, error } = await admin.rpc("agent_job_vo_clips", {
+          p_token_id: ctx.tokenId, p_job_id: jobId, p_claim_token: claimToken,
+        });
+        if (error) return rpcErr("agent_job_vo_clips", error.message);
+        const rows = ((data as { clips?: unknown[] })?.clips ?? []) as Array<{
+          clip_id: string; row_index: number; file_name: string | null; storage_path: string;
+        }>;
+        // Same file name as render.jobs.draft writes into vo_parts (mp3FileName in the MCP server).
+        const mp3Name = (name: string | null, row: number) => {
+          const base = String(name ?? "").trim().replace(/\.[a-z0-9]+$/i, "").trim();
+          return `${base || `vo-${row + 1}`}.mp3`;
+        };
+        const signed = rows.length
+          ? await admin.storage.from("brief-visual-images").createSignedUrls(rows.map((r) => r.storage_path), 600)
+          : { data: [], error: null };
+        if (signed.error) {
+          console.error("vo-clips sign", signed.error.message);
+          return fail(500, "internal_error", "Gagal siapkan unduhan VO.");
+        }
+        return json({
+          ok: true,
+          clips: rows
+            .map((r, i) => ({
+              clip_id: r.clip_id,
+              row_index: r.row_index,
+              file_name: mp3Name(r.file_name, r.row_index),
+              url: signed.data?.[i]?.signedUrl ?? null,
+            }))
+            .filter((c) => c.url),
+        });
       }
 
       if (action === "stills-upload") {

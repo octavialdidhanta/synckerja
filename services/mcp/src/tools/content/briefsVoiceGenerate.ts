@@ -58,7 +58,7 @@ export type GenerateBriefVoiceBatchResult = {
 export const BRIEF_VOICE_BATCH_HOW_TO_READ =
   "Batch VO: one clip per row in clips (row_index, download_url valid 15 minutes, words). Each failed row was retried once automatically; rows still in failed need a single-row call. " +
   "skipped lists rows without their own vo text (batch never falls back to the whole voice_over) or, with only_missing, rows whose clip is still current. " +
-  "Save every clip with a plain HTTP GET as the file render.jobs.draft vo_rows expects (default vo/vo-<row+1>.mp3).";
+  "No download is needed for a render with plan_id: the Agent (0.1.22+) fetches each row's newest clip into the production vo folder itself. Only for an older Agent save every clip with a plain HTTP GET as the file render.jobs.draft vo_rows expects (default vo/vo-<row+1>.mp3).";
 
 /** Rows generated at the same time; ElevenLabs and the edge function take a few seconds each. */
 const BATCH_CONCURRENCY = 3;
