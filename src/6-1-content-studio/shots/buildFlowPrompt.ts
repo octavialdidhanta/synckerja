@@ -89,6 +89,8 @@ export interface PromptInput {
   allMenus: MenuItem[];
   /** org product field defs; falls back to F&B MENU_FIELDS */
   menuFieldDefs?: OrgMenuFieldDef[] | null;
+  /** shot heading ("P01 — Hook — …"); when set it replaces the standing title at the top */
+  shotTitle?: string;
 }
 
 export interface PromptResult {
@@ -106,7 +108,7 @@ const INTEGRITY_ONE_SHOT = "One continuous shot with no cuts, no angle changes a
 export function buildFlowPrompt(p: PromptInput): PromptResult {
   const T = p.fields;
   const o: string[] = [];
-  o.push("# " + (T.judul ?? ""), "", "## 1. Format & Light", T.format ?? "", "");
+  o.push("# " + (p.shotTitle?.trim() || T.judul || ""), "", "## 1. Format & Light", T.format ?? "", "");
   let n = 2;
 
   const slp = p.refs.filter((r) => r.tp === "Lokasi");

@@ -373,6 +373,7 @@ function Rakit({
     missingMenus: missing,
     allMenus: menus,
     menuFieldDefs,
+    shotTitle: picked ? `${picked.shot.id} — ${picked.shot.judul}` : undefined,
   });
 
   const update = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
