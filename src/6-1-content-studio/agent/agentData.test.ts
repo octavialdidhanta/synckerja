@@ -95,4 +95,14 @@ describe("uploadSkippedNote", () => {
     expect(uploadSkippedNote({ upload_skipped: "not_approved", google_drive_link: "https://d/x" })).toBeNull();
     expect(uploadSkippedNote(null)).toBeNull();
   });
+
+  it("follows the upload after approval", () => {
+    const base = { output_file: "a.mp4", upload_skipped: "not_approved" };
+    expect(uploadSkippedNote(base)).toMatch(/tanpa render ulang/);
+    expect(uploadSkippedNote({ ...base, late_upload: { status: "claimed" } })).toMatch(/Sedang di-upload/);
+    expect(uploadSkippedNote({ ...base, late_upload: { status: "done", version_no: 3 } })).toBeNull();
+    expect(uploadSkippedNote({ ...base, late_upload: { status: "abandoned", error: "file_missing" } })).toMatch(/file_missing/);
+    expect(uploadSkippedNote({ ...base, late_upload: { status: "failed", attempts: 3, error: "x" } })).toMatch(/3 kali/);
+    expect(uploadSkippedNote({ ...base, late_upload: { status: "failed", attempts: 1 } })).toMatch(/tanpa render ulang/);
+  });
 });

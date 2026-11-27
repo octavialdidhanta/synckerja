@@ -115,8 +115,8 @@ export const BRIEF_CREATE_PREVIEW_NEXT_STEP =
   + "tanpa_sumber claim together in one message. Call content.briefs.create with only this confirm_token after the "
   + "user clearly says yes; that one call saves the new content plan, its brief, and its shot list, or nothing. "
   + "If the user changes anything, preview again. After saving, generate the voice over with "
-  + "content.briefs.voice.generate all_rows, and remind the user to approve the brief in Office: until it is "
-  + "approved, the rendered video is not uploaded to the plan.";
+  + "content.briefs.voice.generate all_rows, and ask the user to approve the brief in Office now: an unapproved "
+  + "render waits on the laptop and goes up to the plan by itself once the brief is approved.";
 
 export function createBriefResult(
   ctx: McpAuthContext,
