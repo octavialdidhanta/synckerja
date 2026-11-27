@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, deviceLink, isOnline, sortJobs, tokenState, toolList, visibleDevices, type AgentJobRow } from "./agentData";
+import { ago, deviceLink, isOnline, sortJobs, tokenState, toolList, uploadSkippedNote, visibleDevices, type AgentJobRow } from "./agentData";
 
 const NOW = new Date("2026-11-23T06:00:00Z").getTime();
 const before = (ms: number) => new Date(NOW - ms).toISOString();
@@ -82,5 +82,17 @@ describe("stillsPath", () => {
     expect(stillsPath({ status: "done", result: { stills_path: "other/render-stills/j1.jpg" } }, org)).toBeNull();
     expect(stillsPath({ status: "done", result: { stills_file: "P/_build/still/a.jpg" } }, org)).toBeNull();
     expect(stillsPath({ status: "done", result: { stills_path: `${org}/render-stills/../x.jpg` } }, org)).toBeNull();
+  });
+});
+
+describe("uploadSkippedNote", () => {
+  it("explains why a finished render is not in the plan, and stays quiet otherwise", () => {
+    expect(uploadSkippedNote({ output_file: "a.mp4", upload_skipped: "not_approved" })).toMatch(/brief belum di-approve/);
+    expect(uploadSkippedNote({ upload_skipped: "not_connected" })).toMatch(/Google Drive/);
+    expect(uploadSkippedNote({ upload_skipped: "something_new" })).toBe("Belum masuk plan (something_new).");
+    expect(uploadSkippedNote({ upload_skipped: "stills" })).toBeNull();
+    expect(uploadSkippedNote({ version_no: 1, google_drive_link: "https://d/x", upload_skipped: null })).toBeNull();
+    expect(uploadSkippedNote({ upload_skipped: "not_approved", google_drive_link: "https://d/x" })).toBeNull();
+    expect(uploadSkippedNote(null)).toBeNull();
   });
 });

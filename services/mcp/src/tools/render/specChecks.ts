@@ -235,7 +235,8 @@ const GAYA_RULES: GayaRule[] = [
     code: "no_vo_original_sound",
     levels: { ketat: "saran", seimbang: "saran", bebas: "mati" },
     check: (spec, gaya) => {
-      if (spec.audio.vo || !spec.audio.music) return [];
+      // A voice over is a single file (vo) or per-row clips (vo_parts from render.jobs.draft vo_rows).
+      if (spec.audio.vo || spec.audio.vo_parts?.length || !spec.audio.music) return [];
       return /tanpa vo|asmr|suara asli/i.test(gaya.musik ?? "")
         ? ["Tanpa VO: Gaya baku minta suara asli footage dan musik hanya di penutup, tapi Agent belum bisa memakai suara asli. Sebutkan ke user."]
         : [];

@@ -10,7 +10,7 @@
  * Every tool named here must exist (test/playbook.test.ts).
  */
 
-export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-27.4";
+export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-27.5";
 
 export const VIDEO_EDIT_PLAYBOOK = `
 # Synckerja video edit playbook
@@ -37,7 +37,7 @@ A revision of a rendered video whose brief and voice over stay the same skips ga
 
 ## 1. Start (always, in this order)
 1. session.whoami: make sure the active organization is the one the video is for.
-2. The brief, when there is one: content.calendar.list or content.plans.list, then content.briefs.get (storyboard, voice over, notes, caption). Check approved and production_status right away: when production is already approved, a render with plan_id is refused (production_locked). Ask the user now, before any voice over or draft, to reopen it in Office. Offer a render without plan_id only for a video without voice over: without plan_id the Agent does not fetch the voice over clips, so a video with voice over would come out silent.
+2. The brief, when there is one: content.calendar.list or content.plans.list, then content.briefs.get (storyboard, voice over, notes, caption). Check approved and production_status right away. When the brief is not approved yet (approved false), the finished video will not reach the plan: the Agent renders it, then skips the upload (not_approved) and the render has to run again. Ask the user now, before any voice over or draft, to approve the brief in Office. When production is already approved, a render with plan_id is refused (production_locked): ask the user to reopen it in Office. render.jobs.draft, render.stills.create and render.jobs.create.preview repeat this check as upload_warning (also for a Post/Carousel plan or an organization Drive that is not connected): tell the user right away, never only at gate 3. Offer a render without plan_id only for a video without voice over: without plan_id the Agent does not fetch the voice over clips, so a video with voice over would come out silent.
 3. catalog.style.get: read all style boxes (vo, editing, teks, musik, talent) and follow them in every step.
 4. Facts for any text on screen: catalog.product.get and product_knowledge.list. Never write a claim (price, process, ingredient, portion) that is not there. content.briefs.create and content.briefs.update.preview return claim_check: show every tanpa_sumber claim at gate 2 with the brief (it matches words, so also check any other factual statement yourself), and fix it there (rewrite, drop, or the user confirms the fact and adds it to Product Knowledge) — before any voice over is generated.
 5. Places: catalog.location.get. Read its "Must NOT" and each product's restrictions: they are the organization's own footage rules (for example locations that must not be mixed, or people who must not appear with a certain product).
@@ -73,7 +73,7 @@ Only after these steps write concepts for gate 1.
 3. Still preview before the full render: render.stills.create with draft_id and stills (one second inside every text window, the hook and the closer). It needs no yes: it publishes nothing and leaves the footage where it is. It waits for the Agent and returns the contact sheet as a picture (render.stills.get with the job_id if it was not done yet; with an older Agent ask the user to open stills_file, see section 9). Check every text: readable, not cut off at the edge, not covering food, a face or the logo, no doubled logo in the closer. Fix it with a patch on the same draft_id and make a new still preview until it is clean.
 4. Gate 3: render.jobs.create.preview for the full video (draft_id with patch stills: null), show the summary with the clean still sheet, and wait for a clear yes. Then render.jobs.create.
 5. Follow it with short render.jobs.list checks until it is done or failed, never one long wait. If it stays queued, the Agent on the laptop is offline: tell the user; do not render somewhere else unless they ask.
-6. With a plan_id the Agent uploads the result to the plan as the next version. Do not upload it again (content.plans.media.upload.start is only for a video that did not come from the Agent).
+6. With a plan_id the Agent uploads the result to the plan as the next version, unless the preview showed upload_warning (then it is only saved on the laptop). Do not upload it again (content.plans.media.upload.start is only for a video that did not come from the Agent).
 7. The Agent also logs footage usage and moves used inbox footage into the bank. Do not do these by hand.
 8. A failed render or still: read the job error and fix what it names. The same error twice: read the Agent log on the laptop (ask for that folder as in section 9) and the Agent render code (synckerja-agent repository) before changing the spec again. Do not change spec values to guess, and do not blame the renderer before checking the spec values against that code.
 

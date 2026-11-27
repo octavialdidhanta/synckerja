@@ -2,8 +2,22 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Session = { userId: string; organizationId: string };
 
+/**
+ * Why a finished render would not reach its content plan (the refusal content-plan-media-upload gives the Agent),
+ * or null when it will be uploaded. production_locked only appears from mcp_render_plan_status: a preview raises it.
+ */
+export type RenderUploadBlock = "not_approved" | "production_locked" | "not_video_content" | "not_connected";
+
+export type RenderPlanStatus = {
+  plan_id: string;
+  title: string | null;
+  production_status?: string | null;
+  approved: boolean;
+  upload_block: RenderUploadBlock | null;
+};
+
 export type RenderJobPreview = {
-  plan: { plan_id: string; title: string | null; production_status: string | null } | null;
+  plan: (RenderPlanStatus & { production_status: string | null }) | null;
   preview_id: string;
   expires_at: string;
 };
@@ -126,6 +140,15 @@ export type RenderJobDetail = {
   created_at: string;
   finished_at: string | null;
 };
+
+/** Will a render of this plan reach the plan? Read only; null plan_id gives null. */
+export function getRenderPlanStatus(admin: SupabaseClient, ctx: Session, planId: string): Promise<RenderPlanStatus | null> {
+  return callJson<RenderPlanStatus | null>(admin, "mcp_render_plan_status", {
+    p_user_id: ctx.userId,
+    p_organization_id: ctx.organizationId,
+    p_plan_id: planId,
+  });
+}
 
 /** One earlier render job with its spec: by job_id, or the newest finished full render of a content plan. */
 export function getRenderJob(

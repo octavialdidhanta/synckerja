@@ -135,6 +135,8 @@ export interface AgentJobRow {
     stills_file?: string;
     stills_path?: string;
     stills?: number[];
+    /** Why the Agent did not upload the finished video to the plan (refusal of the upload), when it did not. */
+    upload_skipped?: string | null;
   } | null;
   social_media_plan_id: string | null;
   created_at: string;
@@ -165,4 +167,23 @@ export function stillsPath(job: Pick<AgentJobRow, "status" | "result">, organiza
   if (!organizationId || typeof path !== "string") return null;
   if (!path.startsWith(`${organizationId}/render-stills/`) || path.includes("..") || !/\.jpe?g$/i.test(path)) return null;
   return path;
+}
+
+const UPLOAD_SKIPPED_NOTE: Record<string, string> = {
+  not_approved: "Belum masuk plan: brief belum di-approve. Approve brief, lalu render ulang.",
+  production_locked: "Tidak masuk plan: produksi plan ini sudah di-approve.",
+  not_video_content: "Tidak masuk plan: plan Post/Carousel tidak menerima video.",
+  not_connected: "Belum masuk plan: Google Drive organisasi belum disambungkan.",
+  reconnect_required: "Belum masuk plan: sambungan Google Drive organisasi perlu disambungkan ulang.",
+  no_plan: "Tanpa content plan: video hanya tersimpan di laptop.",
+};
+
+/**
+ * One line for a finished render that did not reach its plan, from result.upload_skipped (Agent upload-start).
+ * null when the video was uploaded, or for a still preview (it never uploads).
+ */
+export function uploadSkippedNote(result: AgentJobRow["result"]): string | null {
+  const reason = result?.upload_skipped;
+  if (!reason || reason === "stills" || result?.google_drive_link) return null;
+  return UPLOAD_SKIPPED_NOTE[reason] ?? `Belum masuk plan (${reason}).`;
 }
