@@ -10,7 +10,7 @@
  * Every tool named here must exist (test/playbook.test.ts).
  */
 
-export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-27.5";
+export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-27.6";
 
 export const VIDEO_EDIT_PLAYBOOK = `
 # Synckerja video edit playbook
@@ -46,7 +46,9 @@ A revision of a rendered video whose brief and voice over stay the same skips ga
 Only after these steps write concepts for gate 1.
 
 ## 2. Footage
-- footage.search per storyboard shot, filtered by location and product. Prefer unused scenes and new inbox footage (file_key starting with INBOX/), then the bank.
+- footage.search per storyboard shot, filtered by location and product. Prefer unused scenes and new inbox footage (file_key starting with INBOX/), then the bank. Used means used by content that got Prod Approved (usage_count = how many); renders of content not approved yet do not count.
+- One video uses each catalog scene once: a second shot from the same scene is refused (scene_repeated). Take another scene, older footage used less, or ask for a new shot.
+- The shot list belongs to its content (external_id = ContentID) and is archived on its own when the content gets Prod Approved.
 - footage.bans.list once: avoid scenes with the same problem as a banned one. Read every scene note (for example "looks AI", "do not use") and respect it.
 - Never mix locations in one video. Never show one product as another.
 - Look at the candidate scenes with footage.scenes.view (one picture per scene, up to 24 per call) instead of making contact sheets yourself. Check talent expression against Gaya baku talent, and watch for unwanted objects, stickers, watermarks and people who must not appear.

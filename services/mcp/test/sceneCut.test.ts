@@ -31,8 +31,10 @@ describe("scene cuts inside a shot", () => {
       ]),
       lookup,
     );
-    expect(f.map((x) => x.code)).toEqual(["shot_near_scene_cut", "shot_near_scene_cut", "shot_near_scene_cut"]);
+    // Shots 3 and 4 both start in the first scene of b (before 6.58 s): one video uses a scene once.
+    expect(f.map((x) => x.code)).toEqual(["shot_near_scene_cut", "shot_near_scene_cut", "shot_near_scene_cut", "scene_repeated"]);
     expect(f[0]!.message).toContain("Set in ke 3.18s");
+    expect(f[3]!.message).toContain("Shot 3 dan 4");
   });
 
   it("passes the v4 cuts", async () => {
@@ -54,5 +56,32 @@ describe("scene cuts inside a shot", () => {
     expect(sceneCutFinding(0, "x", 4, 5.3, [3.13, 5.46])).toBeNull();
     expect(sceneCutFinding(0, "x", 4, 5.2, [5.46])).toBeNull();
     expect(sceneCutFinding(0, "x", 4, 5.6, [5.46])?.message).toContain("Set out ke 5.41s");
+  });
+
+  it("allows different scenes of one clip, and refuses a scene used twice", async () => {
+    const ok = await footageFindings(
+      spec([
+        ["PIK1/a_8953aea4.mp4", 0.2, 2.9],
+        ["PIK1/a_8953aea4.mp4", 3.3, 5.3],
+        ["PIK1/a_8953aea4.mp4", 8.1, 9.5],
+      ]),
+      lookup,
+    );
+    expect(ok.map((x) => x.code)).not.toContain("scene_repeated");
+    const twice = await footageFindings(
+      spec([
+        ["PIK1/a_8953aea4.mp4", 0.2, 1.5],
+        ["PIK1/c_da1ed666.mp4", 1, 3],
+        ["PIK1/a_8953aea4.mp4", 1.8, 2.9],
+        ["PIK1/c_da1ed666.mp4", 6, 8],
+      ]),
+      lookup,
+    );
+    const rep = twice.filter((x) => x.code === "scene_repeated");
+    expect(rep.map((x) => x.message)).toEqual([
+      expect.stringContaining("Shot 1 dan 3"),
+      expect.stringContaining("Shot 2 dan 4"),
+    ]);
+    expect(rep.every((x) => x.level === "error")).toBe(true);
   });
 });

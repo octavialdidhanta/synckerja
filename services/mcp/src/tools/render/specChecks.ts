@@ -436,6 +436,35 @@ export async function footageFindings(spec: RenderSpecV1, lookup: FootageLookup)
     const cut = sceneCutFinding(i, s.file_key, s.in, s.out, sceneStarts.get(s.file_key) ?? []);
     if (cut) out.push(cut);
   });
+  out.push(...repeatedSceneFindings(spec, sceneStarts));
+  return out;
+}
+
+/**
+ * One video uses each catalog scene once (owner rule, 27 Nov): a second shot from the same scene is an error,
+ * not a style choice. Pick another scene, older unused footage, or generate a new shot. The scene of a shot is
+ * the one that holds its in point; clips without scene starts count as one scene.
+ */
+export function repeatedSceneFindings(spec: RenderSpecV1, sceneStarts: Map<string, number[]>): Finding[] {
+  const seen = new Map<string, number[]>();
+  spec.shots.forEach((s, i) => {
+    if (!sceneStarts.has(s.file_key)) return; // unknown clip: footage_unknown already reports it
+    const starts = sceneStarts.get(s.file_key) ?? [];
+    const scene = starts.filter((b) => b <= s.in + 0.02).length; // 0 = before the first listed start
+    const key = `${s.file_key}#${scene}`;
+    seen.set(key, [...(seen.get(key) ?? []), i + 1]);
+  });
+  const out: Finding[] = [];
+  for (const [key, shots] of seen) {
+    if (shots.length < 2) continue;
+    const [fileKey] = key.split("#");
+    out.push({
+      code: "scene_repeated",
+      kind: "teknis",
+      level: "error",
+      message: `Shot ${shots.join(" dan ")} memakai scene yang sama dari ${fileKey}. Satu video memakai tiap scene sekali: ganti dengan scene lain, footage lama yang jarang dipakai, atau generate shot baru.`,
+    });
+  }
   return out;
 }
 
