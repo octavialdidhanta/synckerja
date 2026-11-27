@@ -202,13 +202,13 @@ export function ShotListTab({ headLeft }: Props) {
             <div className="hint2">Belum ada job aktif. Minta Claude bikinin shot list dari content plan.</div>
           ) : null}
           {active.map((j) => (
-            <JobList key={j.id} job={j} menus={menus} selKey={selKey} onPick={setSelKey} actions={jobActions} />
+            <JobList key={j.id} job={j} menus={menus} selKey={selKey} onPick={setSelKey} actions={jobActions} footage={shots.data?.footage?.[j.id]} />
           ))}
           {archived.length ? (
             <details className="arsip" open={Boolean(picked?.job.arsip)}>
               <summary>Arsip ({archived.length})</summary>
               {archived.map((j) => (
-                <JobList key={j.id} job={j} menus={menus} selKey={selKey} onPick={setSelKey} actions={jobActions} />
+                <JobList key={j.id} job={j} menus={menus} selKey={selKey} onPick={setSelKey} actions={jobActions} footage={shots.data?.footage?.[j.id]} />
               ))}
             </details>
           ) : null}
@@ -255,17 +255,22 @@ function JobList({
   selKey,
   onPick,
   actions,
+  footage,
 }: {
   job: ShotJob;
   menus: MenuItem[];
   selKey: string;
   onPick: (k: string) => void;
   actions: JobActions;
+  /** shot id (upper case) → new clips the Agent linked to it */
+  footage?: Record<string, number>;
 }) {
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const dn = job.shots.filter((s) => s.done).length;
   const n = job.shots.length;
+  const clipsOf = (s: { id: string }) => footage?.[s.id.toUpperCase()] ?? 0;
+  const withClips = job.shots.filter((s) => clipsOf(s) > 0).length;
   const submit = () => {
     const v = title.trim();
     if (!v) return;
@@ -280,6 +285,11 @@ function JobList({
           {job.judul}
         </span>
         {n ? <span className={"jc" + (dn === n ? " ok" : "")}>{`${dn}/${n}`}</span> : null}
+        {n && withClips ? (
+          <span className={"jc fg" + (withClips === n ? " ok" : "")} title="Shot yang sudah ada footage barunya (ditautkan Agent)">
+            {`🎞 ${withClips}/${n}`}
+          </span>
+        ) : null}
         {job.arsip ? null : (
           <button type="button" className="ib" title="Tambah shot" onClick={() => setAdding((v) => !v)}>
             ＋
@@ -324,6 +334,11 @@ function JobList({
             <span>
               {s.id} — {s.judul}
             </span>
+            {clipsOf(s) ? (
+              <span className="fgm" title={`${clipsOf(s)} footage baru untuk shot ini`}>
+                🎞{clipsOf(s) > 1 ? clipsOf(s) : ""}
+              </span>
+            ) : null}
             {s.done ? (
               <span className="okm">✓</span>
             ) : mi.length ? (

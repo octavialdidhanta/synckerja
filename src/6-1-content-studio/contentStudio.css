@@ -156,7 +156,7 @@
 .ck .lh{display:flex;justify-content:space-between;align-items:center;margin:0 0 10px;font-weight:600}
 .ck .jh{display:flex;align-items:center;gap:6px;margin:14px 0 4px;color:var(--mut);font-size:12.5px}
 .ck .jh .jt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx);font-weight:600}
-.ck .jc{font-size:11.5px}.ck .jc.ok{color:var(--ok)}
+.ck .jc{font-size:11.5px}.ck .jc.ok{color:var(--ok)}.ck .jc.fg{margin-left:6px;color:var(--mut)}.ck .jc.fg.ok{color:var(--ok)}.ck .it.si .fgm{flex:none;font-size:12px;margin-left:auto;padding-left:6px}
 .ck .it.si{padding:7px 10px}.ck .it.si .okm{flex:none;color:var(--ok);font-size:13px}.ck .it.si .wk{color:var(--gold)}
 .ck .it.dn>span:first-child{opacity:.5}
 .ck details.arsip{margin-top:18px;border-top:1px solid var(--line);padding-top:10px}

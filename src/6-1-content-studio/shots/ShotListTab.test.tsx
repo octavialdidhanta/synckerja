@@ -47,7 +47,7 @@ vi.mock("../library/useLibraryData", () => ({
   useLibraryData: () => ({ data: { menus, locations, photos: {} }, isPending: false, error: null }),
 }));
 vi.mock("./useShotData", () => ({
-  useShotData: () => ({ data: { fields: { judul: "MASTER", format: "9:16" }, jobs: [activeJob, job] }, isPending: false, error: null }),
+  useShotData: () => ({ data: { fields: { judul: "MASTER", format: "9:16" }, jobs: [activeJob, job], footage: { "hari-5": { P01: 2 } } }, isPending: false, error: null }),
 }));
 
 const renderTab = () =>
@@ -67,6 +67,12 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("ShotListTab", () => {
+  it("shows the new footage the Agent linked to a shot", () => {
+    renderTab();
+    expect(screen.getByTitle("Shot yang sudah ada footage barunya (ditautkan Agent)").textContent).toBe("🎞 1/1");
+    expect(screen.getByTitle("2 footage baru untuk shot ini").textContent).toBe("🎞2");
+  });
+
   it("builds a quick prompt and loads an archived shot into the builder", () => {
     renderTab();
     expect(screen.getByText("Rakit prompt Google Flow")).toBeTruthy();
