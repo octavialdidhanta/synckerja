@@ -3,7 +3,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { z, type ZodRawShape, type ZodTypeAny } from "zod";
 import { AuthzError } from "../authz/errors";
 import { briefTextParts, checkBriefClaims, type BriefTextPart } from "../tools/content/claimCheck";
-import type { RenderDraftRow, RenderDraftSaved, RenderJobDetail, RenderJobPreview, RenderJobSaved, RenderJobsList } from "../db/render";
+import type { RenderDraftRow, RenderDraftSaved, RenderJobDetail, RenderJobPreview, RenderJobSaved, RenderJobsList, RenderPlanStatus } from "../db/render";
 import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
 import type { ContentBriefDetail, ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
@@ -885,6 +885,7 @@ export type McpReadDeps = {
   applyRenderJob: (ctx: McpAuthContext, previewId: string) => Promise<RenderJobSaved>;
   listRenderJobs: (ctx: McpAuthContext, limit: number) => Promise<RenderJobsList>;
   getRenderJob?: (ctx: McpAuthContext, input: { job_id: string | null; plan_id: string | null }) => Promise<RenderJobDetail>;
+  getRenderPlanStatus?: (ctx: McpAuthContext, planId: string) => Promise<RenderPlanStatus | null>;
   saveRenderDraft?: (
     ctx: McpAuthContext,
     input: { title: string; plan_id: string | null; spec: unknown },
@@ -1867,6 +1868,7 @@ async function runTool(
           }
         },
         deps.saveRenderDraft,
+        deps.getRenderPlanStatus,
       );
     case "render.jobs.create.preview":
       return previewRenderJobResult(
@@ -1890,6 +1892,7 @@ async function runTool(
         (c, fileKey) => lookupRenderFootage(deps, c, fileKey),
         { get: deps.getRenderDraft, update: deps.updateRenderDraft },
         { listRenderJobs: deps.listRenderJobs, downloadRenderStill: deps.downloadRenderStill },
+        deps.getRenderPlanStatus,
       );
     case "render.stills.get":
       return getStillsResult(ctx, args, { listRenderJobs: deps.listRenderJobs, downloadRenderStill: deps.downloadRenderStill });

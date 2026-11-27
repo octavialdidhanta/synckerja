@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useCurrentUserRole } from "@/shared/hooks/useCurrentUserRole";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { ago, deviceLink, JOB_STATUS, sortJobs, stillsPath, tokenState, toolList, visibleDevices } from "./agentData";
+import { ago, deviceLink, JOB_STATUS, sortJobs, stillsPath, tokenState, toolList, uploadSkippedNote, visibleDevices } from "./agentData";
 import {
   useAgentDevices,
   useAgentJobActions,
@@ -439,6 +439,7 @@ export function AgentTab({ headLeft }: Props) {
                       ) : null}
                     </p>
                   ) : null}
+                  {j.status === "done" && uploadSkippedNote(j.result) ? <p className="warn">{uploadSkippedNote(j.result)}</p> : null}
                   {(() => {
                     const path = stillsPath(j, organizationId);
                     const url = path ? stillUrls.data?.[path] : undefined;

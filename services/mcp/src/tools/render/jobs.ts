@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { McpAuthContext } from "../../authz/context";
+import { lookupPlanStatus, planUploadFields, type RenderPlanStatusLookup } from "./planStatus";
 import type { RenderDraftRow, RenderDraftSaved, RenderJobPreview, RenderJobSaved, RenderJobsList } from "../../db/render";
 import {
   confirmFootageInput,
@@ -144,6 +145,13 @@ export const renderJobsListInput = z.object({ limit: z.number().int().min(1).max
 type Sign = (ctx: McpAuthContext, tool: FootageConfirmableTool, previewId: string, expiresAt: string) => Promise<SignedFootageConfirmation>;
 type Verify = (ctx: McpAuthContext, tool: FootageConfirmableTool, token: string) => Promise<VerifiedFootageConfirmation>;
 
+/** The voice over in one line: the single file, or the per-row clips (vo_parts) of render.jobs.draft vo_rows. */
+export function voSummary(spec: { audio: { vo?: { file: string } | null; vo_parts?: Array<unknown> | null } }): string | null {
+  if (spec.audio.vo?.file) return spec.audio.vo.file;
+  const parts = spec.audio.vo_parts?.length ?? 0;
+  return parts ? `${parts} klip (vo_parts)` : null;
+}
+
 export async function previewRenderJobResult(
   ctx: McpAuthContext,
   args: unknown,
@@ -174,6 +182,8 @@ export async function previewRenderJobResult(
   }
   const row = await preview(ctx, { plan_id: resolved.plan_id, title, spec });
   const signed = await sign(ctx, "render.jobs.create", row.preview_id, row.expires_at);
+  // A still preview never uploads; a full render uploads only when nothing blocks it (same rules as the upload).
+  const upload = spec.stills ? { uploads_to_plan: false, upload_block: null } : planUploadFields(row.plan);
   return {
     title,
     ...(resolved.draft_id ? { draft_id: resolved.draft_id } : {}),
@@ -184,14 +194,19 @@ export async function previewRenderJobResult(
       duration_seconds: Math.round(specDuration(spec) * 100) / 100,
       shots: spec.shots.length,
       texts: spec.texts.length,
-      vo: spec.audio.vo?.file ?? null,
+      vo: voSummary(spec),
       music: spec.audio.music?.file ?? null,
-      uploads_to_plan: Boolean(row.plan) && !spec.stills,
+      uploads_to_plan: upload.uploads_to_plan,
+      ...(upload.upload_block ? { upload_block: upload.upload_block } : {}),
       ...(spec.stills ? { stills: spec.stills } : {}),
     },
     checks,
+    ...("upload_warning" in upload && upload.upload_warning ? { upload_warning: upload.upload_warning } : {}),
     ...signed,
-    next_step: FOOTAGE_CONFIRM_NEXT_STEP,
+    next_step:
+      ("upload_warning" in upload && upload.upload_warning
+        ? "Show upload_warning to the user with the summary: the video would only be saved on the laptop. Queue it only if they still want that. "
+        : "") + FOOTAGE_CONFIRM_NEXT_STEP,
   };
 }
 
@@ -230,6 +245,7 @@ export async function createStillsResult(
   lookupFootage?: (ctx: McpAuthContext, fileKey: string) => Promise<Awaited<ReturnType<FootageLookup>>>,
   drafts?: DraftStore,
   stillsDeps?: StillsDeps,
+  getPlanStatus?: RenderPlanStatusLookup,
 ): Promise<Record<string, unknown> | McpContentResult> {
   const parsed = renderStillsCreateInput.safeParse(args);
   if (!parsed.success) {
@@ -251,12 +267,17 @@ export async function createStillsResult(
     };
   }
   const title = resolved.title.startsWith("Still") ? resolved.title : `Still – ${resolved.title}`;
+  // The still itself is queued without plan_id; the plan's status still tells whether the full render will upload.
+  const planStatus = await lookupPlanStatus(ctx, resolved.plan_id, getPlanStatus);
+  const upload = planUploadFields(planStatus.plan);
+  const uploadNote = upload.upload_warning ? { upload_block: upload.upload_block, upload_warning: upload.upload_warning } : {};
   const row = await preview(ctx, { plan_id: null, title, spec });
   const saved = await apply(ctx, row.preview_id);
   if (parsed.data.wait !== false && stillsDeps) {
     return stillsSheetResult(ctx, saved.job_id, STILLS_WAIT_DEFAULT, stillsDeps, {
       ...(resolved.draft_id ? { draft_id: resolved.draft_id } : {}),
       checks,
+      ...uploadNote,
     });
   }
   return {
@@ -264,6 +285,7 @@ export async function createStillsResult(
     stills,
     ...(resolved.draft_id ? { draft_id: resolved.draft_id } : {}),
     checks,
+    ...uploadNote,
     next_step:
       "Follow it with render.jobs.list. When it is done, look at the contact sheet (result.stills_file in the production folder) or ask the user to, fix the spec until every text is clean, then render.jobs.create.preview for the full video without stills (gate 3). With draft_id, send only draft_id and a patch of what changed (and patch stills: null for the full render).",
   };

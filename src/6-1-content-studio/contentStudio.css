@@ -273,6 +273,7 @@
 .ck .agent .panel-h p{margin:2px 0 0;color:var(--mut);font-size:12.5px;line-height:1.4}
 .ck .agent .mut{color:var(--mut);font-size:13px;margin:12px 0 0}
 .ck .agent .bad{color:var(--red);font-size:12.5px;margin:8px 0 0}
+.ck .agent .warn{background:var(--warn-bg);color:var(--warn-fg);font-size:12.5px;margin:6px 0 0;padding:6px 8px;border-radius:6px;line-height:1.4}
 .ck .agent .note{color:var(--red);font-size:12.5px;margin:8px 0 0;line-height:1.4}
 .ck .agent code{font-family:ui-monospace,Consolas,monospace;font-size:12px}
 .ck .agent .job code{display:block;white-space:normal;overflow-wrap:anywhere}

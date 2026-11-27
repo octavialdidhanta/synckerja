@@ -12,6 +12,7 @@ import { renderSpecV1, specDuration, type RenderSpecV1 } from "./renderSpec";
 import { checkSpec, footageFindings, referenceFindings } from "./specChecks";
 import { autoShots } from "./autoShots";
 import { buildVoTimeline, type VoRowIn, type VoWord } from "./voTimeline";
+import { lookupPlanStatus, planUploadFields, type RenderPlanStatusLookup } from "./planStatus";
 
 const shotIn = z
   .object({
@@ -465,6 +466,7 @@ export async function draftRenderJobResult(
   listReferences?: (ctx: McpAuthContext) => Promise<Array<{ id: string; title: string | null }>>,
   lookupVoice?: VoRowLookup,
   saveDraft?: (ctx: McpAuthContext, input: { title: string; plan_id: string | null; spec: unknown }) => Promise<{ draft_id: string; expires_at: string }>,
+  getPlanStatus?: RenderPlanStatusLookup,
 ): Promise<Record<string, unknown>> {
   const parsed = renderJobDraftInput.safeParse(args);
   if (!parsed.success) {
@@ -574,6 +576,12 @@ export async function draftRenderJobResult(
     }
   }
 
+  // Say now, before any still or render, whether the finished video will reach the plan.
+  const planStatus = await lookupPlanStatus(ctx, input.plan_id, getPlanStatus);
+  const upload = planUploadFields(planStatus.plan);
+  if (upload.upload_warning) warnings.unshift(upload.upload_warning);
+  if (planStatus.error) warnings.push(`Status plan tidak bisa dibaca (${planStatus.error}); cek approve brief di Office sebelum render penuh.`);
+
   const checks = checkSpec(spec, gaya, [], footageErrors);
   if (listReferences) {
     let available: Array<{ id: string; title: string | null }> = [];
@@ -610,13 +618,18 @@ export async function draftRenderJobResult(
       vo: spec.audio.vo?.file ?? (spec.audio.vo_parts ? `${spec.audio.vo_parts.length} klip (vo_parts)` : null),
       music: spec.audio.music?.file ?? null,
       music_db: spec.audio.music?.db ?? null,
+      ...(input.plan_id && getPlanStatus && !planStatus.error
+        ? { uploads_to_plan: upload.uploads_to_plan, upload_block: upload.upload_block }
+        : {}),
       style_keys: Object.keys(spec.styles),
       hook_color: spec.styles.hook?.color ?? null,
     },
     brief_hints,
     ...(voTimeline ? { vo_timeline: voTimeline.timeline, vo_end_seconds: voTimeline.end } : {}),
     warnings,
+    ...(upload.upload_warning ? { upload_warning: upload.upload_warning } : {}),
     next_step:
+      (upload.upload_warning ? "Tell the user upload_warning now, before any still or render, and ask them to fix it in Office first. " : "") +
       "Fix every item in checks.errors and checks.required (or keep a required one only with overrides [{code, reason}] in render.jobs.create.preview); mention checks.suggestions to the user if you keep them. Review the draft spec (edit shots/texts/audio if needed). Then call render.stills.create and render.jobs.create.preview with draft_id (plus a patch of only the keys you changed: shots, texts, styles per name, audio, outro, stills) instead of resending the spec; without draft_id use the same title, plan_id and this spec. After the user clearly says yes, call render.jobs.create with that confirm_token. Music defaults follow Gaya musik (usually -18 dB under VO); the Agent applies sidechain ducking and loudnorm -14 LUFS. texts[].style=menu draws the yellow typewriter menu label. cta_wa adds the click-to-WhatsApp closer (Agent 0.1.23+). outro=halftone adds the 1s dotted closer (optional logo_file inside the production folder). behind_person=true places that text under the person (Agent SAM2+RVM). A top-level effects array is still refused.",
   };
 }

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import type { RenderDraftRow, RenderDraftSaved, RenderJobDetail, RenderJobPreview, RenderJobSaved, RenderJobsList } from "../db/render";
+import type { RenderDraftRow, RenderDraftSaved, RenderJobDetail, RenderJobPreview, RenderJobSaved, RenderJobsList, RenderPlanStatus } from "../db/render";
 import type { McpServiceConfig } from "../config";
 import { MEDIA_UPLOAD_CHUNK_BYTES, uploadNextStep } from "../tools/content/mediaUpload";
 import type { VoiceDownloadResponse } from "../db/briefVoice";
@@ -531,6 +531,7 @@ export type AppDeps = {
   applyRenderJob: (ctx: McpAuthContext, previewId: string) => Promise<RenderJobSaved>;
   listRenderJobs: (ctx: McpAuthContext, limit: number) => Promise<RenderJobsList>;
   getRenderJob?: (ctx: McpAuthContext, input: { job_id: string | null; plan_id: string | null }) => Promise<RenderJobDetail>;
+  getRenderPlanStatus?: (ctx: McpAuthContext, planId: string) => Promise<RenderPlanStatus | null>;
   saveRenderDraft?: (
     ctx: McpAuthContext,
     input: { title: string; plan_id: string | null; spec: unknown },
