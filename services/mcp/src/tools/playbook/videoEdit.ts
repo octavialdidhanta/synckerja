@@ -10,7 +10,7 @@
  * Every tool named here must exist (test/playbook.test.ts).
  */
 
-export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-27.8";
+export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-27.9";
 
 export const VIDEO_EDIT_PLAYBOOK = `
 # Synckerja video edit playbook
@@ -30,6 +30,7 @@ If a tool or parameter this playbook names is missing from your tool list, your 
 The user decides three times; everything between the gates runs without asking.
 - Gate 1, concept: two or three concepts that go in different directions, each as a short storyboard table, after reading step 1. The user picks or reshapes one. Nothing is saved before this.
 - Gate 2, brief: a new video uses content.briefs.create.preview with the storyboard, voice over, caption and shotlist in one call; show the brief, the shot list and every tanpa_sumber claim together in one message. One clear yes, then content.briefs.create with only that confirm_token saves the content plan, the brief and the shot list together (or nothing). An existing content uses content.briefs.update.preview and catalog.shotlist.upsert.preview shown together, one yes for both. Then generate the voice over rows (content.briefs.voice.generate all_rows) without asking, and in the same message ask the user to approve the brief in Office now, while you prepare the draft and stills.
+- Between gate 2 and the draft, fresh footage first: call catalog.shotlist.get for the content and read footage_status. When every shot has footage, go on. When shots are still empty, stop and ask once, naming the empty shots: wait for new footage (the user generates or shoots it and drops it in the inbox folder; the Agent registers and tags it and links it to its shot), or use what the catalog already has (unused bank footage, least used first). When the user says the footage is in, read footage_status again. Never fill an empty shot from the bank without that answer. To speed up the link, the user may name a file <ContentID>_<ShotID> (for example 7f2c78aa_S05.mp4) or put a shoot in an inbox subfolder named after the ContentID.
 - Gate 3, render: after a clean still preview (step 5), render.jobs.create.preview for the full video with the still sheet. One clear yes queues it; render, QC and upload to the plan then run on their own.
 Approve and publish stay with the user in Office.
 Never create a content plan for a new video before gate 1, and create it with content.briefs.create.preview then content.briefs.create (so the storyboard table and the shot list are saved together), not content.plans.create.
@@ -46,7 +47,7 @@ A revision of a rendered video whose brief and voice over stay the same skips ga
 Only after these steps write concepts for gate 1.
 
 ## 2. Footage
-- footage.search per storyboard shot, filtered by location and product. Prefer unused scenes and new inbox footage (file_key starting with INBOX/), then the bank. Used means used by content that got Prod Approved (usage_count = how many); renders of content not approved yet do not count.
+- For a shot of the shot list, take the footage footage_status links to it first. Then footage.search per storyboard shot, filtered by location and product. Prefer unused scenes and new inbox footage (file_key starting with INBOX/), then the bank. Used means used by content that got Prod Approved (usage_count = how many); renders of content not approved yet do not count.
 - One video uses each catalog scene once: a second shot from the same scene is refused (scene_repeated). Take another scene, older footage used less, or ask for a new shot.
 - The shot list belongs to its content (external_id = ContentID) and is archived on its own when the content gets Prod Approved.
 - footage.bans.list once: avoid scenes with the same problem as a banned one. Read every scene note (for example "looks AI", "do not use") and respect it.

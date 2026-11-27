@@ -38,9 +38,10 @@ import { AgentReleaseError, latestAgentRelease } from "../_shared/agentRelease.t
  *   POST /v1/footage/strip-done    { asset_id, done, failed }        → link the uploaded strips (layout) / note failures
  *
  * AI tags (scope "catalog"), step 4: only clips still "belum" (never a person's tags).
- *   GET  /v1/catalog/context       tag defs, scene kinds, menus, locations, bans, tagged examples
+ *   GET  /v1/catalog/context       tag defs, scene kinds, menus, locations, bans, tagged examples, open shotlists
  *   GET  /v1/footage/untagged      clips waiting for AI tags
- *   POST /v1/footage/tags          { asset_id, tags }                → saved as "perlu dicek"
+ *   POST /v1/footage/tags          { asset_id, tags, shot_match? }   → saved as "perlu dicek"; shot_match
+ *                                  { external_id, shot_id, confidence, reason } links the clip to an open shot
  *
  * Inbox → bank (scope "catalog"), step 5: only after the video using the clip is final.
  *   GET  /v1/footage/movable       inbox clips whose content is final
@@ -264,9 +265,13 @@ Deno.serve(async (req) => {
       const signed = thumbs.length
         ? await admin.storage.from(BUCKET).createSignedUrls(thumbs.map((t) => t.path), 3600)
         : { data: [] as Array<{ signedUrl: string | null }> };
+      // Open shot lists: the tagger links new footage to the shot it was made for. Never blocks the context.
+      const { data: shotlists, error: slErr } = await admin.rpc("agent_open_shotlists", { p_token_id: ctx.tokenId });
+      if (slErr) console.error("agent_open_shotlists", slErr.message);
       return json({
         ok: true,
         ...c,
+        shotlists: slErr ? [] : (shotlists ?? []),
         location_thumbs: thumbs
           .map((t, i) => ({ location: t.location, url: signed.data?.[i]?.signedUrl ?? null }))
           .filter((t) => t.url),
@@ -551,7 +556,14 @@ Deno.serve(async (req) => {
           return fail(400, "invalid_input", "asset_id (UUID) dan tags (object) wajib.");
         }
         const r = await rpc("agent_footage_tags", { p_asset_id: b.asset_id, p_input: b.tags });
-        return r.error ?? json({ ok: true, ...r.data });
+        if (r.error) return r.error;
+        // Which open shot this clip is for: the file name first, then the tagger's shot_match. Never fails the tags.
+        const shotMatch = b.shot_match && typeof b.shot_match === "object" && !Array.isArray(b.shot_match) ? b.shot_match : null;
+        const { data: matched, error: mErr } = await admin.rpc("agent_footage_shot_match", {
+          p_token_id: ctx.tokenId, p_asset_id: b.asset_id, p_match: shotMatch,
+        });
+        if (mErr) console.error("agent_footage_shot_match", mErr.message);
+        return json({ ok: true, ...r.data, shot_match: mErr ? null : matched });
       }
 
       if (path === "/v1/footage/file-task") {

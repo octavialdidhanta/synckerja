@@ -45,6 +45,7 @@ function setup() {
     fields: {},
     jobs: [parseShotJob("hari-5", doc)],
     stored: { "hari-5": { document: doc, updatedAt: "2026-11-23T01:00:00.000000+00:00" } },
+    footage: {},
   };
   qc.setQueryData(shotDataKey("org-1"), data);
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
