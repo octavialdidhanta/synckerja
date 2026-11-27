@@ -7,6 +7,18 @@ import { planUploadFields, UPLOAD_BLOCK_MESSAGES } from "../src/tools/render/pla
 import { checkSpec } from "../src/tools/render/specChecks";
 import { renderSpecV1 } from "../src/tools/render/renderSpec";
 
+/** The fields these tests read from a tool result. */
+type Out = {
+  warnings: string[];
+  upload_warning?: string;
+  upload_block?: string | null;
+  summary: Record<string, unknown>;
+  next_step: string;
+  confirm_token?: string;
+  draft_id?: string;
+  spec?: unknown;
+};
+
 const ctx = { userId: "user-1", organizationId: "org-1" } as never;
 const planId = "79316cbe-2cce-4fdd-8a10-84e3ebc72521";
 const secret = "test-secret-at-least-16";
@@ -76,7 +88,7 @@ describe("render.jobs.draft", () => {
     );
 
   it("warns first, before any still, when the brief is not approved", async () => {
-    const out = (await draft(async () => status("not_approved"))) as Record<string, any>;
+    const out = (await draft(async () => status("not_approved"))) as unknown as Out;
     expect(out.warnings[0]).toBe(UPLOAD_BLOCK_MESSAGES.not_approved);
     expect(out.upload_warning).toBe(UPLOAD_BLOCK_MESSAGES.not_approved);
     expect(out.summary).toMatchObject({ uploads_to_plan: false, upload_block: "not_approved" });
@@ -84,12 +96,12 @@ describe("render.jobs.draft", () => {
   });
 
   it("stays quiet for an approved plan and for a draft without plan", async () => {
-    const ok = (await draft(async () => status(null))) as Record<string, any>;
+    const ok = (await draft(async () => status(null))) as unknown as Out;
     expect(ok.upload_warning).toBeUndefined();
     expect(ok.summary).toMatchObject({ uploads_to_plan: true, upload_block: null });
     expect(ok.warnings.join(" ")).not.toMatch(/approve/);
     let asked = false;
-    const none = (await draft(async () => ((asked = true), status(null)), false)) as Record<string, any>;
+    const none = (await draft(async () => ((asked = true), status(null)), false)) as unknown as Out;
     expect(asked).toBe(false);
     expect(none.summary.uploads_to_plan).toBeUndefined();
   });
@@ -97,7 +109,7 @@ describe("render.jobs.draft", () => {
   it("does not break the draft when the status cannot be read, and says so", async () => {
     const out = (await draft(async () => {
       throw new Error("boom");
-    })) as Record<string, any>;
+    })) as unknown as Out;
     expect(out.draft_id ?? out.spec).toBeDefined();
     expect(out.warnings.join(" ")).toMatch(/Status plan tidak bisa dibaca \(boom\)/);
     expect(out.summary.uploads_to_plan).toBeUndefined();
@@ -112,7 +124,7 @@ describe("render.jobs.create.preview", () => {
       { plan_id: planId, title: "Sop Sumsum Mitos v1", spec: { ...spec, ...extra } },
       (c, input) => previewRenderJob(admin, c as never, input),
       (c, tool, id, exp) => signFootageConfirmation(secret, c as never, tool, id, exp),
-    ) as Promise<Record<string, any>>;
+    ) as unknown as Promise<Out>;
   };
 
   it("shows that the video stays on the laptop when the brief is not approved", async () => {
@@ -149,7 +161,7 @@ describe("render.stills.create", () => {
       undefined,
       undefined,
       async () => ((asked = true), status("not_approved")),
-    )) as Record<string, any>;
+    )) as unknown as Out;
     expect(seen).toEqual([null]);
     expect(asked).toBe(false);
     expect(out.upload_warning).toBeUndefined();
@@ -167,7 +179,7 @@ describe("render.stills.create", () => {
       { get: async () => ({ draft_id: "d1", title: "Sop Sumsum Mitos v1", plan_id: planId, spec, expires_at: "" }) as never, update: async () => ({}) as never },
       undefined,
       async (_c, id) => ((asked = id), status("not_approved")),
-    )) as Record<string, any>;
+    )) as unknown as Out;
     expect(asked).toBe(planId);
     expect(out).toMatchObject({ upload_block: "not_approved", upload_warning: UPLOAD_BLOCK_MESSAGES.not_approved });
   });
