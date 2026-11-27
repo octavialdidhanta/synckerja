@@ -484,6 +484,7 @@ export type AppDeps = {
   searchFootage: (ctx: McpAuthContext, input: FootageSearchFilters) => Promise<FootageSearchResult>;
   getFootage: (ctx: McpAuthContext, fileKey: string) => Promise<FootageClip>;
   getFootageThumb: (ctx: McpAuthContext, storagePath: string) => Promise<Uint8Array>;
+  getFootageStrip?: (ctx: McpAuthContext, storagePath: string) => Promise<Uint8Array>;
   listFootageBans: (ctx: McpAuthContext) => Promise<FootageBansResult>;
   listCatalogProducts: (ctx: McpAuthContext) => Promise<CatalogProductList>;
   getCatalogProduct: (ctx: McpAuthContext, address: CatalogAddress) => Promise<CatalogProduct>;

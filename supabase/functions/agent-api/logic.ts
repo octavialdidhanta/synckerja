@@ -146,6 +146,36 @@ export function parseFileKeys(body: unknown): string[] | null {
   return keys as string[];
 }
 
+export type StripDoneItem = { scene_id: string; fps: number; frames: number; cols: number; labels: boolean };
+export type StripFailedItem = { scene_id: string; reason: string };
+
+/** POST /v1/footage/strip-done body: strips uploaded (with their layout) and scenes the Agent could not make. */
+export function parseStripDone(body: unknown): { assetId: string; done: StripDoneItem[]; failed: StripFailedItem[] } | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  if (!isUuid(b.asset_id)) return null;
+  const done = b.done ?? [];
+  const failed = b.failed ?? [];
+  if (!Array.isArray(done) || !Array.isArray(failed) || done.length + failed.length > 200) return null;
+  const okNum = (v: unknown, lo: number, hi: number) => typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi;
+  const outDone: StripDoneItem[] = [];
+  for (const d of done) {
+    if (!d || typeof d !== "object") return null;
+    const x = d as Record<string, unknown>;
+    if (!isUuid(x.scene_id) || !okNum(x.fps, 0.01, 10) || !okNum(x.frames, 1, 60) || !okNum(x.cols, 1, 12)) return null;
+    if (!Number.isInteger(x.frames) || !Number.isInteger(x.cols)) return null;
+    outDone.push({ scene_id: x.scene_id, fps: x.fps as number, frames: x.frames as number, cols: x.cols as number, labels: x.labels === true });
+  }
+  const outFailed: StripFailedItem[] = [];
+  for (const f of failed) {
+    if (!f || typeof f !== "object") return null;
+    const x = f as Record<string, unknown>;
+    if (!isUuid(x.scene_id)) return null;
+    outFailed.push({ scene_id: x.scene_id, reason: typeof x.reason === "string" ? x.reason.slice(0, 300) : "" });
+  }
+  return { assetId: b.asset_id, done: outDone, failed: outFailed };
+}
+
 export function parseMediaDone(body: unknown): { assetId: string; preview: boolean; sceneIds: string[] } | null {
   if (!body || typeof body !== "object") return null;
   const b = body as Record<string, unknown>;

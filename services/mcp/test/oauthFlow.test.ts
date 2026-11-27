@@ -607,6 +607,7 @@ describe("oauth and mcp http flow", () => {
       "footage.search",
       "footage.get",
       "footage.scenes.view",
+      "footage.scenes.strip",
       "footage.bans.list",
       "catalog.products.list",
       "catalog.product.get",
