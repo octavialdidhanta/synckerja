@@ -4,7 +4,7 @@ import { loadContext } from "./authz/loadContext";
 import { createAdmin } from "./db/admin";
 import { isActiveMember, loadConsentIdentity, verifySupabaseUser } from "./db/identity";
 import { listContentPlans } from "./db/listContentPlans";
-import { createContentBrief, confirmContentBrief, getContentBrief, listContentCatalog, readContentBriefForUpdate } from "./db/contentBriefs";
+import { createContentBrief, createContentBriefConfirmed, confirmContentBrief, getContentBrief, listContentCatalog, readContentBriefForUpdate } from "./db/contentBriefs";
 import { downloadVoiceClip, generateBriefVoiceClip, getBriefVoiceClip, listBriefVoiceClips } from "./db/briefVoice";
 import { voiceDownloadKey } from "./tools/content/voiceDownload";
 import { attachLeadMagnetDelivery, listLeadMagnetDrafts } from "./db/leadMagnet";
@@ -228,6 +228,8 @@ const app = createApp({
   createIngredientProduction: (ctx, input, confirmId) => createIngredientProduction(admin, ctx, input, confirmId),
   createContentPlan: (ctx, input) => createContentPlan(admin, ctx, input),
   createContentBrief: (ctx, input) => createContentBrief(admin, ctx, input),
+  createContentBriefConfirmed: (ctx, input, shotlist, confirmId) =>
+    createContentBriefConfirmed(admin, ctx, input, shotlist, confirmId),
   getContentBrief: (ctx, id) => getContentBrief(admin, ctx, id),
   readContentBriefForUpdate: (ctx, planId) => readContentBriefForUpdate(admin, ctx, planId),
   confirmContentBrief: (ctx, write, confirmId) => confirmContentBrief(admin, ctx, write, confirmId),

@@ -80,11 +80,53 @@ export async function createContentBrief(
   ctx: Session,
   input: ContentBriefWrite,
 ): Promise<ContentBriefRecord> {
+  return callRpcOne<ContentBriefRecord>(admin, "mcp_create_content_brief", await briefCreateArgs(admin, ctx, input));
+}
+
+export type ContentBriefCreated = ContentBriefRecord & {
+  shotlist: { external_id: string; judul: string | null; shots: number } | null;
+};
+
+/**
+ * Gate 2 save: the new content plan, its brief, and its shot list in one transaction.
+ * confirmId makes the token single use, so a repeated call never creates a second plan.
+ */
+export async function createContentBriefConfirmed(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: ContentBriefWrite,
+  shotlist: Record<string, unknown> | null,
+  confirmId: string,
+): Promise<ContentBriefCreated> {
+  const args = await briefCreateArgs(admin, ctx, input);
+  const { data, error } = await admin.rpc("mcp_create_content_brief_confirmed", {
+    ...args,
+    p_confirm_id: confirmId,
+    p_shotlist: shotlist,
+  });
+  if (error) {
+    const message = error.message ?? "";
+    for (const code of ["confirmation_used", "confirmation_invalid", "not_a_member", "forbidden", "not_found", "invalid_date", "too_long"]) {
+      if (message.includes(code)) throw new Error(code);
+    }
+    if (message.includes("invalid_input")) throw new Error("invalid_input");
+    throw new Error("request_failed");
+  }
+  const row = asRows<ContentBriefCreated>(data)[0];
+  if (!row) throw new Error("not_found");
+  return { ...row, shotlist: row.shotlist ?? null };
+}
+
+async function briefCreateArgs(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: ContentBriefWrite,
+): Promise<Record<string, unknown>> {
   const catalog = await listContentCatalog(admin, ctx);
   const typeName = catalog.find((row) => row.kind === "type" && row.id === input.contentTypeId)?.name ?? "";
   const caption = input.caption?.trim() ? input.caption.trim() : null;
   if (caption && caption.length > 2200) throw new Error("invalid_input");
-  return callRpcOne<ContentBriefRecord>(admin, "mcp_create_content_brief", {
+  return {
     ...sessionArgs(ctx),
     p_title: input.title,
     p_post_date: input.postDate,
@@ -105,7 +147,7 @@ export async function createContentBrief(
     ),
     p_caption: caption,
     p_post_aspect: input.postAspect,
-  });
+  };
 }
 
 type BriefAsset = { handle: string; description: string };

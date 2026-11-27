@@ -31,5 +31,5 @@ Write nothing before all seven are read. If a source is empty or not connected, 
 - Two or three concepts that go in different directions, each as a short storyboard table, shown in chat. Nothing is saved before the user picks one.
 - Each concept says which ad numbers and which brief differences it builds on, and which repeated customer question it answers.
 - A route, direction, opening hour or place detail comes from the catalog location or from the user, never from a guess.
-- Then hand over to playbook video_edit gate 2: content.briefs.create with its claim_check, the shot list and the voice over together.
+- Then hand over to playbook video_edit gate 2: content.briefs.create.preview with the shot list (its claim_check, the shot list and the voice over in one message, one yes).
 `.trim();
