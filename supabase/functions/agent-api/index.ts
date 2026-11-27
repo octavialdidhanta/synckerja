@@ -56,6 +56,12 @@ import { AgentReleaseError, latestAgentRelease } from "../_shared/agentRelease.t
  *   POST /v1/jobs/<id>/vo-clips      { claim_token }                 → newest VO clip per row of the job's plan (download URLs)
  *   POST /v1/jobs/<id>/usage        { claim_token, shots: [{ file_key, in, out }] } → footage usage for the plan
  *   POST /v1/jobs/<id>/finish       { claim_token, ok, result, error, log, final? }  final: do not retry
+ * Late upload: a finished render skipped because the brief was not approved goes up once it is approved,
+ * from the laptop (X-Agent-Device) that rendered it, without rendering again.
+ *   GET  /v1/jobs/late-uploads                                       → [{ job_id, title, plan_id, output_file }]
+ *   POST /v1/jobs/<id>/late-upload-start  { file_name, size_bytes, missing? } → { late_claim, upload } (upload null + reason)
+ *        missing: true records that the laptop lost the file; nothing is uploaded and the job is not listed again.
+ *   POST /v1/jobs/<id>/late-upload-finish { late_claim, ok, version_no?, error?, final? }
  */
 
 const MCP_PUBLIC_URL = (Deno.env.get("MCP_PUBLIC_URL") ?? "https://mcp.synckerja.com").replace(/\/+$/, "");
@@ -72,6 +78,51 @@ function json(body: Record<string, unknown>, status = 200): Response {
 
 function fail(status: number, code: string, message: string): Response {
   return json({ ok: false, code, message }, status);
+}
+
+type PlanUploadStart =
+  | { upload: Record<string, unknown>; reason?: undefined }
+  | { upload: null; reason: string };
+
+/** One-time upload URL for a new version on a content plan, in the name of the person who confirmed the render. */
+async function startPlanUpload(input: {
+  planId: string;
+  userId: string;
+  organizationId: string;
+  fileName: string;
+  size: number;
+}): Promise<PlanUploadStart> {
+  const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/content-plan-media-upload`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      action: "start",
+      plan_id: input.planId,
+      file_name: input.fileName,
+      mime_type: "video/mp4",
+      size_bytes: input.size,
+      organization_id: input.organizationId,
+      mcp_user_id: input.userId,
+      internal_secret: Deno.env.get("SCHEDULED_POSTS_INTERNAL_SECRET") ?? "",
+    }),
+  });
+  const up = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok || typeof up.ticket !== "string") {
+    return { upload: null, reason: typeof up.error === "string" ? up.error : `upload_start_${res.status}` };
+  }
+  return {
+    upload: {
+      upload_url: `${MCP_PUBLIC_URL}/uploads/${up.ticket}`,
+      chunk_bytes: UPLOAD_CHUNK_BYTES,
+      version_no: up.version_no,
+      folder_url: up.folder_url,
+      expires_at: up.expires_at,
+    },
+  };
 }
 
 Deno.serve(async (req) => {
@@ -222,6 +273,80 @@ Deno.serve(async (req) => {
       });
     }
 
+    const lateRoute = /^\/v1\/jobs\/(late-uploads|([0-9a-f-]{36})\/(late-upload-start|late-upload-finish))$/i.exec(path);
+    if (lateRoute) {
+      if (!ctx.scopes.includes("render")) return fail(403, "forbidden", "Token ini tidak punya akses render.");
+      const device = req.headers.get("X-Agent-Device") ?? "";
+      if (!isUuid(device)) return fail(400, "invalid_input", "X-Agent-Device harus UUID.");
+      const lateErr = (fn: string, message: string) => {
+        const m = mapRpcError(message);
+        if (m.status === 500) console.error(fn, message);
+        return fail(m.status, m.code, m.status === 500 ? "Gagal simpan ke Synckerja." : m.code);
+      };
+
+      if (lateRoute[1] === "late-uploads") {
+        if (req.method !== "GET") return fail(405, "method_not_allowed", "Pakai GET.");
+        const { data, error } = await admin.rpc("agent_late_uploads", { p_token_id: ctx.tokenId, p_device_key: device });
+        if (error) return lateErr("agent_late_uploads", error.message);
+        return json({ ok: true, ...(data as Record<string, unknown>) });
+      }
+
+      if (req.method !== "POST") return fail(405, "method_not_allowed", "Pakai POST.");
+      let body: Record<string, unknown> = {};
+      try {
+        body = ((await req.json()) ?? {}) as Record<string, unknown>;
+      } catch {
+        body = {};
+      }
+      const jobId = lateRoute[2]!;
+      if (!isUuid(jobId)) return fail(400, "invalid_input", "job id harus UUID.");
+
+      if (lateRoute[3]!.toLowerCase() === "late-upload-start") {
+        const fileName = typeof body.file_name === "string" ? body.file_name.trim().slice(0, 200) : "";
+        const size = typeof body.size_bytes === "number" ? body.size_bytes : NaN;
+        if (!fileName || !Number.isFinite(size) || size <= 0) return fail(400, "invalid_input", "file_name dan size_bytes wajib.");
+        const { data: claimed, error: cErr } = await admin.rpc("agent_late_upload_claim", {
+          p_token_id: ctx.tokenId, p_device_key: device, p_job_id: jobId,
+        });
+        if (cErr) return lateErr("agent_late_upload_claim", cErr.message);
+        const c = claimed as { claim: string | null; plan_id?: string; user_id?: string | null; reason?: string };
+        if (!c.claim || !c.plan_id) return json({ ok: true, late_claim: null, upload: null, reason: c.reason ?? "not_eligible" });
+        const giveUp = async (reason: string) => {
+          await admin.rpc("agent_late_upload_finish", {
+            p_token_id: ctx.tokenId, p_job_id: jobId, p_claim: c.claim, p_ok: false,
+            p_version_no: null, p_error: reason, p_final: false,
+          });
+          return json({ ok: true, late_claim: null, upload: null, reason });
+        };
+        // The laptop no longer has the file: record it so the job is not listed again (no upload is started).
+        if (body.missing === true) {
+          await admin.rpc("agent_late_upload_finish", {
+            p_token_id: ctx.tokenId, p_job_id: jobId, p_claim: c.claim, p_ok: false,
+            p_version_no: null, p_error: "file_missing", p_final: true,
+          });
+          return json({ ok: true, late_claim: null, upload: null, reason: "file_missing" });
+        }
+        if (!c.user_id) return giveUp("no_user");
+        const started = await startPlanUpload({
+          planId: c.plan_id, userId: c.user_id, organizationId: ctx.organizationId, fileName, size,
+        });
+        if (!started.upload) return giveUp(started.reason);
+        return json({ ok: true, late_claim: c.claim, upload: started.upload });
+      }
+
+      // late-upload-finish
+      if (!isUuid(body.late_claim)) return fail(400, "invalid_input", "late_claim harus UUID.");
+      const version = typeof body.version_no === "number" && Number.isFinite(body.version_no) ? Math.round(body.version_no) : null;
+      const { data, error } = await admin.rpc("agent_late_upload_finish", {
+        p_token_id: ctx.tokenId, p_job_id: jobId, p_claim: body.late_claim,
+        p_ok: body.ok === true, p_version_no: version,
+        p_error: typeof body.error === "string" ? body.error.slice(0, 500) : null,
+        p_final: body.final === true,
+      });
+      if (error) return lateErr("agent_late_upload_finish", error.message);
+      return json({ ok: true, ...(data as Record<string, unknown>) });
+    }
+
     const jobRoute = /^\/v1\/jobs\/(claim|([0-9a-f-]{36})\/(progress|finish|upload-start|usage|stills-upload|vo-clips))$/i.exec(path);
     if (req.method === "POST" && jobRoute) {
       if (!ctx.scopes.includes("render")) return fail(403, "forbidden", "Token ini tidak punya akses render.");
@@ -344,38 +469,15 @@ Deno.serve(async (req) => {
       const t = target as { plan_id: string | null; user_id?: string | null; reason?: string };
       if (!t.plan_id) return json({ ok: true, upload: null, reason: t.reason ?? "no_plan" });
       if (!t.user_id) return json({ ok: true, upload: null, reason: "no_user" });
-      const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/content-plan-media-upload`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "start",
-          plan_id: t.plan_id,
-          file_name: fileName,
-          mime_type: "video/mp4",
-          size_bytes: size,
-          organization_id: ctx.organizationId,
-          mcp_user_id: t.user_id,
-          internal_secret: Deno.env.get("SCHEDULED_POSTS_INTERNAL_SECRET") ?? "",
-        }),
+      const started = await startPlanUpload({
+        planId: t.plan_id,
+        userId: t.user_id,
+        organizationId: ctx.organizationId,
+        fileName,
+        size,
       });
-      const up = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-      if (!res.ok || typeof up.ticket !== "string") {
-        return json({ ok: true, upload: null, reason: typeof up.error === "string" ? up.error : `upload_start_${res.status}` });
-      }
-      return json({
-        ok: true,
-        upload: {
-          upload_url: `${MCP_PUBLIC_URL}/uploads/${up.ticket}`,
-          chunk_bytes: UPLOAD_CHUNK_BYTES,
-          version_no: up.version_no,
-          folder_url: up.folder_url,
-          expires_at: up.expires_at,
-        },
-      });
+      if (!started.upload) return json({ ok: true, upload: null, reason: started.reason });
+      return json({ ok: true, upload: started.upload });
     }
 
     if (req.method === "POST" && path.startsWith("/v1/footage/")) {

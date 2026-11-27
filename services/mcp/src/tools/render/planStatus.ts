@@ -11,7 +11,7 @@ export type RenderPlanStatusLookup = (ctx: McpAuthContext, planId: string) => Pr
  */
 export const UPLOAD_BLOCK_MESSAGES: Record<RenderUploadBlock, string> = {
   not_approved:
-    "Brief plan ini belum di-approve: video hasil render penuh TIDAK akan masuk ke plan (Agent melewati upload). Minta owner approve brief di Office dulu, lalu render penuh.",
+    "Brief plan ini belum di-approve: video hasil render penuh belum masuk ke plan (Agent melewati upload dan menyimpannya di laptop). Begitu owner approve brief di Office, Agent 0.1.26+ meng-upload file yang sama ke plan sendiri, tanpa render ulang dan tanpa ya lagi. Minta owner approve sekarang.",
   production_locked:
     "Produksi plan ini sudah di-approve: render penuh dengan plan_id ditolak (production_locked). Minta owner membuka lagi approve produksi di Office.",
   not_video_content:

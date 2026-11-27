@@ -1719,7 +1719,7 @@ async function runTool(
           ...saved,
           next_step:
             "Saved. Generate the voice over now with content.briefs.voice.generate (id, all_rows: true). "
-            + "Remind the user to approve the brief in Office before the render: an unapproved brief is rendered but not uploaded to the plan.",
+            + "Ask the user to approve the brief in Office now: an unapproved render waits on the laptop and goes up to the plan by itself once the brief is approved.",
         };
       }
       const legacy = createBriefInput.safeParse(args);

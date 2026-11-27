@@ -137,6 +137,8 @@ export interface AgentJobRow {
     stills?: number[];
     /** Why the Agent did not upload the finished video to the plan (refusal of the upload), when it did not. */
     upload_skipped?: string | null;
+    /** Upload after approval, without a new render (Agent 0.1.26+). */
+    late_upload?: { status?: string; version_no?: number | null; error?: string; attempts?: number } | null;
   } | null;
   social_media_plan_id: string | null;
   created_at: string;
@@ -170,7 +172,7 @@ export function stillsPath(job: Pick<AgentJobRow, "status" | "result">, organiza
 }
 
 const UPLOAD_SKIPPED_NOTE: Record<string, string> = {
-  not_approved: "Belum masuk plan: brief belum di-approve. Approve brief, lalu render ulang.",
+  not_approved: "Belum masuk plan: brief belum di-approve. Setelah brief di-approve, Agent meng-upload video ini sendiri (tanpa render ulang).",
   production_locked: "Tidak masuk plan: produksi plan ini sudah di-approve.",
   not_video_content: "Tidak masuk plan: plan Post/Carousel tidak menerima video.",
   not_connected: "Belum masuk plan: Google Drive organisasi belum disambungkan.",
@@ -185,5 +187,10 @@ const UPLOAD_SKIPPED_NOTE: Record<string, string> = {
 export function uploadSkippedNote(result: AgentJobRow["result"]): string | null {
   const reason = result?.upload_skipped;
   if (!reason || reason === "stills" || result?.google_drive_link) return null;
+  const late = result?.late_upload;
+  if (late?.status === "done") return null;
+  if (late?.status === "claimed") return "Sedang di-upload ke plan setelah brief di-approve.";
+  if (late?.status === "abandoned") return `Tidak bisa di-upload menyusul: ${late.error ?? "file tidak ada di laptop"}. Render ulang.`;
+  if (late?.status === "failed" && (late.attempts ?? 0) >= 3) return `Upload menyusul gagal 3 kali (${late.error ?? "gagal"}). Render ulang.`;
   return UPLOAD_SKIPPED_NOTE[reason] ?? `Belum masuk plan (${reason}).`;
 }
