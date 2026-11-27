@@ -295,6 +295,12 @@ export type AppDeps = {
     input: { title: string; postDate: string | null; brief: string | null },
   ) => Promise<ContentPlanRow>;
   createContentBrief: (ctx: McpAuthContext, input: ContentBriefWrite) => Promise<ContentBriefRecord>;
+  createContentBriefConfirmed: (
+    ctx: McpAuthContext,
+    input: ContentBriefWrite,
+    shotlist: Record<string, unknown> | null,
+    confirmId: string,
+  ) => Promise<import("../db/contentBriefs").ContentBriefCreated>;
   getContentBrief: (ctx: McpAuthContext, id: string) => Promise<ContentBriefDetail>;
   readContentBriefForUpdate: (
     ctx: McpAuthContext,

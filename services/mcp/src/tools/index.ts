@@ -98,7 +98,15 @@ export {
 } from "./inventory/recipeDrafts";
 export type { InventoryPurchaseOrderInput } from "./inventory/purchaseOrderCreate";
 export { createPlanInput, createPlanResult } from "./content/plansCreate";
-export { createBriefInput, createBriefResult } from "./content/briefsCreate";
+export {
+  BRIEF_CREATE_PREVIEW_NEXT_STEP,
+  briefCreateFromConfirmation,
+  briefWriteFrom,
+  createBriefInput,
+  createBriefPreviewInput,
+  createBriefResult,
+  createBriefToolInput,
+} from "./content/briefsCreate";
 export { getBriefInput, getBriefResult } from "./content/briefsGet";
 export {
   BRIEF_UPDATE_HOW_TO_READ,

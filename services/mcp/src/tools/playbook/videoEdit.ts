@@ -10,7 +10,7 @@
  * Every tool named here must exist (test/playbook.test.ts).
  */
 
-export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-27.6";
+export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-27.7";
 
 export const VIDEO_EDIT_PLAYBOOK = `
 # Synckerja video edit playbook
@@ -29,17 +29,17 @@ If a tool or parameter this playbook names is missing from your tool list, your 
 ## Three gates
 The user decides three times; everything between the gates runs without asking.
 - Gate 1, concept: two or three concepts that go in different directions, each as a short storyboard table, after reading step 1. The user picks or reshapes one. Nothing is saved before this.
-- Gate 2, brief: the brief (content.briefs.create, or content.briefs.update.preview), the shot list (catalog.shotlist.upsert.preview) and the voice over text, shown together in one message. One clear yes saves them all; then generate the voice over rows.
+- Gate 2, brief: a new video uses content.briefs.create.preview with the storyboard, voice over, caption and shotlist in one call; show the brief, the shot list and every tanpa_sumber claim together in one message. One clear yes, then content.briefs.create with only that confirm_token saves the content plan, the brief and the shot list together (or nothing). An existing content uses content.briefs.update.preview and catalog.shotlist.upsert.preview shown together, one yes for both. Then generate the voice over rows (content.briefs.voice.generate all_rows) without asking, and in the same message remind the user to approve the brief in Office: an unapproved brief is rendered but not uploaded to the plan.
 - Gate 3, render: after a clean still preview (step 5), render.jobs.create.preview for the full video with the still sheet. One clear yes queues it; render, QC and upload to the plan then run on their own.
 Approve and publish stay with the user in Office.
-Never create a content plan for a new video before gate 1, and create it with content.briefs.create (so the storyboard table is saved), not content.plans.create.
+Never create a content plan for a new video before gate 1, and create it with content.briefs.create.preview then content.briefs.create (so the storyboard table and the shot list are saved together), not content.plans.create.
 A revision of a rendered video whose brief and voice over stay the same skips gates 1 and 2, not section 1: run section 1 first (above all the status check in 1.2), then go to step 5.0 and on to gate 3.
 
 ## 1. Start (always, in this order)
 1. session.whoami: make sure the active organization is the one the video is for.
 2. The brief, when there is one: content.calendar.list or content.plans.list, then content.briefs.get (storyboard, voice over, notes, caption). Check approved and production_status right away. When the brief is not approved yet (approved false), the finished video will not reach the plan: the Agent renders it, then skips the upload (not_approved) and the render has to run again. Ask the user now, before any voice over or draft, to approve the brief in Office. When production is already approved, a render with plan_id is refused (production_locked): ask the user to reopen it in Office. render.jobs.draft, render.stills.create and render.jobs.create.preview repeat this check as upload_warning (also for a Post/Carousel plan or an organization Drive that is not connected): tell the user right away, never only at gate 3. Offer a render without plan_id only for a video without voice over: without plan_id the Agent does not fetch the voice over clips, so a video with voice over would come out silent.
 3. catalog.style.get: read all style boxes (vo, editing, teks, musik, talent) and follow them in every step.
-4. Facts for any text on screen: catalog.product.get and product_knowledge.list. Never write a claim (price, process, ingredient, portion) that is not there. content.briefs.create and content.briefs.update.preview return claim_check: show every tanpa_sumber claim at gate 2 with the brief (it matches words, so also check any other factual statement yourself), and fix it there (rewrite, drop, or the user confirms the fact and adds it to Product Knowledge) — before any voice over is generated.
+4. Facts for any text on screen: catalog.product.get and product_knowledge.list. Never write a claim (price, process, ingredient, portion) that is not there. content.briefs.create.preview and content.briefs.update.preview return claim_check before anything is saved: show every tanpa_sumber claim at gate 2 with the brief (it matches words, so also check any other factual statement yourself), and fix it there (rewrite, drop, or the user confirms the fact and adds it to Product Knowledge) — before any voice over is generated.
 5. Places: catalog.location.get. Read its "Must NOT" and each product's restrictions: they are the organization's own footage rules (for example locations that must not be mixed, or people who must not appear with a certain product).
 6. Structure and motion ideas: catalog.references.list, then catalog.reference.get for the ones that fit this brief. Borrow their hook, beats and motion graphics so the video does not feel like a template. A reference never overrides Gaya baku.
 7. A new brief built on ad results (a follow-up ad, a winner to repeat): run playbook.get task ad_followup first; it reads the ads, the briefs behind them and the customer chats before any concept.

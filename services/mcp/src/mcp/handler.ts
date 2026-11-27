@@ -6,7 +6,8 @@ import { briefTextParts, checkBriefClaims, type BriefTextPart } from "../tools/c
 import type { RenderDraftRow, RenderDraftSaved, RenderJobDetail, RenderJobPreview, RenderJobSaved, RenderJobsList, RenderPlanStatus } from "../db/render";
 import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
-import type { ContentBriefDetail, ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
+import { buildBriefMarkdown } from "../tools/content/briefMarkdown";
+import type { ContentBriefCreated, ContentBriefDetail, ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
 import type { LeadMagnetDeliveryResult, LeadMagnetDraft } from "../db/leadMagnet";
 import type {
   ThinkingChain,
@@ -191,8 +192,13 @@ import {
   createPlanResult,
   catalogInput,
   catalogResult,
+  BRIEF_CREATE_PREVIEW_NEXT_STEP,
+  briefCreateFromConfirmation,
+  briefWriteFrom,
   createBriefInput,
+  createBriefPreviewInput,
   createBriefResult,
+  createBriefToolInput,
   getBriefInput,
   getBriefResult,
   BRIEF_UPDATE_HOW_TO_READ,
@@ -646,6 +652,12 @@ export type McpReadDeps = {
     input: { title: string; postDate: string | null; brief: string | null },
   ) => Promise<ContentPlanRow>;
   createContentBrief: (ctx: McpAuthContext, input: ContentBriefWrite) => Promise<ContentBriefRecord>;
+  createContentBriefConfirmed: (
+    ctx: McpAuthContext,
+    input: ContentBriefWrite,
+    shotlist: Record<string, unknown> | null,
+    confirmId: string,
+  ) => Promise<ContentBriefCreated>;
   getContentBrief: (ctx: McpAuthContext, id: string) => Promise<ContentBriefDetail>;
   readContentBriefForUpdate: (
     ctx: McpAuthContext,
@@ -1017,6 +1029,18 @@ const CONFIRM_NEXT_STEP =
 
 /** Footage facts for render checks: null only when the catalog has no such file_key; other failures are thrown. */
 /** Claim check for a brief write: a warning list, never a reason for the write to fail. */
+function createBriefTextParts(data: {
+  sequences: Array<{ shots: Array<{ vo?: string; element?: string }> }>;
+  voice_over?: string;
+  caption?: string;
+}): BriefTextPart[] {
+  return briefTextParts({
+    rows: data.sequences.flatMap((sq) => sq.shots).map((shot) => ({ vo: shot.vo, element: shot.element })),
+    voiceOver: data.voice_over,
+    caption: data.caption,
+  });
+}
+
 async function safeClaimCheck(ctx: McpAuthContext, parts: BriefTextPart[], deps: HandlerDeps) {
   if (!parts.length) return null;
   try {
@@ -1218,7 +1242,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "inventory.production.preview": productionPreviewInput,
   "inventory.production.create": confirmInput,
   "content.plans.create": createPlanInput,
-  "content.briefs.create": createBriefInput,
+  "content.briefs.create.preview": createBriefPreviewInput,
+  "content.briefs.create": createBriefToolInput,
   "content.briefs.get": getBriefInput,
   "content.briefs.update.preview": updateBriefPreviewInput,
   "content.briefs.update": confirmBriefInput,
@@ -1657,49 +1682,52 @@ async function runTool(
         },
         deps.createContentPlan,
       );
-    case "content.briefs.create": {
-      const parsed = createBriefInput.safeParse(args);
+    case "content.briefs.create.preview": {
+      const parsed = createBriefPreviewInput.safeParse(args);
       if (!parsed.success) throw new Error("invalid_input");
-      const data = parsed.data;
-      const blank = (value: string | undefined) => value ?? "";
-      return createBriefResult(
-        ctx,
-        {
-          title: data.title,
-          postDate: data.post_date ?? null,
-          contentTypeId: data.content_type_id,
-          serviceId: data.service_id ?? null,
-          subServiceId: data.sub_service_id ?? null,
-          featureId: data.feature_id ?? null,
-          postAspect: data.post_aspect ?? null,
-          voiceOver: data.voice_over ?? null,
-          characters: data.characters ?? [],
-          locations: data.locations ?? [],
-          properties: data.properties ?? [],
-          caption: data.caption ?? null,
-          sequences: data.sequences.map((sequence) => ({
-            name: sequence.name,
-            shots: sequence.shots.map((shot) => ({
-              timing: blank(shot.timing),
-              visual: blank(shot.visual),
-              vo: blank(shot.vo),
-              element: blank(shot.element),
-              tagging: blank(shot.tagging),
-            })),
-          })),
-        },
-        deps.createContentBrief,
-      ).then(async (saved) => ({
+      const { shotlist, ...input } = parsed.data;
+      // Same checks the save runs (table shape, row count), so a bad brief fails before the yes.
+      buildBriefMarkdown(briefWriteFrom(input).sequences);
+      if ((input.caption?.trim().length ?? 0) > 2200) throw new Error("invalid_input");
+      const claimCheck = await safeClaimCheck(ctx, createBriefTextParts(input), deps);
+      const signed = await deps.signContentConfirmation(ctx, "content.briefs.create", {
+        input,
+        shotlist: shotlist ?? null,
+      });
+      return {
+        title: input.title,
+        rows: input.sequences.reduce((sum, sequence) => sum + sequence.shots.length, 0),
+        shotlist: shotlist ? { judul: typeof shotlist.judul === "string" ? shotlist.judul : null, shots: shotlist.shots.length } : null,
+        claim_check: claimCheck,
+        ...signed,
+        next_step: shotlist
+          ? BRIEF_CREATE_PREVIEW_NEXT_STEP
+          : `${BRIEF_CREATE_PREVIEW_NEXT_STEP} No shot list was sent: for a video that needs new footage, preview again with shotlist.`,
+      };
+    }
+    case "content.briefs.create": {
+      const parsed = createBriefToolInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      if (parsed.data.confirm_token !== undefined) {
+        // The confirm path takes the token alone: what is saved is what the user was shown.
+        if (Object.keys(parsed.data).length !== 1) throw new Error("invalid_input");
+        const verified = await deps.verifyContentConfirmation(ctx, "content.briefs.create", parsed.data.confirm_token);
+        const { input, shotlist } = briefCreateFromConfirmation(verified.payload);
+        const saved = await deps.createContentBriefConfirmed(ctx, briefWriteFrom(input), shotlist, verified.confirmId);
+        return {
+          saved: true,
+          ...saved,
+          next_step:
+            "Saved. Generate the voice over now with content.briefs.voice.generate (id, all_rows: true). "
+            + "Remind the user to approve the brief in Office before the render: an unapproved brief is rendered but not uploaded to the plan.",
+        };
+      }
+      const legacy = createBriefInput.safeParse(args);
+      if (!legacy.success) throw new Error("invalid_input");
+      const data = legacy.data;
+      return createBriefResult(ctx, briefWriteFrom(data), deps.createContentBrief).then(async (saved) => ({
         ...saved,
-        claim_check: await safeClaimCheck(
-          ctx,
-          briefTextParts({
-            rows: data.sequences.flatMap((sq) => sq.shots).map((shot) => ({ vo: shot.vo, element: shot.element })),
-            voiceOver: data.voice_over,
-            caption: data.caption,
-          }),
-          deps,
-        ),
+        claim_check: await safeClaimCheck(ctx, createBriefTextParts(data), deps),
       }));
     }
     case "content.briefs.get":
