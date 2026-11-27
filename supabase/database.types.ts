@@ -3950,6 +3950,7 @@ export type Database = {
           spoken_text: string | null
           storage_path: string
           video_id: string | null
+          word_timings: Json | null
         }
         Insert: {
           created_at?: string
@@ -3964,6 +3965,7 @@ export type Database = {
           spoken_text?: string | null
           storage_path: string
           video_id?: string | null
+          word_timings?: Json | null
         }
         Update: {
           created_at?: string
@@ -3978,6 +3980,7 @@ export type Database = {
           spoken_text?: string | null
           storage_path?: string
           video_id?: string | null
+          word_timings?: Json | null
         }
         Relationships: [
           {
@@ -5374,6 +5377,7 @@ export type Database = {
       }
       catalog_industry_templates: {
         Row: {
+          claim_words: string[]
           code: string
           created_at: string
           description: string | null
@@ -5381,6 +5385,7 @@ export type Database = {
           position: number
         }
         Insert: {
+          claim_words?: string[]
           code: string
           created_at?: string
           description?: string | null
@@ -5388,6 +5393,7 @@ export type Database = {
           position?: number
         }
         Update: {
+          claim_words?: string[]
           code?: string
           created_at?: string
           description?: string | null
@@ -7665,6 +7671,7 @@ export type Database = {
           external_id: string
           id: string
           organization_id: string
+          social_media_plan_id: string | null
           updated_at: string
         }
         Insert: {
@@ -7673,6 +7680,7 @@ export type Database = {
           external_id: string
           id?: string
           organization_id: string
+          social_media_plan_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -7681,6 +7689,7 @@ export type Database = {
           external_id?: string
           id?: string
           organization_id?: string
+          social_media_plan_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -7689,6 +7698,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_shot_jobs_social_media_plan_id_fkey"
+            columns: ["social_media_plan_id"]
+            isOneToOne: false
+            referencedRelation: "social_media_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -13515,6 +13531,84 @@ export type Database = {
           },
         ]
       }
+      footage_render_usages: {
+        Row: {
+          agent_job_id: string | null
+          asset_id: string
+          created_at: string
+          external_ref: string | null
+          id: string
+          in_seconds: number | null
+          organization_id: string
+          out_seconds: number | null
+          scene_id: string | null
+          social_media_plan_id: string | null
+          title: string | null
+        }
+        Insert: {
+          agent_job_id?: string | null
+          asset_id: string
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          in_seconds?: number | null
+          organization_id: string
+          out_seconds?: number | null
+          scene_id?: string | null
+          social_media_plan_id?: string | null
+          title?: string | null
+        }
+        Update: {
+          agent_job_id?: string | null
+          asset_id?: string
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          in_seconds?: number | null
+          organization_id?: string
+          out_seconds?: number | null
+          scene_id?: string | null
+          social_media_plan_id?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "footage_render_usages_agent_job_id_fkey"
+            columns: ["agent_job_id"]
+            isOneToOne: false
+            referencedRelation: "agent_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "footage_render_usages_asset_org_fkey"
+            columns: ["asset_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "footage_assets"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "footage_render_usages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "footage_render_usages_scene_asset_fkey"
+            columns: ["scene_id", "asset_id"]
+            isOneToOne: false
+            referencedRelation: "footage_scenes"
+            referencedColumns: ["id", "asset_id"]
+          },
+          {
+            foreignKeyName: "footage_render_usages_social_media_plan_id_fkey"
+            columns: ["social_media_plan_id"]
+            isOneToOne: false
+            referencedRelation: "social_media_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       footage_scene_kind_defs: {
         Row: {
           created_at: string
@@ -13564,6 +13658,8 @@ export type Database = {
           scene_index: number
           scene_kind: string
           start_seconds: number
+          strip_meta: Json | null
+          strip_storage_path: string | null
           summary: string | null
           thumb_required: boolean
           thumb_storage_path: string | null
@@ -13579,6 +13675,8 @@ export type Database = {
           scene_index: number
           scene_kind: string
           start_seconds: number
+          strip_meta?: Json | null
+          strip_storage_path?: string | null
           summary?: string | null
           thumb_required?: boolean
           thumb_storage_path?: string | null
@@ -13594,6 +13692,8 @@ export type Database = {
           scene_index?: number
           scene_kind?: string
           start_seconds?: number
+          strip_meta?: Json | null
+          strip_storage_path?: string | null
           summary?: string | null
           thumb_required?: boolean
           thumb_storage_path?: string | null
@@ -13727,6 +13827,7 @@ export type Database = {
       }
       footage_usages: {
         Row: {
+          approved_from_job: string | null
           asset_id: string
           created_at: string
           external_ref: string | null
@@ -13740,6 +13841,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approved_from_job?: string | null
           asset_id: string
           created_at?: string
           external_ref?: string | null
@@ -13753,6 +13855,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approved_from_job?: string | null
           asset_id?: string
           created_at?: string
           external_ref?: string | null
@@ -19161,6 +19264,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      mcp_render_drafts: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          organization_id: string
+          plan_id: string | null
+          spec: Json
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          organization_id: string
+          plan_id?: string | null
+          spec: Json
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          organization_id?: string
+          plan_id?: string | null
+          spec?: Json
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_render_drafts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mcp_tool_calls: {
         Row: {
@@ -38194,6 +38338,19 @@ export type Database = {
         Args: { p_input: Json; p_token_id: string }
         Returns: Json
       }
+      agent_footage_strip_done: {
+        Args: {
+          p_asset_id: string
+          p_done: Json
+          p_failed: Json
+          p_token_id: string
+        }
+        Returns: Json
+      }
+      agent_footage_strip_todo: {
+        Args: { p_limit: number; p_token_id: string }
+        Returns: Json
+      }
       agent_footage_tags: {
         Args: { p_asset_id: string; p_input: Json; p_token_id: string }
         Returns: Json
@@ -38268,7 +38425,15 @@ export type Database = {
       }
       agent_job_retry: { Args: { p_job_id: string }; Returns: Json }
       agent_job_stale_after: { Args: never; Returns: string }
+      agent_job_stills_target: {
+        Args: { p_claim_token: string; p_job_id: string; p_token_id: string }
+        Returns: Json
+      }
       agent_job_upload_target: {
+        Args: { p_claim_token: string; p_job_id: string; p_token_id: string }
+        Returns: Json
+      }
+      agent_job_vo_clips: {
         Args: { p_claim_token: string; p_job_id: string; p_token_id: string }
         Returns: Json
       }
@@ -39361,6 +39526,10 @@ export type Database = {
         Args: { p_asset_id: string; p_organization_id: string }
         Returns: Json
       }
+      catalog_shot_job_plan_for: {
+        Args: { p_external_id: string; p_organization_id: string }
+        Returns: string
+      }
       catalog_shot_mention_digest: {
         Args: { p_needle: string; p_organization_id: string }
         Returns: string
@@ -40071,6 +40240,11 @@ export type Database = {
         Args: { p_name: string }
         Returns: boolean
       }
+      footage_asset_for_key: {
+        Args: { p_file_key: string; p_organization_id: string }
+        Returns: string
+      }
+      footage_sync_plan_usage: { Args: { p_plan_id: string }; Returns: Json }
       fulfill_catalog_purchase_order: {
         Args: {
           p_comment?: string
@@ -42063,6 +42237,10 @@ export type Database = {
         Args: { p_organization_id: string; p_user_id: string }
         Returns: Json
       }
+      mcp_get_claim_words: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
       mcp_get_content_brief: {
         Args: { p_id: string; p_organization_id: string; p_user_id: string }
         Returns: {
@@ -42092,6 +42270,23 @@ export type Database = {
         Args: {
           p_file_key: string
           p_organization_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_get_render_draft: {
+        Args: {
+          p_draft_id: string
+          p_organization_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_get_render_job: {
+        Args: {
+          p_job_id: string
+          p_organization_id: string
+          p_plan_id: string
           p_user_id: string
         }
         Returns: Json
@@ -42961,6 +43156,14 @@ export type Database = {
         Args: { p_organization_id: string; p_plan_id: string }
         Returns: Json
       }
+      mcp_render_plan_status: {
+        Args: {
+          p_organization_id: string
+          p_plan_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       mcp_revoke_connection: {
         Args: {
           p_client_id: string
@@ -42968,6 +43171,16 @@ export type Database = {
           p_user_id: string
         }
         Returns: undefined
+      }
+      mcp_save_render_draft: {
+        Args: {
+          p_organization_id: string
+          p_plan_id: string
+          p_spec: Json
+          p_title: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       mcp_save_thinking_execution: {
         Args: {
@@ -43349,6 +43562,17 @@ export type Database = {
           status: string
           title: string
         }[]
+      }
+      mcp_update_render_draft: {
+        Args: {
+          p_draft_id: string
+          p_organization_id: string
+          p_plan_id: string
+          p_spec: Json
+          p_title: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       mcp_update_task: {
         Args: {
