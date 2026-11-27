@@ -38,7 +38,8 @@ import { AgentReleaseError, latestAgentRelease } from "../_shared/agentRelease.t
  *   POST /v1/footage/strip-done    { asset_id, done, failed }        → link the uploaded strips (layout) / note failures
  *
  * AI tags (scope "catalog"), step 4: only clips still "belum" (never a person's tags).
- *   GET  /v1/catalog/context       tag defs, scene kinds, menus, locations, bans, tagged examples, open shotlists
+ *   GET  /v1/catalog/context       tag defs, scene kinds, menus, locations, bans, tagged examples, open shotlists,
+ *                                  products (Produk tab names), location_photos (Lokasi tab photos + descriptions)
  *   GET  /v1/footage/untagged      clips waiting for AI tags
  *   POST /v1/footage/tags          { asset_id, tags, shot_match? }   → saved as "perlu dicek"; shot_match
  *                                  { external_id, shot_id, confidence, reason } links the clip to an open shot
@@ -268,10 +269,25 @@ Deno.serve(async (req) => {
       // Open shot lists: the tagger links new footage to the shot it was made for. Never blocks the context.
       const { data: shotlists, error: slErr } = await admin.rpc("agent_open_shotlists", { p_token_id: ctx.tokenId });
       if (slErr) console.error("agent_open_shotlists", slErr.message);
+      // Product names of the Produk tab and the Lokasi tab photos (the AI's reference per location). Never blocks.
+      const { data: extrasData, error: exErr } = await admin.rpc("agent_catalog_extras", { p_token_id: ctx.tokenId });
+      if (exErr) console.error("agent_catalog_extras", exErr.message);
+      const extras = (exErr ? {} : (extrasData ?? {})) as {
+        products?: Array<{ name: string; aliases: string[] }>;
+        location_photos?: Array<{ label: string; name: string; description: string; path: string }>;
+      };
+      const photos = extras.location_photos ?? [];
+      const photoUrls = photos.length
+        ? await admin.storage.from(BUCKET).createSignedUrls(photos.map((p) => p.path), 3600)
+        : { data: [] as Array<{ signedUrl: string | null }> };
       return json({
         ok: true,
         ...c,
         shotlists: slErr ? [] : (shotlists ?? []),
+        products: extras.products ?? [],
+        location_photos: photos
+          .map((p, i) => ({ location: p.label, name: p.name, description: p.description, url: photoUrls.data?.[i]?.signedUrl ?? null }))
+          .filter((p) => p.url),
         location_thumbs: thumbs
           .map((t, i) => ({ location: t.location, url: signed.data?.[i]?.signedUrl ?? null }))
           .filter((t) => t.url),
