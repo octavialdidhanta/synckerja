@@ -511,6 +511,7 @@ import {
 } from "../tools";
 import { playbookGetInput, playbookGetResult } from "../tools/playbook/playbookGet";
 import { getRenderJobResult, renderJobsGetInput } from "../tools/render/jobGet";
+import { stripFootageScenesInput, stripFootageScenesResult } from "../tools/footage/strip";
 import type { ToolCallOutcome } from "../db/toolGate";
 import { filterTools, isToolVisible } from "./filterTools";
 import { MCP_SERVER_INSTRUCTIONS } from "./instructions";
@@ -825,6 +826,7 @@ export type McpReadDeps = {
   searchFootage: (ctx: McpAuthContext, input: FootageSearchFilters) => Promise<FootageSearchResult>;
   getFootage: (ctx: McpAuthContext, fileKey: string) => Promise<FootageClip>;
   getFootageThumb: (ctx: McpAuthContext, storagePath: string) => Promise<Uint8Array>;
+  getFootageStrip?: (ctx: McpAuthContext, storagePath: string) => Promise<Uint8Array>;
   listFootageBans: (ctx: McpAuthContext) => Promise<FootageBansResult>;
   listCatalogProducts: (ctx: McpAuthContext) => Promise<import("../db/catalog").CatalogProductList>;
   getCatalogProduct: (
@@ -1116,6 +1118,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "footage.search": searchFootageInput,
   "footage.get": getFootageInput,
   "footage.scenes.view": viewFootageScenesInput,
+  "footage.scenes.strip": stripFootageScenesInput,
   "footage.bans.list": listFootageBansInput,
   "catalog.products.list": listCatalogProductsInput,
   "catalog.product.get": getCatalogProductInput,
@@ -1766,6 +1769,9 @@ async function runTool(
       return getFootageResult(ctx, args, deps.getFootage);
     case "footage.scenes.view":
       return viewFootageScenesResult(ctx, args, deps.getFootage, deps.getFootageThumb);
+    case "footage.scenes.strip":
+      if (!deps.getFootageStrip) throw new Error("invalid_input: footage.scenes.strip is not available here");
+      return stripFootageScenesResult(ctx, args, deps.getFootage, deps.getFootageStrip);
     case "footage.bans.list":
       return listFootageBansResult(ctx, args, deps.listFootageBans);
     case "catalog.products.list":

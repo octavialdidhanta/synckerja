@@ -7,6 +7,7 @@ import {
   parseFileKeys,
   parseHeartbeat,
   parseMediaDone,
+  parseStripDone,
   routePath,
   sha256Hex,
   versionOlderThan,
@@ -74,4 +75,23 @@ Deno.test("version floor stays open until a self-updating release is installed",
   assertEquals(versionOlderThan("0.2.0", "0.1.12"), false);
   assertEquals(versionOlderThan(null, "0.1.12"), true);
   assertEquals(versionOlderThan("bukan-versi", "0.1.12"), true);
+});
+
+Deno.test("parseStripDone keeps valid strips and failures, refuses bad layouts", () => {
+  assertEquals(
+    parseStripDone({
+      asset_id: DEVICE,
+      done: [{ scene_id: DEVICE, fps: 2, frames: 12, cols: 6, labels: true }],
+      failed: [{ scene_id: DEVICE, reason: "file hilang" }],
+    }),
+    {
+      assetId: DEVICE,
+      done: [{ scene_id: DEVICE, fps: 2, frames: 12, cols: 6, labels: true }],
+      failed: [{ scene_id: DEVICE, reason: "file hilang" }],
+    },
+  );
+  assertEquals(parseStripDone({ asset_id: DEVICE }), { assetId: DEVICE, done: [], failed: [] });
+  assertEquals(parseStripDone({ asset_id: DEVICE, done: [{ scene_id: DEVICE, fps: 0, frames: 12, cols: 6 }] }), null);
+  assertEquals(parseStripDone({ asset_id: DEVICE, done: [{ scene_id: DEVICE, fps: 2, frames: 1.5, cols: 6 }] }), null);
+  assertEquals(parseStripDone({ asset_id: "x" }), null);
 });

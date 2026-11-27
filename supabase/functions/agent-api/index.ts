@@ -8,6 +8,7 @@ import {
   parseFileKeys,
   parseHeartbeat,
   parseMediaDone,
+  parseStripDone,
   routePath,
   sha256Hex,
   AGENT_MIN_VERSION,
@@ -33,6 +34,8 @@ import { AgentReleaseError, latestAgentRelease } from "../_shared/agentRelease.t
  *   POST /v1/footage/register      { clip }  (footage.clips.create)  → asset_id + scene ids
  *   POST /v1/footage/media-upload  { asset_id }                      → signed upload URLs (preview + thumbs)
  *   POST /v1/footage/media-done    { asset_id, preview, scene_ids }  → link the uploaded files
+ *   POST /v1/footage/strip-todo    { limit }                         → next clips whose scenes need a strip + upload URLs
+ *   POST /v1/footage/strip-done    { asset_id, done, failed }        → link the uploaded strips (layout) / note failures
  *
  * AI tags (scope "catalog"), step 4: only clips still "belum" (never a person's tags).
  *   GET  /v1/catalog/context       tag defs, scene kinds, menus, locations, bans, tagged examples
@@ -473,6 +476,56 @@ Deno.serve(async (req) => {
           return fail(400, "invalid_input", "asset_id (UUID) dan new_file_key wajib.");
         }
         const r = await rpc("agent_footage_moved", { p_asset_id: b.asset_id, p_new_file_key: b.new_file_key });
+        return r.error ?? json({ ok: true, ...r.data });
+      }
+
+      if (path === "/v1/footage/strip-todo") {
+        const raw = (body as Record<string, unknown> | null)?.limit;
+        const limit = typeof raw === "number" && Number.isInteger(raw) ? raw : 3;
+        const r = await rpc("agent_footage_strip_todo", { p_limit: limit });
+        if (r.error) return r.error;
+        const t = r.data as {
+          remaining: number;
+          assets: Array<{
+            asset_id: string;
+            file_key: string;
+            storage_status: string;
+            scenes: Array<{ scene_id: string; scene_index: number; start_seconds: number; end_seconds: number; strip_path: string }>;
+          }>;
+        };
+        const sign = async (objectPath: string) => {
+          const { data, error } = await admin.storage.from(BUCKET).createSignedUploadUrl(objectPath, { upsert: true });
+          if (error || !data) throw new Error(`sign ${objectPath}: ${error?.message ?? "no data"}`);
+          return data.signedUrl;
+        };
+        return json({
+          ok: true,
+          remaining: t.remaining,
+          max_bytes: 5 * 1024 * 1024,
+          assets: await Promise.all(
+            t.assets.map(async (a) => ({
+              asset_id: a.asset_id,
+              file_key: a.file_key,
+              storage_status: a.storage_status,
+              scenes: await Promise.all(
+                a.scenes.map(async (s) => ({
+                  scene_id: s.scene_id,
+                  scene_index: s.scene_index,
+                  start_seconds: Number(s.start_seconds),
+                  end_seconds: Number(s.end_seconds),
+                  path: s.strip_path,
+                  upload_url: await sign(s.strip_path),
+                })),
+              ),
+            })),
+          ),
+        });
+      }
+
+      if (path === "/v1/footage/strip-done") {
+        const d = parseStripDone(body);
+        if (!d) return fail(400, "invalid_input", "asset_id, done, failed tidak valid.");
+        const r = await rpc("agent_footage_strip_done", { p_asset_id: d.assetId, p_done: d.done, p_failed: d.failed });
         return r.error ?? json({ ok: true, ...r.data });
       }
 

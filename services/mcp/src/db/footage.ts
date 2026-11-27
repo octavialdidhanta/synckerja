@@ -14,6 +14,9 @@ export type FootageScene = {
   media_type: string;
   thumb_storage_path: string | null;
   thumb_required: boolean;
+  /** Contact strip of the scene (a frame every 1/fps s from start), set by the Agent; null until it is made. */
+  strip_storage_path?: string | null;
+  strip?: { fps: number; frames: number; cols: number; start: number; labels: boolean } | null;
   hijab: boolean;
   watermark_ui: boolean;
   lengkuas: boolean;
@@ -547,6 +550,17 @@ const CATALOG_MEDIA_BUCKET = "catalog-media";
  */
 export async function downloadFootageThumb(admin: SupabaseClient, ctx: Session, storagePath: string): Promise<Uint8Array> {
   const prefix = `${ctx.organizationId}/thumbs/`;
+  if (!storagePath.startsWith(prefix) || storagePath.includes("..") || !/\.jpe?g$/i.test(storagePath)) {
+    throw new Error("forbidden");
+  }
+  const { data, error } = await admin.storage.from(CATALOG_MEDIA_BUCKET).download(storagePath);
+  if (error || !data) throw new Error("not_found");
+  return new Uint8Array(await data.arrayBuffer());
+}
+
+/** Bytes of one scene strip (the Agent's contact strip). Only paths under the active organization's strips folder. */
+export async function downloadFootageStrip(admin: SupabaseClient, ctx: Session, storagePath: string): Promise<Uint8Array> {
+  const prefix = `${ctx.organizationId}/strips/`;
   if (!storagePath.startsWith(prefix) || storagePath.includes("..") || !/\.jpe?g$/i.test(storagePath)) {
     throw new Error("forbidden");
   }
