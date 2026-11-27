@@ -3950,6 +3950,7 @@ export type Database = {
           spoken_text: string | null
           storage_path: string
           video_id: string | null
+          word_timings: Json | null
         }
         Insert: {
           created_at?: string
@@ -3964,6 +3965,7 @@ export type Database = {
           spoken_text?: string | null
           storage_path: string
           video_id?: string | null
+          word_timings?: Json | null
         }
         Update: {
           created_at?: string
@@ -3978,6 +3980,7 @@ export type Database = {
           spoken_text?: string | null
           storage_path?: string
           video_id?: string | null
+          word_timings?: Json | null
         }
         Relationships: [
           {
@@ -5374,6 +5377,7 @@ export type Database = {
       }
       catalog_industry_templates: {
         Row: {
+          claim_words: string[]
           code: string
           created_at: string
           description: string | null
@@ -5381,6 +5385,7 @@ export type Database = {
           position: number
         }
         Insert: {
+          claim_words?: string[]
           code: string
           created_at?: string
           description?: string | null
@@ -5388,6 +5393,7 @@ export type Database = {
           position?: number
         }
         Update: {
+          claim_words?: string[]
           code?: string
           created_at?: string
           description?: string | null
@@ -13564,6 +13570,8 @@ export type Database = {
           scene_index: number
           scene_kind: string
           start_seconds: number
+          strip_meta: Json | null
+          strip_storage_path: string | null
           summary: string | null
           thumb_required: boolean
           thumb_storage_path: string | null
@@ -13579,6 +13587,8 @@ export type Database = {
           scene_index: number
           scene_kind: string
           start_seconds: number
+          strip_meta?: Json | null
+          strip_storage_path?: string | null
           summary?: string | null
           thumb_required?: boolean
           thumb_storage_path?: string | null
@@ -13594,6 +13604,8 @@ export type Database = {
           scene_index?: number
           scene_kind?: string
           start_seconds?: number
+          strip_meta?: Json | null
+          strip_storage_path?: string | null
           summary?: string | null
           thumb_required?: boolean
           thumb_storage_path?: string | null
@@ -19161,6 +19173,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      mcp_render_drafts: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          organization_id: string
+          plan_id: string | null
+          spec: Json
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          organization_id: string
+          plan_id?: string | null
+          spec: Json
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          organization_id?: string
+          plan_id?: string | null
+          spec?: Json
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_render_drafts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mcp_tool_calls: {
         Row: {
@@ -38194,6 +38247,19 @@ export type Database = {
         Args: { p_input: Json; p_token_id: string }
         Returns: Json
       }
+      agent_footage_strip_done: {
+        Args: {
+          p_asset_id: string
+          p_done: Json
+          p_failed: Json
+          p_token_id: string
+        }
+        Returns: Json
+      }
+      agent_footage_strip_todo: {
+        Args: { p_limit: number; p_token_id: string }
+        Returns: Json
+      }
       agent_footage_tags: {
         Args: { p_asset_id: string; p_input: Json; p_token_id: string }
         Returns: Json
@@ -38268,7 +38334,15 @@ export type Database = {
       }
       agent_job_retry: { Args: { p_job_id: string }; Returns: Json }
       agent_job_stale_after: { Args: never; Returns: string }
+      agent_job_stills_target: {
+        Args: { p_claim_token: string; p_job_id: string; p_token_id: string }
+        Returns: Json
+      }
       agent_job_upload_target: {
+        Args: { p_claim_token: string; p_job_id: string; p_token_id: string }
+        Returns: Json
+      }
+      agent_job_vo_clips: {
         Args: { p_claim_token: string; p_job_id: string; p_token_id: string }
         Returns: Json
       }
@@ -42063,6 +42137,10 @@ export type Database = {
         Args: { p_organization_id: string; p_user_id: string }
         Returns: Json
       }
+      mcp_get_claim_words: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: Json
+      }
       mcp_get_content_brief: {
         Args: { p_id: string; p_organization_id: string; p_user_id: string }
         Returns: {
@@ -42092,6 +42170,23 @@ export type Database = {
         Args: {
           p_file_key: string
           p_organization_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_get_render_draft: {
+        Args: {
+          p_draft_id: string
+          p_organization_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      mcp_get_render_job: {
+        Args: {
+          p_job_id: string
+          p_organization_id: string
+          p_plan_id: string
           p_user_id: string
         }
         Returns: Json
@@ -42969,6 +43064,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      mcp_save_render_draft: {
+        Args: {
+          p_organization_id: string
+          p_plan_id: string
+          p_spec: Json
+          p_title: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       mcp_save_thinking_execution: {
         Args: {
           p_admission: string
@@ -43349,6 +43454,17 @@ export type Database = {
           status: string
           title: string
         }[]
+      }
+      mcp_update_render_draft: {
+        Args: {
+          p_draft_id: string
+          p_organization_id: string
+          p_plan_id: string
+          p_spec: Json
+          p_title: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       mcp_update_task: {
         Args: {
