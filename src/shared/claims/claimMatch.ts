@@ -41,7 +41,7 @@ export const UNIVERSAL_CLAIM_WORDS = [
 ];
 
 /** Calls to action and everyday words that look like claims but are not about the product. */
-const NOT_A_CLAIM = /(klik|chat|whatsapp|\bwa\b|pesan duluan|datang|mampir|cobain|yuk|ayo)/i;
+const NOT_A_CLAIM = /(klik|chat|whatsapp|\bwa\b|pesan duluan|datang|mampir|cobain|yuk|ayo|suara asli)/i;
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -83,7 +83,8 @@ export function sentences(text: string): string[] {
 
 /** The claims of one sentence (deduplicated), each as the short phrase that carries it. */
 export function claimsIn(sentence: string, matcher: RegExp = claimWordMatcher()): string[] {
-  const s = norm(sentence);
+  // Stage notes in brackets ("(suara asli)", "[musik masuk]") are directions for the editor, not words on screen.
+  const s = norm(sentence.replace(/\([^)]*\)|\[[^\]]*\]/g, " "));
   const out = new Set<string>();
   for (const m of s.matchAll(NUMBER_CLAIM)) out.add(`${m[1]!.replace(/\s+/g, "")} ${m[2]}`);
   for (const m of s.matchAll(PRICE_CLAIM)) out.add(m[1]!.trim());
