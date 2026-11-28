@@ -15,7 +15,7 @@ export const STRIP_MAX_SCENES = 6;
 export const stripFootageScenesInput = z
   .object({
     scenes: z
-      .array(z.object({ file_key: z.string().trim().min(1).max(2000), scene_index: z.number().int().min(0).max(10_000) }).strict())
+      .array(z.object({ file_key: z.string().trim().min(1).max(2000), scene_index: z.number().int().min(1).max(10_000) }).strict())
       .min(1)
       .max(STRIP_MAX_SCENES),
   })

@@ -48,7 +48,8 @@ export function withDef(shot: RawShot): RawShot {
       action: typeof shot.action === "string" ? shot.action : "",
       menu: clone(shot.menu ?? ""),
       area: typeof shot.area === "string" ? shot.area : "",
-      fotos: clone(Array.isArray(shot.fotos) ? shot.fotos : []),
+      // No fotos yet stays no fotos: Reset then goes back to the starter selection, never to zero photos.
+      ...(Array.isArray(shot.fotos) ? { fotos: clone(shot.fotos) } : {}),
       bicara: shot.bicara === true,
       angle: shot.angle || 1,
     },
@@ -103,11 +104,12 @@ export function resetShot(doc: ShotDoc, shotId: string): ShotDoc {
       action: d.action ?? "",
       menu: d.menu ?? "",
       area: d.area ?? "",
-      fotos: d.fotos ?? [],
       bicara: d.bicara === true,
       angle: d.angle || 1,
     };
     delete next.pick;
+    if (Array.isArray(d.fotos)) next.fotos = [...d.fotos];
+    else delete next.fotos;
     if (d.lokasi) next.lokasi = d.lokasi;
     else delete next.lokasi;
     return next;
@@ -142,7 +144,7 @@ export function duplicateShot(doc: ShotDoc, shotId: string): { doc: ShotDoc; id:
     action: c.action ?? "",
     menu: clone(c.menu ?? ""),
     area: c.area ?? "",
-    fotos: clone(Array.isArray(c.fotos) ? c.fotos : []),
+    ...(Array.isArray(c.fotos) ? { fotos: clone(c.fotos) } : {}),
     bicara: c.bicara === true,
     angle: c.angle || 1,
   };
