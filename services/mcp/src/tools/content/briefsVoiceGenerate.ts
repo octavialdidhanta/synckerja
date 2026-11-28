@@ -40,24 +40,26 @@ export type GenerateBriefVoiceResult = {
     words?: Array<{ text: string; start: number; end: number }> | null;
   };
   tagged_text: string | null;
+  /** Gemini spend cap / prepaid credits stopped auto-tag; the clip was still made without audio tags. */
+  tag_warning?: { code: string; message: string };
   how_to_read: string;
 };
 
 export const BRIEF_VOICE_GENERATE_HOW_TO_READ =
   "Generates one ElevenLabs VO clip for a storyboard row using the organization's Voice AI settings. " +
   "Only the plan PIC can generate. If text is omitted, the vo cell for that row_index is used (or voice_over when the row has no vo). " +
-  "download_url is a link on mcp.synckerja.com that serves this MP3 for 15 minutes without an auth header (same as content.briefs.voice.get): save it with a plain HTTP GET as file_name in the production vo folder. duration_seconds is estimated from the MP3; confirm with ffprobe before cutting. words are the spoken words with start/end seconds inside this clip (null when ElevenLabs gave no timings). phone_url is the public storage link for a phone tap only (often blocked on computers). If download_url is missing, call content.briefs.voice.get with the clip id. For several rows in one call use row_indexes or all_rows. Existing clips for other rows are unchanged; call content.briefs.voice.list to see all.";
+  "download_url is a link on mcp.synckerja.com that serves this MP3 for 15 minutes without an auth header (same as content.briefs.voice.get): save it with a plain HTTP GET as file_name in the production vo folder. duration_seconds is estimated from the MP3; confirm with ffprobe before cutting. words are the spoken words with start/end seconds inside this clip (null when ElevenLabs gave no timings). phone_url is the public storage link for a phone tap only (often blocked on computers). If download_url is missing, call content.briefs.voice.get with the clip id. For several rows in one call use row_indexes or all_rows. Existing clips for other rows are unchanged; call content.briefs.voice.list to see all. tag_warning (code gemini_spend_cap or gemini_prepaid) means Gemini billing stopped auto-tag: the clip exists without audio tags; tell the owner to fix it in Google AI Studio.";
 
 export type GenerateBriefVoiceBatchResult = {
   plan_id: string;
-  clips: Array<GenerateBriefVoiceResult["clip"] & { row_index: number }>;
+  clips: Array<GenerateBriefVoiceResult["clip"] & { row_index: number; tag_warning?: GenerateBriefVoiceResult["tag_warning"] }>;
   failed: Array<{ row_index: number; error: string }>;
   skipped: Array<{ row_index: number; reason: string }>;
   how_to_read: string;
 };
 
 export const BRIEF_VOICE_BATCH_HOW_TO_READ =
-  "Batch VO: one clip per row in clips (row_index, download_url valid 15 minutes, words). Each failed row was retried once automatically; rows still in failed need a single-row call. " +
+  "Batch VO: one clip per row in clips (row_index, download_url valid 15 minutes, words; tag_warning when Gemini billing stopped auto-tag, the clip is made without audio tags). Each failed row was retried once automatically; rows still in failed need a single-row call. " +
   "A row failed with voice_credit_exhausted means the organization's ElevenLabs balance is spent: stop, tell the owner to top up at https://elevenlabs.io/app/subscription (or turn on usage-based billing), and generate again with only_missing true after they say it is done; do not retry before that. " +
   "skipped lists rows without their own vo text (no_vo_text; batch never falls back to the whole voice_over), rows whose vo only marks natural sound or a pause such as (suara asli) or - (no_vo_marker; never read aloud, render.jobs.draft turns them into silence), or, with only_missing, rows whose clip is still current (clip_current). " +
   "No download is needed for a render with plan_id: the Agent (0.1.22+) fetches each row's newest clip into the production vo folder itself. Only for an older Agent save every clip with a plain HTTP GET as the file render.jobs.draft vo_rows expects (default vo/vo-<row+1>.mp3).";
@@ -108,7 +110,7 @@ async function generateBatch(
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const res = await generate(ctx, { planId, rowIndex: row, text });
-        clips.push({ ...res.clip, row_index: row });
+        clips.push({ ...res.clip, row_index: row, ...(res.tag_warning ? { tag_warning: res.tag_warning } : {}) });
         return;
       } catch (e) {
         last = e instanceof Error ? e.message : String(e);

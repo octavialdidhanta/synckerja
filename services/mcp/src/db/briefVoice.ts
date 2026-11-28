@@ -220,7 +220,7 @@ export async function generateBriefVoiceClip(
   });
 
   const body = (await response.json().catch(() => null)) as
-    | { clip?: EdgeClipRow; taggedText?: string | null; error?: string; code?: string }
+    | { clip?: EdgeClipRow; taggedText?: string | null; error?: string; code?: string; tag_warning?: { code?: string; message?: string } }
     | null;
   if (!response.ok) {
     throw mapGenerateError(response.status, String(body?.error ?? ""), String(body?.code ?? ""));
@@ -243,6 +243,9 @@ export async function generateBriefVoiceClip(
     plan_id: input.planId,
     clip,
     tagged_text: body?.taggedText ?? null,
+    ...(body?.tag_warning?.code
+      ? { tag_warning: { code: String(body.tag_warning.code), message: String(body.tag_warning.message ?? "") } }
+      : {}),
     how_to_read: BRIEF_VOICE_GENERATE_HOW_TO_READ,
   };
 }

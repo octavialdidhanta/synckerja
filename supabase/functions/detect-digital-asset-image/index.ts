@@ -1,6 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { geminiBillingProblem } from "../_shared/geminiBilling.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -198,6 +199,8 @@ Deno.serve(async (req: Request) => {
       } catch {
         // use default
       }
+      const billing = geminiBillingProblem(errMsg);
+      if (billing) return jsonResponse({ error: billing.message, code: billing.code }, geminiRes.status);
       // Pass through 503 (overloaded) and 429 (quota) so client can show "try again later"
       const status = isTemporary ? geminiRes.status : 500;
       return jsonResponse({ error: errMsg }, status);

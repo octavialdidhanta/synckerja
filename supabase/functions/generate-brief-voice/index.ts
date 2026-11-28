@@ -1,6 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { geminiBillingProblem } from "../_shared/geminiBilling.ts";
 import { extractMp4Audio } from "../_shared/mp4Audio.ts";
 import { historyChargeFromItem, isUsageUuid, matchHistoryCharges, officialTokenCount, promptExcerpt, recordContentUsage, type HistoryCharge } from "../_shared/contentUsage.ts";
 import { exactCreditCostFromHeader } from "../_shared/elevenLabsCredit.ts";
@@ -317,7 +318,10 @@ async function tagNarration(supabaseAdmin: Admin, orgId: string, userId: string,
   if (!settings) return json({ error: "Voice AI belum dikonfigurasi. Buka Settings > Voice AI." }, 400);
   if (!settings.autoTag || !voiceModelSupportsAudioTags(settings.model)) return json({ text });
   const tagged = await autoTagNarration(supabaseAdmin, orgId, text);
-  if ("error" in tagged) return json({ error: tagged.error }, 400);
+  if ("error" in tagged) {
+    const billing = geminiBillingProblem(tagged.error);
+    return json(billing ? { error: billing.message, code: billing.code } : { error: tagged.error }, 400);
+  }
   await recordContentUsage(supabaseAdmin, {
     organizationId: orgId,
     planId,
@@ -347,6 +351,8 @@ async function speakText(supabaseAdmin: Admin, orgId: string, userId: string, bo
   const plain = narrationWithoutTags(text);
   const existing = acceptTaggedNarration(plain, text);
   let narration = text;
+  /** Gemini spend cap / prepaid credits stopped auto-tag: the VO is still made, the Office is told why it has no tags. */
+  let tagWarning: { code: string; message: string } | null = null;
   if (existing.ok) {
     narration = existing.text;
   } else if (settings.autoTag && voiceModelSupportsAudioTags(settings.model)) {
@@ -368,6 +374,8 @@ async function speakText(supabaseAdmin: Admin, orgId: string, userId: string, bo
       });
     } else {
       console.error("generate-brief-voice auto-tag skipped", tagged.error);
+      const billing = geminiBillingProblem(tagged.error);
+      if (billing) tagWarning = { code: billing.code, message: billing.message };
     }
   }
   const usage = await reserveUsage(supabaseAdmin, orgId, settings.limit, json);
@@ -427,7 +435,7 @@ async function speakText(supabaseAdmin: Admin, orgId: string, userId: string, bo
     promptExcerpt: narration,
   });
   await usage.commit();
-  return json({ clip: clip.row, taggedText: narration === text ? null : narration });
+  return json({ clip: clip.row, taggedText: narration === text ? null : narration, ...(tagWarning ? { tag_warning: tagWarning } : {}) });
 }
 
 async function autoTagNarration(supabaseAdmin: Admin, orgId: string, text: string): Promise<{ text: string; tokens: number | null; model: string } | { error: string }> {
@@ -469,7 +477,8 @@ async function askGemini(apiKey: string, model: string, prompt: string): Promise
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({})) as { error?: { message?: string } };
-    return { error: payload.error?.message || "Gemini tidak bisa menandai narasi." };
+    const message = payload.error?.message || "Gemini tidak bisa menandai narasi.";
+    return { error: geminiBillingProblem(message)?.message ?? message };
   }
   const payload = await response.json().catch(() => ({})) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
   const text = String(payload.candidates?.[0]?.content?.parts?.[0]?.text ?? "").trim();

@@ -1,6 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { geminiBillingProblem } from "../_shared/geminiBilling.ts";
 import { isUsageUuid, officialTokenCount, promptExcerpt, recordContentUsage } from "../_shared/contentUsage.ts";
 
 const corsHeaders: Record<string, string> = {
@@ -881,6 +882,12 @@ Deno.serve(async (req: Request) => {
         // use default
       }
       lastErrorMsg = errMsg;
+      // Spend cap / prepaid credits belong to the whole Google project: a fallback model fails the same way.
+      const billing = geminiBillingProblem(errMsg);
+      if (billing) {
+        await recordImageAudit("failed", null);
+        return jsonResponse({ error: billing.message, code: billing.code }, 500);
+      }
       // If 400 and error mentions imageConfig/aspectRatio, retry same model without imageConfig
       if (
         geminiRes.status === 400 &&

@@ -1,6 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { geminiBillingProblem } from "../_shared/geminiBilling.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -338,7 +339,7 @@ async function callGeminiText(params: {
     } catch {
       // ignore parse failure
     }
-    return { ok: false, error: errMsg };
+    return { ok: false, error: geminiBillingProblem(errMsg)?.message ?? errMsg };
   }
 
   const geminiData = await geminiRes.json();

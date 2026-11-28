@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { geminiBillingProblem } from "../_shared/geminiBilling.ts";
 import { draftLanguage, geminiModel, parseDraftFields } from "../_shared/describeCatalogProduct.ts";
 import { LOCATION_DRAFT_FIELDS, buildLocationDescribePrompt } from "../_shared/describeCatalogLocation.ts";
 
@@ -142,6 +143,8 @@ Deno.serve(async (req) => {
     } catch {
       // Keep the raw text when Gemini did not return JSON.
     }
+    const billing = geminiBillingProblem(message);
+    if (billing) return json({ error: billing.message, code: billing.code }, response.status);
     return json({ error: message }, response.status);
   }
   const payload = await response.json() as {

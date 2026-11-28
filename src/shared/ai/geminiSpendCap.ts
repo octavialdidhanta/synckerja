@@ -1,8 +1,9 @@
 export const GEMINI_SPEND_CAP_URL = "https://ai.studio/spend";
 export const GEMINI_PREPAID_URL = "https://ai.studio/projects";
 
-const SPEND_CAP_NEEDLE = "monthly spending cap";
-const PREPAID_NEEDLE = "prepayment credits are depleted";
+/** Google's English sentence, or the Indonesian message edge functions send instead (_shared/geminiBilling.ts). */
+const SPEND_CAP_NEEDLES = ["monthly spending cap", "batas belanja gemini"];
+const PREPAID_NEEDLES = ["prepayment credits are depleted", "kredit gemini habis"];
 
 /** ElevenLabs billing page (generate-brief-voice answers code voice_credit_exhausted when the balance is spent). */
 export const ELEVENLABS_BILLING_URL = "https://elevenlabs.io/app/subscription";
@@ -57,11 +58,15 @@ export function isElevenLabsCreditMessage(text: string | null | undefined): bool
 }
 
 export function isGeminiSpendCapMessage(text: string | null | undefined): boolean {
-  return typeof text === "string" && text.toLowerCase().includes(SPEND_CAP_NEEDLE);
+  if (typeof text !== "string") return false;
+  const lower = text.toLowerCase();
+  return SPEND_CAP_NEEDLES.some((needle) => lower.includes(needle));
 }
 
 export function isGeminiPrepaidDepletedMessage(text: string | null | undefined): boolean {
-  return typeof text === "string" && text.toLowerCase().includes(PREPAID_NEEDLE);
+  if (typeof text !== "string") return false;
+  const lower = text.toLowerCase();
+  return PREPAID_NEEDLES.some((needle) => lower.includes(needle));
 }
 
 export function isGeminiBillingNoticeMessage(text: string | null | undefined): boolean {

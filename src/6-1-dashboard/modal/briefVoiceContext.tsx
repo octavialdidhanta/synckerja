@@ -10,7 +10,7 @@ import { Switch } from "@/shared/components/ui/switch";
 import { voiceModelSupportsAudioTags } from "../../../supabase/functions/_shared/voiceAudioTags.ts";
 import { cn } from "@/shared/lib/utils";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { isGeminiSpendCapMessage, presentElevenLabsCredit, readEdgeFunctionError } from "@/shared/ai/geminiSpendCap";
+import { isGeminiSpendCapMessage, presentElevenLabsCredit, presentGeminiSpendCap, readEdgeFunctionError } from "@/shared/ai/geminiSpendCap";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
@@ -816,6 +816,8 @@ export function BriefVoiceOverActions({
       }
       await voice.refresh();
       notifyVoice("success", t("voiceAi.confirm.started", "Voice is ready."));
+      // VO is made, but Gemini billing stopped auto-tag: say why it has no audio tags.
+      presentGeminiSpendCap((data as { tag_warning?: { message?: string } } | null)?.tag_warning?.message);
     } catch (error) {
       notifyVoice("error", error instanceof Error ? error.message : t("voiceAi.settings.saveFailed", "Could not save the voice configuration"));
     } finally {
