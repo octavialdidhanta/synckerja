@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { cn } from "@/shared/lib/utils";
@@ -14,6 +15,9 @@ import { useKolDeferredShowContent } from "../hooks/useKolDeferredShowContent";
 import { KolManagementKolManagementPageSkeleton } from "../skeletons/KolManagementKolManagementPageSkeleton";
 import EnhancedAddKOLModal from "../modals/EnhancedAddKOLModal";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { supabase } from "@/shared/lib/supabaseClient";
+import { useToast } from "@/shared/components/ui/use-toast";
+import { KOL_PHOTO_BUCKET, kolPhotoPathFromUrl } from "../modals/AddKOLModal/kolPhotoPath";
 
 const KOLManagementPage = () => {
   const { t } = useAppTranslation();
@@ -55,6 +59,43 @@ const KOLManagementPage = () => {
   const handleAddKOL = useCallback(() => {
     setIsAddModalOpen(true);
   }, []);
+
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  /** Delete from the table menu. Social accounts, rates, ratings, contracts and payment terms go with it (FK cascade). */
+  const handleDeleteKOL = useCallback(
+    async (kolId: string) => {
+      if (!organizationId) return;
+      const photoUrl = filteredProfiles.find((p) => p.id === kolId)?.profile_photo_url ?? null;
+      const { data, error } = await supabase
+        .from("kol_profiles")
+        .delete()
+        .eq("id", kolId)
+        .eq("organization_id", organizationId)
+        .select("id");
+      if (error || !data?.length) {
+        // 23503: content posts, deliverables, conversions or performance metrics still point at this KOL.
+        const blocked = error?.code === "23503";
+        toast({
+          title: "Error",
+          description: blocked
+            ? t("kolManagement.delete.blocked", "This KOL still has content posts, deliverables or performance data. Remove those first.")
+            : t("kolManagement.delete.failed", "Failed to delete KOL profile"),
+          variant: "destructive",
+        });
+        return;
+      }
+      const photoPath = typeof photoUrl === "string" ? kolPhotoPathFromUrl(photoUrl) : null;
+      if (photoPath) await supabase.storage.from(KOL_PHOTO_BUCKET).remove([photoPath]);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["kol-management-data"] }),
+        queryClient.invalidateQueries({ queryKey: ["kol-profiles-with-social"] }),
+      ]);
+      toast({ title: "Success", description: t("kolManagement.delete.success", "KOL profile deleted") });
+    },
+    [filteredProfiles, organizationId, queryClient, t, toast],
+  );
 
   const categories = useMemo(() => {
     return [...new Set(filteredProfiles.map((profile) => profile.category).filter(Boolean))].length;
@@ -100,6 +141,7 @@ const KOLManagementPage = () => {
                   profiles={filteredProfiles}
                   isLoading={isLoading && showContent}
                   selectedCategory={filters.category}
+                  onDelete={handleDeleteKOL}
                 />
               </div>
             </div>
