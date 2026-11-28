@@ -6,6 +6,7 @@ import { AppSidebar } from "@/shared/layouts/sidebar/AppSidebar";
 import { useHeaderUserProfile } from "@/shared/hooks/useHeaderUserProfile";
 import { usePreferredLocaleSync } from "@/shared/hooks/usePreferredLocaleSync";
 import { SubscriptionExpiryBannerSlot } from "@/10-subscription/shared/SubscriptionExpiryBannerSlot";
+import { AnthropicCreditBanner } from "@/6-1-content-studio/agent/AnthropicCreditAlert";
 
 export function AppShellLayout() {
   const { t } = useTranslation();
@@ -32,6 +33,7 @@ export function AppShellLayout() {
               className="scrollbar-hide nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               <SubscriptionExpiryBannerSlot className="sticky top-0 z-20" placement="sticky" />
+              <AnthropicCreditBanner className="sticky top-0 z-20" />
               <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col">
                 <Outlet />
               </div>

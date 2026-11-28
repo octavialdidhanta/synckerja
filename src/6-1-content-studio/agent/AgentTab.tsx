@@ -1,6 +1,5 @@
 /** Agent tab: which laptops run the Synckerja Agent for this organization, and its access tokens. */
-import { useEffect, useState } from "react";
-import { presentAnthropicCredit } from "@/shared/ai/geminiSpendCap";
+import { useState } from "react";
 import { useCurrentUserRole } from "@/shared/hooks/useCurrentUserRole";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { ago, anthropicCredit, deviceLink, JOB_STATUS, sortJobs, stillsPath, tokenState, toolList, uploadSkippedNote, visibleDevices } from "./agentData";
@@ -85,9 +84,6 @@ const TOOL_LABEL: Record<string, string> = {
   sam2: "SAM",
   whisper: "Whisper",
 };
-
-/** One popup per laptop per credit block (Agent `since`), per browser session. */
-const creditPopupShown = new Set<string>();
 
 function toolLabel(key: string): string {
   return TOOL_LABEL[key] ?? key.replace(/_/g, " ");
@@ -193,21 +189,6 @@ export function AgentTab({ headLeft }: Props) {
 
   const deviceRows = visibleDevices(devices.data ?? []);
   const tokenRows = tokens.data ?? [];
-
-  useEffect(() => {
-    for (const row of deviceRows) {
-      const d = row.agent_devices;
-      if (!d) continue;
-      if (deviceLink({ last_seen_at: row.last_seen_at, token_id: row.token_id, token: row.agent_tokens }) !== "online") continue;
-      const credit = anthropicCredit(d.tools);
-      if (!credit) continue;
-      const key = `${row.device_id}:${credit.since ?? ""}`;
-      if (creditPopupShown.has(key)) continue;
-      creditPopupShown.add(key);
-      presentAnthropicCredit(credit.kind);
-      break;
-    }
-  }, [deviceRows]);
 
   const activeTokens = tokenRows.filter((t) => tokenState(t) === "aktif");
   const retiredTokens = tokenRows.filter((t) => tokenState(t) !== "aktif");

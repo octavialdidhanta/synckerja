@@ -13,13 +13,16 @@ const devicesKey = (org: string | null | undefined) => ["content-studio", "agent
 const jobsKey = (org: string | null | undefined) => ["content-studio", "agent-jobs", org] as const;
 const tokensKey = (org: string | null | undefined) => ["content-studio", "agent-tokens", org] as const;
 
-/** Devices serving the active organization. Refreshes every 30 s so online/offline stays honest. */
-export function useAgentDevices() {
+/**
+ * Devices serving the active organization. Refreshes every 30 s so online/offline stays honest.
+ * The app-wide credit alert shares this cache with a slower interval; React Query uses the fastest observer.
+ */
+export function useAgentDevices(opts: { enabled?: boolean; refetchInterval?: number } = {}) {
   const { organizationId } = useOrgBootstrapPending();
   return useQuery<AgentDeviceRow[]>({
     queryKey: devicesKey(organizationId),
-    enabled: Boolean(organizationId),
-    refetchInterval: 30_000,
+    enabled: Boolean(organizationId) && opts.enabled !== false,
+    refetchInterval: opts.refetchInterval ?? 30_000,
     queryFn: async () => {
       const { data, error } = await db()
         .from("agent_device_orgs")

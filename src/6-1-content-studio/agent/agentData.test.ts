@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, anthropicCredit, deviceLink, isOnline, sortJobs, tokenState, toolList, uploadSkippedNote, visibleDevices, type AgentJobRow } from "./agentData";
+import { ago, anthropicCredit, anthropicCreditAlert, deviceLink, isOnline, sortJobs, tokenState, toolList, uploadSkippedNote, visibleDevices, type AgentDeviceRow, type AgentJobRow } from "./agentData";
 
 const NOW = new Date("2026-11-23T06:00:00Z").getTime();
 const before = (ms: number) => new Date(NOW - ms).toISOString();
@@ -125,5 +125,21 @@ describe("uploadSkippedNote", () => {
     expect(uploadSkippedNote({ ...base, late_upload: { status: "abandoned", error: "file_missing" } })).toMatch(/file_missing/);
     expect(uploadSkippedNote({ ...base, late_upload: { status: "failed", attempts: 3, error: "x" } })).toMatch(/3 kali/);
     expect(uploadSkippedNote({ ...base, late_upload: { status: "failed", attempts: 1 } })).toMatch(/tanpa render ulang/);
+  });
+  it("app-wide credit alert: first online laptop with a blocked credit, keyed by laptop and since", () => {
+    const token = { revoked_at: null, expires_at: before(-86_400_000) };
+    const blocked = { anthropic_credit: { ok: false, kind: "spend_limit", since: "2026-11-23T05:00:00.000Z" } };
+    const row = (id: string, seen: number, tools: Record<string, unknown> | null): AgentDeviceRow => ({
+      device_id: id,
+      last_seen_at: before(seen),
+      token_id: "t",
+      agent_tokens: token,
+      agent_devices: { id, name: `Laptop ${id}`, agent_version: "0.1.30", platform: null, tools, last_error: null, last_seen_at: before(seen) },
+    });
+    expect(anthropicCreditAlert([row("a", 10_000, { anthropic_key: { ok: true } })], NOW)).toBeNull();
+    expect(anthropicCreditAlert([row("off", 10 * 60_000, blocked)], NOW)).toBeNull();
+    const alert = anthropicCreditAlert([row("ok", 5_000, null), row("b", 10_000, blocked)], NOW);
+    expect(alert).toMatchObject({ key: "b:2026-11-23T05:00:00.000Z", deviceName: "Laptop b", credit: { kind: "spend_limit" } });
+    expect(alert?.credit.url).toBe("https://console.anthropic.com/settings/limits");
   });
 });
