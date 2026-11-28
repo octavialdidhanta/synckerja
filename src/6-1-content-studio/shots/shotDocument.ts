@@ -172,11 +172,11 @@ export function addShot(doc: ShotDoc, judul: string): { doc: ShotDoc; id: string
     action: "",
     menu: "",
     area: "",
-    fotos: [],
+    // No fotos yet: the tab starts from the product photo + one location photo once they are picked.
     bicara: false,
     angle: 1,
     done: false,
-    def: { action: "", menu: "", area: "", fotos: [], bicara: false, angle: 1 },
+    def: { action: "", menu: "", area: "", bicara: false, angle: 1 },
   };
   return { doc: withShots(doc, [...shotsOf(doc), shot]), id };
 }

@@ -110,7 +110,10 @@ describe("shotDocument (katalog.html shot edits)", () => {
   it("adds an empty shot at the end, deletes a shot, and archives the job", () => {
     const { doc: d, id } = addShot(doc(), " Penutup ");
     expect(id).toBe("P03");
-    expect(shot(d, "P03")).toMatchObject({ judul: "Penutup", action: "", menu: "", fotos: [], angle: 1, done: false });
+    expect(shot(d, "P03")).toMatchObject({ judul: "Penutup", action: "", menu: "", angle: 1, done: false });
+    // no fotos yet: the tab starts from product + one location photo, and Reset never lands on zero photos
+    expect("fotos" in shot(d, "P03")).toBe(false);
+    expect("fotos" in (shot(d, "P03").def as Record<string, unknown>)).toBe(false);
     expect(() => addShot(doc(), " ")).toThrow("empty_title");
     expect((deleteShot(d, "P01").shots as unknown[]).length).toBe(2);
     expect(() => deleteShot(doc(), "P09")).toThrow("shot_not_found");

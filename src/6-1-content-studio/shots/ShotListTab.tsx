@@ -430,7 +430,12 @@ function Rakit({
     const l = locs.find((x) => x.id === id) ?? null;
     const productFiles = new Set(menus.flatMap((m) => productPhotos(m).map((f) => f.file)));
     const keep = [...sel].filter((f) => productFiles.has(f));
-    const add = (l?.fotos ?? []).filter((f) => draft.curArea && (f.area ?? []).includes(draft.curArea)).map((f) => f.file);
+    // With an area chip on: that area's photos. Without one: the first photo of the location, so a new shot never
+    // starts with zero location photos.
+    const fotos = l?.fotos ?? [];
+    const add = draft.curArea
+      ? fotos.filter((f) => (f.area ?? []).includes(draft.curArea)).map((f) => f.file)
+      : fotos.slice(0, 1).map((f) => f.file);
     const areasNext = locationAreas(l);
     update({ locId: id, curArea: areasNext.includes(draft.curArea) ? draft.curArea : "", sel: new Set([...keep, ...add]) });
   };
