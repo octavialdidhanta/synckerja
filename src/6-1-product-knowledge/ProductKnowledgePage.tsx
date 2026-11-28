@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import { ClaimsRegistryButton } from '@/6-1-content-studio/claims/ClaimsRegistryDialog';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { HeaderAndTab } from '@/6-1-content-calendar/container/HeaderAndTab';
@@ -406,6 +407,7 @@ const ProductKnowledgeContent: React.FC = () => {
                             onAdd={handleAdd}
                             onDeleteSelected={handleDeleteSelected}
                           />
+                          <ClaimsRegistryButton />
                           </div>
                           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                             <ProductKnowledgeTable

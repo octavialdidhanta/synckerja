@@ -204,3 +204,8 @@ export function claimProofPath(organizationId: string, claimId: string, fileName
   const ext = (fileName.split(".").pop() ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || "bin";
   return `${organizationId}/claims/${claimId}-${now}.${ext}`;
 }
+
+/** A competitive advantage point is backed only by an approved claim that has not expired. */
+export function pointIsBacked(linked: Pick<Claim, "status" | "valid_until">[], today: string = todayWib()): boolean {
+  return linked.some((c) => c.status === "approved" && !isClaimExpired(c, today));
+}

@@ -9,6 +9,7 @@ import {
   draftScopes,
   filterClaims,
   isClaimExpired,
+  pointIsBacked,
   scopeSummary,
   todayWib,
   type ClaimRow,
@@ -91,5 +92,12 @@ describe("claimsData", () => {
   it("uses the WIB day and an org claims folder", () => {
     expect(todayWib(new Date("2026-11-28T18:00:00Z"))).toBe("2026-11-29");
     expect(claimProofPath("org", "c1", "Sertifikat Halal.PDF", 5)).toBe("org/claims/c1-5.pdf");
+  });
+
+  it("backs a point only with an approved, unexpired claim", () => {
+    expect(pointIsBacked([], "2026-11-28")).toBe(false);
+    expect(pointIsBacked([{ status: "needs_proof", valid_until: null }], "2026-11-28")).toBe(false);
+    expect(pointIsBacked([{ status: "approved", valid_until: "2026-11-01" }], "2026-11-28")).toBe(false);
+    expect(pointIsBacked([{ status: "approved", valid_until: null }], "2026-11-28")).toBe(true);
   });
 });
