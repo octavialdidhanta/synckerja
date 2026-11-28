@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { withStorageUploadMessages } from "../storage/storageUploadErrors";
 import { processLock as authProcessLock } from "@supabase/auth-js";
 
 /** GoTrue passes `acquireTimeout` into the lock; default is 5s when `lockAcquireTimeout` is not forwarded from createClient (supabase-js quirk). Bump positive timeouts so parallel listeners do not hit ProcessLockAcquireTimeoutError. */
@@ -81,7 +82,8 @@ const candidateAwareFetch: typeof fetch = (input, init) => {
 
 function createSupabaseClient(): SupabaseClient {
   return createClient(url, anonKey, {
-    global: { fetch: candidateAwareFetch },
+    // Storage upload refusals (size / file type) come back with a clear Indonesian message.
+    global: { fetch: withStorageUploadMessages(candidateAwareFetch) },
     auth: {
       persistSession: true,
       autoRefreshToken: true,
