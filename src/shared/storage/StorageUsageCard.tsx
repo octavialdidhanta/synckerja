@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { HardDrive } from "lucide-react";
 import { Card } from "@/shared/components/ui/card";
 import { cn } from "@/shared/lib/utils";
+import { useSubscriptionSelfServiceEnabled } from "@/shared/auth/hooks/useSubscriptionSelfServiceEnabled";
 import {
   formatStorageBytes,
   groupStorageByModule,
@@ -19,6 +20,8 @@ const BAR: Record<StorageUsageStatus, string> = {
 
 export function StorageUsageCard({ compact = false, className }: { compact?: boolean; className?: string }) {
   const usage = useStorageUsage();
+  // Sales tenants have no Subscription menu: their quota changes through the sales team.
+  const selfService = useSubscriptionSelfServiceEnabled();
 
   if (usage.isPending) {
     return (
@@ -76,11 +79,14 @@ export function StorageUsageCard({ compact = false, className }: { compact?: boo
               ? `Sisa ${formatStorageBytes(data.remaining_bytes)}. Upload diblokir saat penuh.`
               : `Sisa ${formatStorageBytes(data.remaining_bytes)} · ${data.file_count.toLocaleString("id-ID")} file · diperbarui tiap 10 menit`}
         </p>
-        {data.status !== "ok" && (
-          <Link to="/subscription/plans" className="inline-block text-xs font-medium text-primary underline underline-offset-2">
-            Lihat paket untuk menambah kuota
-          </Link>
-        )}
+        {data.status !== "ok" &&
+          (selfService ? (
+            <Link to="/subscription/plans" className="inline-block text-xs font-medium text-primary underline underline-offset-2">
+              Lihat paket untuk menambah kuota
+            </Link>
+          ) : (
+            <p className="text-xs text-muted-foreground">Hubungi tim sales Synckerja untuk menambah kuota.</p>
+          ))}
       </div>
 
       {!compact && modules.length > 0 && (

@@ -10197,6 +10197,7 @@ export const enTranslations: TranslationDictionary = {
   "settings.page.subtitle": "Manage your account and application preferences",
   "settings.tabs.profile": "Profile",
   "settings.tabs.security": "Security",
+  "settings.tabs.storage": "Storage",
   "settings.openFullSettings": "Open Settings",
   "settings.mobile.backToProfile": "Back to Profile",
   "settings.mobile.securityTitle": "Security",

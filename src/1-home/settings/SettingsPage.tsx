@@ -1,12 +1,13 @@
 import { useCallback, useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Shield, User } from "lucide-react";
+import { HardDrive, Shield, User } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
 const TAB_CONFIG = [
   { value: "profile" as const, labelKey: "settings.tabs.profile", path: "/settings" },
   { value: "security" as const, labelKey: "settings.tabs.security", path: "/settings/security" },
+  { value: "storage" as const, labelKey: "settings.tabs.storage", path: "/settings/storage" },
 ];
 
 export default function SettingsPage() {
@@ -15,7 +16,9 @@ export default function SettingsPage() {
   const { t } = useTranslation();
 
   const currentTab = useMemo(() => {
-    return location.pathname.includes("/security") ? "security" : "profile";
+    if (location.pathname.includes("/security")) return "security";
+    if (location.pathname.includes("/storage")) return "storage";
+    return "profile";
   }, [location.pathname]);
 
   const handleTabClick = useCallback(
@@ -34,7 +37,7 @@ export default function SettingsPage() {
         <nav className="mt-6 flex gap-1 border-b border-border" aria-label={t("settings.page.navAria")}>
           {TAB_CONFIG.map((tab) => {
             const isActive = currentTab === tab.value;
-            const Icon = tab.value === "profile" ? User : Shield;
+            const Icon = tab.value === "profile" ? User : tab.value === "storage" ? HardDrive : Shield;
             return (
               <button
                 key={tab.value}
