@@ -23,11 +23,33 @@ export const ANTHROPIC_LIMITS_URL = "https://console.anthropic.com/settings/limi
 
 export type AnthropicCreditKind = "credit" | "spend_limit" | "billing";
 
-/** Opens the shared dialog when the Agent reports Anthropic credits, spend limit or payment blocking AI tagging. */
-export function presentAnthropicCredit(kind: AnthropicCreditKind): void {
+/** Where the Anthropic refusal came from, so the dialog explains what stopped and how it resumes. */
+export type AnthropicCreditSource = "agent" | "lead_magnet";
+
+let anthropicSource: AnthropicCreditSource = "agent";
+
+export function anthropicCreditSource(): AnthropicCreditSource {
+  return anthropicSource;
+}
+
+/**
+ * Opens the shared dialog when Anthropic credits, spend limit or payment block a Claude call:
+ * the Agent's footage tagging (heartbeat) or the Lead Magnet PDF (edge function codes anthropic_*).
+ */
+export function presentAnthropicCredit(kind: AnthropicCreditKind, source: AnthropicCreditSource = "agent"): void {
+  if (notice) return;
+  anthropicSource = source;
   openGeminiBillingNotice(
     kind === "spend_limit" ? "anthropic_limit" : kind === "billing" ? "anthropic_billing" : "anthropic_credit",
   );
+}
+
+/** Edge function codes anthropic_credit / anthropic_limit / anthropic_billing → kind; anything else → null. */
+export function anthropicCreditKindFromCode(code: string | null | undefined): AnthropicCreditKind | null {
+  if (code === "anthropic_credit") return "credit";
+  if (code === "anthropic_limit") return "spend_limit";
+  if (code === "anthropic_billing") return "billing";
+  return null;
 }
 
 export function isElevenLabsCreditMessage(text: string | null | undefined): boolean {

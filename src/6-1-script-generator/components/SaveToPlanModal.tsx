@@ -43,6 +43,7 @@ import { DrawerSelectField } from '@/mobile-app/components/DrawerSelectField';
 import { format } from 'date-fns';
 import { CalendarIcon, Eye, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { anthropicCreditKindFromCode, presentAnthropicCredit } from '@/shared/ai/geminiSpendCap';
 import { isEmployeeActive } from '@/2-1-employees/utils/employeeUtils';
 
 interface FormDataForPlan {
@@ -334,6 +335,17 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
     }
     if (code === 'pdf_limit') {
       toast.error(t('scriptGenerator.saveToPlanModal.leadMagnetPdfLimit', 'Draft saved. The daily Claude PDF limit for this organization is used up.'));
+      return;
+    }
+    const credit = anthropicCreditKindFromCode(code);
+    if (credit) {
+      presentAnthropicCredit(credit, 'lead_magnet');
+      toast.error(
+        t(
+          'scriptGenerator.saveToPlanModal.leadMagnetAnthropicCredit',
+          'Draft saved. Claude refused the PDF because of credits, spend limit or payment. Fix it in Claude Console, then save again.',
+        ),
+      );
       return;
     }
     if (result.file === 'failed' || code === 'outline_rejected' || code === 'pdf_failed') {

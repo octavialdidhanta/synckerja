@@ -11767,6 +11767,7 @@ export const idTranslations: TranslationDictionary = {
   "scriptGenerator.saveToPlanModal.leadMagnetMissingAccount": "Plan tersimpan. Hubungkan akun Instagram atau Facebook yang izin DM dan komentarnya lengkap sebelum draft Lead Magnet dibuat.",
   "scriptGenerator.saveToPlanModal.leadMagnetMissingClaude": "Draft tersimpan. Tambahkan Claude API key di pengaturan Social Media untuk membuat PDF.",
   "scriptGenerator.saveToPlanModal.leadMagnetPdfLimit": "Draft tersimpan. Batas PDF Claude hari ini untuk organisasi ini sudah habis.",
+  "scriptGenerator.saveToPlanModal.leadMagnetAnthropicCredit": "Draft tersimpan. Claude menolak membuat PDF karena kredit, batas belanja, atau pembayaran. Perbaiki di Claude Console, lalu simpan lagi.",
   "scriptGenerator.saveToPlanModal.leadMagnetFileFailed": "Draft tersimpan. Langkah PDF gagal. Simpan lagi untuk mengulang hanya file.",
   "scriptGenerator.saveToPlanModal.leadMagnetReady": "Draft lead magnet siap. PDF sudah masuk ke Delivery.",
   "scriptGenerator.saveToPlanModal.leadMagnetChooseTitle": "Pilih akun Lead Magnet",

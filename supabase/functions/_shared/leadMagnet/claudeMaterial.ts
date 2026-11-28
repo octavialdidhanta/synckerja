@@ -5,6 +5,7 @@ import {
   parseMaterialOutline,
   type MaterialOutline,
 } from "./materialOutline.ts";
+import { AnthropicCreditError, anthropicErrorMessage, classifyAnthropicError } from "../anthropicCredit.ts";
 
 const ANTHROPIC_MESSAGES = "https://api.anthropic.com/v1/messages";
 const PDF_BETA = "code-execution-2025-08-25,skills-2025-10-02,files-api-2025-04-14";
@@ -54,12 +55,17 @@ async function claudePost(
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs),
   });
-  const json = await res.json().catch(() => ({}));
+  const raw = await res.text().catch(() => "");
   if (!res.ok) {
-    const message = (json as { error?: { message?: string } })?.error?.message;
-    throw new Error(message || `Claude request failed (${res.status})`);
+    const credit = classifyAnthropicError(res.status, raw);
+    if (credit) throw new AnthropicCreditError(credit, raw.slice(0, 300));
+    throw new Error(anthropicErrorMessage(raw).slice(0, 240) || `Claude request failed (${res.status})`);
   }
-  return json;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
 }
 
 export async function requestMaterialOutline(input: {
@@ -173,6 +179,8 @@ export async function renderOutlinePdf(input: {
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
+    const credit = classifyAnthropicError(res.status, detail);
+    if (credit) throw new AnthropicCreditError(credit, detail.slice(0, 300));
     throw new Error(detail.slice(0, 240) || `Claude file download failed (${res.status})`);
   }
   const bytes = new Uint8Array(await res.arrayBuffer());
