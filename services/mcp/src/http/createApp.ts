@@ -8,6 +8,7 @@ import type {
   ClaimUpsertPreview,
   ClaimUpsertSaved,
   ClaimUseInput,
+  ThinkingClaim,
 } from "../db/claims";
 import { cors } from "hono/cors";
 import type { RenderDraftRow, RenderDraftSaved, RenderJobDetail, RenderJobPreview, RenderJobSaved, RenderJobsList, RenderPlanStatus } from "../db/render";
@@ -533,6 +534,14 @@ export type AppDeps = {
   applyCatalogClaimUpsert: (ctx: McpAuthContext, previewId: string) => Promise<ClaimUpsertSaved>;
   approveCatalogClaim: (ctx: McpAuthContext, input: ClaimApproveInput) => Promise<ClaimApproveSaved>;
   logCatalogClaimUses: (ctx: McpAuthContext, input: ClaimUseInput) => Promise<unknown>;
+  setThinkingClaimLinks: (
+    ctx: McpAuthContext,
+    input: { target: "angle" | "master"; target_id: string; codes: string[] },
+  ) => Promise<{ claims: ThinkingClaim[]; unknown_codes: string[] }>;
+  thinkingChainClaims: (
+    ctx: McpAuthContext,
+    input: { idea_id?: string; execution_id?: string },
+  ) => Promise<{ idea_id: string; angle_id: string; master_thought_id: string | null; claims: ThinkingClaim[] }>;
   previewFootageSceneBatch: (
     ctx: McpAuthContext,
     input: FootageSceneBatchInput,

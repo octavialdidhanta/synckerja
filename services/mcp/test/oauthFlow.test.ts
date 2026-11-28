@@ -395,6 +395,8 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
       throw new Error("not used");
     },
     logCatalogClaimUses: async () => ({ logged: 0 }),
+    setThinkingClaimLinks: async () => ({ claims: [], unknown_codes: [] }),
+    thinkingChainClaims: async () => ({ idea_id: "i", angle_id: "a", master_thought_id: null, claims: [] }),
     previewFootageSceneBatch: async () => { throw new Error("unused"); },
     applyFootageSceneBatch: async () => { throw new Error("unused"); },
     previewFootageUsage: async () => { throw new Error("unused"); },
