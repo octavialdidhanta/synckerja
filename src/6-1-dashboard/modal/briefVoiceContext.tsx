@@ -10,7 +10,7 @@ import { Switch } from "@/shared/components/ui/switch";
 import { voiceModelSupportsAudioTags } from "../../../supabase/functions/_shared/voiceAudioTags.ts";
 import { cn } from "@/shared/lib/utils";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { isGeminiSpendCapMessage, readEdgeFunctionError } from "@/shared/ai/geminiSpendCap";
+import { isGeminiSpendCapMessage, presentElevenLabsCredit, readEdgeFunctionError } from "@/shared/ai/geminiSpendCap";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
@@ -60,6 +60,8 @@ const BriefVoiceContext = createContext<BriefVoiceContextValue | null>(null);
 function notifyVoice(kind: "success" | "error", message: string) {
   const text = message.replace(/\s+/g, " ").trim();
   if (!text) return;
+  // Spent ElevenLabs credits get the shared billing dialog (same as Gemini), not a toast that disappears.
+  if (kind === "error" && presentElevenLabsCredit(text)) return;
   toast[kind](text, {
     position: "top-center",
     duration: kind === "error" ? 3600 : 2200,

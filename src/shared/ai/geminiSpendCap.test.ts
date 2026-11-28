@@ -45,3 +45,19 @@ describe("gemini spend cap", () => {
     expect(geminiSpendCapDialogOpen()).toBe(true);
   });
 });
+
+describe("elevenlabs credit notice", () => {
+  afterEach(() => {
+    closeGeminiSpendCapDialog();
+  });
+
+  it("opens the shared billing dialog for the generate-brief-voice credit message only", async () => {
+    const { presentElevenLabsCredit } = await import("@/shared/ai/geminiSpendCap");
+    expect(presentElevenLabsCredit("ElevenLabs menolak permintaan (500).")).toBe(false);
+    expect(geminiSpendCapDialogOpen()).toBe(false);
+    expect(
+      presentElevenLabsCredit("Kredit ElevenLabs habis, jadi VO belum bisa dibuat. Isi kredit di https://elevenlabs.io/app/subscription, lalu coba lagi."),
+    ).toBe(true);
+    expect(geminiBillingNotice()).toBe("elevenlabs");
+  });
+});

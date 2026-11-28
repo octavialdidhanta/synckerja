@@ -4,7 +4,16 @@ export const GEMINI_PREPAID_URL = "https://ai.studio/projects";
 const SPEND_CAP_NEEDLE = "monthly spending cap";
 const PREPAID_NEEDLE = "prepayment credits are depleted";
 
-export type GeminiBillingNotice = "spend_cap" | "prepaid";
+/** ElevenLabs billing page (generate-brief-voice answers code voice_credit_exhausted when the balance is spent). */
+export const ELEVENLABS_BILLING_URL = "https://elevenlabs.io/app/subscription";
+const ELEVENLABS_CREDIT_NEEDLE = "kredit elevenlabs habis";
+
+/** One shared billing dialog: Gemini spend cap or prepaid credits, and ElevenLabs credits for voice over. */
+export type GeminiBillingNotice = "spend_cap" | "prepaid" | "elevenlabs";
+
+export function isElevenLabsCreditMessage(text: string | null | undefined): boolean {
+  return typeof text === "string" && text.toLowerCase().includes(ELEVENLABS_CREDIT_NEEDLE);
+}
 
 export function isGeminiSpendCapMessage(text: string | null | undefined): boolean {
   return typeof text === "string" && text.toLowerCase().includes(SPEND_CAP_NEEDLE);
@@ -80,6 +89,13 @@ export function closeGeminiSpendCapDialog(): void {
   if (!notice) return;
   notice = null;
   for (const listener of listeners) listener(false);
+}
+
+/** Opens the shared dialog when ElevenLabs refuses a voice over because the organization's credits are spent. */
+export function presentElevenLabsCredit(text: string | null | undefined): boolean {
+  if (!isElevenLabsCreditMessage(text)) return false;
+  openGeminiBillingNotice("elevenlabs");
+  return true;
 }
 
 /** Opens the shared dialog when Google blocks the request for spend cap or depleted prepayment credits. */
