@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ExecutionScriptPanel } from "@/thinking-lab/section/ExecutionScriptPanel";
 import type { ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
 import type { VoiceOverScript } from "@/thinking-lab/execution/script";
+vi.mock("@/thinking-lab/claims/ScriptClaimWarning", () => ({ ScriptClaimWarning: () => null }));
 
 vi.mock("@/shared/i18n/useAppTranslation", () => ({
   useAppTranslation: () => ({

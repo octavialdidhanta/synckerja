@@ -404,6 +404,7 @@ export function ExecutionScriptPanel({
             <>
               <LockedChoices script={script} />
               <PostPack title={script.title} caption={script.caption} />
+              <ScriptClaimWarning script={script} />
               <button type="button" className="flex items-center gap-2 text-sm font-medium" onClick={() => setAssetsOpen((current) => !current)}>
                 <ChevronRight className={cn("h-4 w-4 transition-transform", assetsOpen && "rotate-90")} aria-hidden />
                 {t("thinkingLab.execution.assets", "Asset list")}
