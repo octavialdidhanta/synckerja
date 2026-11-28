@@ -491,6 +491,11 @@ const SettingsRouteElement = lazy(() =>
     default: m.SettingsRouteElement,
   })),
 );
+const StorageSettingsRouteElement = lazy(() =>
+  import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({
+    default: m.StorageSettingsRouteElement,
+  })),
+);
 const SettingsIndexRouteElement = lazy(() =>
   import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({
     default: m.SettingsIndexRouteElement,
@@ -1094,6 +1099,7 @@ function AppRoutes() {
                 <Route index element={<SettingsIndexRouteElement />} />
                 <Route path="profile" element={<SettingsProfileRouteElement />} />
                 <Route path="security" element={<SecuritySettingsRouteElement />} />
+                <Route path="storage" element={<StorageSettingsRouteElement />} />
               </Route>
               <Route path="/settings/xendit" element={<Navigate to="/xendit/connect" replace />} />
               <Route path="/incomes/xendit" element={<Navigate to="/xendit/connect" replace />} />
@@ -4075,6 +4081,7 @@ const App = () => (
                           <Route index element={<SettingsIndexRouteElement />} />
                           <Route path="profile" element={<SettingsProfileRouteElement />} />
                           <Route path="security" element={<SecuritySettingsRouteElement />} />
+                          <Route path="storage" element={<StorageSettingsRouteElement />} />
                         </Route>
                         <Route path="/settings/xendit" element={<Navigate to="/xendit/connect" replace />} />
                         <Route path="/incomes/xendit" element={<Navigate to="/xendit/connect" replace />} />

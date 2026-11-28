@@ -19,6 +19,9 @@ const DesktopSettingsPage = lazy(() => import("@/1-home").then((m) => ({ default
 const DesktopProfileSettings = lazy(() =>
   import("@/1-home/settings").then((m) => ({ default: m.ProfileSettings })),
 );
+const DesktopStorageSettings = lazy(() =>
+  import("@/1-home/settings").then((m) => ({ default: m.StorageSettings })),
+);
 const DesktopSecuritySettings = lazy(() =>
   import("@/1-home/settings").then((m) => ({ default: m.SecuritySettings })),
 );
@@ -139,6 +142,15 @@ export function SecuritySettingsRouteElement() {
   return (
     <MobileParitySuspense>
       <DesktopSecuritySettings />
+    </MobileParitySuspense>
+  );
+}
+
+/** `/settings/storage`: organization storage vs quota, for self-service and sales tenants alike. */
+export function StorageSettingsRouteElement() {
+  return (
+    <MobileParitySuspense>
+      <DesktopStorageSettings />
     </MobileParitySuspense>
   );
 }

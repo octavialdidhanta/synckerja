@@ -10198,6 +10198,7 @@ export const idTranslations: TranslationDictionary = {
   "settings.page.subtitle": "Kelola akun dan preferensi aplikasi Anda",
   "settings.tabs.profile": "Profil",
   "settings.tabs.security": "Keamanan",
+  "settings.tabs.storage": "Penyimpanan",
   "settings.openFullSettings": "Buka Pengaturan",
   "settings.mobile.backToProfile": "Kembali ke Profil",
   "settings.mobile.securityTitle": "Keamanan",

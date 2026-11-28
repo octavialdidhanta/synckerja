@@ -61,7 +61,7 @@ export function StorageQuotaBanner({ className = "" }: { className?: string }) {
         )}
       </p>
       <Link
-        to="/subscription/overview"
+        to="/settings/storage"
         className={`shrink-0 rounded-md px-3 py-1 font-medium text-white ${full ? "bg-red-600 hover:bg-red-700" : "bg-amber-600 hover:bg-amber-700"}`}
       >
         Lihat pemakaian
