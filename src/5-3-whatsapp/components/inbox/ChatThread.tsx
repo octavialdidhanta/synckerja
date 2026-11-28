@@ -84,6 +84,7 @@ import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useOmnichannelOutboundEntitlement } from '@/5-3-whatsapp/hooks/useOmnichannelOutboundEntitlement';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
+import { OUTBOUND_SIGN_SECONDS, signWhatsAppMediaPath } from '@/5-3-whatsapp/lib/whatsappMediaSigned';
 import {
   isAssignedToOtherAgent,
   isConversationUnassigned,
@@ -2028,8 +2029,10 @@ export function ChatThread({
           upsert: false,
         });
         if (uploadError) throw new Error(uploadError.message);
-        const { data: urlData } = supabase.storage.from(WHATSAPP_MEDIA_BUCKET).getPublicUrl(storagePath);
-        const publicUrl = urlData.publicUrl;
+        // Signed link (bucket is going private): Meta downloads the file from it when the message is sent.
+        // The stored media_url is re-signed by the inbox on every load (whatsappMediaSigned).
+        const signedUrl = await signWhatsAppMediaPath(storagePath, OUTBOUND_SIGN_SECONDS);
+        const publicUrl = signedUrl ?? supabase.storage.from(WHATSAPP_MEDIA_BUCKET).getPublicUrl(storagePath).data.publicUrl;
         setOptimisticMedia((prev) => (prev ? { ...prev, media_url: publicUrl } : null));
         if (isInstagramConversation) {
           await sendInstagram({

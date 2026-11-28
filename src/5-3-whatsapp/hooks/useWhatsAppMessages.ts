@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { signWhatsAppMediaRows } from '../lib/whatsappMediaSigned';
 import type { WhatsAppMessage } from '../types';
 
 const QUERY_KEY = ['whatsapp-messages'] as const;
@@ -88,7 +89,7 @@ export function useWhatsAppMessages(conversationId: string | null) {
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true });
       if (error) throw error;
-      return (data ?? []) as WhatsAppMessage[];
+      return signWhatsAppMediaRows((data ?? []) as WhatsAppMessage[]);
     },
     refetchInterval: 15000,
     refetchOnWindowFocus: false,
