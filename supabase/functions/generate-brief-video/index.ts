@@ -1,6 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { geminiBillingProblem } from "../_shared/geminiBilling.ts";
 import { isUsageUuid, officialTokenCount, recordContentUsage, settleContentUsage } from "../_shared/contentUsage.ts";
 
 const corsHeaders: Record<string, string> = {
@@ -805,7 +806,8 @@ async function finishGeminiVideo(
   const interactionId = String((createdBody as { id?: string }).id ?? "");
   if (!created.ok || !interactionId) {
     const message = geminiError(createdBody) || "Gemini menolak permintaan video";
-    return input.json({ error: message }, created.status || 502);
+    const billing = geminiBillingProblem(message);
+    return input.json(billing ? { error: message, code: billing.code } : { error: message }, created.status || 502);
   }
 
   const { data: saved, error: saveError } = await supabaseAdmin
@@ -1190,6 +1192,11 @@ function fileState(meta: unknown): string {
 }
 
 function geminiError(body: unknown): string {
+  const message = rawGeminiError(body);
+  return geminiBillingProblem(message)?.message ?? message;
+}
+
+function rawGeminiError(body: unknown): string {
   if (!body || typeof body !== "object") return "";
   const record = body as { error?: { message?: string } | string; message?: string };
   if (typeof record.error === "string") return record.error;

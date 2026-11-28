@@ -370,7 +370,12 @@ export async function askJudge(
   }
   const text = await response.text();
   const lowered = text.toLowerCase();
-  if (lowered.includes("monthly spending cap") || lowered.includes("prepayment credits are depleted")) {
+  if (
+    lowered.includes("monthly spending cap") ||
+    lowered.includes("prepayment credits are depleted") ||
+    lowered.includes("gemini_spend_cap") ||
+    lowered.includes("gemini_prepaid")
+  ) {
     throw new Error("spend_cap");
   }
   if (response.status === 429) throw new Error("rate_limited");
