@@ -7,6 +7,8 @@ import {
 } from '@/8-2-DailyTask/lib/taskStepDescription';
 import { TextWithAutoLinks } from '@/8-2-DailyTask/components/TextWithAutoLinks';
 import type { ImageLoupeState } from '@/8-2-DailyTask/components/TaskStepDescriptionImageLoupePanel';
+import { useSignedStorageText } from '@/shared/storage/signedStorageLinks';
+import { TASK_FILES_BUCKET } from '@/8-2-DailyTask/services/taskStepDescriptionImageService';
 
 type TaskStepDescriptionViewProps = {
   value: string | null | undefined;
@@ -36,11 +38,13 @@ function readLoupeState(img: HTMLImageElement, clientX: number, clientY: number)
 }
 
 export function TaskStepDescriptionView({
-  value,
+  value: storedValue,
   className,
   enableImageLoupe = false,
   onImageLoupeChange,
 }: TaskStepDescriptionViewProps) {
+  // Images in task-files are shown through signed links (bucket is private).
+  const value = useSignedStorageText(TASK_FILES_BUCKET, storedValue);
   const containerRef = useRef<HTMLDivElement>(null);
   const onLoupeChangeRef = useRef(onImageLoupeChange);
   const activeImageRef = useRef<HTMLImageElement | null>(null);

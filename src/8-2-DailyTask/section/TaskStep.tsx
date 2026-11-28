@@ -12,6 +12,8 @@ import { StepHistoryModal } from './StepHistoryModal';
 import { ModalViewSubSteps } from './ModalViewSubSteps';
 import { ModalAddTaskStep } from './ModalAddTaskStep';
 import { TaskStepDescriptionView } from '@/8-2-DailyTask/components/TaskStepDescriptionView';
+import { signStorageUrl } from '@/shared/storage/signedStorageLinks';
+import { TASK_FILES_BUCKET } from '@/8-2-DailyTask/services/taskStepDescriptionImageService';
 import type { ImageLoupeState } from '@/8-2-DailyTask/components/TaskStepDescriptionImageLoupePanel';
 import { plainTextPreview } from '@/8-2-DailyTask/lib/taskStepDescription';
 import {
@@ -50,13 +52,18 @@ import { isDueOnLocalToday, isOverdueIncomplete } from '@/shared/hooks/daily-tas
 const STEP_FILE_ACCEPT =
   '.pdf,.doc,.docx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif,.zip,.rar,.wav,.mp3,.m4a,.aac,.ogg,.flac,.mp4,.avi,.mov,.wmv,.flv,.webm,.mkv,.m4v';
 
-function openStepAttachment(fileUrl: string, filename: string) {
+/** task-files is private: open a signed link. The tab opens first so the popup blocker allows it. */
+async function openStepAttachment(fileUrl: string, filename: string) {
+  const tab = window.open('', '_blank');
+  if (tab) tab.opener = null;
+  const url = await signStorageUrl(TASK_FILES_BUCKET, fileUrl);
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   const href =
     ext === 'ppt' || ext === 'pptx'
-      ? `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fileUrl)}`
-      : fileUrl;
-  window.open(href, '_blank', 'noopener,noreferrer');
+      ? `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`
+      : url;
+  if (tab) tab.location.href = href;
+  else window.open(href, '_blank', 'noopener,noreferrer');
 }
 
 /** Smooth transition when step settles after reorder drop */
@@ -1554,7 +1561,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => openStepAttachment(file.file_url, file.filename)}
+                          onClick={() => void openStepAttachment(file.file_url, file.filename)}
                           className="h-6 w-6 p-0 text-primary hover:text-primary/90"
                           title="View file"
                         >
@@ -1623,7 +1630,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => openStepAttachment(file.file_url, file.filename)}
+                    onClick={() => void openStepAttachment(file.file_url, file.filename)}
                     className="h-6 w-6 p-0 text-primary hover:text-primary/90"
                     title="View file"
                   >

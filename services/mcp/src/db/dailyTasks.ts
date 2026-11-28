@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { signTaskFileLinks } from "./taskFileLinks";
 
 type Session = { userId: string; organizationId: string };
 
@@ -239,10 +240,12 @@ export function linkTaskObjective(
 }
 
 export function getTask(admin: SupabaseClient, ctx: Session, taskId: string): Promise<TaskDetail> {
-  return callRpcOne<TaskDetail>(admin, "mcp_get_task", { ...sessionArgs(ctx), p_task_id: taskId }).then((row) => ({
-    ...row,
-    steps: Array.isArray(row.steps) ? row.steps : [],
-  }));
+  return callRpcOne<TaskDetail>(admin, "mcp_get_task", { ...sessionArgs(ctx), p_task_id: taskId })
+    .then((row) => ({
+      ...row,
+      steps: Array.isArray(row.steps) ? row.steps : [],
+    }))
+    .then((task) => signTaskFileLinks(admin, task));
 }
 
 export function deleteTask(admin: SupabaseClient, ctx: Session, id: string): Promise<{ id: string }> {
