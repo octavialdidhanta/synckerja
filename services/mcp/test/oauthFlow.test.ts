@@ -394,6 +394,7 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     approveCatalogClaim: async () => {
       throw new Error("not used");
     },
+    logCatalogClaimUses: async () => ({ logged: 0 }),
     previewFootageSceneBatch: async () => { throw new Error("unused"); },
     applyFootageSceneBatch: async () => { throw new Error("unused"); },
     previewFootageUsage: async () => { throw new Error("unused"); },

@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z, type ZodRawShape, type ZodTypeAny } from "zod";
 import { AuthzError } from "../authz/errors";
-import { briefTextParts, checkBriefClaims, type BriefTextPart } from "../tools/content/claimCheck";
+import { briefTextParts, checkBriefClaims, shotlistVisualParts, type BriefTextPart, type RegistryClaim } from "../tools/content/claimCheck";
 import type { RenderDraftRow, RenderDraftSaved, RenderJobDetail, RenderJobPreview, RenderJobSaved, RenderJobsList, RenderPlanStatus } from "../db/render";
 import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
@@ -895,6 +895,7 @@ export type McpReadDeps = {
     input: import("../db/claims").ClaimUpsertInput,
   ) => Promise<import("../db/claims").ClaimUpsertPreview>;
   applyCatalogClaimUpsert: (ctx: McpAuthContext, previewId: string) => Promise<import("../db/claims").ClaimUpsertSaved>;
+  logCatalogClaimUses: (ctx: McpAuthContext, input: import("../db/claims").ClaimUseInput) => Promise<unknown>;
   approveCatalogClaim: (
     ctx: McpAuthContext,
     input: import("../db/claims").ClaimApproveInput,
@@ -1066,6 +1067,7 @@ async function safeClaimCheck(ctx: McpAuthContext, parts: BriefTextPart[], deps:
   if (!parts.length) return null;
   try {
     return await checkBriefClaims(ctx, parts, {
+      listCatalogClaims: async (c) => (await deps.listCatalogClaims(c, {})) as { claims: RegistryClaim[] },
       listCatalogProducts: deps.listCatalogProducts,
       getCatalogProduct: deps.getCatalogProduct,
       listProductKnowledge: deps.listProductKnowledge,
@@ -1074,6 +1076,41 @@ async function safeClaimCheck(ctx: McpAuthContext, parts: BriefTextPart[], deps:
     });
   } catch {
     return null;
+  }
+}
+
+/** Screen text of a render spec: each label or hook on its own, all subtitles together. */
+export function renderTextParts(spec: unknown): BriefTextPart[] {
+  const texts = (spec as { texts?: Array<{ text?: unknown; start?: unknown; style?: unknown }> } | null)?.texts;
+  if (!Array.isArray(texts)) return [];
+  const parts: BriefTextPart[] = [];
+  const subs: string[] = [];
+  for (const t of texts) {
+    const text = typeof t.text === "string" ? t.text.trim() : "";
+    if (!text) continue;
+    const style = typeof t.style === "string" ? t.style : "sub";
+    if (style === "sub") subs.push(text);
+    else parts.push({ where: `teks layar ${style}${typeof t.start === "number" ? ` ${t.start}s` : ""}`, text });
+  }
+  if (subs.length) parts.push({ where: "subtitle", text: subs.join("\n") });
+  return parts;
+}
+
+/** Jejak pemakaian: remember which Daftar Klaim claims a saved content uses. Never fails the save. */
+async function logClaimUses(
+  ctx: McpAuthContext,
+  deps: HandlerDeps,
+  parts: BriefTextPart[],
+  use: { module: "brief" | "video" | "ads" | "inbox" | "thinking_lab" | "ai_employee"; refId: string; label: string },
+): Promise<string[]> {
+  const check = await safeClaimCheck(ctx, parts, deps);
+  const codes = check?.codes_used ?? [];
+  if (!codes.length) return [];
+  try {
+    await deps.logCatalogClaimUses(ctx, { codes, module: use.module, ref_id: use.refId, label: use.label });
+    return codes;
+  } catch {
+    return [];
   }
 }
 
@@ -1719,7 +1756,11 @@ async function runTool(
         return { error: "shotlist_check_failed", shotlist_check: shotlistCheck, next_step: SHOTLIST_CHECK_NEXT_STEP };
       }
       const shotlist = rawShotlist ? normalizeShotlistDocument(rawShotlist) : undefined;
-      const claimCheck = await safeClaimCheck(ctx, createBriefTextParts(input), deps);
+      const claimCheck = await safeClaimCheck(
+        ctx,
+        [...createBriefTextParts(input), ...shotlistVisualParts(shotlist?.shots)],
+        deps,
+      );
       const signed = await deps.signContentConfirmation(ctx, "content.briefs.create", {
         input,
         shotlist: shotlist ?? null,
@@ -1745,9 +1786,15 @@ async function runTool(
         const verified = await deps.verifyContentConfirmation(ctx, "content.briefs.create", parsed.data.confirm_token);
         const { input, shotlist } = briefCreateFromConfirmation(verified.payload);
         const saved = await deps.createContentBriefConfirmed(ctx, briefWriteFrom(input), shotlist, verified.confirmId);
+        const claimsUsed = await logClaimUses(ctx, deps, [...createBriefTextParts(input), ...shotlistVisualParts(shotlist?.shots)], {
+          module: "brief",
+          refId: saved.id,
+          label: saved.title,
+        });
         return {
           saved: true,
           ...saved,
+          ...(claimsUsed.length ? { claims_used: claimsUsed } : {}),
           next_step:
             "Saved. Generate the voice over now with content.briefs.voice.generate (id, all_rows: true). "
             + "Ask the user to approve the brief in Office now: an unapproved render waits on the laptop and goes up to the plan by itself once the brief is approved.",
@@ -1809,7 +1856,16 @@ async function runTool(
       );
       const write = briefUpdateFromConfirmation(verified.payload);
       const saved = await deps.confirmContentBrief(ctx, write, verified.confirmId);
-      return { saved: true, ...saved };
+      const claimsUsed = await logClaimUses(
+        ctx,
+        deps,
+        [
+          { where: "brief", text: write.brief },
+          ...(write.caption.trim() ? [{ where: "caption", text: write.caption }] : []),
+        ],
+        { module: "brief", refId: write.planId, label: await deps.getContentBrief(ctx, write.planId).then((b) => b.title, () => "") },
+      );
+      return { saved: true, ...saved, ...(claimsUsed.length ? { claims_used: claimsUsed } : {}) };
     }
     case "content.briefs.voice.list":
       return listBriefVoiceResult(ctx, args, deps.listBriefVoiceClips);
@@ -1904,8 +1960,8 @@ async function runTool(
       return previewClipCreateResult(ctx, args, deps.previewFootageClipCreate, deps.signFootageConfirmation);
     case "footage.clips.create":
       return applyClipCreateResult(ctx, args, deps.verifyFootageConfirmation, deps.applyFootageClipCreate);
-    case "render.jobs.draft":
-      return draftRenderJobResult(
+    case "render.jobs.draft": {
+      const draft = await draftRenderJobResult(
         ctx,
         args,
         deps.getCatalogStyle,
@@ -1937,6 +1993,9 @@ async function runTool(
         deps.saveRenderDraft,
         deps.getRenderPlanStatus,
       );
+      const claimCheck = await safeClaimCheck(ctx, renderTextParts((draft as { spec?: unknown }).spec), deps);
+      return claimCheck ? { ...draft, claim_check: claimCheck } : draft;
+    }
     case "render.jobs.create.preview":
       return previewRenderJobResult(
         ctx,
@@ -1947,8 +2006,23 @@ async function runTool(
         (c, fileKey) => lookupRenderFootage(deps, c, fileKey),
         { get: deps.getRenderDraft, update: deps.updateRenderDraft },
       );
-    case "render.jobs.create":
-      return applyRenderJobResult(ctx, args, deps.verifyFootageConfirmation, deps.applyRenderJob);
+    case "render.jobs.create": {
+      const saved = await applyRenderJobResult(ctx, args, deps.verifyFootageConfirmation, deps.applyRenderJob);
+      if (saved.job_id && deps.getRenderJob) {
+        try {
+          const job = await deps.getRenderJob(ctx, { job_id: saved.job_id, plan_id: null });
+          const claimsUsed = await logClaimUses(ctx, deps, renderTextParts(job.spec), {
+            module: "video",
+            refId: job.plan_id ?? job.job_id,
+            label: job.title,
+          });
+          if (claimsUsed.length) return { ...saved, claims_used: claimsUsed };
+        } catch {
+          /* the render is queued; the trace is best effort */
+        }
+      }
+      return saved;
+    }
     case "render.stills.create":
       return createStillsResult(
         ctx,
@@ -1992,8 +2066,13 @@ async function runTool(
       return previewCatalogReferenceUpsertResult(ctx, args, deps.previewCatalogReferenceUpsert, deps.signFootageConfirmation);
     case "catalog.reference.upsert":
       return applyCatalogReferenceUpsertResult(ctx, args, deps.verifyFootageConfirmation, deps.applyCatalogReferenceUpsert);
-    case "catalog.shotlist.upsert.preview":
-      return previewCatalogShotlistUpsertResult(ctx, args, deps.previewCatalogShotJobUpsert, deps.signFootageConfirmation);
+    case "catalog.shotlist.upsert.preview": {
+      const out = await previewCatalogShotlistUpsertResult(ctx, args, deps.previewCatalogShotJobUpsert, deps.signFootageConfirmation);
+      if (out.error) return out;
+      const doc = (args as { document?: { shots?: unknown } } | null)?.document;
+      const claimCheck = await safeClaimCheck(ctx, shotlistVisualParts(doc?.shots), deps);
+      return claimCheck ? { ...out, claim_check: claimCheck } : out;
+    }
     case "catalog.shotlist.upsert":
       return applyCatalogShotlistUpsertResult(ctx, args, deps.verifyFootageConfirmation, deps.applyCatalogShotJobUpsert);
     case "content.plans.update":
@@ -2081,8 +2160,14 @@ async function runTool(
         },
         deps.updateLead,
       );
-    case "content.plans.schedule":
-      return schedulePlanResult(ctx, requiredString(args.id), deps.scheduleContentPlan);
+    case "content.plans.schedule": {
+      const planId = requiredString(args.id);
+      const result = await schedulePlanResult(ctx, planId, deps.scheduleContentPlan);
+      // Last guard before it goes live: the caption's claims against the Daftar Klaim (a warning, never a block).
+      const caption = await deps.getContentBrief(ctx, planId).then((b) => b.caption ?? "", () => "");
+      const claimCheck = caption.trim() ? await safeClaimCheck(ctx, [{ where: "caption", text: caption }], deps) : null;
+      return claimCheck && claimCheck.needs_attention ? { ...result, claim_check: claimCheck } : result;
+    }
     case "leadmagnet.draft.read":
       return draftReadResult(ctx, optionalString(args.campaign_id), deps.listLeadMagnetDrafts);
     case "leadmagnet.delivery.attach":

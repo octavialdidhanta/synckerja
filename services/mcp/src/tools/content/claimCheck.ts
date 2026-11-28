@@ -1,32 +1,79 @@
 /**
- * Claim check for briefs (poka-yoke): every factual claim in the voice over, the on-screen text (element) and the
- * caption is looked up in the organization's catalog product fields and Product Knowledge. A claim without a source
- * is a warning, never a block, so a creative line can be written first and its source filled in afterwards.
+ * Claim check (poka-yoke): every factual claim in the voice over, the on-screen text (element), the caption, a render's
+ * screen text or a shot prompt is looked up first in the Daftar Klaim (product_claims), then in the catalog product
+ * fields and Product Knowledge. Only an approved claim in the Daftar Klaim counts as proven. Anything else is a
+ * warning, never a block, so a creative line can be written first and its proof filled in afterwards.
  */
 import type { McpAuthContext } from "../../authz/context";
+import {
+  claimWordMatcher,
+  claimsIn,
+  gayaClaimWords,
+  matchRegistry,
+  norm,
+  scopeLabel,
+  sentences,
+  supported,
+  visualClaimsIn,
+  type RegistryClaim,
+} from "../../../../../src/shared/claims/claimMatch";
 
-export type BriefTextPart = { where: string; text: string };
+export {
+  claimScopeFits,
+  claimWordMatcher,
+  claimsIn,
+  gayaClaimWords,
+  matchRegistry,
+  supported,
+  UNIVERSAL_CLAIM_WORDS,
+  visualClaimsIn,
+  type RegistryClaim,
+} from "../../../../../src/shared/claims/claimMatch";
+
+/** visual: the text describes what is seen (a shot prompt, often in English), checked with visualClaimsIn. */
+export type BriefTextPart = { where: string; text: string; visual?: boolean };
+
+/**
+ * terdaftar: an approved claim in the Daftar Klaim backs it (code KLnn).
+ * perlu_bukti: the Daftar Klaim has it, but it is not approved yet.
+ * ditolak: the Daftar Klaim has it as rejected: do not state it.
+ * sumber_katalog: not in the Daftar Klaim, but the catalog or Product Knowledge says it (offer to add it).
+ * tidak_terdaftar: no source anywhere.
+ */
+export type ClaimStatus = "terdaftar" | "perlu_bukti" | "ditolak" | "sumber_katalog" | "tidak_terdaftar";
 
 export type ClaimFinding = {
   where: string;
   text: string;
   /** The words that make it a claim, for example "kambing muda" or "2-3 orang". */
   claim: string;
-  status: "ada_sumber" | "tanpa_sumber";
+  status: ClaimStatus;
+  /** Daftar Klaim code (KL01...) when the registry has it. */
+  code: string | null;
   source: string | null;
+  /** A registry claim that says it but applies to another product or location. */
+  other_scope?: string;
 };
 
 export type ClaimCheck = {
   industry: string | null;
   checked: number;
+  /** Findings that are not backed by an approved claim. */
+  needs_attention: number;
+  /** tidak_terdaftar + ditolak: nothing allows stating these. */
   without_source: number;
+  /** Codes of the Daftar Klaim claims this text uses (approved or waiting for proof). */
+  codes_used: string[];
   sources: string[];
   findings: ClaimFinding[];
   note: string | null;
   how_to_read: string;
 };
 
+
 export type ClaimCorpusDeps = {
+  /** The Daftar Klaim: the primary source. */
+  listCatalogClaims?: (ctx: McpAuthContext) => Promise<{ claims: RegistryClaim[] }>;
   listCatalogProducts?: (ctx: McpAuthContext) => Promise<{ products: Array<{ id: string; name: string; aliases: string[] }> }>;
   getCatalogProduct?: (
     ctx: McpAuthContext,
@@ -43,120 +90,22 @@ export type ClaimCorpusDeps = {
 };
 
 export const CLAIM_CHECK_HOW_TO_READ =
-  "claim_check lists the factual claims it can spot by pattern (numbers with a unit, prices, rank and guarantee words, the organization's industry and Gaya baku claim words). " +
-  "It matches words, not meaning: read the brief yourself as a second layer and treat any other factual statement the same way (check it with catalog.product.get / product_knowledge.list). " +
-  "claim_check lists the factual claims in the voice over, on-screen text and caption. tanpa_sumber means the claim is not in the catalog product fields or Product Knowledge: " +
-  "before the user says yes, show each one as a warning with where it is, then either rewrite it to what the catalog says, drop it, or ask the user whether it is true — " +
-  "a fact the user confirms belongs in Product Knowledge (Office) so the next brief passes. This never blocks saving.";
-
-const norm = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[–—]/g, "-")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const UNIT =
-  "jam|menit|detik|hari|minggu|bulan|tahun|kg|kilo|gram|gr|ons|porsi|orang|pax|potong|tusuk|biji|buah|pcs|unit|mangkuk|piring|ml|liter|%|persen|derajat|x|kali|mah|watt|gb|tb|inch|inci|hz|m2|meter|km|cm|mm|lantai|kamar|sesi|treatment|pengguna|user|pelanggan|customer";
-const NUMBER_CLAIM = new RegExp(
-  `(\\d+(?:[.,]\\d+)?(?:\\s*(?:-|sampai|s/d|hingga)\\s*\\d+(?:[.,]\\d+)?)?)\\s*(${UNIT})(?![a-z])`,
-  "gi",
-);
-const PRICE_CLAIM = /(rp\.?\s*\d[\d.,]*(?:\s*(?:rb|ribu|k|jt|juta)\b)?|\d+(?:[.,]\d+)?\s*(?:rb|ribu|k|jt|juta)\b)/gi;
-
-/**
- * Universal claim words: rank, superlative and guarantee language that states a fact in any industry.
- * Industry words come from the organization's catalog industry template, extra words from Gaya baku ("Kata klaim: ...").
- */
-export const UNIVERSAL_CLAIM_WORDS = [
-  "paling", "nomor 1", "no 1", "no. 1", "#1", "satu-satunya", "pertama", "best seller", "bestseller", "terlaris",
-  "terbaik", "termurah", "tercepat", "terlengkap", "terpercaya", "teraman", "terawet", "terkuat", "terbesar", "terenak",
-  "termewah", "terbaru", "terpopuler", "terdekat", "terhemat", "terfavorit", "favorit", "legendaris", "juara", "rating",
-  "bintang 5", "dijamin", "jaminan", "garansi", "terbukti", "pasti", "permanen", "selamanya", "tanpa efek samping",
-  "aman", "asli", "original", "resmi", "bersertifikat", "sertifikat", "halal", "sni", "izin", "premium", "berkualitas",
-  "kualitas", "gratis",
-];
-
-/** Calls to action and everyday words that look like claims but are not about the product. */
-const NOT_A_CLAIM = /(klik|chat|whatsapp|\bwa\b|pesan duluan|datang|mampir|cobain|yuk|ayo)/i;
-
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-/** Claim words that describe the word after them ("paling enak"); the others take the word before ("kambing muda"). */
-const FORWARD = new Set(["paling", "satu-satunya", "pertama", "nomor 1", "no 1", "no. 1", "#1", "dijamin", "garansi",
-  "jaminan", "terbukti", "dimasak", "direbus", "dibakar", "dipanggang", "dimarinasi", "diungkep", "diasap", "disangrai",
-  "resep rahasia", "menghilangkan", "memutihkan", "mencerahkan", "dekat"]);
-const STOP = new Set(["yang", "di", "dan", "ini", "itu", "udah", "sudah", "lebih", "pakai", "pake", "dengan", "nya", "kita", "kami",
-  "sangat", "banget", "super", "jadi", "karena", "dari", "ke", "juga", "masih", "tetap", "tetep", "bener", "benar", "emang",
-  "memang", "the", "a", "dulu", "lagi", "aja", "saja", "sih", "kok", "dong", "deh", "loh", "nih", "tuh", "biar", "supaya", "untuk",
-  "buat", "atau", "tapi", "pasti", "selalu", "semua", "bisa", "dapat", "akan", "cuma", "hanya", "lho"]);
-
-/** Claim-word matcher for one organization: universal + industry + Gaya baku words, longest first. */
-export function claimWordMatcher(extra: string[] = []): RegExp {
-  const words = [...new Set([...UNIVERSAL_CLAIM_WORDS, ...extra].map((w) => norm(w)).filter((w) => w.length >= 2))].sort(
-    (a, b) => b.length - a.length,
-  );
-  return new RegExp(`(?:^|[^a-z0-9])(?:([a-z]+) )?(${words.map(escapeRe).join("|")})(?: ([a-z]+))?(?![a-z0-9])`, "gi");
-}
-
-/** "Kata klaim: a, b, c" lines in any Gaya baku box (an organization's own claim words). */
-export function gayaClaimWords(blocks: Record<string, string | null | undefined> | null | undefined): string[] {
-  const out: string[] = [];
-  for (const text of Object.values(blocks ?? {})) {
-    for (const line of String(text ?? "").split("\n")) {
-      const m = /kata\s+klaim\s*[:=-]\s*(.+)$/i.exec(line);
-      if (m) out.push(...m[1]!.split(/[,;]/).map((w) => w.trim().replace(/^["'“”]+|["'“”.]+$/g, "")).filter(Boolean));
-    }
-  }
-  return out;
-}
-
-function sentences(text: string): string[] {
-  return text
-    .split(/(?<=[.!?\n])\s+|\n+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-/** The claims of one sentence (deduplicated), each as the short phrase that carries it. */
-export function claimsIn(sentence: string, matcher: RegExp = claimWordMatcher()): string[] {
-  const s = norm(sentence);
-  const out = new Set<string>();
-  for (const m of s.matchAll(NUMBER_CLAIM)) out.add(`${m[1]!.replace(/\s+/g, "")} ${m[2]}`);
-  for (const m of s.matchAll(PRICE_CLAIM)) out.add(m[1]!.trim());
-  for (const m of s.matchAll(new RegExp(matcher.source, "gi"))) {
-    const [, before, word, after] = m;
-    const w = word!.toLowerCase();
-    const pair = FORWARD.has(w) ? (after && !STOP.has(after) ? `${w} ${after}` : w) : before && !STOP.has(before) ? `${before} ${w}` : w;
-    if (NOT_A_CLAIM.test(pair)) continue;
-    out.add(pair);
-  }
-  return [...out];
-}
-
-/** Is the claim written somewhere in the corpus (same phrase, or for a number claim the same numbers and unit)? */
-export function supported(claim: string, corpus: string): boolean {
-  const c = norm(claim);
-  if (corpus.includes(c)) return true;
-  const num = /^([\d.,]+)(?:-([\d.,]+))?\s*(\S+)$/.exec(c.replace(/\s*(?:sampai|s\/d|hingga)\s*/, "-"));
-  if (num) {
-    const [, a, b, unit] = num;
-    const re = new RegExp(`${escapeRe(a!)}\\s*(?:-|sampai|s/d|hingga)?\\s*${b ? escapeRe(b) : ""}\\s*${escapeRe(unit!)}`);
-    return re.test(corpus);
-  }
-  // "kambing muda", "paling enak": every word of the claim must be in the corpus as a whole word.
-  return c.split(" ").every((w) => new RegExp(`(?:^|[^a-z0-9])${escapeRe(w)}(?![a-z0-9])`).test(corpus));
-}
+  "claim_check lists the factual claims it can spot by pattern (numbers with a unit, prices, rank and guarantee words, the organization's industry and Gaya baku claim words) " +
+  "and looks each one up in the Daftar Klaim first (catalog.claims.list), then in the catalog and Product Knowledge. It matches words, not meaning: read the text yourself as a second layer " +
+  "and treat any other factual statement the same way. Status: terdaftar = an approved claim (code) backs it, fine to state; perlu_bukti = registered but not approved yet; " +
+  "ditolak = the owner rejected it, remove it; sumber_katalog = the catalog or Product Knowledge says it but it is not in the Daftar Klaim; tidak_terdaftar = no source. " +
+  "Before the user says yes, show every finding that is not terdaftar as a warning with where it is, then rewrite it to an approved claim, drop it, or ask the user whether it is true. " +
+  "A fact the user confirms goes to the Daftar Klaim with catalog.claims.upsert.preview (it starts as needs_proof until an owner or admin approves it), not to Product Knowledge. " +
+  "other_scope means a claim with those words exists for another product or location. This never blocks saving.";
 
 /** Build the searchable text: catalog fields of the products the brief names (or all, up to 6) plus Product Knowledge. */
 export async function claimCorpus(
   ctx: McpAuthContext,
   briefText: string,
   deps: ClaimCorpusDeps,
-): Promise<{ corpus: string; sources: string[]; note: string | null }> {
+): Promise<{ corpus: string; sources: string[]; note: string | null; named: string[] }> {
   const parts: string[] = [];
+  let namedIds: string[] = [];
   const sources: string[] = [];
   const notes: string[] = [];
   const text = norm(briefText);
@@ -164,6 +113,7 @@ export async function claimCorpus(
     try {
       const all = (await deps.listCatalogProducts(ctx)).products;
       const named = all.filter((p) => [p.name, ...(p.aliases ?? [])].some((n) => n && text.includes(norm(n))));
+      namedIds = named.map((p) => p.id);
       const pick = (named.length ? named : all).slice(0, 6);
       for (const p of pick) {
         try {
@@ -196,7 +146,7 @@ export async function claimCorpus(
       );
     }
   }
-  return { corpus: parts.join("\n"), sources, note: notes.length ? notes.join("; ") : null };
+  return { corpus: parts.join("\n"), sources, note: notes.length ? notes.join("; ") : null, named: namedIds };
 }
 
 export async function checkBriefClaims(
@@ -204,7 +154,17 @@ export async function checkBriefClaims(
   parts: BriefTextPart[],
   deps: ClaimCorpusDeps,
 ): Promise<ClaimCheck> {
-  const { corpus, sources, note } = await claimCorpus(ctx, parts.map((p) => p.text).join("\n"), deps);
+  const { corpus, sources: corpusSources, note: corpusNote, named } = await claimCorpus(ctx, parts.map((p) => p.text).join("\n"), deps);
+  const notes = corpusNote ? [corpusNote] : [];
+  let registry: RegistryClaim[] = [];
+  if (deps.listCatalogClaims) {
+    try {
+      registry = (await deps.listCatalogClaims(ctx)).claims ?? [];
+    } catch {
+      notes.push("Daftar Klaim tidak terbaca, klaim dicek ke katalog dan Product Knowledge saja");
+    }
+  }
+  const sources = [...(deps.listCatalogClaims ? [`Daftar Klaim (${registry.length})`] : []), ...corpusSources];
   let industry: string | null = null;
   const extra: string[] = [];
   if (deps.getClaimWords) {
@@ -227,31 +187,62 @@ export async function checkBriefClaims(
   const findings: ClaimFinding[] = [];
   const seen = new Set<string>();
   for (const part of parts) {
-    for (const sentence of sentences(part.text)) {
-      for (const claim of claimsIn(sentence, matcher)) {
+    for (const sentence of part.visual ? [part.text.trim()] : sentences(part.text)) {
+      for (const claim of part.visual ? visualClaimsIn(sentence) : claimsIn(sentence, matcher)) {
         const key = `${part.where}|${claim}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        const ok = corpus.length > 0 && supported(claim, corpus);
+        const { hit, otherScope } = matchRegistry(claim, registry, named);
+        if (hit) {
+          findings.push({
+            where: part.where,
+            text: sentence,
+            claim,
+            status: hit.status === "approved" ? "terdaftar" : hit.status === "needs_proof" ? "perlu_bukti" : "ditolak",
+            code: hit.code,
+            source: `Daftar Klaim ${hit.code}: ${hit.text}`,
+          });
+          continue;
+        }
+        const inCatalog = corpus.length > 0 && supported(claim, corpus);
         findings.push({
           where: part.where,
           text: sentence,
           claim,
-          status: ok ? "ada_sumber" : "tanpa_sumber",
-          source: ok ? sources.join(", ") : null,
+          status: inCatalog ? "sumber_katalog" : "tidak_terdaftar",
+          code: null,
+          source: inCatalog ? corpusSources.join(", ") : null,
+          ...(otherScope ? { other_scope: `${otherScope.code} (${scopeLabel(otherScope)}): ${otherScope.text}` } : {}),
         });
       }
     }
   }
+  const order: Record<ClaimStatus, number> = { ditolak: 0, tidak_terdaftar: 1, perlu_bukti: 2, sumber_katalog: 3, terdaftar: 4 };
   return {
     industry,
     checked: findings.length,
-    without_source: findings.filter((f) => f.status === "tanpa_sumber").length,
+    needs_attention: findings.filter((f) => f.status !== "terdaftar").length,
+    without_source: findings.filter((f) => f.status === "tidak_terdaftar" || f.status === "ditolak").length,
+    codes_used: [...new Set(findings.filter((f) => f.status === "terdaftar" || f.status === "perlu_bukti").map((f) => f.code!))].sort(),
     sources,
-    findings: findings.sort((a, b) => (a.status === b.status ? 0 : a.status === "tanpa_sumber" ? -1 : 1)),
-    note,
+    findings: findings.sort((a, b) => order[a.status] - order[b.status]),
+    note: notes.length ? notes.join("; ") : null,
     how_to_read: CLAIM_CHECK_HOW_TO_READ,
   };
+}
+
+/** Shot list shots as visual parts: what each shot shows (action, judul, menu, lokasi). */
+export function shotlistVisualParts(shots: unknown): BriefTextPart[] {
+  if (!Array.isArray(shots)) return [];
+  return shots.flatMap((shot, i) => {
+    const s = (shot ?? {}) as Record<string, unknown>;
+    const text = ["judul", "action", "menu", "lokasi", "area"]
+      .map((k) => (typeof s[k] === "string" ? (s[k] as string) : ""))
+      .filter(Boolean)
+      .join(" | ");
+    if (!text) return [];
+    return [{ where: `shot ${typeof s.id === "string" ? s.id : i + 1} (visual)`, text, visual: true }];
+  });
 }
 
 /** Text parts of a brief write: each storyboard row's vo and element, the voice over and the caption. */

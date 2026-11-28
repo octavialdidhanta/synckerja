@@ -7,6 +7,7 @@ import type {
   ClaimUpsertInput,
   ClaimUpsertPreview,
   ClaimUpsertSaved,
+  ClaimUseInput,
 } from "../db/claims";
 import { cors } from "hono/cors";
 import type { RenderDraftRow, RenderDraftSaved, RenderJobDetail, RenderJobPreview, RenderJobSaved, RenderJobsList, RenderPlanStatus } from "../db/render";
@@ -531,6 +532,7 @@ export type AppDeps = {
   previewCatalogClaimUpsert: (ctx: McpAuthContext, input: ClaimUpsertInput) => Promise<ClaimUpsertPreview>;
   applyCatalogClaimUpsert: (ctx: McpAuthContext, previewId: string) => Promise<ClaimUpsertSaved>;
   approveCatalogClaim: (ctx: McpAuthContext, input: ClaimApproveInput) => Promise<ClaimApproveSaved>;
+  logCatalogClaimUses: (ctx: McpAuthContext, input: ClaimUseInput) => Promise<unknown>;
   previewFootageSceneBatch: (
     ctx: McpAuthContext,
     input: FootageSceneBatchInput,
