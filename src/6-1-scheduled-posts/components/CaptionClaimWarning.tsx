@@ -44,7 +44,17 @@ function useOrgClaimWords(organizationId: string) {
  * Last guard before posting: caption claims that are not backed by an approved claim in the Daftar Klaim.
  * Shows nothing when every claim is approved. Never blocks scheduling.
  */
-export function CaptionClaimWarning({ organizationId, caption }: { organizationId: string; caption: string }) {
+export function CaptionClaimWarning({
+  organizationId,
+  caption,
+  title = "Cek klaim caption sebelum tayang",
+  footer = "Hanya klaim disetujui yang boleh disebut. Kelola di Content Studio → Klaim. Peringatan ini tidak memblokir jadwal.",
+}: {
+  organizationId: string;
+  caption: string;
+  title?: string;
+  footer?: string;
+}) {
   const claims = useClaims();
   const words = useOrgClaimWords(organizationId);
   const findings = useMemo(() => {
@@ -61,7 +71,7 @@ export function CaptionClaimWarning({ organizationId, caption }: { organizationI
   if (!warn.length) return null;
   return (
     <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900" role="status">
-      <div className="font-medium">Cek klaim caption sebelum tayang</div>
+      <div className="font-medium">{title}</div>
       <ul className="mt-1 list-disc space-y-0.5 pl-4">
         {warn.map((f) => (
           <li key={f.claim}>
@@ -71,7 +81,7 @@ export function CaptionClaimWarning({ organizationId, caption }: { organizationI
           </li>
         ))}
       </ul>
-      <div className="mt-1 text-amber-800">Hanya klaim disetujui yang boleh disebut. Kelola di Content Studio → Klaim. Peringatan ini tidak memblokir jadwal.</div>
+      <div className="mt-1 text-amber-800">{footer}</div>
     </div>
   );
 }

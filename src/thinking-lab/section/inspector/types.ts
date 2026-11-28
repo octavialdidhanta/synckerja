@@ -51,6 +51,12 @@ export type LabNodeInspectorProps = {
   catalogPending?: boolean;
   onSaveCatalog?: (catalog: MasterCatalogLink) => void;
   onDelete?: () => void;
+  /** Daftar Klaim claims picked on this node (Angle argument, or optional Master Thought proof). */
+  claimTarget?: { target: "angle" | "master"; id: string } | null;
+  /** The Master Thought's sub-categories, to offer its products' claims first. */
+  claimSubServiceIds?: string[];
+  /** On an Idea: the Angle and Master Thought whose claims its Executions inherit. */
+  inheritedClaims?: { angleId: string; masterId: string | null } | null;
   unlockDisabled?: boolean;
   onGenerateAngle?: (territoryId: string) => void;
   territoryId?: string;

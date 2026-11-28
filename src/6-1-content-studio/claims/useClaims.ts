@@ -184,12 +184,12 @@ export function useClaimMutations() {
   });
 
   const linkPoint = useMutation({
-    mutationFn: async (input: { claimId: string; refId: string; label: string }) => {
+    mutationFn: async (input: { claimId: string; refId: string; label: string; module?: string }) => {
       const o = org();
       const { error } = await db.from("product_claim_uses").insert({
         organization_id: o,
         claim_id: input.claimId,
-        module: PK_USE_MODULE,
+        module: input.module ?? PK_USE_MODULE,
         ref_id: input.refId,
         label: input.label.slice(0, 300),
       });
@@ -199,14 +199,14 @@ export function useClaimMutations() {
   });
 
   const unlinkPoint = useMutation({
-    mutationFn: async (input: { claimId: string; refId: string }) => {
+    mutationFn: async (input: { claimId: string; refId: string; module?: string }) => {
       const o = org();
       const { error } = await db
         .from("product_claim_uses")
         .delete()
         .eq("organization_id", o)
         .eq("claim_id", input.claimId)
-        .eq("module", PK_USE_MODULE)
+        .eq("module", input.module ?? PK_USE_MODULE)
         .eq("ref_id", input.refId);
       if (error) throw error;
     },

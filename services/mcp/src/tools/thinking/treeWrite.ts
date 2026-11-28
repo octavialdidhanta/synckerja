@@ -6,6 +6,9 @@ const sentence = (max: number) => z.string().trim().min(1).max(max);
 
 const catalogNames = z.array(z.string().trim().min(1).max(200)).max(20);
 
+/** Daftar Klaim codes (KL01...) that back a Master Thought belief or an Angle argument. */
+export const claimCodes = z.array(z.string().trim().regex(/^[Kk][Ll]\d{2,4}$/)).max(20);
+
 export const masterCreateInput = z.object({
   belief: sentence(400),
   prior_belief: sentence(400),
@@ -13,6 +16,7 @@ export const masterCreateInput = z.object({
   catalog: z.string().trim().min(1).max(200),
   sub_categories: catalogNames.optional(),
   features: catalogNames.optional(),
+  claim_codes: claimCodes.optional(),
 }).strict();
 
 export const masterCatalogSetInput = z.object({
@@ -81,6 +85,7 @@ export const angleAddInput = z.object({
   statement: sentence(500),
   subject: sentence(120),
   example: sentence(300),
+  claim_codes: claimCodes.optional(),
 }).strict();
 
 export const angleLockInput = z.object({

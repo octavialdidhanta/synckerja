@@ -5,6 +5,8 @@ import {
   listCatalogClaims,
   logCatalogClaimUses,
   previewCatalogClaimUpsert,
+  setThinkingClaimLinks,
+  thinkingChainClaims,
 } from "./db/claims";
 import { loadConfig } from "./config";
 import { loadContext } from "./authz/loadContext";
@@ -363,6 +365,8 @@ const app = createApp({
   applyCatalogClaimUpsert: (ctx, previewId) => applyCatalogClaimUpsert(admin, ctx, previewId),
   approveCatalogClaim: (ctx, input) => approveCatalogClaim(admin, ctx, input),
   logCatalogClaimUses: (ctx, input) => logCatalogClaimUses(admin, ctx, input),
+  setThinkingClaimLinks: (ctx, input) => setThinkingClaimLinks(admin, ctx, input),
+  thinkingChainClaims: (ctx, input) => thinkingChainClaims(admin, ctx, input),
   previewFootageSceneBatch: (ctx, input) => previewFootageSceneBatch(admin, ctx, input),
   applyFootageSceneBatch: (ctx, previewId) => applyFootageSceneBatch(admin, ctx, previewId),
   previewFootageUsage: (ctx, input) => previewFootageUsage(admin, ctx, input),

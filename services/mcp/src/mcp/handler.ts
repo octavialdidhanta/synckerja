@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z, type ZodRawShape, type ZodTypeAny } from "zod";
 import { AuthzError } from "../authz/errors";
+import { blockingClaims, linkClaimsAfterWrite, thinkingClaimsSetInput, thinkingClaimsSetResult } from "../tools/thinking/claimsSet";
 import { briefTextParts, checkBriefClaims, shotlistVisualParts, type BriefTextPart, type RegistryClaim } from "../tools/content/claimCheck";
 import type { RenderDraftRow, RenderDraftSaved, RenderJobDetail, RenderJobPreview, RenderJobSaved, RenderJobsList, RenderPlanStatus } from "../db/render";
 import type { McpAuthContext } from "../authz/context";
@@ -896,6 +897,14 @@ export type McpReadDeps = {
   ) => Promise<import("../db/claims").ClaimUpsertPreview>;
   applyCatalogClaimUpsert: (ctx: McpAuthContext, previewId: string) => Promise<import("../db/claims").ClaimUpsertSaved>;
   logCatalogClaimUses: (ctx: McpAuthContext, input: import("../db/claims").ClaimUseInput) => Promise<unknown>;
+  setThinkingClaimLinks: (
+    ctx: McpAuthContext,
+    input: { target: "angle" | "master"; target_id: string; codes: string[] },
+  ) => Promise<{ claims: import("../db/claims").ThinkingClaim[]; unknown_codes: string[] }>;
+  thinkingChainClaims: (
+    ctx: McpAuthContext,
+    input: { idea_id?: string; execution_id?: string },
+  ) => Promise<{ idea_id: string; angle_id: string; master_thought_id: string | null; claims: import("../db/claims").ThinkingClaim[] }>;
   approveCatalogClaim: (
     ctx: McpAuthContext,
     input: import("../db/claims").ClaimApproveInput,
@@ -1079,6 +1088,27 @@ async function safeClaimCheck(ctx: McpAuthContext, parts: BriefTextPart[], deps:
   }
 }
 
+type ThinkingScriptLike = {
+  caption?: string;
+  scenes?: Array<{ lines?: Array<{ narration?: string; shots?: Array<{ prompt?: string }> }> }>;
+};
+
+/** A Thinking Lab script: narration lines, caption, and each shot prompt as a visual part. */
+export function thinkingScriptParts(script: ThinkingScriptLike | undefined | null): BriefTextPart[] {
+  if (!script || !Array.isArray(script.scenes)) return [];
+  const parts: BriefTextPart[] = [];
+  script.scenes.forEach((scene, si) =>
+    (scene.lines ?? []).forEach((line, li) => {
+      if (line.narration?.trim()) parts.push({ where: `adegan ${si + 1} baris ${li + 1}`, text: line.narration });
+      (line.shots ?? []).forEach((shot, hi) => {
+        if (shot.prompt?.trim()) parts.push({ where: `adegan ${si + 1} baris ${li + 1} shot ${hi + 1} (visual)`, text: shot.prompt, visual: true });
+      });
+    }),
+  );
+  if (script.caption?.trim()) parts.push({ where: "caption", text: script.caption });
+  return parts;
+}
+
 /** Screen text of a render spec: each label or hook on its own, all subtitles together. */
 export function renderTextParts(spec: unknown): BriefTextPart[] {
   const texts = (spec as { texts?: Array<{ text?: unknown; start?: unknown; style?: unknown }> } | null)?.texts;
@@ -1225,6 +1255,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "catalog.claims.upsert.preview": claimUpsertPreviewInput,
   "catalog.claims.upsert": confirmFootageInput,
   "catalog.claims.approve": claimApproveInput,
+  "thinking.claims.set": thinkingClaimsSetInput,
   "catalog.shotlist.get": getCatalogShotJobInput,
   "footage.scenes.upsert_batch.preview": upsertSceneBatchPreviewInput,
   "footage.scenes.upsert_batch": confirmFootageInput,
@@ -2305,7 +2336,13 @@ async function runTool(
     case "thinking.tree.read":
       return treeReadResult(ctx, requiredString(args.master_thought_id), deps.readThinkingTree);
     case "thinking.master.create":
-      return masterCreateResult(ctx, args, deps.createThinkingMaster);
+      return linkClaimsAfterWrite(
+        ctx,
+        await masterCreateResult(ctx, args, deps.createThinkingMaster),
+        "master",
+        (args as { claim_codes?: string[] }).claim_codes,
+        deps.setThinkingClaimLinks,
+      );
     case "thinking.bigthought.add":
       return bigThoughtAddResult(ctx, args, deps.addThinkingBigThought);
     case "thinking.master.catalog.set":
@@ -2317,7 +2354,15 @@ async function runTool(
     case "thinking.territory.lock":
       return territoryLockResult(ctx, args, deps.lockThinkingTerritories);
     case "thinking.angle.add":
-      return angleAddResult(ctx, args, deps.addThinkingAngle);
+      return linkClaimsAfterWrite(
+        ctx,
+        await angleAddResult(ctx, args, deps.addThinkingAngle),
+        "angle",
+        (args as { claim_codes?: string[] }).claim_codes,
+        deps.setThinkingClaimLinks,
+      );
+    case "thinking.claims.set":
+      return thinkingClaimsSetResult(ctx, args, deps.setThinkingClaimLinks);
     case "thinking.angle.lock":
       return angleLockResult(ctx, args, deps.lockThinkingAngles);
     case "thinking.idea.add":
@@ -2344,12 +2389,64 @@ async function runTool(
       return ideasListResult(ctx, deps.listThinkingIdeas);
     case "thinking.chain.read":
       return chainReadResult(ctx, requiredString(args.idea_id), deps.readThinkingChain);
-    case "thinking.execution.check":
-      return executionCheckResult(ctx, args, deps.checkThinkingExecution);
+    case "thinking.execution.check": {
+      const checked = await executionCheckResult(ctx, args, deps.checkThinkingExecution);
+      // The script's claims against the Daftar Klaim, and the claims inherited from the Angle and Master Thought.
+      const script = (args as { script?: ThinkingScriptLike; idea_id?: string } | null)?.script;
+      const ideaId = (args as { idea_id?: unknown } | null)?.idea_id;
+      const parts = thinkingScriptParts(script);
+      const [claimCheck, chain] = await Promise.all([
+        parts.length ? safeClaimCheck(ctx, parts, deps) : Promise.resolve(null),
+        typeof ideaId === "string" ? deps.thinkingChainClaims(ctx, { idea_id: ideaId }).catch(() => null) : Promise.resolve(null),
+      ]);
+      const blocking = chain ? blockingClaims(chain.claims) : [];
+      return {
+        ...checked,
+        ...(claimCheck && claimCheck.needs_attention ? { claim_check: claimCheck } : {}),
+        ...(chain?.claims.length ? { inherited_claims: chain.claims } : {}),
+        ...(blocking.length
+          ? { brief_blocked_by_claims: blocking.map((c) => c.code), claims_note: "Brainstorming is fine, but thinking.plan.save refuses this until these claims are approved in Office." }
+          : {}),
+      };
+    }
     case "thinking.plan.save":
-      return planSaveResult(ctx, args, deps.saveThinkingPlan);
-    case "thinking.plan.direct":
-      return planDirectResult(ctx, args, deps.saveThinkingPlanDirect);
+    case "thinking.plan.direct": {
+      // An Execution inherits the claims of its Angle and Master Thought: a plan waits until every one is approved.
+      const a = (args ?? {}) as { execution_id?: unknown; idea_id?: unknown };
+      const ref = name === "thinking.plan.save"
+        ? { execution_id: typeof a.execution_id === "string" ? a.execution_id : undefined }
+        : { idea_id: typeof a.idea_id === "string" ? a.idea_id : undefined };
+      if (ref.execution_id || ref.idea_id) {
+        const chain = await deps.thinkingChainClaims(ctx, ref).catch(() => null);
+        const blocking = chain ? blockingClaims(chain.claims) : [];
+        if (blocking.length) {
+          return {
+            error: "claims_not_approved",
+            claims: blocking,
+            next_step:
+              "Not saved. This Idea's Angle or Master Thought rests on claims that are not approved yet. Tell the user each code and text, " +
+              "and ask an owner or admin to approve them in Office (Content Studio → Klaim), or remove them from the Angle with thinking.claims.set " +
+              "and rewrite the script without them. Then try again.",
+          };
+        }
+      }
+      const saved = name === "thinking.plan.save"
+        ? await planSaveResult(ctx, args, deps.saveThinkingPlan)
+        : await planDirectResult(ctx, args, deps.saveThinkingPlanDirect);
+      const brief = await deps.getContentBrief(ctx, saved.id).catch(() => null);
+      const claimCheck = brief
+        ? await safeClaimCheck(ctx, [
+            ...(brief.voice_over ? [{ where: "voice over", text: brief.voice_over }] : []),
+            ...(brief.caption ? [{ where: "caption", text: brief.caption }] : []),
+          ], deps)
+        : null;
+      if (claimCheck?.codes_used.length) {
+        await deps
+          .logCatalogClaimUses(ctx, { codes: claimCheck.codes_used, module: "brief", ref_id: saved.id, label: saved.title })
+          .catch(() => null);
+      }
+      return claimCheck && claimCheck.needs_attention ? { ...saved, claim_check: claimCheck } : saved;
+    }
     case "habits.check":
       return habitCheckResult(
         ctx,

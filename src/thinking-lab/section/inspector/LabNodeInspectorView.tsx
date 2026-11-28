@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { InheritedClaims, ThinkingClaimsField } from "@/thinking-lab/claims/ThinkingClaimsField";
 import { ClipboardCheck, Loader2, Lock, MoreVertical, Pencil, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -64,6 +65,9 @@ export function LabNodeInspector({
   catalogPending = false,
   onSaveCatalog,
   onDelete,
+  claimTarget,
+  claimSubServiceIds,
+  inheritedClaims,
   unlockDisabled,
   onGenerateAngle,
   territoryId,
@@ -515,6 +519,12 @@ export function LabNodeInspector({
         />
       ) : null}
       {kind === "territory" ? null : pathBlock}
+      {claimTarget ? (
+        <ThinkingClaimsField target={claimTarget.target} targetId={claimTarget.id} subServiceIds={claimSubServiceIds} />
+      ) : null}
+      {kind === "idea" && inheritedClaims ? (
+        <InheritedClaims angleId={inheritedClaims.angleId} masterId={inheritedClaims.masterId} />
+      ) : null}
       {kind === "master" && onSaveCatalog ? (
         <MasterInspectorBody
           catalog={catalog}

@@ -97,3 +97,23 @@ export type ClaimUseInput = { codes: string[]; module: string; ref_id: string; l
 export function logCatalogClaimUses(admin: SupabaseClient, ctx: Session, input: ClaimUseInput): Promise<{ logged: number }> {
   return callJson<{ logged: number }>(admin, "mcp_log_catalog_claim_uses", { ...sessionArgs(ctx), p_input: input });
 }
+
+export type ThinkingClaim = { code: string; text: string; status: ClaimStatus; from?: "angle" | "master" };
+
+/** Replace the claims linked to one Thinking Lab Angle or Master Thought. */
+export function setThinkingClaimLinks(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: { target: "angle" | "master"; target_id: string; codes: string[]; label?: string },
+): Promise<{ claims: ThinkingClaim[]; unknown_codes: string[] }> {
+  return callJson(admin, "mcp_set_thinking_claim_links", { ...sessionArgs(ctx), p_input: input });
+}
+
+/** Claims an Execution inherits from its Angle and Master Thought. */
+export function thinkingChainClaims(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: { idea_id?: string; execution_id?: string },
+): Promise<{ idea_id: string; angle_id: string; master_thought_id: string | null; claims: ThinkingClaim[] }> {
+  return callJson(admin, "mcp_thinking_chain_claims", { ...sessionArgs(ctx), p_input: input });
+}

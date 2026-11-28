@@ -656,6 +656,17 @@ export function LabWorkspaceGrid({
                                 }
                                 onUnlock={focus.kind === "master" ? () => void onUnlock() : undefined}
                                 catalog={focus.kind === "master" ? selected.catalog : undefined}
+                                claimTarget={
+                                  focus.kind === "master"
+                                    ? { target: "master", id: selected.id }
+                                    : focus.kind === "angle"
+                                      ? { target: "angle", id: focus.angleId }
+                                      : null
+                                }
+                                claimSubServiceIds={selected.catalog?.subServiceIds ?? []}
+                                inheritedClaims={
+                                  focus.kind === "idea" ? { angleId: focus.angleId, masterId: focus.masterId } : null
+                                }
                                 catalogs={focus.kind === "master" ? (catalogs.data ?? []) : []}
                                 catalogPending={masters.saveCatalog.isPending}
                                 onSaveCatalog={

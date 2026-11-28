@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ScriptClaimWarning } from "@/thinking-lab/claims/ScriptClaimWarning";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -561,6 +562,7 @@ export function ExecutionScriptTable({
       </div>
       <LockedChoices script={script} />
       <PostPack title={script.title} caption={script.caption} />
+      <ScriptClaimWarning script={script} />
       <AssetList
         script={script}
         onGenerateCharacter={onGenerateCharacter}
