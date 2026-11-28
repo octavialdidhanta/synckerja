@@ -10,14 +10,33 @@ export type RegistryClaim = {
   scopes: Array<{ scope: "brand" | "product" | "location"; product?: string; location?: string; product_name?: string; location_name?: string }>;
 };
 
+/**
+ * Everyday spellings mapped to the standard word, so "nggak bau prengus" in a script matches the approved claim
+ * "tidak bau prengus". The AI and the team can write casually; the check compares meaning words, not spelling.
+ */
+export const INFORMAL_WORDS: Record<string, string> = {
+  nggak: "tidak", ngga: "tidak", ngak: "tidak", gak: "tidak", ga: "tidak", enggak: "tidak", engga: "tidak",
+  gk: "tidak", tdk: "tidak", tak: "tidak", kagak: "tidak", ndak: "tidak",
+  udah: "sudah", udh: "sudah", sdh: "sudah", dah: "sudah",
+  banget: "sangat", bgt: "sangat",
+  aja: "saja", doang: "saja",
+  pake: "pakai", emang: "memang", bener: "benar", beneran: "benar", tetep: "tetap",
+  gede: "besar", dikit: "sedikit", sampe: "sampai", nyampe: "sampai",
+  bikin: "membuat", kalo: "kalau", gini: "begini", gitu: "begitu",
+  yg: "yang", dgn: "dengan", utk: "untuk", krn: "karena", org: "orang", jg: "juga", blm: "belum", belom: "belum",
+};
+
+const INFORMAL_RE = new RegExp(`(^|[^a-z0-9])(${Object.keys(INFORMAL_WORDS).sort((a, b) => b.length - a.length).join("|")})(?![a-z0-9])`, "g");
+
 export const norm = (s: string) =>
   s
     .toLowerCase()
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[–—]/g, "-")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .replace(INFORMAL_RE, (_m, pre: string, word: string) => `${pre}${INFORMAL_WORDS[word]}`);
 
 const UNIT =
   "jam|menit|detik|hari|minggu|bulan|tahun|kg|kilo|gram|gr|ons|porsi|orang|pax|potong|tusuk|biji|buah|pcs|unit|mangkuk|piring|ml|liter|%|persen|derajat|x|kali|mah|watt|gb|tb|inch|inci|hz|m2|meter|km|cm|mm|lantai|kamar|sesi|treatment|pengguna|user|pelanggan|customer";
@@ -136,7 +155,9 @@ export function supported(claim: string, corpus: string): boolean {
     return re.test(corpus);
   }
   // "kambing muda", "paling enak": every word of the claim must be in the corpus as a whole word.
-  return c.split(" ").every((w) => new RegExp(`(?:^|[^a-z0-9])${escapeRe(w)}(?![a-z0-9])`).test(corpus));
+  // "dagingnya" counts as "daging": the -nya/-ku/-mu suffix does not change the fact.
+  const has = (w: string) => new RegExp(`(?:^|[^a-z0-9])${escapeRe(w)}(?:nya|ku|mu)?(?![a-z0-9])`).test(corpus);
+  return c.split(" ").every((w) => has(w) || (/(nya|ku|mu)$/.test(w) && w.length > 5 && has(w.replace(/(nya|ku|mu)$/, ""))));
 }
 
 

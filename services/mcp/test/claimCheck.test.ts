@@ -181,3 +181,26 @@ describe("visual and screen-text claims", () => {
     expect(renderTextParts(null)).toEqual([]);
   });
 });
+
+describe("casual spelling", () => {
+  it("matches casual words to the approved claim", async () => {
+    const { norm } = await import("../../../src/shared/claims/claimMatch");
+    expect(norm("Nggak bau prengus, udah empuk banget")).toBe("tidak bau prengus, sudah empuk sangat");
+    expect(norm("Gagal? Tak mungkin")).toBe("gagal? tidak mungkin");
+    const res = await checkBriefClaims(
+      ctx,
+      briefTextParts({ rows: [{ element: "✅ Nggak bau prengus" }, { vo: "Dagingnya gak bau sama sekali, cukup buat 2 org" }] }),
+      {
+        listCatalogClaims: async () => ({
+          claims: [
+            { code: "KL03", text: "Daging kambing tidak bau prengus", status: "approved", scopes: [{ scope: "brand" }] },
+            { code: "KL01", text: "Satu porsi cukup untuk 2 orang", status: "approved", scopes: [{ scope: "brand" }] },
+          ],
+        }),
+        getClaimWords: async () => ({ industry: "fnb", claim_words: ["nggak bau", "tidak bau", "prengus"] }),
+      },
+    );
+    expect(res.findings.every((f) => f.status === "terdaftar")).toBe(true);
+    expect(res.codes_used).toEqual(["KL01", "KL03"]);
+  });
+});
