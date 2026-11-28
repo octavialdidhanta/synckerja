@@ -344,3 +344,11 @@
 .ck .agent .job a:hover{text-decoration:underline}
 .ck .agent details.log summary{cursor:pointer;color:var(--mut);font-size:12px}
 .ck .agent details.log pre{margin:6px 0 0;max-height:160px;overflow:auto;white-space:pre-wrap;font-size:11px;line-height:1.35;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px}
+
+/* Klaim tab */
+.ck .st.no{background:var(--hover);color:var(--mut);text-decoration:line-through}
+.ck .claim-filters{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+.ck .claim-filters select,.ck .claim-filters input{background:var(--input-bg);color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:12.5px}
+.ck .claim-filters input{flex:1;min-width:120px}
+.ck .lib-edit label.claim-check{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:13px;letter-spacing:0;text-transform:none;color:var(--tx)}
+.ck .lib-edit label.claim-check input{width:auto}

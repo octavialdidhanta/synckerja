@@ -248,6 +248,15 @@ export {
   previewCatalogShotlistUpsertResult,
   applyCatalogShotlistUpsertResult,
 } from "./catalog/libraryWrite";
+export {
+  listClaimsInput,
+  claimUpsertPreviewInput,
+  claimApproveInput,
+  listClaimsResult,
+  previewClaimUpsertResult,
+  applyClaimUpsertResult,
+  approveClaimResult,
+} from "./catalog/claims";
 export { taskStepsInput, taskStepsResult } from "./tasks/stepsList";
 export { createStepInput, createStepResult } from "./tasks/stepsCreate";
 export { updateStepResult, updateStepSchema } from "./tasks/stepsUpdate";

@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AgentTab } from "./agent/AgentTab";
+import { ClaimsTab } from "./claims/ClaimsTab";
 import { FootageTab } from "./footage/FootageTab";
 import { LibraryTab } from "./library/LibraryTab";
 import { ReferenceTab } from "./referensi/ReferenceTab";
@@ -64,6 +65,8 @@ export default function ContentStudioPage() {
         <ReferenceTab headLeft={headLeft} />
       ) : tab === "agent" ? (
         <AgentTab headLeft={headLeft} />
+      ) : tab === "klaim" ? (
+        <ClaimsTab headLeft={headLeft} />
       ) : tab === "pengaturan" ? (
         <SettingsTab headLeft={headLeft} />
       ) : (

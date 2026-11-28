@@ -1,4 +1,5 @@
 import { serve } from "@hono/node-server";
+import { applyCatalogClaimUpsert, approveCatalogClaim, listCatalogClaims, previewCatalogClaimUpsert } from "./db/claims";
 import { loadConfig } from "./config";
 import { loadContext } from "./authz/loadContext";
 import { createAdmin } from "./db/admin";
@@ -351,6 +352,10 @@ const app = createApp({
   getCatalogSettings: (ctx) => getCatalogSettings(admin, ctx),
   getClaimWords: (ctx) => getClaimWords(admin, ctx),
   applyIndustryTemplate: (ctx, code) => applyIndustryTemplate(admin, ctx, code),
+  listCatalogClaims: (ctx, filter) => listCatalogClaims(admin, ctx, filter),
+  previewCatalogClaimUpsert: (ctx, input) => previewCatalogClaimUpsert(admin, ctx, input),
+  applyCatalogClaimUpsert: (ctx, previewId) => applyCatalogClaimUpsert(admin, ctx, previewId),
+  approveCatalogClaim: (ctx, input) => approveCatalogClaim(admin, ctx, input),
   previewFootageSceneBatch: (ctx, input) => previewFootageSceneBatch(admin, ctx, input),
   applyFootageSceneBatch: (ctx, previewId) => applyFootageSceneBatch(admin, ctx, previewId),
   previewFootageUsage: (ctx, input) => previewFootageUsage(admin, ctx, input),

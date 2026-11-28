@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AppliedClaims } from "../claims/AppliedClaims";
 import { CatalogEditor } from "./catalogEditor";
 import { linkedProductName } from "./catalogEdit";
 import { isFilled, menuHasPhoto, resolveMenuFields, type LibraryPhoto, type LocationItem, type MenuItem } from "./libraryData";
@@ -373,6 +374,7 @@ function Detail({
           onDescribePhoto={onDescribePhoto}
         />
       )}
+      <AppliedClaims kind={"fields" in x ? "product" : "location"} targetId={x.id} />
       {"fields" in x ? (
         menuFields.map(([k, l]) => <Block key={k} label={l} val={x.fields[k]} />)
       ) : (

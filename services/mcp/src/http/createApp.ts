@@ -1,4 +1,13 @@
 import { Hono } from "hono";
+import type {
+  ClaimApproveInput,
+  ClaimApproveSaved,
+  ClaimList,
+  ClaimListFilter,
+  ClaimUpsertInput,
+  ClaimUpsertPreview,
+  ClaimUpsertSaved,
+} from "../db/claims";
 import { cors } from "hono/cors";
 import type { RenderDraftRow, RenderDraftSaved, RenderJobDetail, RenderJobPreview, RenderJobSaved, RenderJobsList, RenderPlanStatus } from "../db/render";
 import type { McpServiceConfig } from "../config";
@@ -518,6 +527,10 @@ export type AppDeps = {
   listIndustryTemplates: (ctx: McpAuthContext) => Promise<unknown>;
   getCatalogSettings: (ctx: McpAuthContext) => Promise<unknown>;
   applyIndustryTemplate: (ctx: McpAuthContext, code: string) => Promise<unknown>;
+  listCatalogClaims: (ctx: McpAuthContext, filter: ClaimListFilter) => Promise<ClaimList>;
+  previewCatalogClaimUpsert: (ctx: McpAuthContext, input: ClaimUpsertInput) => Promise<ClaimUpsertPreview>;
+  applyCatalogClaimUpsert: (ctx: McpAuthContext, previewId: string) => Promise<ClaimUpsertSaved>;
+  approveCatalogClaim: (ctx: McpAuthContext, input: ClaimApproveInput) => Promise<ClaimApproveSaved>;
   previewFootageSceneBatch: (
     ctx: McpAuthContext,
     input: FootageSceneBatchInput,

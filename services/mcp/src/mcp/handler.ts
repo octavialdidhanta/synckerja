@@ -427,6 +427,13 @@ import {
   applyCatalogReferenceUpsertResult,
   previewCatalogShotlistUpsertResult,
   applyCatalogShotlistUpsertResult,
+  listClaimsInput,
+  claimUpsertPreviewInput,
+  claimApproveInput,
+  listClaimsResult,
+  previewClaimUpsertResult,
+  applyClaimUpsertResult,
+  approveClaimResult,
   taskStepsInput,
   taskStepsResult,
   createStepInput,
@@ -879,6 +886,19 @@ export type McpReadDeps = {
   listIndustryTemplates: (ctx: McpAuthContext) => Promise<unknown>;
   getCatalogSettings: (ctx: McpAuthContext) => Promise<unknown>;
   applyIndustryTemplate: (ctx: McpAuthContext, code: string) => Promise<unknown>;
+  listCatalogClaims: (
+    ctx: McpAuthContext,
+    filter: import("../db/claims").ClaimListFilter,
+  ) => Promise<import("../db/claims").ClaimList>;
+  previewCatalogClaimUpsert: (
+    ctx: McpAuthContext,
+    input: import("../db/claims").ClaimUpsertInput,
+  ) => Promise<import("../db/claims").ClaimUpsertPreview>;
+  applyCatalogClaimUpsert: (ctx: McpAuthContext, previewId: string) => Promise<import("../db/claims").ClaimUpsertSaved>;
+  approveCatalogClaim: (
+    ctx: McpAuthContext,
+    input: import("../db/claims").ClaimApproveInput,
+  ) => Promise<import("../db/claims").ClaimApproveSaved>;
   previewFootageSceneBatch: (
     ctx: McpAuthContext,
     input: FootageSceneBatchInput,
@@ -1164,6 +1184,10 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "catalog.settings.get": getCatalogSettingsInput,
   "catalog.tags.list": listCatalogTagsInput,
   "catalog.industry.apply": applyIndustryTemplateInput,
+  "catalog.claims.list": listClaimsInput,
+  "catalog.claims.upsert.preview": claimUpsertPreviewInput,
+  "catalog.claims.upsert": confirmFootageInput,
+  "catalog.claims.approve": claimApproveInput,
   "catalog.shotlist.get": getCatalogShotJobInput,
   "footage.scenes.upsert_batch.preview": upsertSceneBatchPreviewInput,
   "footage.scenes.upsert_batch": confirmFootageInput,
@@ -1848,6 +1872,14 @@ async function runTool(
       return listCatalogTagsResult(ctx, args, deps.getCatalogSettings);
     case "catalog.industry.apply":
       return applyIndustryTemplateResult(ctx, args, deps.applyIndustryTemplate);
+    case "catalog.claims.list":
+      return listClaimsResult(ctx, args, deps.listCatalogClaims);
+    case "catalog.claims.upsert.preview":
+      return previewClaimUpsertResult(ctx, args, deps.previewCatalogClaimUpsert, deps.signFootageConfirmation);
+    case "catalog.claims.upsert":
+      return applyClaimUpsertResult(ctx, args, deps.verifyFootageConfirmation, deps.applyCatalogClaimUpsert);
+    case "catalog.claims.approve":
+      return approveClaimResult(ctx, args, deps.approveCatalogClaim);
     case "footage.scenes.upsert_batch.preview":
       return previewSceneBatchResult(ctx, args, deps.previewFootageSceneBatch, deps.signFootageConfirmation);
     case "footage.scenes.upsert_batch":

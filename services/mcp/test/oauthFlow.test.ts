@@ -384,6 +384,16 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
       scene_kind_defs: [],
     }),
     applyIndustryTemplate: async () => ({ applied: false }),
+    listCatalogClaims: async () => ({ claims: [], counts: { needs_proof: 0, approved: 0, rejected: 0 } }),
+    previewCatalogClaimUpsert: async () => {
+      throw new Error("not used");
+    },
+    applyCatalogClaimUpsert: async () => {
+      throw new Error("not used");
+    },
+    approveCatalogClaim: async () => {
+      throw new Error("not used");
+    },
     previewFootageSceneBatch: async () => { throw new Error("unused"); },
     applyFootageSceneBatch: async () => { throw new Error("unused"); },
     previewFootageUsage: async () => { throw new Error("unused"); },
@@ -628,6 +638,7 @@ describe("oauth and mcp http flow", () => {
       "catalog.industry.templates.list",
       "catalog.settings.get",
       "catalog.tags.list",
+      "catalog.claims.list",
       "render.jobs.draft",
       "render.stills.get",
       "render.jobs.list",

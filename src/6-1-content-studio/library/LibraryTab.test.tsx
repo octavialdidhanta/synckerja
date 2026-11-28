@@ -35,6 +35,10 @@ let menus = baseMenus;
 let locations = baseLocations;
 const photoUrls: Record<string, string> = { "o/photos/p1.png": "https://x/p1.png" };
 
+vi.mock("../claims/useClaims", () => ({
+  useClaims: () => ({ data: [] }),
+}));
+
 vi.mock("./useLibraryData", () => ({
   useLibraryData: () => ({
     data: { menus, locations, photos: photoUrls },
