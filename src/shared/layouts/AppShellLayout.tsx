@@ -7,6 +7,7 @@ import { useHeaderUserProfile } from "@/shared/hooks/useHeaderUserProfile";
 import { usePreferredLocaleSync } from "@/shared/hooks/usePreferredLocaleSync";
 import { SubscriptionExpiryBannerSlot } from "@/10-subscription/shared/SubscriptionExpiryBannerSlot";
 import { AnthropicCreditBanner } from "@/6-1-content-studio/agent/AnthropicCreditAlert";
+import { StorageQuotaBanner } from "@/shared/storage/StorageQuotaBanner";
 
 export function AppShellLayout() {
   const { t } = useTranslation();
@@ -34,6 +35,7 @@ export function AppShellLayout() {
             >
               <SubscriptionExpiryBannerSlot className="sticky top-0 z-20" placement="sticky" />
               <AnthropicCreditBanner className="sticky top-0 z-20" />
+              <StorageQuotaBanner className="sticky top-0 z-20" />
               <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col">
                 <Outlet />
               </div>

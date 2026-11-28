@@ -5,6 +5,7 @@ import { useOptimizedSubscription } from "@/10-subscription/hooks/useOptimizedSu
 import { useSubscriptionAnalytics } from "@/10-subscription/hooks/useSubscriptionAnalytics";
 import { useOptimizedPerformanceMonitor } from "@/10-subscription/hooks/useOptimizedPerformanceMonitor";
 import { useOrganizationOmnichannelStaff } from "@/shared/hooks/useOrganizationOmnichannelStaff";
+import { StorageUsageCard } from "@/shared/storage/StorageUsageCard";
 import {
   CurrentSubscription,
   EmployeeGrowthChart,
@@ -55,6 +56,8 @@ const OverviewTabContent = memo(
               {subscriptionStatus && (
                 <CurrentSubscription subscriptionStatus={subscriptionStatus} />
               )}
+
+                <StorageUsageCard />
 
                 <div className="space-y-2">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
