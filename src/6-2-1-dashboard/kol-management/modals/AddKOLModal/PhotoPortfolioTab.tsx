@@ -10,6 +10,8 @@ import {
 import { Upload, X } from "lucide-react";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useToast } from "@/shared/components/ui/use-toast";
+import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
+import { KOL_PHOTO_BUCKET, kolPhotoPathFromUrl } from "./kolPhotoPath";
 
 interface PhotoPortfolioTabProps {
   formData: any;
@@ -22,6 +24,7 @@ const PhotoPortfolioTab = ({
 }: PhotoPortfolioTabProps) => {
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
+  const { organizationId } = useOrgBootstrapPending();
 
   const handlePhotoUpload = async (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -38,16 +41,26 @@ const PhotoPortfolioTab = ({
       return;
     }
 
+    if (!organizationId) {
+      toast({
+        title: "Error",
+        description: "Organization is still loading. Try again in a moment.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setUploading(true);
     try {
       const fileExt = file.name.split(".").pop();
       const fileName = `${Date.now()}-${Math.random()
         .toString(36)
         .substring(2)}.${fileExt}`;
-      const filePath = `kol-profiles/${fileName}`;
+      // First folder must be the organization: storage policy only lets members write inside their own org folder.
+      const filePath = `${organizationId}/kol-profiles/${fileName}`;
 
       const { error } = await supabase.storage
-        .from("kol-profile-photos")
+        .from(KOL_PHOTO_BUCKET)
         .upload(filePath, file);
 
       if (error) throw error;
@@ -55,7 +68,7 @@ const PhotoPortfolioTab = ({
       const {
         data: { publicUrl },
       } = supabase.storage
-        .from("kol-profile-photos")
+        .from(KOL_PHOTO_BUCKET)
         .getPublicUrl(filePath);
 
       setFormData((prev) => ({ ...prev, profile_photo_url: publicUrl }));
@@ -79,10 +92,9 @@ const PhotoPortfolioTab = ({
   const removePhoto = async () => {
     if (formData.profile_photo_url) {
       try {
-        const url = new URL(formData.profile_photo_url);
-        const filePath = url.pathname.split("/").slice(-2).join("/");
-
-        await supabase.storage.from("kol-profile-photos").remove([filePath]);
+        const filePath = kolPhotoPathFromUrl(formData.profile_photo_url);
+        // Old photos outside an org folder can no longer be deleted from the browser; the link is just cleared.
+        if (filePath) await supabase.storage.from(KOL_PHOTO_BUCKET).remove([filePath]);
       } catch (error) {
         console.error("Error removing photo:", error);
       }
