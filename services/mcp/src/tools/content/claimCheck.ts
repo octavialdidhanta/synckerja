@@ -96,7 +96,7 @@ export const CLAIM_CHECK_HOW_TO_READ =
   "ditolak = the owner rejected it, remove it; sumber_katalog = the catalog or Product Knowledge says it but it is not in the Daftar Klaim; tidak_terdaftar = no source. " +
   "Before the user says yes, show every finding that is not terdaftar as a warning with where it is, then rewrite it to an approved claim, drop it, or ask the user whether it is true. " +
   "A fact the user confirms goes to the Daftar Klaim with catalog.claims.upsert.preview (it starts as needs_proof until an owner or admin approves it), not to Product Knowledge. " +
-  "other_scope means a claim with those words exists for another product or location. This never blocks saving.";
+  "other_scope means a claim with those words exists for another product or location. Write freely: wording may differ from the claim sentence (casual spelling such as nggak/udah and suffixes such as -nya are matched); only the facts must come from an approved claim. This never blocks saving.";
 
 /** Build the searchable text: catalog fields of the products the brief names (or all, up to 6) plus Product Knowledge. */
 export async function claimCorpus(
