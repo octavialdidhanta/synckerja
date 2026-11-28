@@ -13,6 +13,7 @@ import {
 } from "../_shared/claimMatch.ts";
 
 // deno-lint-ignore no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = any;
 
 export type ClaimGuard = {
