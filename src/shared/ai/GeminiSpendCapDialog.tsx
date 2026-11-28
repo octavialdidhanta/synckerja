@@ -11,6 +11,8 @@ import {
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import {
+  ANTHROPIC_BILLING_URL,
+  ANTHROPIC_LIMITS_URL,
   closeGeminiSpendCapDialog,
   ELEVENLABS_BILLING_URL,
   GEMINI_PREPAID_URL,
@@ -24,7 +26,37 @@ export function GeminiSpendCapDialog() {
   const notice = useSyncExternalStore(subscribeGeminiSpendCap, geminiBillingNotice, () => null);
   const open = notice !== null;
   const copy =
-    notice === "elevenlabs"
+    notice === "anthropic_credit"
+      ? {
+          title: t("anthropicCredit.title", "Kredit Anthropic habis"),
+          body: t(
+            "anthropicCredit.body",
+            "Kredit Claude API di laptop Agent sudah habis, jadi footage baru belum diberi keterangan AI. Isi kredit di Claude Console. Agent mengecek tiap 10 menit dan lanjut sendiri, tanpa restart.",
+          ),
+          url: ANTHROPIC_BILLING_URL,
+          action: t("anthropicCredit.open", "Buka Claude Console"),
+        }
+      : notice === "anthropic_limit"
+      ? {
+          title: t("anthropicLimit.title", "Batas belanja Anthropic tercapai"),
+          body: t(
+            "anthropicLimit.body",
+            "Batas belanja Claude API sudah tercapai, jadi footage baru belum diberi keterangan AI. Naikkan batasnya di Claude Console atau tunggu sampai akses kembali. Agent lanjut sendiri.",
+          ),
+          url: ANTHROPIC_LIMITS_URL,
+          action: t("anthropicCredit.open", "Buka Claude Console"),
+        }
+      : notice === "anthropic_billing"
+      ? {
+          title: t("anthropicBilling.title", "Pembayaran Anthropic bermasalah"),
+          body: t(
+            "anthropicBilling.body",
+            "Claude API menolak karena masalah pembayaran, jadi footage baru belum diberi keterangan AI. Periksa metode pembayaran di Claude Console. Agent lanjut sendiri.",
+          ),
+          url: ANTHROPIC_BILLING_URL,
+          action: t("anthropicCredit.open", "Buka Claude Console"),
+        }
+      : notice === "elevenlabs"
       ? {
           title: t("elevenLabsCredit.title", "Kredit ElevenLabs habis"),
           body: t(

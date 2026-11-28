@@ -60,4 +60,10 @@ describe("elevenlabs credit notice", () => {
     ).toBe(true);
     expect(geminiBillingNotice()).toBe("elevenlabs");
   });
+
+  it("maps the Agent's Anthropic block to its own dialog copy", async () => {
+    const { presentAnthropicCredit } = await import("@/shared/ai/geminiSpendCap");
+    presentAnthropicCredit("spend_limit");
+    expect(geminiBillingNotice()).toBe("anthropic_limit");
+  });
 });

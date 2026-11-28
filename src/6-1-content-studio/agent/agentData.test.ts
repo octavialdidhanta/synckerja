@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, deviceLink, isOnline, sortJobs, tokenState, toolList, uploadSkippedNote, visibleDevices, type AgentJobRow } from "./agentData";
+import { ago, anthropicCredit, deviceLink, isOnline, sortJobs, tokenState, toolList, uploadSkippedNote, visibleDevices, type AgentJobRow } from "./agentData";
 
 const NOW = new Date("2026-11-23T06:00:00Z").getTime();
 const before = (ms: number) => new Date(NOW - ms).toISOString();
@@ -56,6 +56,27 @@ describe("Agent tab helpers", () => {
       { key: "ffmpeg", ok: true, detail: "7.1" },
     ]);
     expect(toolList(null)).toEqual([]);
+  });
+
+  it("reads the Agent's Anthropic credit block apart from the tool chips", () => {
+    const tools = {
+      anthropic_key: { ok: true, detail: "ada" },
+      anthropic_credit: { ok: false, kind: "spend_limit", detail: "Batas belanja…", url: "https://console.anthropic.com/settings/limits", since: "2026-11-28T01:00:00Z" },
+    };
+    expect(toolList(tools).map((t) => t.key)).toEqual(["anthropic_key"]);
+    expect(anthropicCredit(tools)).toEqual({
+      kind: "spend_limit",
+      detail: "Batas belanja…",
+      url: "https://console.anthropic.com/settings/limits",
+      since: "2026-11-28T01:00:00Z",
+    });
+    // unknown kind → credit; a link off the Claude Console is never used
+    expect(anthropicCredit({ anthropic_credit: { ok: false, kind: "x", url: "https://evil.test" } })).toMatchObject({
+      kind: "credit",
+      url: "https://console.anthropic.com/settings/billing",
+    });
+    expect(anthropicCredit({ anthropic_key: { ok: true } })).toBeNull();
+    expect(anthropicCredit(null)).toBeNull();
   });
 });
 

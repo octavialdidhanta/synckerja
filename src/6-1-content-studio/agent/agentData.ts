@@ -103,10 +103,40 @@ export interface ToolStatus {
  * Tools reported by the Agent self-check: { ffmpeg: { ok: true, version: "7.1" }, sam2: { ok: false, detail: "..." } }.
  * Missing ones first, so what is broken is the first thing you see.
  */
+/** Agent ≥0.1.30 heartbeat entry while Anthropic credits / spend limit block AI tagging. */
+export const ANTHROPIC_CREDIT_KEY = "anthropic_credit";
+
+export interface AnthropicCreditStatus {
+  kind: "credit" | "spend_limit" | "billing";
+  detail: string;
+  url: string;
+  since: string | null;
+}
+
+export function anthropicCredit(tools: Record<string, unknown> | null | undefined): AnthropicCreditStatus | null {
+  const v = tools?.[ANTHROPIC_CREDIT_KEY];
+  if (!v || typeof v !== "object") return null;
+  const r = v as Record<string, unknown>;
+  if (r.ok === true) return null;
+  const kind = r.kind === "spend_limit" || r.kind === "billing" ? r.kind : "credit";
+  const url = typeof r.url === "string" && r.url.startsWith("https://console.anthropic.com/")
+    ? r.url
+    : kind === "spend_limit"
+      ? "https://console.anthropic.com/settings/limits"
+      : "https://console.anthropic.com/settings/billing";
+  return {
+    kind,
+    detail: typeof r.detail === "string" ? r.detail : "",
+    url,
+    since: typeof r.since === "string" ? r.since : null,
+  };
+}
+
 export function toolList(tools: Record<string, unknown> | null | undefined): ToolStatus[] {
   if (!tools) return [];
   const out: ToolStatus[] = [];
   for (const [key, v] of Object.entries(tools)) {
+    if (key === ANTHROPIC_CREDIT_KEY) continue;
     if (!v || typeof v !== "object") continue;
     const r = v as Record<string, unknown>;
     const detail =
