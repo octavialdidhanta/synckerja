@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CaptionClaimWarning } from './CaptionClaimWarning';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/shared/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
@@ -763,6 +764,7 @@ export function UnifiedAutoScheduleSection({
               rows={3}
               className="min-h-[4.5rem] w-full resize-y text-sm"
             />
+            <CaptionClaimWarning organizationId={organizationId} caption={caption} />
 
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <Button

@@ -40,11 +40,82 @@ describe("claim check", () => {
         getClaimWords: async () => ({ industry: "fnb", claim_words: FNB }),
       },
     );
-    const without = res.findings.filter((f) => f.status === "tanpa_sumber").map((f) => f.claim);
+    const without = res.findings.filter((f) => f.status === "tidak_terdaftar").map((f) => f.claim);
     expect(without).toEqual(expect.arrayContaining(["kambing muda", "2-3 orang"]));
-    expect(res.findings.find((f) => f.claim === "6 jam")?.status).toBe("ada_sumber");
+    expect(res.findings.find((f) => f.claim === "6 jam")?.status).toBe("sumber_katalog");
     expect(res.note).toMatch(/Product Knowledge kosong/);
-    expect(res.findings[0]!.status).toBe("tanpa_sumber");
+    expect(res.findings[0]!.status).toBe("tidak_terdaftar");
+  });
+});
+
+describe("claim check against the Daftar Klaim", () => {
+  const registry = {
+    claims: [
+      {
+        code: "KL01",
+        text: "Satu porsi Sup Sum Sum Kambing cukup untuk 2 orang",
+        status: "approved" as const,
+        scopes: [{ scope: "product" as const, product: "sup-sumsum-kambing", product_name: "Sup Sum Sum Kambing" }],
+      },
+      { code: "KL02", text: "Lokasi kami di PIK, di gate sebelah Bank DBS", status: "approved" as const, scopes: [{ scope: "location" as const, location: "pik1" }] },
+      { code: "KL03", text: "Dimasak 8 jam", status: "needs_proof" as const, scopes: [{ scope: "brand" as const }] },
+      { code: "KL04", text: "Daging kambing muda", status: "rejected" as const, scopes: [{ scope: "brand" as const }] },
+    ],
+  };
+  const products = [
+    { id: "sup-sumsum-kambing", name: "Sup Sum Sum Kambing", aliases: ["sop sumsum"] },
+    { id: "sate-kambing", name: "Sate Kambing", aliases: [] },
+  ];
+  const deps = {
+    listCatalogClaims: async () => registry,
+    listCatalogProducts: async () => ({ products }),
+    getCatalogProduct: async (_c: unknown, a: { id?: string }) => ({
+      name: products.find((p) => p.id === a.id)!.name,
+      aliases: [],
+      fields: [{ key: "porsi", body: "Porsi sate 10 tusuk." }],
+    }),
+    listProductKnowledge: async () => [],
+    getClaimWords: async () => ({ industry: "fnb", claim_words: FNB }),
+  };
+
+  it("labels each claim terdaftar, perlu bukti, ditolak, katalog or not registered and lists the codes used", async () => {
+    const res = await checkBriefClaims(
+      ctx,
+      briefTextParts({
+        rows: [
+          { vo: "Sop sumsum ini cukup untuk 2 orang, dimasak 8 jam." },
+          { element: "Kambing muda, 10 tusuk, 2-3 orang" },
+        ],
+      }),
+      deps,
+    );
+    const by = Object.fromEntries(res.findings.map((f) => [f.claim, f]));
+    expect(by["2 orang"]).toMatchObject({ status: "terdaftar", code: "KL01" });
+    expect(by["8 jam"]).toMatchObject({ status: "perlu_bukti", code: "KL03" });
+    expect(by["kambing muda"]).toMatchObject({ status: "ditolak", code: "KL04" });
+    expect(by["10 tusuk"]).toMatchObject({ status: "sumber_katalog", code: null });
+    expect(by["2-3 orang"]).toMatchObject({ status: "tidak_terdaftar" });
+    expect(res.codes_used).toEqual(["KL01", "KL03"]);
+    expect(res.without_source).toBe(2);
+    expect(res.findings[0]!.status).toBe("ditolak");
+  });
+
+  it("does not let a product claim back another product's text", async () => {
+    const res = await checkBriefClaims(ctx, briefTextParts({ rows: [{ vo: "Sate kambing cukup untuk 2 orang." }] }), deps);
+    const f = res.findings.find((x) => x.claim === "2 orang")!;
+    expect(f.status).toBe("tidak_terdaftar");
+    expect(f.other_scope).toMatch(/^KL01 \(Sup Sum Sum Kambing\)/);
+  });
+
+  it("still checks the catalog when the Daftar Klaim cannot be read", async () => {
+    const res = await checkBriefClaims(ctx, briefTextParts({ rows: [{ vo: "Isi 10 tusuk." }] }), {
+      ...deps,
+      listCatalogClaims: async () => {
+        throw new Error("boom");
+      },
+    });
+    expect(res.findings[0]).toMatchObject({ claim: "10 tusuk", status: "sumber_katalog" });
+    expect(res.note).toMatch(/Daftar Klaim tidak terbaca/);
   });
 });
 
@@ -74,5 +145,37 @@ describe("claim check across industries", () => {
       "susu murni",
       "resep nenek",
     ]);
+  });
+});
+
+describe("visual and screen-text claims", () => {
+  it("finds what a shot prompt would claim on screen", async () => {
+    const { visualClaimsIn, shotlistVisualParts } = await import("../src/tools/content/claimCheck");
+    expect(visualClaimsIn("Close up of the bowl, a HALAL logo on the wall, long queue of customers outside")).toEqual(
+      expect.arrayContaining(["halal", "antre"]),
+    );
+    expect(visualClaimsIn("Hands pour the broth into a bowl, steam rising")).toEqual([]);
+    const parts = shotlistVisualParts([{ id: "S01", action: "Best seller sign above the counter" }, { id: "S02" }]);
+    expect(parts).toEqual([{ where: "shot S01 (visual)", text: "Best seller sign above the counter", visual: true }]);
+    const res = await checkBriefClaims(ctx, parts, { listCatalogClaims: async () => ({ claims: [] }) });
+    expect(res.findings[0]).toMatchObject({ claim: "best seller", status: "tidak_terdaftar" });
+  });
+
+  it("reads hooks and labels one by one and subtitles together", async () => {
+    const { renderTextParts } = await import("../src/mcp/handler");
+    expect(
+      renderTextParts({
+        texts: [
+          { text: "Paling enak se-PIK", start: 0, style: "hook" },
+          { text: "cukup untuk", start: 1, style: "sub" },
+          { text: "2 orang", start: 2 },
+          { text: " ", style: "menu" },
+        ],
+      }),
+    ).toEqual([
+      { where: "teks layar hook 0s", text: "Paling enak se-PIK" },
+      { where: "subtitle", text: "cukup untuk\n2 orang" },
+    ]);
+    expect(renderTextParts(null)).toEqual([]);
   });
 });

@@ -112,7 +112,7 @@ export function briefCreateFromConfirmation(payload: Record<string, unknown>): B
 
 export const BRIEF_CREATE_PREVIEW_NEXT_STEP =
   "Nothing is saved yet. Show the brief (storyboard table, voice over, caption), the shot list, and every "
-  + "tanpa_sumber claim together in one message. Call content.briefs.create with only this confirm_token after the "
+  + "claim_check finding that is not terdaftar together in one message. Call content.briefs.create with only this confirm_token after the "
   + "user clearly says yes; that one call saves the new content plan, its brief, and its shot list, or nothing. "
   + "If the user changes anything, preview again. After saving, generate the voice over with "
   + "content.briefs.voice.generate all_rows, and ask the user to approve the brief in Office now: an unapproved "

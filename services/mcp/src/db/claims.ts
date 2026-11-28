@@ -90,3 +90,10 @@ export function applyCatalogClaimUpsert(admin: SupabaseClient, ctx: Session, pre
 export function approveCatalogClaim(admin: SupabaseClient, ctx: Session, input: ClaimApproveInput): Promise<ClaimApproveSaved> {
   return callJson<ClaimApproveSaved>(admin, "mcp_approve_catalog_claim", { ...sessionArgs(ctx), p_input: input });
 }
+
+export type ClaimUseInput = { codes: string[]; module: string; ref_id: string; label: string };
+
+/** Jejak pemakaian. Unknown codes are skipped; a repeated use is kept once. */
+export function logCatalogClaimUses(admin: SupabaseClient, ctx: Session, input: ClaimUseInput): Promise<{ logged: number }> {
+  return callJson<{ logged: number }>(admin, "mcp_log_catalog_claim_uses", { ...sessionArgs(ctx), p_input: input });
+}
