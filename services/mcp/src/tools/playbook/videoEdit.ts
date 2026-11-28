@@ -10,7 +10,7 @@
  * Every tool named here must exist (test/playbook.test.ts).
  */
 
-export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-28.1";
+export const VIDEO_EDIT_PLAYBOOK_VERSION = "2026-11-28.2";
 
 export const VIDEO_EDIT_PLAYBOOK = `
 # Synckerja video edit playbook
@@ -59,7 +59,7 @@ Only after these steps write concepts for gate 1.
 - New inbox footage is registered and AI-tagged by the Synckerja Agent on its own. Fix a wrong tag with footage.scenes.upsert_batch.preview; do not register or tag the same file again.
 
 ## 3. Voice over
-- content.briefs.voice.list shows existing clips; content.briefs.voice.generate with all_rows true (only_missing true when some exist) makes every row's clip in one call, retrying a failed row once; rows like (suara asli) or - are skipped (no_vo_marker) and become silence in render.jobs.draft, so just list them in vo_rows with their shots; the Agent (0.1.22+) downloads each row's newest clip into the production vo folder itself when the render has a plan_id, so do not download clips by hand (content.briefs.voice.get only for an older Agent or to listen).
+- content.briefs.voice.list shows existing clips; content.briefs.voice.generate with all_rows true (only_missing true when some exist) makes every row's clip in one call, retrying a failed row once; voice_credit_exhausted means the ElevenLabs balance is spent: stop and ask the owner to top up (link in the error), then continue with only_missing true; rows like (suara asli) or - are skipped (no_vo_marker) and become silence in render.jobs.draft, so just list them in vo_rows with their shots; the Agent (0.1.22+) downloads each row's newest clip into the production vo folder itself when the render has a plan_id, so do not download clips by hand (content.briefs.voice.get only for an older Agent or to listen).
 - Music and the logo come straight from the organization's libraries: name them as @musik/<path> and @brand/<path> in the spec. Do not copy them into the production folder.
 
 ## 4. Edit decisions (judgment)

@@ -6,6 +6,7 @@ import { historyChargeFromItem, isUsageUuid, matchHistoryCharges, officialTokenC
 import { exactCreditCostFromHeader } from "../_shared/elevenLabsCredit.ts";
 import { acceptTaggedNarration, narrationWithoutTags, resolveTaggedNarration, voiceModelSupportsAudioTags, withLanguageAccent } from "../_shared/voiceAudioTags.ts";
 import { alignmentToWords, base64ToBytes, type ElevenAlignment, type WordTiming } from "./words.ts";
+import { describeElevenError, type ElevenFailure } from "./elevenErrors.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -265,7 +266,7 @@ async function describeVoice(supabaseAdmin: Admin, orgId: string, json: Json) {
   const response = await fetch(`https://api.elevenlabs.io/v1/voices/${encodeURIComponent(settings.voiceId)}`, {
     headers: { "xi-api-key": settings.key },
   });
-  if (!response.ok) return json({ error: await elevenError(response) }, response.status);
+  if (!response.ok) return await elevenErrorResponse(json, response);
   const payload = await response.json().catch(() => ({})) as { name?: string };
   const voiceName = String(payload.name ?? "").trim() || settings.voiceId;
   await supabaseAdmin.from("organization_voice_ai_config").update({ voice_name: voiceName }).eq("organization_id", orgId);
@@ -395,7 +396,7 @@ async function speakText(supabaseAdmin: Admin, orgId: string, userId: string, bo
       headers: { "xi-api-key": settings.key, "Content-Type": "application/json", Accept: "audio/mpeg" },
       body: ttsBody,
     });
-    if (!response.ok) return json({ error: await elevenError(response) }, response.status);
+    if (!response.ok) return await elevenErrorResponse(json, response);
     bytes = new Uint8Array(await response.arrayBuffer());
   }
   const creditCost = exactCreditCostFromHeader(response.headers.get("character-cost"));
@@ -528,7 +529,9 @@ async function restyleVideo(supabaseAdmin: Admin, orgId: string, userId: string,
     mime: "audio/mp4",
     fileName: "speech.m4a",
   });
-  if ("error" in converted) return json({ error: converted.error }, converted.status);
+  if ("error" in converted) {
+    return json(converted.code ? { error: converted.error, code: converted.code } : { error: converted.error }, converted.status);
+  }
   const clip = await storeClip(supabaseAdmin, orgId, String(video.social_media_plan_id), {
     kind: "seedance",
     rowIndex: Number(video.row_index) || 0,
@@ -632,7 +635,7 @@ async function convertSpeechToSpeech(
   audio: { bytes: Uint8Array; mime: string; fileName: string },
 ): Promise<
   | { bytes: Uint8Array; creditCost: number | null; format: StsAudioFormat; outputFormat: string; response: Response }
-  | { error: string; status: number }
+  | { error: string; status: number; code?: string | null }
 > {
   const wavFormat: StsAudioFormat = { ext: "wav", contentType: "audio/wav" };
   const attempts: Array<{
@@ -659,8 +662,10 @@ async function convertSpeechToSpeech(
       },
     );
     if (!response.ok) {
-      lastStatus = response.status;
-      lastError = await elevenError(response);
+      const failure = await elevenFailure(response);
+      lastStatus = failure.status;
+      lastError = failure.message;
+      if (failure.credit) return { error: lastError, status: lastStatus, code: failure.code };
       if (response.status === 400 || response.status === 403 || response.status === 422) continue;
       return { error: lastError, status: lastStatus };
     }
@@ -720,13 +725,19 @@ async function storeClip(
   return { error: null, row: data };
 }
 
+async function elevenFailure(response: Response): Promise<ElevenFailure> {
+  const payload = await response.json().catch(() => ({}));
+  const failure = describeElevenError(response.status, payload);
+  if (failure.credit) console.warn("generate-brief-voice elevenlabs credit exhausted", response.status);
+  return failure;
+}
+
 async function elevenError(response: Response): Promise<string> {
-  const payload = await response.json().catch(() => ({})) as { detail?: unknown };
-  const detail = payload.detail;
-  if (typeof detail === "string" && detail.trim()) return detail;
-  if (detail && typeof detail === "object" && "message" in detail) {
-    const message = String((detail as { message?: string }).message ?? "").trim();
-    if (message) return message;
-  }
-  return `ElevenLabs menolak permintaan (${response.status}).`;
+  return (await elevenFailure(response)).message;
+}
+
+/** JSON error for a refused ElevenLabs call; a spent balance answers 402 with code voice_credit_exhausted. */
+async function elevenErrorResponse(json: Json, response: Response): Promise<Response> {
+  const f = await elevenFailure(response);
+  return json(f.code ? { error: f.message, code: f.code } : { error: f.message }, f.status);
 }

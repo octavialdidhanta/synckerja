@@ -58,11 +58,13 @@ export type GenerateBriefVoiceBatchResult = {
 
 export const BRIEF_VOICE_BATCH_HOW_TO_READ =
   "Batch VO: one clip per row in clips (row_index, download_url valid 15 minutes, words). Each failed row was retried once automatically; rows still in failed need a single-row call. " +
+  "A row failed with voice_credit_exhausted means the organization's ElevenLabs balance is spent: stop, tell the owner to top up at https://elevenlabs.io/app/subscription (or turn on usage-based billing), and generate again with only_missing true after they say it is done; do not retry before that. " +
   "skipped lists rows without their own vo text (no_vo_text; batch never falls back to the whole voice_over), rows whose vo only marks natural sound or a pause such as (suara asli) or - (no_vo_marker; never read aloud, render.jobs.draft turns them into silence), or, with only_missing, rows whose clip is still current (clip_current). " +
   "No download is needed for a render with plan_id: the Agent (0.1.22+) fetches each row's newest clip into the production vo folder itself. Only for an older Agent save every clip with a plain HTTP GET as the file render.jobs.draft vo_rows expects (default vo/vo-<row+1>.mp3).";
 
 /** Rows generated at the same time; ElevenLabs and the edge function take a few seconds each. */
 const BATCH_CONCURRENCY = 3;
+const VOICE_CREDIT_EXHAUSTED = "voice_credit_exhausted";
 
 export type GenerateBriefVoice = (
   ctx: McpAuthContext,
@@ -94,7 +96,13 @@ async function generateBatch(
   const clips: GenerateBriefVoiceBatchResult["clips"] = [];
   const failed: GenerateBriefVoiceBatchResult["failed"] = [];
   const queue = [...rows];
+  let creditOut = false;
   const one = async (row: number): Promise<void> => {
+    // Once ElevenLabs says the balance is spent, every other row would fail the same way: stop calling.
+    if (creditOut) {
+      failed.push({ row_index: row, error: VOICE_CREDIT_EXHAUSTED });
+      return;
+    }
     const text = texts.get(row)!;
     let last = "";
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -104,6 +112,10 @@ async function generateBatch(
         return;
       } catch (e) {
         last = e instanceof Error ? e.message : String(e);
+        if (last === VOICE_CREDIT_EXHAUSTED) {
+          creditOut = true;
+          break;
+        }
       }
     }
     failed.push({ row_index: row, error: last });

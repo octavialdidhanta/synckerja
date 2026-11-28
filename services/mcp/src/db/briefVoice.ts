@@ -161,8 +161,12 @@ export async function listBriefVoiceClips(
   };
 }
 
-function mapGenerateError(status: number, message: string): Error {
+export function mapGenerateError(status: number, message: string, code = ""): Error {
   const lower = message.toLowerCase();
+  // ElevenLabs balance spent (generate-brief-voice answers 402 + code): retrying cannot help until the owner tops up.
+  if (code === "voice_credit_exhausted" || status === 402 || lower.includes("kredit elevenlabs habis")) {
+    return new Error("voice_credit_exhausted");
+  }
   if (status === 403 || lower.includes("hanya pic") || lower.includes("pic plan")) {
     return new Error("not_pic");
   }
@@ -216,10 +220,10 @@ export async function generateBriefVoiceClip(
   });
 
   const body = (await response.json().catch(() => null)) as
-    | { clip?: EdgeClipRow; taggedText?: string | null; error?: string }
+    | { clip?: EdgeClipRow; taggedText?: string | null; error?: string; code?: string }
     | null;
   if (!response.ok) {
-    throw mapGenerateError(response.status, String(body?.error ?? ""));
+    throw mapGenerateError(response.status, String(body?.error ?? ""), String(body?.code ?? ""));
   }
   const clipRow = body?.clip;
   const storagePath = String(clipRow?.storage_path ?? "").trim();
