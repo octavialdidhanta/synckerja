@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { CATALOG_MEDIA_BUCKET, readAllOptional } from "../shared/catalogQuery";
+import { PK_USE_MODULE } from "./advantagePoints";
 import {
   buildClaims,
   claimProofPath,
@@ -182,7 +183,40 @@ export function useClaimMutations() {
     onSettled: refresh,
   });
 
+  const linkPoint = useMutation({
+    mutationFn: async (input: { claimId: string; refId: string; label: string }) => {
+      const o = org();
+      const { error } = await db.from("product_claim_uses").insert({
+        organization_id: o,
+        claim_id: input.claimId,
+        module: PK_USE_MODULE,
+        ref_id: input.refId,
+        label: input.label.slice(0, 300),
+      });
+      if (error && error.code !== "23505") throw error;
+    },
+    onSettled: refresh,
+  });
+
+  const unlinkPoint = useMutation({
+    mutationFn: async (input: { claimId: string; refId: string }) => {
+      const o = org();
+      const { error } = await db
+        .from("product_claim_uses")
+        .delete()
+        .eq("organization_id", o)
+        .eq("claim_id", input.claimId)
+        .eq("module", PK_USE_MODULE)
+        .eq("ref_id", input.refId);
+      if (error) throw error;
+    },
+    onSettled: refresh,
+  });
+
   return {
+    linkPoint: linkPoint.mutateAsync,
+    unlinkPoint: unlinkPoint.mutateAsync,
+    linking: linkPoint.isPending || unlinkPoint.isPending,
     save: save.mutateAsync,
     decide: decide.mutateAsync,
     remove: remove.mutateAsync,

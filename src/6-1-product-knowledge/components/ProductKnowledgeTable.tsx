@@ -25,6 +25,7 @@ import {
 } from '@/shared/components/ui/dialog';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Button } from '@/shared/components/ui/button';
+import { AdvantageClaims } from '@/6-1-content-studio/claims/AdvantageClaims';
 import { ProductKnowledge } from '../hooks/useProductKnowledge';
 import type { ProductKnowledgeFeature } from '../hooks/useProductKnowledgeFeatures';
 import { LoadingDots } from '@/shared/components/LoadingDots';
@@ -1110,6 +1111,7 @@ const ProductKnowledgeRow: React.FC<ProductKnowledgeRowProps> = ({
           </DialogHeader>
           <div className="mt-4 flex-1 overflow-y-auto">
             {popupState.readOnly ? (
+              <>
               <div className="min-h-[200px] text-sm whitespace-pre-wrap p-3 bg-gray-50 rounded border border-gray-200">
                 {popupState.isHtml ? (
                   <div
@@ -1120,6 +1122,10 @@ const ProductKnowledgeRow: React.FC<ProductKnowledgeRowProps> = ({
                   popupState.content || '-'
                 )}
               </div>
+              {popupState.field === 'competitiveAdvantage' ? (
+                <AdvantageClaims productKnowledgeId={item.id} competitiveAdvantage={item.competitive_advantage} />
+              ) : null}
+              </>
             ) : (
               <Textarea
                 value={popupState.editedContent}
