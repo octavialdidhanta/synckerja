@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { BriefClaimsField } from "./BriefClaimsField";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Switch } from "@/shared/components/ui/switch";
@@ -127,6 +128,8 @@ export type AiEmployeeBriefPanelProps = {
   /** Same handler as Job Desc table "Generate sekarang". */
   generating?: boolean;
   onGenerateNow?: () => void;
+  /** Needed for Klaim yang boleh dipakai. */
+  employeeId?: string;
 } & ModelFns;
 
 export function AiEmployeeBriefPanel({
@@ -147,6 +150,7 @@ export function AiEmployeeBriefPanel({
   onOpenAngle,
   generating = false,
   onGenerateNow,
+  employeeId,
   saveReference,
   clearReference,
   saveCatalogColor,
@@ -272,6 +276,15 @@ export function AiEmployeeBriefPanel({
       ),
       editor: null,
     },
+    ...(employeeId
+      ? [{
+          key: "claims",
+          label: "Klaim yang boleh dipakai",
+          hint: "Hanya klaim disetujui di Daftar Klaim. Klaim brand dan klaim di Fokus angle ikut otomatis. AI hanya diberi fakta ini; plan yang memuat klaim lain tidak di-auto-approve (jadi Need Review dengan catatan). Product Knowledge tetap untuk strategi (problem, wants, hook).",
+          value: <BriefClaimsField employeeId={employeeId} angleIds={brief.angleIds} disabled={saving || !canEdit} />,
+          editor: null,
+        }]
+      : []),
     {
       key: "pillars",
       label: t("aiEmployee.brief.pillars", "Pilar"),

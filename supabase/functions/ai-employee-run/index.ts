@@ -76,6 +76,7 @@ import {
   readStoryDraftCandidate,
   storyPalette,
 } from "../_shared/aiEmployee/storyDraft.mjs";
+import { guardSavedPlan, loadClaimGuard } from "./claimGuard.ts";
 
 /** Wall-clock budget for model work in one run; the worker is stopped at 150s. */
 const RUN_TIME_BUDGET_MS = 105_000;
@@ -941,6 +942,7 @@ Deno.serve(async (req: Request) => {
         ? brief.angle_ids.filter((id: unknown): id is string => typeof id === "string" && isUuid(id))
         : [];
       const focused = angleIds.length > 0;
+      const claimGuard = await loadClaimGuard(admin, String(employee.organization_id), employeeId, angleIds);
       let carouselPaths = focused ? await loadScope("carousel_paths", {}) : [];
       const adoptPathPillars = (rows: Record<string, unknown>[]) => {
         for (const path of rows) {
@@ -1526,7 +1528,7 @@ Deno.serve(async (req: Request) => {
               openingStyle: openingStyleFor(seed),
               usedTopics,
               systemHook,
-            }), avoid ? RETRY_TEMPERATURE : 0);
+            }) + "\n\n" + claimGuard.block, avoid ? RETRY_TEMPERATURE : 0);
             if (result.kind !== "ok") return result;
             const refSlots = referencePositions(promptBrief);
             const parsed = parseCarouselDraft(result.script, draftNotes, lockupFacts);
@@ -1810,6 +1812,14 @@ Deno.serve(async (req: Request) => {
             menus: pickedMenus.map((id) => menus.find((row) => row.id === id)?.name ?? id),
           }));
         }
+        await guardSavedPlan(admin, {
+          organizationId: String(employee.organization_id),
+          employeeId,
+          employeeName: String(employee.full_name ?? ""),
+          planId: String(createdId),
+          draft: planPayload as Record<string, unknown>,
+          guard: claimGuard,
+        });
         takeProduct();
         idea.used = true;
         planIds.push(String(createdId));
@@ -1977,6 +1987,7 @@ Deno.serve(async (req: Request) => {
       const angleIds = Array.isArray(storyBrief?.angle_ids)
         ? storyBrief.angle_ids.filter((id: unknown): id is string => typeof id === "string" && isUuid(id))
         : [];
+      const claimGuard = await loadClaimGuard(admin, String(employee.organization_id), employeeId, angleIds);
       let thinkingPool = thinkingRows;
       if (angleIds.length > 0) {
         const focused = thinkingRows.filter((row) => angleIds.includes(String(row.angle_id ?? "")));
@@ -2035,7 +2046,7 @@ Deno.serve(async (req: Request) => {
           plans: planRows,
           performance: performanceRows,
           avoid,
-        });
+        }) + "\n\n" + claimGuard.block;
         const temperature = attempt === 0 ? 0 : RETRY_TEMPERATURE;
         const drafted = await modelScript(prompt, temperature);
         if (drafted.kind === "quota") {
@@ -2167,7 +2178,7 @@ Deno.serve(async (req: Request) => {
           plans: planRows,
           performance: performanceRows,
           avoid: failNote || "Perbaiki draf agar lulus cek Story.",
-        });
+        }) + "\n\n" + claimGuard.block;
         const rewritten = await modelScript(rewritePrompt, RETRY_TEMPERATURE);
         if (rewritten.kind !== "ok") {
           await closeSop4("failed", failNote || "checks_failed");
@@ -2286,6 +2297,14 @@ Deno.serve(async (req: Request) => {
         await closeSop4("failed", "perform_failed");
         return json({ ok: false, mode: "sop4", status: "failed", error: "perform_failed", run_id: runId, model_calls: modelCalls }, 422);
       }
+      await guardSavedPlan(admin, {
+        organizationId: String(employee.organization_id),
+        employeeId,
+        employeeName: String(employee.full_name ?? ""),
+        planId: String(createdId),
+        draft: draft as unknown as Record<string, unknown>,
+        guard: claimGuard,
+      });
       planIds.push(String(createdId));
       await closeSop4("succeeded", "ok");
       return json({
@@ -2339,6 +2358,7 @@ Deno.serve(async (req: Request) => {
     const angleIds = Array.isArray(brief?.angle_ids)
       ? brief.angle_ids.filter((id: unknown) => typeof id === "string" && id)
       : [];
+    const claimGuard = await loadClaimGuard(admin, String(employee.organization_id), employeeId, angleIds as string[]);
     const thinkingForJob = angleIds.length > 0
       ? context.thinking.filter((row) => angleIds.includes(String((row as { angle_id?: unknown }).angle_id ?? "")))
       : context.thinking;
@@ -2368,7 +2388,7 @@ Deno.serve(async (req: Request) => {
       service,
       product,
       revision: sop3,
-    });
+    }) + "\n\n" + claimGuard.block;
     const modelCall = scriptAiCall({
       url: supabaseUrl,
       serviceRoleKey,
@@ -2517,6 +2537,14 @@ Deno.serve(async (req: Request) => {
       : null;
     if (performed.status < 200 || performed.status >= 300 || !isUuid(createdId)) throw new Error("perform_failed");
     planId = String(createdId);
+    await guardSavedPlan(admin, {
+      organizationId: String(employee.organization_id),
+      employeeId,
+      employeeName: String(employee.full_name ?? ""),
+      planId,
+      draft: plan as unknown as Record<string, unknown>,
+      guard: claimGuard,
+    });
     if (jobMode) await closeJob("done", "", planId, String(plan.title ?? ""), String(plan.brief ?? ""));
     await finish("succeeded");
     return json({
