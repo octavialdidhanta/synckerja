@@ -6,6 +6,7 @@ import { SHARE_RECEIPT_VALIDATION_PATH } from "@/shared/native/shareReceiptValid
 import { SHARE_TO_PUBLISH_PATH } from "@/shared/native/shareToPublishPath";
 import { MobileSubscriptionExpiryBannerHost } from "@/10-subscription/shared/MobileSubscriptionExpiryBannerHost";
 import { OmnichannelStaffPresenceProvider } from "@/5-3-dashboard/hooks/useOmnichannelStaffPresence";
+import { AnthropicCreditPopupWatcher } from "@/6-1-content-studio/agent/AnthropicCreditAlert";
 
 /** Bottom-nav parity routes render full-screen chrome inside the page (no desktop AppHeader / sidebar). */
 const MOBILE_MAIN_TAB_PATHS = new Set([
@@ -122,6 +123,7 @@ export function AdaptiveAppLayout() {
   return (
     <>
       <MobileSubscriptionExpiryBannerHost />
+      <AnthropicCreditPopupWatcher />
       <OmnichannelStaffPresenceProvider>
         <AdaptiveAppLayoutContent />
       </OmnichannelStaffPresenceProvider>

@@ -132,6 +132,26 @@ export function anthropicCredit(tools: Record<string, unknown> | null | undefine
   };
 }
 
+export interface AnthropicCreditAlert {
+  /** `${device_id}:${since}`: one alert per laptop per blocked stretch. */
+  key: string;
+  deviceName: string;
+  credit: AnthropicCreditStatus;
+}
+
+/** First online laptop whose Anthropic credits / spend limit / payment block AI tagging, for the app-wide alert. */
+export function anthropicCreditAlert(rows: AgentDeviceRow[], now = Date.now()): AnthropicCreditAlert | null {
+  for (const row of rows) {
+    const d = row.agent_devices;
+    if (!d) continue;
+    if (deviceLink({ last_seen_at: row.last_seen_at, token_id: row.token_id, token: row.agent_tokens }, now) !== "online") continue;
+    const credit = anthropicCredit(d.tools);
+    if (!credit) continue;
+    return { key: `${row.device_id}:${credit.since ?? ""}`, deviceName: d.name, credit };
+  }
+  return null;
+}
+
 export function toolList(tools: Record<string, unknown> | null | undefined): ToolStatus[] {
   if (!tools) return [];
   const out: ToolStatus[] = [];
