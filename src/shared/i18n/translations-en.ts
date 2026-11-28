@@ -11768,6 +11768,7 @@ export const enTranslations: TranslationDictionary = {
   "scriptGenerator.saveToPlanModal.leadMagnetMissingAccount": "Plan saved. Connect an Instagram or Facebook account with DM and comment permission before the Lead Magnet draft can be created.",
   "scriptGenerator.saveToPlanModal.leadMagnetMissingClaude": "Draft saved. Add a Claude API key in Social Media settings to generate the PDF.",
   "scriptGenerator.saveToPlanModal.leadMagnetPdfLimit": "Draft saved. The daily Claude PDF limit for this organization is used up.",
+  "scriptGenerator.saveToPlanModal.leadMagnetAnthropicCredit": "Draft saved. Claude refused the PDF because of credits, spend limit or payment. Fix it in Claude Console, then save again.",
   "scriptGenerator.saveToPlanModal.leadMagnetFileFailed": "Draft saved. The PDF step failed. Save again to retry only the file.",
   "scriptGenerator.saveToPlanModal.leadMagnetReady": "Lead magnet draft is ready. The PDF is on Delivery.",
   "scriptGenerator.saveToPlanModal.leadMagnetChooseTitle": "Choose the Lead Magnet account",

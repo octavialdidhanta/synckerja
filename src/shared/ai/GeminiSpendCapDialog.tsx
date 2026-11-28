@@ -13,6 +13,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import {
   ANTHROPIC_BILLING_URL,
   ANTHROPIC_LIMITS_URL,
+  anthropicCreditSource,
   closeGeminiSpendCapDialog,
   ELEVENLABS_BILLING_URL,
   GEMINI_PREPAID_URL,
@@ -25,34 +26,50 @@ export function GeminiSpendCapDialog() {
   const { t } = useAppTranslation();
   const notice = useSyncExternalStore(subscribeGeminiSpendCap, geminiBillingNotice, () => null);
   const open = notice !== null;
+  const leadMagnet = anthropicCreditSource() === "lead_magnet";
   const copy =
     notice === "anthropic_credit"
       ? {
           title: t("anthropicCredit.title", "Kredit Anthropic habis"),
-          body: t(
-            "anthropicCredit.body",
-            "Kredit Claude API di laptop Agent sudah habis, jadi footage baru belum diberi keterangan AI. Isi kredit di Claude Console. Agent mengecek tiap 10 menit dan lanjut sendiri, tanpa restart.",
-          ),
+          body: leadMagnet
+            ? t(
+                "anthropicCredit.leadMagnetBody",
+                "Kredit Claude API organisasi ini sudah habis, jadi PDF Lead Magnet belum dibuat. Draft tetap tersimpan. Isi kredit di Claude Console, lalu simpan lagi untuk membuat PDF-nya.",
+              )
+            : t(
+                "anthropicCredit.body",
+                "Kredit Claude API di laptop Agent sudah habis, jadi footage baru belum diberi keterangan AI. Isi kredit di Claude Console. Agent mengecek tiap 10 menit dan lanjut sendiri, tanpa restart.",
+              ),
           url: ANTHROPIC_BILLING_URL,
           action: t("anthropicCredit.open", "Buka Claude Console"),
         }
       : notice === "anthropic_limit"
       ? {
           title: t("anthropicLimit.title", "Batas belanja Anthropic tercapai"),
-          body: t(
-            "anthropicLimit.body",
-            "Batas belanja Claude API sudah tercapai, jadi footage baru belum diberi keterangan AI. Naikkan batasnya di Claude Console atau tunggu sampai akses kembali. Agent lanjut sendiri.",
-          ),
+          body: leadMagnet
+            ? t(
+                "anthropicLimit.leadMagnetBody",
+                "Batas belanja Claude API organisasi ini sudah tercapai, jadi PDF Lead Magnet belum dibuat. Draft tetap tersimpan. Naikkan batasnya di Claude Console, lalu simpan lagi.",
+              )
+            : t(
+                "anthropicLimit.body",
+                "Batas belanja Claude API sudah tercapai, jadi footage baru belum diberi keterangan AI. Naikkan batasnya di Claude Console atau tunggu sampai akses kembali. Agent lanjut sendiri.",
+              ),
           url: ANTHROPIC_LIMITS_URL,
           action: t("anthropicCredit.open", "Buka Claude Console"),
         }
       : notice === "anthropic_billing"
       ? {
           title: t("anthropicBilling.title", "Pembayaran Anthropic bermasalah"),
-          body: t(
-            "anthropicBilling.body",
-            "Claude API menolak karena masalah pembayaran, jadi footage baru belum diberi keterangan AI. Periksa metode pembayaran di Claude Console. Agent lanjut sendiri.",
-          ),
+          body: leadMagnet
+            ? t(
+                "anthropicBilling.leadMagnetBody",
+                "Claude API menolak karena masalah pembayaran, jadi PDF Lead Magnet belum dibuat. Draft tetap tersimpan. Periksa metode pembayaran di Claude Console, lalu simpan lagi.",
+              )
+            : t(
+                "anthropicBilling.body",
+                "Claude API menolak karena masalah pembayaran, jadi footage baru belum diberi keterangan AI. Periksa metode pembayaran di Claude Console. Agent lanjut sendiri.",
+              ),
           url: ANTHROPIC_BILLING_URL,
           action: t("anthropicCredit.open", "Buka Claude Console"),
         }

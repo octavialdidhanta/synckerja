@@ -7,6 +7,7 @@ import {
   LEAD_MAGNET_DELIVERY_MAX_BYTES,
 } from "./deliveryAsset.ts";
 import { normalizeClaudeModel, renderOutlinePdf, requestMaterialOutline } from "./claudeMaterial.ts";
+import { AnthropicCreditError } from "../anthropicCredit.ts";
 import {
   fallbackCommentReplies,
   frameworkOfferText,
@@ -283,6 +284,10 @@ export async function prepareLeadMagnetFromExecution(
     if (!attempt.outline) return stopped("outline_rejected", "failed", attempt.reason);
     outline = attempt.outline;
   } catch (err) {
+    if (err instanceof AnthropicCreditError) {
+      console.error("[lead-magnet] outline blocked by Anthropic", err.kind, err.raw);
+      return stopped(err.code, "failed", err.message);
+    }
     const detail = err instanceof Error ? err.message : "outline failed";
     console.error("[lead-magnet] outline failed", detail);
     return stopped("pdf_failed", "failed", detail);
@@ -303,6 +308,10 @@ export async function prepareLeadMagnetFromExecution(
   try {
     bytes = await renderOutlinePdf({ apiKey: claudeKey, model, outline });
   } catch (err) {
+    if (err instanceof AnthropicCreditError) {
+      console.error("[lead-magnet] pdf blocked by Anthropic", err.kind, err.raw);
+      return stopped(err.code, "failed", err.message);
+    }
     const detail = err instanceof Error ? err.message : "pdf failed";
     console.error("[lead-magnet] pdf failed", detail);
     return stopped("pdf_failed", "failed", detail);
