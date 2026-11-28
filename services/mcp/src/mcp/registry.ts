@@ -435,7 +435,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "catalog.industry.templates.list",
     description:
-      "List global industry templates for Content Studio (fnb, fashion, electronics, property, beauty) with their menu fields and footage tags. Read only.",
+      "List global industry templates for Content Studio (fnb, fashion, electronics, property, beauty, software, health) with their menu fields and footage tags. Read only.",
     scopes: ["content:read"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
@@ -459,7 +459,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "catalog.industry.apply",
     description:
-      "Apply an industry template code onto the organization locked in this session. Upserts tag defs, menu field defs, and scene kinds from the template. Does not delete existing defs or values. Requires code (fnb, fashion, electronics, property, or beauty).",
+      "Apply an industry template code onto the organization locked in this session. Upserts tag defs, menu field defs, and scene kinds from the template. Does not delete existing defs or values. Requires code (fnb, fashion, electronics, property, beauty, software, or health).",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
