@@ -25,7 +25,7 @@ import { setConnectionSecret } from "@/shared/lib/connectionSecrets";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { readEdgeFunctionError } from "@/shared/ai/geminiSpendCap";
+import { presentElevenLabsCredit, readEdgeFunctionError } from "@/shared/ai/geminiSpendCap";
 import { VOICE_LANGUAGES, VOICE_TTS_MODELS, voiceModelUsesLanguage, voiceModelUsesSpeed } from "@/6-1-dashboard/lib/voiceModels";
 import { toast } from "sonner";
 
@@ -152,7 +152,7 @@ export const VoiceAIConfigSection: React.FC = () => {
       const message = await readEdgeFunctionError(data, describeError);
       await queryClient.invalidateQueries({ queryKey: ["voice-ai-config", organizationId] });
       if (message && !data?.voiceName) {
-        toast.error(message);
+        if (!presentElevenLabsCredit(message)) toast.error(message);
         return;
       }
       toast.success(t("voiceAi.settings.saved", "Voice configuration saved"));
