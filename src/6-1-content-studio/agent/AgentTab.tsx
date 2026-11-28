@@ -1,8 +1,9 @@
 /** Agent tab: which laptops run the Synckerja Agent for this organization, and its access tokens. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { presentAnthropicCredit } from "@/shared/ai/geminiSpendCap";
 import { useCurrentUserRole } from "@/shared/hooks/useCurrentUserRole";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { ago, deviceLink, JOB_STATUS, sortJobs, stillsPath, tokenState, toolList, uploadSkippedNote, visibleDevices } from "./agentData";
+import { ago, anthropicCredit, deviceLink, JOB_STATUS, sortJobs, stillsPath, tokenState, toolList, uploadSkippedNote, visibleDevices } from "./agentData";
 import {
   useAgentDevices,
   useAgentJobActions,
@@ -84,6 +85,9 @@ const TOOL_LABEL: Record<string, string> = {
   sam2: "SAM",
   whisper: "Whisper",
 };
+
+/** One popup per laptop per credit block (Agent `since`), per browser session. */
+const creditPopupShown = new Set<string>();
 
 function toolLabel(key: string): string {
   return TOOL_LABEL[key] ?? key.replace(/_/g, " ");
@@ -189,6 +193,22 @@ export function AgentTab({ headLeft }: Props) {
 
   const deviceRows = visibleDevices(devices.data ?? []);
   const tokenRows = tokens.data ?? [];
+
+  useEffect(() => {
+    for (const row of deviceRows) {
+      const d = row.agent_devices;
+      if (!d) continue;
+      if (deviceLink({ last_seen_at: row.last_seen_at, token_id: row.token_id, token: row.agent_tokens }) !== "online") continue;
+      const credit = anthropicCredit(d.tools);
+      if (!credit) continue;
+      const key = `${row.device_id}:${credit.since ?? ""}`;
+      if (creditPopupShown.has(key)) continue;
+      creditPopupShown.add(key);
+      presentAnthropicCredit(credit.kind);
+      break;
+    }
+  }, [deviceRows]);
+
   const activeTokens = tokenRows.filter((t) => tokenState(t) === "aktif");
   const retiredTokens = tokenRows.filter((t) => tokenState(t) !== "aktif");
 
@@ -219,6 +239,7 @@ export function AgentTab({ headLeft }: Props) {
                 const online = link === "online";
                 const tools = toolList(d.tools);
                 const missing = tools.filter((t) => !t.ok);
+                const credit = online ? anthropicCredit(d.tools) : null;
                 return (
                   <div key={row.device_id} className="dev">
                     <div className="dev-top">
@@ -256,7 +277,26 @@ export function AgentTab({ headLeft }: Props) {
                     {missing.length > 0 && (
                       <p className="note">Belum lengkap: {missing.map((t) => toolLabel(t.key)).join(", ")}.</p>
                     )}
-                    {d.last_error && <p className="bad">Error terakhir: {d.last_error}</p>}
+                    {credit && (
+                      <div className="warn credit">
+                        <span>
+                          <b>
+                            {credit.kind === "spend_limit"
+                              ? "Batas belanja Anthropic tercapai."
+                              : credit.kind === "billing"
+                                ? "Pembayaran Anthropic bermasalah."
+                                : "Kredit Anthropic habis."}
+                          </b>{" "}
+                          Footage baru belum diberi keterangan AI
+                          {credit.since ? ` sejak ${ago(credit.since)}` : ""}. Agent cek tiap 10 menit dan lanjut sendiri
+                          setelah {credit.kind === "spend_limit" ? "batasnya dinaikkan" : "kredit masuk"}.
+                        </span>
+                        <a href={credit.url} target="_blank" rel="noopener noreferrer">
+                          Buka Claude Console
+                        </a>
+                      </div>
+                    )}
+                    {d.last_error && !credit && <p className="bad">Error terakhir: {d.last_error}</p>}
                   </div>
                 );
               })

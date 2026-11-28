@@ -9,7 +9,26 @@ export const ELEVENLABS_BILLING_URL = "https://elevenlabs.io/app/subscription";
 const ELEVENLABS_CREDIT_NEEDLE = "kredit elevenlabs habis";
 
 /** One shared billing dialog: Gemini spend cap or prepaid credits, and ElevenLabs credits for voice over. */
-export type GeminiBillingNotice = "spend_cap" | "prepaid" | "elevenlabs";
+export type GeminiBillingNotice =
+  | "spend_cap"
+  | "prepaid"
+  | "elevenlabs"
+  | "anthropic_credit"
+  | "anthropic_limit"
+  | "anthropic_billing";
+
+/** Claude Console pages for the Agent's footage tagging (Agent heartbeat tools.anthropic_credit). */
+export const ANTHROPIC_BILLING_URL = "https://console.anthropic.com/settings/billing";
+export const ANTHROPIC_LIMITS_URL = "https://console.anthropic.com/settings/limits";
+
+export type AnthropicCreditKind = "credit" | "spend_limit" | "billing";
+
+/** Opens the shared dialog when the Agent reports Anthropic credits, spend limit or payment blocking AI tagging. */
+export function presentAnthropicCredit(kind: AnthropicCreditKind): void {
+  openGeminiBillingNotice(
+    kind === "spend_limit" ? "anthropic_limit" : kind === "billing" ? "anthropic_billing" : "anthropic_credit",
+  );
+}
 
 export function isElevenLabsCreditMessage(text: string | null | undefined): boolean {
   return typeof text === "string" && text.toLowerCase().includes(ELEVENLABS_CREDIT_NEEDLE);
