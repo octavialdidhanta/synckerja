@@ -1,7 +1,9 @@
 import { supabase } from '@/shared/lib/supabaseClient';
 
 export const TASK_STEP_DESCRIPTION_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
-const BUCKET = 'task-files';
+/** Private bucket (Storage P1): readers show it through signed links (useSignedStorageText / signStorageUrl). */
+export const TASK_FILES_BUCKET = 'task-files';
+const BUCKET = TASK_FILES_BUCKET;
 
 function extensionFromMime(mime: string): string {
   const map: Record<string, string> = {

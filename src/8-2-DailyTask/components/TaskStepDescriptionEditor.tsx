@@ -17,7 +17,9 @@ import {
   normalizeDescriptionLists,
   removeUnorderedListAtSelection,
 } from '@/8-2-DailyTask/lib/taskStepDescriptionLists';
-import { uploadTaskStepDescriptionImage } from '@/8-2-DailyTask/services/taskStepDescriptionImageService';
+import { TASK_FILES_BUCKET, uploadTaskStepDescriptionImage } from '@/8-2-DailyTask/services/taskStepDescriptionImageService';
+import { signStorageUrl } from '@/shared/storage/signedStorageLinks';
+import { storagePathFromUrl } from '@/shared/storage/storageLinks';
 
 type TaskStepDescriptionEditorProps = {
   value: string;
@@ -85,6 +87,15 @@ export function TaskStepDescriptionEditor({
     normalizeDescriptionLists(el);
     linkifyDescriptionElement(el);
     lastSyncedValue.current = sanitizeTaskStepDescriptionHtml(el.innerHTML);
+    // task-files is private: swap stored image links for signed ones in the editor only (no change is emitted).
+    // A later edit saves the signed link; it still names the same object and is re-signed when shown.
+    for (const img of Array.from(el.querySelectorAll('img'))) {
+      const src = img.getAttribute('src') ?? '';
+      if (!storagePathFromUrl(src, TASK_FILES_BUCKET)) continue;
+      void signStorageUrl(TASK_FILES_BUCKET, src).then((signed) => {
+        if (signed !== src && img.isConnected && img.getAttribute('src') === src) img.setAttribute('src', signed);
+      });
+    }
   }, [value]);
 
   const runFormatBlock = useCallback(
