@@ -1381,6 +1381,7 @@ export default function AiEmployeePage() {
                         </Dialog>
 
                         <AiEmployeeBriefPanel
+                          employeeId={employeeId}
                           open={briefPanelOpen}
                           onOpenChange={setBriefPanelOpen}
                           page={page}
