@@ -522,6 +522,7 @@ import type { ToolCallOutcome } from "../db/toolGate";
 import { filterTools, isToolVisible } from "./filterTools";
 import { MCP_SERVER_INSTRUCTIONS } from "./instructions";
 import type { McpToolName } from "./registry";
+import { checkShotlistShots, normalizeShotlistDocument, SHOTLIST_CHECK_NEXT_STEP } from "../tools/catalog/shotlistShots";
 
 export type McpReadDeps = {
   listContentPlans: (ctx: McpAuthContext) => Promise<ContentPlanRow[]>;
@@ -1685,10 +1686,15 @@ async function runTool(
     case "content.briefs.create.preview": {
       const parsed = createBriefPreviewInput.safeParse(args);
       if (!parsed.success) throw new Error("invalid_input");
-      const { shotlist, ...input } = parsed.data;
+      const { shotlist: rawShotlist, ...input } = parsed.data;
       // Same checks the save runs (table shape, row count), so a bad brief fails before the yes.
       buildBriefMarkdown(briefWriteFrom(input).sequences);
       if ((input.caption?.trim().length ?? 0) > 2200) throw new Error("invalid_input");
+      const shotlistCheck = rawShotlist ? checkShotlistShots(rawShotlist) : null;
+      if (shotlistCheck?.errors.length) {
+        return { error: "shotlist_check_failed", shotlist_check: shotlistCheck, next_step: SHOTLIST_CHECK_NEXT_STEP };
+      }
+      const shotlist = rawShotlist ? normalizeShotlistDocument(rawShotlist) : undefined;
       const claimCheck = await safeClaimCheck(ctx, createBriefTextParts(input), deps);
       const signed = await deps.signContentConfirmation(ctx, "content.briefs.create", {
         input,
@@ -1698,6 +1704,7 @@ async function runTool(
         title: input.title,
         rows: input.sequences.reduce((sum, sequence) => sum + sequence.shots.length, 0),
         shotlist: shotlist ? { judul: typeof shotlist.judul === "string" ? shotlist.judul : null, shots: shotlist.shots.length } : null,
+        ...(shotlistCheck?.warnings.length ? { shotlist_check: shotlistCheck } : {}),
         claim_check: claimCheck,
         ...signed,
         next_step: shotlist

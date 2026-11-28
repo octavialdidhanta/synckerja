@@ -57,7 +57,8 @@ export function boxEdges(text: Text, style: Style): { left: number; right: numbe
 export function menuLines(text: Text, style: Style): number {
   const px = fontPx(style);
   const inner = menuMaxWidth(centreX(style), style.max_width) - 2 * boxPad(style);
-  const emPerChar = style.font === "instrument-serif" ? 0.45 : 0.58;
+  // Measured on Agent still previews (Nov 2026): Instrument Serif runs about 0.30–0.33 em per character.
+  const emPerChar = style.font === "instrument-serif" ? 0.36 : 0.58;
   const perLine = Math.max(1, Math.floor(inner / (px * emPerChar)));
   const words = text.text.split(/\s+/).filter(Boolean);
   let lines = 1;

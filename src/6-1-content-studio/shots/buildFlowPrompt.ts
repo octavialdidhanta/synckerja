@@ -62,6 +62,18 @@ export function locationAreas(loc: LocationItem | null): string[] {
   return [...new Set((loc?.fotos ?? []).flatMap((f) => f.area ?? []))];
 }
 
+/**
+ * Starter selection for a shot whose stored fotos are missing: the first photo of each product plus the first
+ * location photo of the area (or of the location), the same shape as a shot written with fotos. The area chips
+ * still select every photo of an area on purpose (defaultSelection).
+ */
+export function starterSelection(menus: MenuItem[], loc: LocationItem | null, area: string): Set<string> {
+  const mp = menus.map((m) => productPhotos(m)[0]?.file).filter((f): f is string => Boolean(f));
+  const fotos = loc?.fotos ?? [];
+  const lp = fotos.find((f) => area && (f.area ?? []).includes(area)) ?? fotos[0];
+  return new Set([...mp, ...(lp ? [lp.file] : [])]);
+}
+
 /** Default selection when nothing is picked: every product photo plus location photos of the area (or all). */
 export function defaultSelection(menus: MenuItem[], loc: LocationItem | null, area: string): Set<string> {
   const mp = menus.flatMap((m) => productPhotos(m).map((f) => f.file));

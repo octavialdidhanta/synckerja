@@ -71,6 +71,16 @@ describe("menu_label typing and length", () => {
     expect(r.suggestions.map((f) => f.code)).toContain("label_too_long");
     expect(menuLines({ ...t, text: "Langkah 1" } as never, judul as never)).toBe(1);
   });
+
+  it("counts Instrument Serif lines as the Agent still preview shows them", () => {
+    // Still preview 28 Nov 2026: size 15 at x -0.42 wrapped to "1. Gate sebelah" / "Bank DBS PIK" (2 lines).
+    const s15 = { ...judul, size: 15 };
+    const t = { text: "1. Gate sebelah Bank DBS PIK", start: 0, end: 4, style: "judul", anim: "menu_label" as const };
+    expect(menuLines(t as never, s15 as never)).toBe(2);
+    // size 13 at x -0.88: one line.
+    const s13 = { ...judul, size: 13, x: -0.88, max_width: 0.86 };
+    expect(menuLines({ ...t, text: "2. Ambil kartu, belok kiri" } as never, s13 as never)).toBe(1);
+  });
 });
 
 describe("cta_wa closer", () => {

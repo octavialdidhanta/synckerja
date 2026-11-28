@@ -149,7 +149,16 @@ describe("catalog library write flow", () => {
     });
     const result = await previewCatalogShotlistUpsertResult(
       ctx as never,
-      { external_id: "job-1", document: { job_id: "job-1", shots: [{ id: "s1" }, { id: "s2" }] } },
+      {
+        external_id: "job-1",
+        document: {
+          job_id: "job-1",
+          shots: [
+            { id: "s1", action: "Close-up of the bowl.", fotos: ["foto/a.jpg"] },
+            { id: "s2", action: "Wide shot of the street.", fotos: [] },
+          ],
+        },
+      },
       (identity, input) => previewCatalogShotJobUpsert(admin, identity, input),
       sign as never,
     );

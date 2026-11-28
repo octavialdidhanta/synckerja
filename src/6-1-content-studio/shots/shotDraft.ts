@@ -1,6 +1,6 @@
 /** Working copy of one shot in the rakit panel, and the fields that changed since the stored shot. */
 import type { LocationItem, MenuItem } from "../library/libraryData";
-import { defaultSelection, locationAreas, type Talk } from "./buildFlowPrompt";
+import { defaultSelection, locationAreas, starterSelection, type Talk } from "./buildFlowPrompt";
 import type { Shot, ShotJob } from "./shotData";
 import type { ShotFieldsPatch } from "./shotDocument";
 
@@ -20,14 +20,18 @@ export function draftFromShot(job: ShotJob, s: Shot, menus: MenuItem[], locs: Lo
   const loc = locs.find((l) => l.externalId === lokExt) ?? locs[0] ?? null;
   const areas = locationAreas(loc);
   const want = (s.pick !== undefined ? s.pick : s.area) || "";
+  const curArea = areas.includes(want) ? want : "";
+  const menuIds = s.menus.map((id) => menus.find((m) => m.externalId === id)?.id).filter((x): x is string => Boolean(x));
+  const shotMenus = menuIds.map((id) => menus.find((m) => m.id === id)).filter((m): m is MenuItem => Boolean(m));
   return {
-    menuIds: s.menus.map((id) => menus.find((m) => m.externalId === id)?.id).filter((x): x is string => Boolean(x)),
+    menuIds,
     locId: loc?.id ?? "",
     talk: s.bicara ? "ngomong" : "diam",
     angles: s.angle,
     action: s.action,
-    curArea: areas.includes(want) ? want : "",
-    sel: s.fotos ? new Set(s.fotos) : null,
+    curArea,
+    // A shot without stored fotos starts from product + one location photo, not every photo of the area.
+    sel: s.fotos ? new Set(s.fotos) : starterSelection(shotMenus, loc, curArea),
   };
 }
 

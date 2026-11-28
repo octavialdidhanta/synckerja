@@ -140,3 +140,15 @@ describe("addShotFromReference (katalog.html beatPakai)", () => {
     });
   });
 });
+
+describe("reset of a shot that never had fotos", () => {
+  it("goes back to no stored fotos (starter selection), never to zero photos", () => {
+    const d = { job_id: "j", shots: [{ id: "S01", action: "A", menu: "sup", area: "Ruang makan" }] };
+    const edited = applyShotFields(d, "S01", { fotos: ["foto/x.jpg"] });
+    const reset = resetShot(edited, "S01");
+    const shot = (reset.shots as Record<string, unknown>[])[0];
+    expect("fotos" in shot).toBe(false);
+    const dup = duplicateShot(d, "S01").doc;
+    expect("fotos" in ((dup.shots as Record<string, unknown>[])[1].def as Record<string, unknown>)).toBe(false);
+  });
+});

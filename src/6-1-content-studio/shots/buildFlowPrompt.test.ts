@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildLocations, buildMenus } from "../library/libraryData";
-import { allPhotos, buildFlowPrompt, defaultSelection, ftag, productPhotos } from "./buildFlowPrompt";
+import { allPhotos, buildFlowPrompt, defaultSelection, ftag, productPhotos, starterSelection } from "./buildFlowPrompt";
+import { draftFromShot } from "./shotDraft";
 import { missingMenus, parseShotJob, splitJobs } from "./shotData";
 
 const fields = {
@@ -212,5 +213,34 @@ describe("product photos from Item Library", () => {
     expect(productPhotos(withRef).map((p) => p.file)).toEqual(["foto/iga-bakar_foto1.png"]);
     expect(productPhotos(withRef)[0].url).toBeUndefined();
     expect(productPhotos(menus[0]).map((p) => p.file)).toEqual(["foto/sup_foto1.png"]);
+  });
+});
+
+describe("starter selection for a shot without fotos", () => {
+  const loc2 = buildLocations(
+    [{ id: "l2", external_id: "teras2", name: "Teras 2", created_at: "a" }],
+    [
+      { id: "g1", location_id: "l2", file_path: "foto/lorong.jpg", label: "Lorong", storage_path: null, ref: null, description: null, areas: ["Ruang makan"], position: 0 },
+      { id: "g2", location_id: "l2", file_path: "foto/dinding.jpg", label: "Dinding", storage_path: null, ref: null, description: null, areas: ["Ruang makan"], position: 1 },
+      { id: "g3", location_id: "l2", file_path: "foto/sisi.jpg", label: "Sisi", storage_path: null, ref: null, description: null, areas: ["Ruang makan"], position: 2 },
+    ],
+    [],
+  )[0];
+
+  it("takes the product photo plus one location photo of the area, not every photo", () => {
+    expect([...starterSelection([menus[0]], loc2, "Ruang makan")]).toEqual(["foto/sup_foto1.png", "foto/lorong.jpg"]);
+    expect([...defaultSelection([menus[0]], loc2, "Ruang makan")]).toHaveLength(4);
+  });
+
+  it("a shot without stored fotos opens with the starter selection; stored fotos win", () => {
+    const job = parseShotJob("j1", {
+      lokasi: "teras2",
+      shots: [
+        { id: "S01", menu: "sup-sumsum", area: "Ruang makan", action: "Bowl." },
+        { id: "S02", menu: "sup-sumsum", area: "Ruang makan", action: "Bowl.", fotos: ["foto/dinding.jpg"] },
+      ],
+    });
+    expect([...(draftFromShot(job, job.shots[0], menus, [loc2]).sel ?? [])]).toEqual(["foto/sup_foto1.png", "foto/lorong.jpg"]);
+    expect([...(draftFromShot(job, job.shots[1], menus, [loc2]).sel ?? [])]).toEqual(["foto/dinding.jpg"]);
   });
 });

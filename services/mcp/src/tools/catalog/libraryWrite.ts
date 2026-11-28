@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { checkShotlistShots, normalizeShotlistDocument, SHOTLIST_CHECK_NEXT_STEP } from "./shotlistShots";
 import type { McpAuthContext } from "../../authz/context";
 import type {
   CatalogDocumentUpsertInput,
@@ -141,8 +142,13 @@ export async function previewCatalogShotlistUpsertResult(
 ): Promise<Record<string, unknown>> {
   const parsed = shotlistUpsertPreviewInput.safeParse(args);
   if (!parsed.success) throw new Error("invalid_input");
-  const row = await preview(ctx, parsed.data);
-  return signed(ctx, "catalog.shotlist.upsert", row, sign, SHOTLIST_NEXT_STEP);
+  const check = checkShotlistShots(parsed.data.document);
+  if (check.errors.length) {
+    return { error: "shotlist_check_failed", shotlist_check: check, next_step: SHOTLIST_CHECK_NEXT_STEP };
+  }
+  const row = await preview(ctx, { ...parsed.data, document: normalizeShotlistDocument(parsed.data.document) });
+  const out = await signed(ctx, "catalog.shotlist.upsert", row, sign, SHOTLIST_NEXT_STEP);
+  return check.warnings.length ? { ...out, shotlist_check: check } : out;
 }
 
 export function applyCatalogShotlistUpsertResult(
