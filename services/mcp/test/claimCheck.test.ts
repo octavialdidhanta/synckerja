@@ -12,6 +12,8 @@ describe("claim check", () => {
     expect(claimsIn("Dimasak 6 jam, harganya cuma 35 ribu!", fnb)).toEqual(expect.arrayContaining(["6 jam", "35 ribu"]));
     expect(claimsIn("Sate paling enak se-PIK.")).toContain("paling enak");
     expect(claimsIn("Klik WhatsApp, pesan duluan. Datang tinggal makan.")).toEqual([]);
+    expect(claimsIn("(suara asli)")).toEqual([]);
+    expect(claimsIn("Pakai suara asli talent [musik masuk 100% di sini]")).toEqual([]);
   });
 
   it("checks a claim against the corpus by phrase, numbers or whole words", () => {
